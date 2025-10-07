@@ -189,9 +189,6 @@ int main(void)
     DTYPE *grad_x = malloc(size);
     DTYPE *grad_y = malloc(size);
     DTYPE *grad_z = malloc(size);
-    DTYPE *grad_x_ref = malloc(size);
-    DTYPE *grad_y_ref = malloc(size);
-    DTYPE *grad_z_ref = malloc(size);
     DTYPE *grad_x_tiled = malloc(size);
     DTYPE *grad_y_tiled = malloc(size);
     DTYPE *grad_z_tiled = malloc(size);
@@ -201,9 +198,6 @@ int main(void)
     memset(grad_x, 0, size);
     memset(grad_y, 0, size);
     memset(grad_z, 0, size);
-    memset(grad_x_ref, 0, size);
-    memset(grad_y_ref, 0, size);
-    memset(grad_z_ref, 0, size);
     memset(grad_x_tiled, 0, size);
     memset(grad_y_tiled, 0, size);
     memset(grad_z_tiled, 0, size);
@@ -231,40 +225,12 @@ int main(void)
                             grad_y_tiled,
                             grad_x_tiled), 5);
 
-    /* Compare results. */
-
-    rowmaj_to_tiled(grad_x,
-                    DEPTH,
-                    HEIGHT,
-                    WIDTH,
-                    TILE_DEPTH,
-                    TILE_HEIGHT,
-                    TILE_WIDTH,
-                    grad_x_ref);
-    rowmaj_to_tiled(grad_y,
-                    DEPTH,
-                    HEIGHT,
-                    WIDTH,
-                    TILE_DEPTH,
-                    TILE_HEIGHT,
-                    TILE_WIDTH,
-                    grad_y_ref);
-    rowmaj_to_tiled(grad_z,
-                    DEPTH,
-                    HEIGHT,
-                    WIDTH,
-                    TILE_DEPTH,
-                    TILE_HEIGHT,
-                    TILE_WIDTH,
-                    grad_z_ref);
-
+    /* Manually comparing the results, a memcmp won't do here. */
     size_t height_in_tiles = (HEIGHT - 1) / TILE_HEIGHT + 1;
     size_t width_in_tiles = (WIDTH - 1) / TILE_WIDTH + 1;
-
     size_t tile_size = TILE_DEPTH * TILE_HEIGHT * TILE_WIDTH;
     size_t tile_row_size = tile_size * width_in_tiles;
     size_t tile_face_size = tile_row_size * height_in_tiles;
-
     int same_result = 1;
     /* We don't care about the last row/face. */
     for (int i = 0; i < DEPTH - 1; ++i) {
@@ -308,10 +274,6 @@ int main(void)
     free(grad_z_tiled);
     free(grad_y_tiled);
     free(grad_x_tiled);
-
-    free(grad_z_ref);
-    free(grad_y_ref);
-    free(grad_x_ref);
 
     free(grad_z);
     free(grad_y);
