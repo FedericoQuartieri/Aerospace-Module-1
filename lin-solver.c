@@ -51,7 +51,6 @@ void solve_tridiag_w(const ftype *__restrict__ w,
     b[0] /= norm_coefs[0];
     for (int i = 1; i < size; ++i) {
         b[i] = (b[i] + w[i] * b[i - 1]) / norm_coefs[i];
-        b[i] = (b[i] - A.lower[i - 1] * b[i - 1]) / coef;
     }
 
     /* Perform backward substitution. */
