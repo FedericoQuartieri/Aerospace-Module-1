@@ -1,5 +1,5 @@
-CC = gcc
-CFLAGS = -Wall
+CC = cc
+CFLAGS = -O3 -Wall -mavx2
 
 all: float double
 

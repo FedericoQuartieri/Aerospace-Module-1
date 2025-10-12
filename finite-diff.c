@@ -3,21 +3,23 @@
 #include <string.h>
 #include <time.h>
 
+#include <immintrin.h>
+
 /* WARNING: multiple of tile size */
-#define WIDTH 320
-#define HEIGHT 320
-#define DEPTH 32
+#define WIDTH 256
+#define HEIGHT 256
+#define DEPTH 256
 
 #ifdef FLOAT
-    #define TILE_WIDTH 8
+    #define TILE_WIDTH 32
     #define DTYPE float
 #else
-    #define TILE_WIDTH 4
+    #define TILE_WIDTH 16
     #define DTYPE double
 #endif
 
-#define TILE_HEIGHT 2
-#define TILE_DEPTH 2
+#define TILE_HEIGHT 32
+#define TILE_DEPTH 16
 
 #define TIME_IT(func_call, avg_iter)                            \
 do {                                                            \
@@ -46,7 +48,7 @@ static inline __attribute__((always_inline)) size_t rowmaj_idx(size_t i,
                                                                size_t j,
                                                                size_t k,
                                                                size_t height,
-                                                               size_t width)
+size_t width)
 {
     size_t face_size = width * height;
     return i * face_size + j * width + k;
@@ -175,23 +177,108 @@ void comp_grad_tiled(const DTYPE *__restrict__ field,
     }
 }
 
-void comp_grad_vectorized();
+#ifdef FLOAT
+    #define VLEN 8
+    #define VTYPE __m256
+    #define VLOAD _mm256_load_ps
+    #define VLOADU _mm256_loadu_ps
+    #define VSTORE _mm256_store_ps
+    #define VSUB _mm256_sub_ps
+#else
+    #define VLEN 4
+    #define VTYPE __m256d
+    #define VLOAD _mm256_load_pd
+    #define VLOADU _mm256_loadu_pd
+    #define VSTORE _mm256_store_pd
+    #define VSUB _mm256_sub_pd
+#endif
 
-void comp_grad_tiled_vectorized();
+void comp_grad_vectorized(const DTYPE *__restrict__ src,
+                          int depth,
+                          int height,
+                          int width,
+                          DTYPE *__restrict__ dst_i,
+                          DTYPE *__restrict__ dst_j,
+                          DTYPE *__restrict__ dst_k)
+{
+    for (int i = 0; i < depth; ++i) {
+        for (int j = 0; j < height; ++j) {
+            for (int k = 0; k < width; k += VLEN) {
+
+                size_t idx = rowmaj_idx(i, j, k, height, width);
+
+                VTYPE vcurr = VLOAD(&src[idx]);
+                VTYPE vnextk = VLOADU(&src[idx + 1]);
+                VTYPE vnextj = VLOAD(&src[idx + width]);
+                VTYPE vnexti = VLOAD(&src[idx + (width * height)]);
+
+                VTYPE vsub = VSUB(vnextk, vcurr);
+                VSTORE(&dst_k[idx], vsub);
+                vsub = VSUB(vnextj, vcurr);
+                VSTORE(&dst_j[idx], vsub);
+                vsub = VSUB(vnexti, vcurr);
+                VSTORE(&dst_i[idx], vsub);
+            }
+        }
+    }
+}
+
+/* WARNING: Tiling only access, this suffers a lot from TLB misses. */
+void comp_grad_vectorized_tiled_loop(const DTYPE *__restrict__ src,
+                                     int depth,
+                                     int height,
+                                     int width,
+                                     int tile_depth,
+                                     int tile_height,
+                                     int tile_width,
+                                     DTYPE *__restrict__ dst_i,
+                                     DTYPE *__restrict__ dst_j,
+                                     DTYPE *__restrict__ dst_k)
+{
+    for (int ti = 0; ti < depth; ti += tile_depth) {
+        for (int tj = 0; tj < height; tj += tile_height) {
+            for (int tk = 0; tk < width; tk += tile_width) {
+
+                for (int i = 0; i < tile_depth; ++i) {
+                    for (int j = 0; j < tile_height; ++j) {
+                        for (int k = 0; k < tile_width; k += VLEN) {
+
+                            size_t idx = rowmaj_idx(ti + i, tj + j, tk + k, height, width);
+
+                            VTYPE vcurr = VLOAD(&src[idx]);
+                            VTYPE vnextk = VLOADU(&src[idx + 1]);
+                            VTYPE vnextj = VLOAD(&src[idx + width]);
+                            VTYPE vnexti = VLOAD(&src[idx + (width * height)]);
+
+                            VTYPE vsub = VSUB(vnextk, vcurr);
+                            VSTORE(&dst_k[idx], vsub);
+                            vsub = VSUB(vnextj, vcurr);
+                            VSTORE(&dst_j[idx], vsub);
+                            vsub = VSUB(vnexti, vcurr);
+                            VSTORE(&dst_i[idx], vsub);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 int main(void)
 {
     /* +1 for ghost cells. */
-    const size_t size = (WIDTH + 1) * (HEIGHT + 1) * (DEPTH + 1) * sizeof(DTYPE);
+    const size_t size = (WIDTH + VLEN) * (HEIGHT + VLEN) * (DEPTH + VLEN) * sizeof(DTYPE);
 
-    DTYPE *field = malloc(size);
-    DTYPE *field_tiled = malloc(size);
-    DTYPE *grad_x = malloc(size);
-    DTYPE *grad_y = malloc(size);
-    DTYPE *grad_z = malloc(size);
-    DTYPE *grad_x_tiled = malloc(size);
-    DTYPE *grad_y_tiled = malloc(size);
-    DTYPE *grad_z_tiled = malloc(size);
+    /* Allocation must be aligned to 32-byte
+     * boundaries for AVX aligned loads/stores. */
+    DTYPE *field = aligned_alloc(32, size);
+    DTYPE *field_tiled = aligned_alloc(32, size);
+    DTYPE *grad_x = aligned_alloc(32, size);
+    DTYPE *grad_y = aligned_alloc(32, size);
+    DTYPE *grad_z = aligned_alloc(32, size);
+    DTYPE *grad_x_tiled = aligned_alloc(32, size);
+    DTYPE *grad_y_tiled = aligned_alloc(32, size);
+    DTYPE *grad_z_tiled = aligned_alloc(32, size);
 
     memset(field, 0, size);
     memset(field_tiled, 0, size);
@@ -214,6 +301,17 @@ int main(void)
                     field_tiled);
 
     TIME_IT(comp_grad(field, DEPTH, HEIGHT, WIDTH, grad_z, grad_y, grad_x), 5);
+    TIME_IT(comp_grad_vectorized(field, DEPTH, HEIGHT, WIDTH, grad_z, grad_y, grad_x), 5);
+    TIME_IT(comp_grad_vectorized_tiled_loop(field,
+                                            DEPTH,
+                                            HEIGHT,
+                                            WIDTH,
+                                            TILE_DEPTH,
+                                            TILE_HEIGHT,
+                                            TILE_WIDTH,
+                                            grad_z,
+                                            grad_y,
+                                            grad_x), 5);
     TIME_IT(comp_grad_tiled(field_tiled,
                             DEPTH,
                             HEIGHT,
