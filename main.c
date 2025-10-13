@@ -22,6 +22,9 @@
 
 #define k_const 0.5
 #define nu_const 0.7
+#define d_x 1.0/(320)
+#define d_y 1.0/(320)
+#define d_z 1.0/(32)
 
 #define TIME_IT(func_call, avg_iter)                            \
 do {                                                            \
@@ -80,11 +83,11 @@ void comp_grad(const DTYPE *__restrict__ field,
                 DTYPE value = field[idx];
 
                 grad_i[idx] =
-                    field[rowmaj_idx(i + 1, j, k, height, width)] - value;
+                    (field[rowmaj_idx(i + 1, j, k, height, width)] - value)/d_x;
                 grad_j[idx] =
-                    field[rowmaj_idx(i, j + 1, k, height, width)] - value;
+                    (field[rowmaj_idx(i, j + 1, k, height, width)] - value)/d_y;
                 grad_k[idx] =
-                    field[rowmaj_idx(i, j, k + 1, height, width)] - value;
+                    (field[rowmaj_idx(i, j, k + 1, height, width)] - value)/d_z;
             }
         }
     }
@@ -124,19 +127,19 @@ void comp_g(const DTYPE *f_x,
 
                 g_x[idx] = f_x[idx] - grad_x[idx] - ((2 * nu_const) / k_const) * speed_x[idx] +
                              (nu_const / 2) * ((eta_x[rowmaj_idx(i + 1, j, k, height, width)] -2 * eta_x[idx] +
-                                                 eta_x[rowmaj_idx(i-1, j, k, height, width)]) * (zeta_x[rowmaj_idx(i + 1, j, k, height, width)] -2 * zeta_x[idx] +
-                                                 zeta_x[rowmaj_idx(i-1, j, k, height, width)]) + (speed_x[rowmaj_idx(i + 1, j, k, height, width)] -2 * speed_x[idx] +
-                                                 speed_x[rowmaj_idx(i-1, j, k, height, width)]));
-                g_y[idx] = f_y[idx] - grad_y[idx] - ((2 * nu_const) / k_const) * speed_y[idx] *
+                                                 eta_x[rowmaj_idx(i-1, j, k, height, width)])/(d_x * d_x) + (zeta_x[rowmaj_idx(i + 1, j, k, height, width)] -2 * zeta_x[idx] +
+                                                 zeta_x[rowmaj_idx(i-1, j, k, height, width)])/(d_x * d_x) + (speed_x[rowmaj_idx(i + 1, j, k, height, width)] -2 * speed_x[idx] +
+                                                 speed_x[rowmaj_idx(i-1, j, k, height, width)])/(d_x * d_x));
+                g_y[idx] = f_y[idx] - grad_y[idx] - ((2 * nu_const) / k_values[idx]) * speed_y[idx] *
                              (nu_const / 2) * ((eta_y[rowmaj_idx(i + 1, j, k, height, width)] -2 * eta_y[idx] +
-                                                 eta_y[rowmaj_idx(i-1, j, k, height, width)]) * (zeta_y[rowmaj_idx(i + 1, j, k, height, width)] -2 * zeta_y[idx] +
-                                                 zeta_y[rowmaj_idx(i-1, j, k, height, width)]) + (speed_y[rowmaj_idx(i + 1, j, k, height, width)] -2 * speed_y[idx] +
-                                                 speed_y[rowmaj_idx(i-1, j, k, height, width)]));
-                g_z[idx] = f_z[idx] - grad_z[idx] - ((2 * nu_const) / k_const) * speed_z[idx] *
+                                                 eta_y[rowmaj_idx(i-1, j, k, height, width)])/(d_y * d_y) + (zeta_y[rowmaj_idx(i + 1, j, k, height, width)] -2 * zeta_y[idx] +
+                                                 zeta_y[rowmaj_idx(i-1, j, k, height, width)])/(d_y * d_y) + (speed_y[rowmaj_idx(i + 1, j, k, height, width)] -2 * speed_y[idx] +
+                                                 speed_y[rowmaj_idx(i-1, j, k, height, width)])/(d_y * d_y));
+                g_z[idx] = f_z[idx] - grad_z[idx] - ((2 * nu_const) / k_values[idx]) * speed_z[idx] *
                              (nu_const / 2) * ((eta_z[rowmaj_idx(i + 1, j, k, height, width)] -2 * eta_z[idx] +
-                                                 eta_z[rowmaj_idx(i-1, j, k, height, width)]) * (zeta_z[rowmaj_idx(i + 1, j, k, height, width)] -2 * zeta_z[idx] +
-                                                 zeta_z[rowmaj_idx(i-1, j, k, height, width)]) + (speed_z[rowmaj_idx(i + 1, j, k, height, width)] -2 * speed_z[idx] +
-                                                 speed_z[rowmaj_idx(i-1, j, k, height, width)]));
+                                                 eta_z[rowmaj_idx(i-1, j, k, height, width)])/(d_z * d_z) + (zeta_z[rowmaj_idx(i + 1, j, k, height, width)] -2 * zeta_z[idx] +
+                                                 zeta_z[rowmaj_idx(i-1, j, k, height, width)])/(d_z * d_z) + (speed_z[rowmaj_idx(i + 1, j, k, height, width)] -2 * speed_z[idx] +
+                                                 speed_z[rowmaj_idx(i-1, j, k, height, width)])/(d_z * d_z));
             }
         }
     }
