@@ -1,30 +1,6 @@
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-
-/* WARNING: multiple of tile size */
-#define WIDTH 320
-#define HEIGHT 320
-#define DEPTH 32
-
-#ifdef FLOAT
-    #define TILE_WIDTH 8
-    #define DTYPE float
-#else
-    #define TILE_WIDTH 4
-    #define DTYPE double
-#endif
-
-#define TILE_HEIGHT 2
-#define TILE_DEPTH 2
-
-#define k_const 0.5
-#define nu_const 0.7
-#define d_x 1.0/(320)
-#define d_y 1.0/(320)
-#define d_z 1.0/(32)
+#include "defines.h"
+#include "g.h"
+#include "helpers.h"
 
 #define TIME_IT(func_call, avg_iter)                            \
 do {                                                            \
@@ -56,94 +32,6 @@ static void zero_fill(DTYPE *dst, size_t count)
     }
 }
 
-static inline __attribute__((always_inline)) size_t rowmaj_idx(size_t i,
-                                                               size_t j,
-                                                               size_t k,
-                                                               size_t height,
-                                                               size_t width)
-{
-    size_t face_size = width * height;
-    return i * face_size + j * width + k;
-}
-
-
-void comp_grad(const DTYPE *__restrict__ field,
-               int depth,
-               int height,
-               int width,
-               DTYPE *__restrict__ grad_i,
-               DTYPE *__restrict__ grad_j,
-               DTYPE *__restrict__ grad_k)
-{
-    for (int i = 0; i < depth; ++i) {
-        for (int j = 0; j < height; ++j) {
-            for (int k = 0; k < width; ++k) {
-
-                size_t idx = rowmaj_idx(i, j, k, height, width);
-                DTYPE value = field[idx];
-
-                grad_i[idx] =
-                    (field[rowmaj_idx(i + 1, j, k, height, width)] - value)/d_x;
-                grad_j[idx] =
-                    (field[rowmaj_idx(i, j + 1, k, height, width)] - value)/d_y;
-                grad_k[idx] =
-                    (field[rowmaj_idx(i, j, k + 1, height, width)] - value)/d_z;
-            }
-        }
-    }
-}
-
-void comp_grad_vectorized();
-
-void comp_grad_tiled_vectorized();
-
-void comp_g(const DTYPE *f_x,
-            const DTYPE *f_y,
-            const DTYPE *f_z,
-            const DTYPE *eta_x,
-            const DTYPE *eta_y,
-            const DTYPE *eta_z,
-            const DTYPE *zeta_x,
-            const DTYPE *zeta_y,
-            const DTYPE *zeta_z,
-            const DTYPE *speed_x,
-            const DTYPE *speed_y,
-            const DTYPE *speed_z,
-            const DTYPE *grad_x,
-            const DTYPE *grad_y,
-            const DTYPE *grad_z,
-            DTYPE *g_x,
-            DTYPE *g_y,
-            DTYPE *g_z,
-            int depth,
-            int height,
-            int width)
-{
-    for (int i = 1; i < depth; ++i) {
-        for (int j = 1; j < height; ++j) {
-            for (int k = 1; k < width; ++k) {
-
-                size_t idx = rowmaj_idx(i, j, k, height, width);
-
-                g_x[idx] = f_x[idx] - grad_x[idx] - ((2 * nu_const) / k_const) * speed_x[idx] +
-                             (nu_const / 2) * ((eta_x[rowmaj_idx(i + 1, j, k, height, width)] -2 * eta_x[idx] +
-                                                 eta_x[rowmaj_idx(i-1, j, k, height, width)])/(d_x * d_x) + (zeta_x[rowmaj_idx(i + 1, j, k, height, width)] -2 * zeta_x[idx] +
-                                                 zeta_x[rowmaj_idx(i-1, j, k, height, width)])/(d_x * d_x) + (speed_x[rowmaj_idx(i + 1, j, k, height, width)] -2 * speed_x[idx] +
-                                                 speed_x[rowmaj_idx(i-1, j, k, height, width)])/(d_x * d_x));
-                g_y[idx] = f_y[idx] - grad_y[idx] - ((2 * nu_const) / k_values[idx]) * speed_y[idx] *
-                             (nu_const / 2) * ((eta_y[rowmaj_idx(i + 1, j, k, height, width)] -2 * eta_y[idx] +
-                                                 eta_y[rowmaj_idx(i-1, j, k, height, width)])/(d_y * d_y) + (zeta_y[rowmaj_idx(i + 1, j, k, height, width)] -2 * zeta_y[idx] +
-                                                 zeta_y[rowmaj_idx(i-1, j, k, height, width)])/(d_y * d_y) + (speed_y[rowmaj_idx(i + 1, j, k, height, width)] -2 * speed_y[idx] +
-                                                 speed_y[rowmaj_idx(i-1, j, k, height, width)])/(d_y * d_y));
-                g_z[idx] = f_z[idx] - grad_z[idx] - ((2 * nu_const) / k_values[idx]) * speed_z[idx] *
-                             (nu_const / 2) * ((eta_z[rowmaj_idx(i + 1, j, k, height, width)] -2 * eta_z[idx] +
-                                                 eta_z[rowmaj_idx(i-1, j, k, height, width)])/(d_z * d_z) + (zeta_z[rowmaj_idx(i + 1, j, k, height, width)] -2 * zeta_z[idx] +
-                                                 zeta_z[rowmaj_idx(i-1, j, k, height, width)])/(d_z * d_z) + (speed_z[rowmaj_idx(i + 1, j, k, height, width)] -2 * speed_z[idx] +
-                                                 speed_z[rowmaj_idx(i-1, j, k, height, width)])/(d_z * d_z));
-            }
-        }
-    }
-}
 
 int main(void)
 {
@@ -151,13 +39,9 @@ int main(void)
     const size_t size = (WIDTH + 1) * (HEIGHT + 1) * (DEPTH + 1) * sizeof(DTYPE);
 
     DTYPE *field = malloc(size);
-    DTYPE *field_tiled = malloc(size);
     DTYPE *grad_x = malloc(size);
     DTYPE *grad_y = malloc(size);
     DTYPE *grad_z = malloc(size);
-
-
-    //
     DTYPE *g_x = malloc(size);
     DTYPE *g_y = malloc(size);
     DTYPE *g_z = malloc(size);
@@ -173,7 +57,12 @@ int main(void)
     DTYPE *speed_x = malloc(size);
     DTYPE *speed_y = malloc(size);
     DTYPE *speed_z = malloc(size);
+    DTYPE *k_values = malloc(size);
 
+    memset(field, 0, size);
+    memset(grad_x, 0, size);
+    memset(grad_y, 0, size);
+    memset(grad_z, 0, size);
     memset(g_x, 0, size);
     memset(g_y, 0, size);
     memset(g_z, 0, size);
@@ -189,13 +78,8 @@ int main(void)
     memset(speed_x, 0, size);
     memset(speed_y, 0, size);
     memset(speed_z, 0, size);
-    //
-
-    memset(field, 0, size);
-    memset(field_tiled, 0, size);
-    memset(grad_x, 0, size);
-    memset(grad_y, 0, size);
-    memset(grad_z, 0, size);
+    memset(k_values, 0, size);
+    
 
     rand_fill(field, WIDTH * HEIGHT * DEPTH);
     rand_fill(f_x, WIDTH * HEIGHT * DEPTH);
@@ -213,35 +97,41 @@ int main(void)
     zero_fill(g_x, WIDTH * HEIGHT * DEPTH);
     zero_fill(g_y, WIDTH * HEIGHT * DEPTH);
     zero_fill(g_z, WIDTH * HEIGHT * DEPTH);
+    rand_fill(k_values, WIDTH * HEIGHT * DEPTH);
+
+    TIME_IT(comp_grad(field, DEPTH, HEIGHT, WIDTH, grad_z, grad_y, grad_x), 5);
 
     //
-    comp_g(f_x, f_y, f_z,
+    g(f_x, f_y, f_z,
            eta_x, eta_y, eta_z,
            zeta_x, zeta_y, zeta_z,
            speed_x, speed_y, speed_z,
            grad_x, grad_y, grad_z,
            g_x, g_y, g_z,
+           k_values,
            DEPTH, HEIGHT, WIDTH);
-    //
-
-    rowmaj_to_tiled(field,
-                    DEPTH,
-                    HEIGHT,
-                    WIDTH,
-                    TILE_DEPTH,
-                    TILE_HEIGHT,
-                    TILE_WIDTH,
-                    field_tiled);
-
-    TIME_IT(comp_grad(field, DEPTH, HEIGHT, WIDTH, grad_z, grad_y, grad_x), 5);
 
 
     free(grad_z);
     free(grad_y);
     free(grad_x);
-
-    free(field_tiled);
     free(field);
+    free(g_x);
+    free(g_y);
+    free(g_z);
+    free(f_x);
+    free(f_y);
+    free(f_z);
+    free(eta_x);
+    free(eta_y);
+    free(eta_z);
+    free(zeta_x);
+    free(zeta_y);
+    free(zeta_z);
+    free(speed_x);
+    free(speed_y);
+    free(speed_z);
+    free(k_values);
 
     return 0;
 }
