@@ -2,7 +2,7 @@
 #include "../include/constants.h"
 #include "../src/utils.h"
 
-int main(){
+TEST(utils, boundary) {
 
     printf("Test is_boundary():\n");
 
