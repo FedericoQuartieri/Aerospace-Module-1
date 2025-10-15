@@ -1,10 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "constants.h"
+#include "../include/constants.h"
 #include "velocity_field.h"
 #include "pressure.h"
 #include "force_field.h"
 #include "g_field.h"
+#include "utils.h"
    
 /* Solver for the Navier-Stokes-Brinkman equation */
 

@@ -2,9 +2,9 @@
 #define CONSTANTS_H
 
 // Grid dimensions
-#define WIDTH 10
-#define HEIGHT 10
-#define DEPTH 10
+#define WIDTH 3
+#define HEIGHT 3
+#define DEPTH 7
 
 // Grid spatial dimension
 #define GRID_ELEMENTS WIDTH * HEIGHT * DEPTH

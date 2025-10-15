@@ -2,7 +2,7 @@
 #define G_FIELD_H
 
 #include <stddef.h>
-#include "constants.h"
+#include "../include/constants.h"
 #include "utils.h"
 #include "pressure.h"
 #include "velocity_field.h"
