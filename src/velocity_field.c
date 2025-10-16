@@ -20,7 +20,7 @@ DTYPE compute_velocity_xx_grad(DTYPE *v_component, size_t i, size_t j, size_t k)
     size_t left_idx = rowmaj_idx(i-1,j,k);
     size_t right_idx = rowmaj_idx(i+1,j,k);
 
-    return (v_component[left_idx] - 2*v_component[idx] + v_component[right_idx]) / (DX*DX);
+    return (v_component[left_idx] - 2*v_component[idx] + v_component[right_idx]) * DX_INVERSE_SQUARED;
 }
 
 DTYPE compute_velocity_yy_grad(DTYPE *v_component, size_t i, size_t j, size_t k){
@@ -29,7 +29,7 @@ DTYPE compute_velocity_yy_grad(DTYPE *v_component, size_t i, size_t j, size_t k)
     size_t left_idx = rowmaj_idx(i,j-1,k);
     size_t right_idx = rowmaj_idx(i,j+1,k);
 
-    return (v_component[left_idx] - 2*v_component[idx] + v_component[right_idx]) / (DY*DY);
+    return (v_component[left_idx] - 2*v_component[idx] + v_component[right_idx]) * DY_INVERSE_SQUARED;
 }
 
 DTYPE compute_velocity_zz_grad(DTYPE *v_component, size_t i, size_t j, size_t k){
@@ -38,7 +38,7 @@ DTYPE compute_velocity_zz_grad(DTYPE *v_component, size_t i, size_t j, size_t k)
     size_t left_idx = rowmaj_idx(i,j,k-1);
     size_t right_idx = rowmaj_idx(i,j,k+1);
 
-    return (v_component[left_idx] - 2*v_component[idx] + v_component[right_idx]) / (DZ*DZ);
+    return (v_component[left_idx] - 2*v_component[idx] + v_component[right_idx]) * DZ_INVERSE_SQUARED;
 }
 
 void free_velocity_field(VelocityField *v_field) {
