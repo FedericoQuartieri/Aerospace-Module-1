@@ -9,11 +9,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 enable_testing()
 add_subdirectory(third_party/googletest)
 
-add_executable(sample_test test/sample_test.cpp)
-target_link_libraries(sample_test PRIVATE GTest::gtest_main)
+file(GLOB TEST "test/*.cpp")
+add_executable(tests ${TEST})
+target_link_libraries(tests PRIVATE GTest::gtest_main)
 
 include(GoogleTest)
-gtest_discover_tests(sample_test)
+gtest_discover_tests(tests)
 
 #------------------
 

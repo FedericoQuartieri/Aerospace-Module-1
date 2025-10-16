@@ -1,6 +1,7 @@
 #include "stdio.h"
-#include "../include/constants.h"
-#include "../src/utils.h"
+#include "constants.h"
+#include "utils.h"
+#include <gtest/gtest.h>
 
 TEST(utils, boundary) {
 
@@ -15,10 +16,7 @@ TEST(utils, boundary) {
             }
         }
     }
-
-    return 0;
 }
-
 
 
 
