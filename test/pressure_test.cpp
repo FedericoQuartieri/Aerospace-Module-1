@@ -254,11 +254,11 @@ TEST(PressureGradientTest, FullField10x10x10AllDirections) {
         for (size_t j = 0; j < TEST_HEIGHT - 1; j++) {
             for (size_t i = 0; i < TEST_WIDTH - 1; i++) {
                 // Compute gradients using the functions under test
-                // Use the local row-major helper for indexing into our test array
-                size_t idx = rowmaj(i, j, k);
-                size_t idx_x = rowmaj(i+1, j, k);
-                size_t idx_y = rowmaj(i, j+1, k);
-                size_t idx_z = rowmaj(i, j, k+1);
+                // Note: we pass the original indices from our test grid
+                size_t idx = k * (TEST_WIDTH * TEST_HEIGHT) + j * TEST_WIDTH + i;
+                size_t idx_x = k * (TEST_WIDTH * TEST_HEIGHT) + j * TEST_WIDTH + (i+1);
+                size_t idx_y = k * (TEST_WIDTH * TEST_HEIGHT) + (j+1) * TEST_WIDTH + i;
+                size_t idx_z = (k+1) * (TEST_WIDTH * TEST_HEIGHT) + j * TEST_WIDTH + i;
                 
                 // Manually compute gradients as the functions expect
                 DTYPE grad_x = (pressure.p[idx_x] - pressure.p[idx]) / DX;
