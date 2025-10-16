@@ -222,12 +222,18 @@ TEST(PressureGradientTest, FullField10x10x10AllDirections) {
     pressure.p = (DTYPE*) malloc(TEST_ELEMENTS * sizeof(DTYPE));
     
     // Fill pressure field with linear function: p(i,j,k) = 1.0 + 2.0*i + 3.0*j + 4.0*k
+    // Use a local row-major index helper for the test grid so we don't rely on
+    // the project's WIDTH/HEIGHT/DEPTH constants (this test uses 10x10x10).
+    auto rowmaj = [&](size_t ii, size_t jj, size_t kk) {
+        return (kk * TEST_HEIGHT + jj) * TEST_WIDTH + ii;
+    };
+
     for (size_t k = 0; k < TEST_DEPTH; k++) {
         for (size_t j = 0; j < TEST_HEIGHT; j++) {
             for (size_t i = 0; i < TEST_WIDTH; i++) {
-                // Compute row-major index for test grid
-                size_t idx = k * (TEST_WIDTH * TEST_HEIGHT) + j * TEST_WIDTH + i;
-                
+                // Compute row-major index for test grid using local helper
+                size_t idx = rowmaj(i, j, k);
+
                 // Linear pressure function
                 pressure.p[idx] = 1.0 + 2.0 * i + 3.0 * j + 4.0 * k;
             }
@@ -248,11 +254,11 @@ TEST(PressureGradientTest, FullField10x10x10AllDirections) {
         for (size_t j = 0; j < TEST_HEIGHT - 1; j++) {
             for (size_t i = 0; i < TEST_WIDTH - 1; i++) {
                 // Compute gradients using the functions under test
-                // Note: we pass the original indices from our test grid
-                size_t idx = k * (TEST_WIDTH * TEST_HEIGHT) + j * TEST_WIDTH + i;
-                size_t idx_x = k * (TEST_WIDTH * TEST_HEIGHT) + j * TEST_WIDTH + (i+1);
-                size_t idx_y = k * (TEST_WIDTH * TEST_HEIGHT) + (j+1) * TEST_WIDTH + i;
-                size_t idx_z = (k+1) * (TEST_WIDTH * TEST_HEIGHT) + j * TEST_WIDTH + i;
+                // Use the local row-major helper for indexing into our test array
+                size_t idx = rowmaj(i, j, k);
+                size_t idx_x = rowmaj(i+1, j, k);
+                size_t idx_y = rowmaj(i, j+1, k);
+                size_t idx_z = rowmaj(i, j, k+1);
                 
                 // Manually compute gradients as the functions expect
                 DTYPE grad_x = (pressure.p[idx_x] - pressure.p[idx]) / DX;

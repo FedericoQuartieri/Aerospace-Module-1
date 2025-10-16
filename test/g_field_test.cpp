@@ -16,13 +16,13 @@ extern "C" {
  * This suite verifies the compute_g function which implements the 
  * Navier-Stokes-Brinkman equation for computing the G field:
  * 
- * G = F - grad(P) - (ν/2 * K) * U + (ν/2) * [∇²Eta + ∇²Zeta + ∇²U]
+ * g^(n+1/2) = f^(n+1/2) - ∇p*^(n+1/2) - (ν/2k)u^n + (ν/2)(∂_xx η^n + ∂_yy ζ^n + ∂_zz u^n)
  * 
  * where:
- *   - F is the external force field
- *   - P is the pressure field
- *   - K is the permeability field
- *   - U, Eta, Zeta are velocity fields
+ *   - f is the external force field
+ *   - p* is the pressure field
+ *   - k is the permeability field
+ *   - u, η (Eta), ζ (Zeta) are velocity fields
  *   - ν is the kinematic viscosity (NU)
  */
 
@@ -121,6 +121,11 @@ TEST(GFieldComputationTest, SinglePointXComponent) {
     // Set up simple test case: only force field has non-zero value
     // G_x should equal f_x when all other terms are zero
     f_field.f_x[idx] = 10.0;
+    // Ensure permeability K is non-zero to avoid division-by-zero in compute_g
+    // (compute_g uses NU / (2.0 * K[idx]) ). Set K to 1.0 at this index.
+    K[idx] = 1.0;
+    // Ensure velocity U is zero at this index so the Brinkman term contributes 0.0
+    U.v_x[idx] = 0.0;
     
     // All pressure gradients, velocity terms, and K are zero
     // Expected: g_x = f_x - 0 - 0 + 0 = 10.0
@@ -152,6 +157,10 @@ TEST(GFieldComputationTest, SinglePointYComponent) {
     
     // Set force field
     f_field.f_y[idx] = 100.0;
+
+    K[idx] = 1.0; // Set K to 1.0 to avoid division by zero
+    
+    U.v_y[idx] = 0.0; // Set U to 0.
     
     // Set pressure gradient in y: p[j] = 5.0, p[j+1] = 10.0
     // grad_y = (10.0 - 5.0) / 0.1 = 50.0
@@ -186,7 +195,7 @@ TEST(GFieldComputationTest, SinglePointZComponent) {
     f_field.f_z[idx] = 50.0;
     
     // Set permeability K and velocity U_z to test Brinkman term
-    // Brinkman term: -(NU/2 * K) * U_z = -(0.7/2 * 2.0) * 10.0 = -0.35 * 2.0 * 10.0 = -7.0
+    // Brinkman term: -(NU / (2 * K)) * U_z = -(0.7 / (2 * 2.0)) * 10.0 = -(0.7 / 4.0) * 10.0 = -0.175 * 10.0 = -1.75
     K[idx] = 2.0;
     // IMPORTANT: compute_g adds a viscous term that contains second derivatives
     // of the velocity fields (compute_velocity_zz_grad). If we only set a
@@ -198,9 +207,9 @@ TEST(GFieldComputationTest, SinglePointZComponent) {
     U.v_z[rowmaj_idx(i, j, k-1)] = 10.0;
     U.v_z[rowmaj_idx(i, j, k+1)] = 10.0;
     
-    // Expected: g_z = f_z - 0 - (NU/2 * K) * U_z + 0
-    //                = 50.0 - 0 - 7.0 + 0 = 43.0
-    DTYPE expected_brinkman = -(NU / 2.0 * K[idx]) * U.v_z[idx];
+    // Expected: g_z = f_z - 0 - (NU / (2*K)) * U_z + 0
+    //                = 50.0 - 0 - 1.75 + 0 = 48.25
+    DTYPE expected_brinkman = -(NU / (2.0 * K[idx])) * U.v_z[idx];
     DTYPE expected_g_z = f_field.f_z[idx] + expected_brinkman;
     
     compute_g(&g_field, &f_field, &pressure, K, &Eta, &Zeta, &U);
@@ -276,10 +285,10 @@ TEST(GFieldComputationTest, FullField10x10x10AllComponents) {
                 DTYPE grad_p_y = 30.0;
                 DTYPE grad_p_z = 40.0;
                 
-                // Brinkman term: -(NU/2 * K) * U = -(0.7/2 * 1.0) * U = -0.35 * U
-                DTYPE brinkman_x = -(NU / 2.0 * 1.0) * 5.0; // = -1.75
-                DTYPE brinkman_y = -(NU / 2.0 * 1.0) * 6.0; // = -2.1
-                DTYPE brinkman_z = -(NU / 2.0 * 1.0) * 7.0; // = -2.45
+                // Brinkman term: -(NU / (2*K)) * U = -(0.7 / (2*1.0)) * U = -(0.7 / 2.0) * U = -0.35 * U
+                DTYPE brinkman_x = -(NU / (2.0 * 1.0)) * 5.0; // = -1.75
+                DTYPE brinkman_y = -(NU / (2.0 * 1.0)) * 6.0; // = -2.1
+                DTYPE brinkman_z = -(NU / (2.0 * 1.0)) * 7.0; // = -2.45
                 
                 // Viscous diffusion: velocities are constant, so all second derivatives = 0
                 DTYPE viscous_x = 0.0;
