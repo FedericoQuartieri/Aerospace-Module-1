@@ -23,7 +23,7 @@ void compute_g(GField *g_field, ForceField *f_field, Pressure *pressure, DTYPE *
 
                 g_field->g_x[idx] = f_field->f_x[idx] 
                                     - compute_pressure_x_grad(pressure->p,i,j,k) 
-                                    - (NU / 2.0 * K[idx]) * U->v_x[idx]
+                                    - (NU / (2.0 * K[idx])) * U->v_x[idx]
                                     + (NU/2.0) * (compute_velocity_xx_grad(Eta->v_x,i,j,k)  
                                                 + compute_velocity_yy_grad(Zeta->v_x,i,j,k) 
                                                 + compute_velocity_zz_grad(U->v_x,i,j,k));
@@ -31,7 +31,7 @@ void compute_g(GField *g_field, ForceField *f_field, Pressure *pressure, DTYPE *
 
                 g_field->g_y[idx] = f_field->f_y[idx] 
                                     - compute_pressure_y_grad(pressure->p,i,j,k) 
-                                    - (NU / 2.0 * K[idx]) * U->v_y[idx]
+                                    - (NU / (2.0 * K[idx])) * U->v_y[idx]
                                     + (NU/2.0) * (compute_velocity_xx_grad(Eta->v_y,i,j,k)  
                                                 + compute_velocity_yy_grad(Zeta->v_y,i,j,k) 
                                                 + compute_velocity_zz_grad(U->v_y,i,j,k)); 
@@ -39,7 +39,7 @@ void compute_g(GField *g_field, ForceField *f_field, Pressure *pressure, DTYPE *
 
                 g_field->g_z[idx] = f_field->f_z[idx] 
                                     - compute_pressure_z_grad(pressure->p,i,j,k) 
-                                    - (NU / 2.0 * K[idx]) * U->v_z[idx]
+                                    - (NU / (2.0 * K[idx])) * U->v_z[idx]
                                     + (NU/2.0) * (compute_velocity_xx_grad(Eta->v_z,i,j,k)  
                                                 + compute_velocity_yy_grad(Zeta->v_z,i,j,k) 
                                                 + compute_velocity_zz_grad(U->v_z,i,j,k));
