@@ -10,40 +10,46 @@ enable_testing()
 add_subdirectory(third_party/googletest)
 
 file(GLOB TEST "test/*.cpp")
+# include(GoogleTest) later after target
+#------------------
+
+include_directories(include)
+
+# Sorgenti principali (escludi main.c per poter creare una libreria riusabile)
+file(GLOB SRCS "src/*.c")
+set(MAIN_SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/main.c")
+list(REMOVE_ITEM SRCS ${MAIN_SRC})
+
+# Compila le sorgenti C in una libreria statica
+add_library(navier_core STATIC ${SRCS})
+target_include_directories(navier_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(navier_core PUBLIC m)
+
+# Eseguibile principale linkato alla libreria
+add_executable(navier_stokes ${MAIN_SRC})
+target_link_libraries(navier_stokes PRIVATE navier_core)
+
+# Test: linka googletest e la libreria core
 add_executable(tests ${TEST})
-target_link_libraries(tests PRIVATE GTest::gtest_main)
+target_link_libraries(tests PRIVATE GTest::gtest_main navier_core m)
 
 include(GoogleTest)
 gtest_discover_tests(tests)
 
-#------------------
-
-
-include_directories(include)
-
-# Sorgenti principali
-file(GLOB SRCS "src/*.c")
-add_executable(navier_stokes ${SRCS})
-target_link_libraries(navier_stokes m)
-
 # Debug build type
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG -Wall -Wextra -O2")
 
-# Target custom per valgrind
+# Targets utility...
 add_custom_target(valgrind
     COMMAND valgrind --leak-check=full --show-leak-kinds=all $<TARGET_FILE:navier_stokes>
     DEPENDS navier_stokes
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
-
-# Target custom per run
 add_custom_target(run
     COMMAND $<TARGET_FILE:navier_stokes>
     DEPENDS navier_stokes
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
-
-# Target custom per clean (come nel Makefile)
 add_custom_target(clean-all
     COMMAND ${CMAKE_COMMAND} -E rm -rf ${CMAKE_BINARY_DIR}/*
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
