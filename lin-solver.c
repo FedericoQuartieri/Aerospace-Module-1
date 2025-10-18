@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "lin-solver.h"
 
 /* Solves Au=f using the Thomas algorithm,
@@ -52,11 +54,101 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
     }
 }
 
+static inline __attribute__((always_inline))
+void gauss_reduce_row_init(const ftype *__restrict__ w,
+                           uint32_t width,
+                           ftype *__restrict__ upper,
+                           ftype *__restrict__ f)
+{
+#ifdef NO_MANUAL_VECTORIZE
+    for (unsigned int i = 0; i < width; ++i) {
+        ftype w_0 = w[i];
+        ftype d_0 = 1 + 2 * w_0;
+        upper_diag[i] = -w_0 / d_0;
+        rhs[i] /= d_0;
+    }
+#else
+    vftype ones = vbroadcast(1.0);
+    vftype sign_mask = vbroadcast(-0.0f);
+
+    for (uint32_t i = 0; i < width; i += VLEN) {
+        vftype ws = vload(w + i);
+        vftype fs = vload(f + i);
+        vftype ds = vadd(ones, vadd(ws, ws));
+
+        vstore(upper + i, vdiv(vxor(ws, sign_mask), ds));
+        vstore(f + i, vdiv(fs, ds));
+    }
+#endif
+}
+
+static inline __attribute__((always_inline))
+void gauss_reduce_row(const ftype *__restrict__ w,
+                      uint32_t width,
+                      uint32_t row_stride,
+                      ftype *__restrict__ upper_prev,
+                      ftype *f_prev,
+                      ftype *f_dst)
+{
+#ifdef NO_MANUAL_VECTORIZE
+    for (uint32_t i = 0; i < width; ++i) {
+        ftype w_i = w[i];
+        ftype norm_coef = 1 / (1 + 2 * w_i + w_i * upper_prev[i]);
+        upper_prev[row_stride + i] = -w_i * norm_coef;
+        f_prev[row_stride + i] = (f_prev[row_stride + i] + w_i * f_prev[i]) *
+                                 norm_coef;
+    }
+#else
+    vftype ones = vbroadcast(1.0);
+    /* Used to invert the sign. */
+    vftype sign_mask = vbroadcast(-0.0f);
+
+    for (uint32_t i = 0; i < width; i += VLEN) {
+        vftype ws = vload(w + i);
+        vftype upper_prevs = vload(upper_prev + i);
+        vftype f_prevs = vload(f_prev + i);
+        vftype fs = vload(f_prev + row_stride + i);
+
+        vftype norm_coefs = vfmadd(ws, upper_prevs,
+                                   vadd(ones, vadd(ws, ws)));
+
+        vstore(upper_prev + row_stride + i,
+               vdiv(vxor(ws, sign_mask), norm_coefs));
+        vstore(f_dst + i,
+               vdiv(vfmadd(ws, f_prevs, fs), norm_coefs));
+    }
+#endif
+}
+
+static inline __attribute__((always_inline))
+void backward_sub_row(const ftype *__restrict__ f,
+                      const ftype *__restrict__ upper,
+                      uint32_t width,
+                      uint32_t row_stride,
+                      ftype *__restrict__ u)
+{
+#ifdef NO_MANUAL_VECTORIZE
+    for (int k = 0; k < width; ++k) {
+        u[k] = f[k] - upper[k] * u[k + row_stride];
+    }
+#else
+    vftype sign_mask = vbroadcast(-0.0f);
+
+    for (int k = 0; k < width; k += VLEN) {
+        vftype fs = vload(f + k);
+        vftype uppers = vload(upper + k);
+        vftype u_prevs = vload(u + row_stride + k);
+
+        vstore(u + k, vfmadd(vxor(uppers, sign_mask), u_prevs, fs));
+    }
+#endif
+}
+
 /* Solves the block diagonal system (I - ∂yy)u = f. */
 void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
-                               unsigned int depth,
-                               unsigned int height,
-                               unsigned int width,
+                               uint32_t depth,
+                               uint32_t height,
+                               uint32_t width,
                                ftype *__restrict__ tmp,
                                ftype *__restrict__ f,
                                ftype *__restrict__ u)
@@ -65,88 +157,94 @@ void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
     for (int i = 0; i < depth; ++i) {
 
         /* Gauss reduce the first row. */
-        size_t face_offset = i * (width * height);
-        for (int k = 0; k < width; ++k) {
-            size_t idx = face_offset + k;
-            ftype w_0 = w[idx];
-            ftype d_0 = 1 + 2 * w_0;
-            /* Using tmp to store reduced upper diagonal. */
-            tmp[idx - face_offset] = -w_0 / d_0;
-            f[idx] /= d_0;
+        uint64_t face_offset = (height * width) * i;
+        /* Using tmp to store reduced upper diagonal. */
+        gauss_reduce_row_init(w + face_offset, width, tmp, f + face_offset);
+        /* Gauss reduce the remaining face, one row at a time,
+         * except the last one. */
+        for (uint32_t j = 1; j < height - 1; ++j) {
+            gauss_reduce_row(w + face_offset + j * width,
+                             width,
+                             width,
+                             tmp + (j - 1) * width,
+                             f + face_offset + (j - 1) * width,
+                             f + face_offset + j * width);
         }
-        /* Gauss reduce for the whole remaining face, one row at a time. */
-        for (int j = 1; j < height; ++j) {
-            for (int k = 0; k < width; ++k) {
-                size_t idx = face_offset + j * width + k;
-                ftype w_i = w[idx];
-                ftype norm_coef = 1 / (1 + 2 * w_i + w_i * tmp[idx - width]);
-                tmp[idx - face_offset] = -w_i * norm_coef;
-                f[idx] = (f[idx] + w_i * f[idx - width]) * norm_coef;
-            }
-        }
+        /* Reduce the last row. */
+        gauss_reduce_row(w + face_offset + ((height - 1) * width),
+                         width,
+                         width,
+                         tmp + ((height - 2) * width),
+                         f + face_offset + ((height - 2) * width),
+                         /* Start backward substitution by writing
+                          * directly into u. */
+                         u + face_offset + ((height - 1) * width));
 
-        /* Backward substitute the last row. */
-        for (int k = 0; k < width; ++k) {
-            size_t idx = face_offset + (height - 1) * width + k;
-            u[idx] = f[idx];
-        }
         /* Backward substitute the remaining face, one row at a time. */
         for (int j = 1; j < height; ++j) {
-            for (int k = 0; k < width; ++k) {
-                size_t idx = face_offset + (height - j - 1) * width + k;
-                u[idx] = f[idx] - tmp[idx - face_offset] * u[idx + width];
-            }
+            uint64_t row_offset = face_offset + (height - j - 1) * width;
+            backward_sub_row(f + row_offset,
+                             tmp + row_offset - face_offset,
+                             width,
+                             width,
+                             u + row_offset);
         }
     }
 }
 
 /* Solves the block diagonal system (I - ∂zz)u = f. */
 void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
-                               unsigned int depth,
-                               unsigned int height,
-                               unsigned int width,
+                               uint32_t depth,
+                               uint32_t height,
+                               uint32_t width,
                                ftype *__restrict__ tmp,
                                ftype *__restrict__ f,
                                ftype *__restrict__ u)
 {
     /* Gauss reduce the first face. */
-    for (int j = 0; j < height; ++j) {
-        for (int k = 0; k < width; ++k) {
-            size_t idx = j * width + k;
-            ftype w_0 = w[idx];
-            ftype d_0 = 1 + 2 * w_0;
-            tmp[idx] = -w_0 / d_0;
-            f[idx] /= d_0;
-        }
-    }
-    /* Gauss reduce the whole remaining domain, one face at a time. */
-    for (int i = 1; i < depth; ++i) {
-        for (int j = 0; j < height; ++j) {
-            for (int k = 0; k < width; ++k) {
-                size_t idx = i * (width * height) + j * width + k;
-                ftype w_i = w[idx];
-                ftype norm_coef =
-                    1 / (1 + 2 * w_i + w_i * tmp[idx - (height * width)]);
-                tmp[idx] = -w_i * norm_coef;
-                f[idx] = (f[idx] + w_i * f[idx - height * width]) * norm_coef;
-            }
-        }
+    for (uint32_t j = 0; j < height; ++j) {
+        uint64_t row_offset = j * width;
+        gauss_reduce_row_init(w + row_offset,
+                              width,
+                              tmp + row_offset,
+                              f + row_offset);
     }
 
-    /* Backward substitute the last face. */
-    for (int j = 0; j < height; ++j) {
-        for (int k = 0; k < width; ++k) {
-            size_t idx = (depth - 1) * (width * height) + j * width + k;
-            u[idx] = f[idx];
+    /* Gauss reduce the remaining domain, one face at a time,
+     * except the last one. */
+    for (uint32_t i = 1; i < depth - 1; ++i) {
+        for (uint32_t j = 0; j < height; ++j) {
+            uint64_t row_offset = (height * width) * i + width * j;
+            gauss_reduce_row(w + row_offset,
+                             width,
+                             height * width,
+                             tmp + row_offset - (height * width),
+                             f + row_offset - (height * width),
+                             f + row_offset);
         }
     }
-    /* Backward subsitute the whole remaining domain, one face at a time. */
-    for (int i = 1; i < depth; ++i) {
-        for (int j = 0; j < height; ++j) {
-            for (int k = 0; k < width; ++k) {
-                size_t idx = (depth - i - 1) + j * width + k;
-                u[idx] = f[idx] - tmp[idx] * u[idx + height * width];
-            }
+    /* Reduce the last face, indirectly performing
+     * backward substitution on it. */
+    uint64_t face_offset = (depth - 1) * (height * width);
+    for (uint32_t j = 0; j < height; ++j) {
+        gauss_reduce_row(w + face_offset + j * width,
+                         width,
+                         height * width,
+                         tmp + face_offset + j * width - (height * width),
+                         f + face_offset + j * width - (height * width),
+                         u + face_offset + j * width);
+    }
+
+    /* Backward subsitute the remaining domain, one face at a time. */
+    for (uint32_t i = 1; i < depth; ++i) {
+        for (uint32_t j = 0; j < height; ++j) {
+            uint64_t row_offset =
+                (height * width) * (depth - i - 1) + width * j;
+            backward_sub_row(f + row_offset,
+                             tmp + row_offset,
+                             width,
+                             height * width,
+                             u + row_offset);
         }
     }
 }

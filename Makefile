@@ -1,14 +1,18 @@
-CC = cc
-CFLAGS = -O3 -Wall -mavx2
+CC = gcc
+CFLAGS = -O3 -Wall -mavx2 -mfma
 
-all: float double
+all: finite-diff lin-solver
 
-double: finite-diff.c
+finite-diff: finite-diff.c
 	$(CC) $(CFLAGS) -o finite-diff-double $^
-
-float: finite-diff.c
 	$(CC) $(CFLAGS) -o finite-diff-float -DFLOAT $^
+
+lin-solver: lin-solver.c main.c
+	$(CC) $(CFLAGS) -o lin-solver-double $^
+	$(CC) $(CFLAGS) -o lin-solver-float -DFLOAT $^
 
 clean:
 	rm finite-diff-double
 	rm finite-diff-float
+	rm lin-solver-float
+	rm lin-solver-double

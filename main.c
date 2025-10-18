@@ -18,10 +18,10 @@ static void rand_fill(ftype *dst, size_t count)
 int main(void)
 {
     size_t size = D * H * W;
-    ftype *w = malloc(size * sizeof(ftype));
-    ftype *u = malloc(size * sizeof(ftype));
-    ftype *f = malloc(size * sizeof(ftype));
-    ftype *tmp = malloc(size * sizeof(ftype));
+    ftype *w = aligned_alloc(32, size * sizeof(ftype));
+    ftype *u = aligned_alloc(32, size * sizeof(ftype));
+    ftype *f = aligned_alloc(32, size * sizeof(ftype));
+    ftype *tmp = aligned_alloc(32, size * sizeof(ftype));
 
     rand_fill(w, size);
     rand_fill(f, size);

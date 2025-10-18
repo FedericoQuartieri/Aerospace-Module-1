@@ -2,6 +2,7 @@
 #define LIN_SOLVER_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include "ftype.h"
 

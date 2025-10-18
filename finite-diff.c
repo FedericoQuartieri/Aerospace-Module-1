@@ -6,20 +6,20 @@
 #include <immintrin.h>
 
 /* WARNING: multiple of tile size */
-#define WIDTH 256
-#define HEIGHT 256
-#define DEPTH 256
+#define WIDTH 512
+#define HEIGHT 512
+#define DEPTH 512
 
 #ifdef FLOAT
-    #define TILE_WIDTH 32
+    #define TILE_WIDTH 128
     #define DTYPE float
 #else
-    #define TILE_WIDTH 16
+    #define TILE_WIDTH 64
     #define DTYPE double
 #endif
 
-#define TILE_HEIGHT 32
-#define TILE_DEPTH 16
+#define TILE_HEIGHT 64
+#define TILE_DEPTH 1
 
 #define TIME_IT(func_call, avg_iter)                            \
 do {                                                            \
@@ -48,7 +48,7 @@ static inline __attribute__((always_inline)) size_t rowmaj_idx(size_t i,
                                                                size_t j,
                                                                size_t k,
                                                                size_t height,
-size_t width)
+                                                               size_t width)
 {
     size_t face_size = width * height;
     return i * face_size + j * width + k;
