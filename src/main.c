@@ -19,6 +19,7 @@ int main(){
     // Initilize pressure
     Pressure pressure;
     initialize_pressure(&pressure);
+    rand_fill(pressure.p);
 
     // Inizialize the 3 velocity field
     VelocityField Eta;

@@ -4,7 +4,7 @@
 
 void initialize_pressure(Pressure *pressure){
     pressure->p = (DTYPE *) malloc(GRID_SIZE);
-    rand_fill(pressure->p);
+    memset(pressure->p, 0, GRID_SIZE);
 }
 
 // TODO handle boundaries conditions
