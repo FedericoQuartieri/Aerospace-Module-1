@@ -4,7 +4,7 @@
 #include "timeit.h"
 #include "lin-solver.h"
 
-#define D 32
+#define D 128
 #define H 512
 #define W 544 /* Avoid cache aliasing. */
 
@@ -21,12 +21,14 @@ int main(void)
     ftype *w = malloc(size * sizeof(ftype));
     ftype *u = malloc(size * sizeof(ftype));
     ftype *f = malloc(size * sizeof(ftype));
-    ftype *tmp = malloc(W * sizeof(ftype));
+    ftype *tmp = malloc(size * sizeof(ftype));
 
     rand_fill(w, size);
     rand_fill(f, size);
 
     TIMEIT(solve_wDxx_tridiag_blocks(w, D, H, W, tmp, f, u));
+    TIMEIT(solve_wDyy_tridiag_blocks(w, D, H, W, tmp, f, u));
+    TIMEIT(solve_wDzz_tridiag_blocks(w, D, H, W, tmp, f, u));
 
     return 0;
 }

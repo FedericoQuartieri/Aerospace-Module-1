@@ -13,4 +13,20 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                                ftype *__restrict__ f,
                                ftype *__restrict__ u);
 
+void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
+                               unsigned int depth,
+                               unsigned int height,
+                               unsigned int width,
+                               ftype *__restrict__ tmp,
+                               ftype *__restrict__ f,
+                               ftype *__restrict__ u);
+
+void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
+                               unsigned int depth,
+                               unsigned int height,
+                               unsigned int width,
+                               ftype *__restrict__ tmp,
+                               ftype *__restrict__ f,
+                               ftype *__restrict__ u);
+
 #endif
