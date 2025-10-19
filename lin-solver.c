@@ -44,6 +44,7 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                                ftype *__restrict__ f,
                                ftype *__restrict__ u)
 {
+#ifdef NO_MANUAL_VECTORIZE
     /* Solving for each row of the domain, one at a time. */
     for (int i = 0; i < depth; ++i) {
         for (int j = 0; j < height; ++j) {
@@ -52,6 +53,72 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
             solve_wDxx_tridiag(w + off, width, tmp, f + off, u + off);
         }
     }
+#else
+    vftype ones = vbroadcast(1.0);
+    vftype sign_mask = vbroadcast(-0.0f);
+    #ifdef FLOAT
+    __m256i gather_off = _mm256_set1_epi32(width);
+    #else
+    __m128i gather_off = _mm_set1_epi32(width);
+    #endif
+
+    for (int i = 0; i < depth; ++i) {
+        /* Solving in groups of VLEN rows. */
+        for (int j = 0; j < height; j += VLEN) {
+            uint64_t offset = (height * width) * i + width * j;
+
+            /* Reduce first column of the group. */
+            vftype w_0s = vgather(w + offset, gather_off, 1);
+            vftype f_0s = vgather(f + offset, gather_off, 1);
+            vftype d_0s = vadd(ones, vadd(w_0s, w_0s));
+            vftype upper_0s = vdiv(vxor(w_0s, sign_mask), d_0s);
+            vscatter(upper_0s, tmp, width);
+            vscatter(vdiv(f_0s, d_0s), f + offset, width);
+
+            /* Reduce remaining columns of the group. */
+            for (int k = 1; k < width - 1; ++k) {
+                /* WARNING: gathers are also unaligned here. */
+                vftype ws = vgather(w + offset + k, gather_off, 1);
+                vftype upper_prevs = vgather(tmp + k - 1, gather_off, 1);
+                vftype f_prevs = vgather(f + offset + k - 1, gather_off, 1);
+                vftype fs = vgather(f + offset + k, gather_off, 1);
+
+                vftype norm_coefs = vfmadd(ws, upper_prevs,
+                                           vadd(ones, vadd(ws, ws)));
+
+                vscatter(vdiv(vxor(ws, sign_mask),
+                              norm_coefs), tmp + k, width);
+                vscatter(vdiv(vfmadd(ws, f_prevs, fs),
+                              norm_coefs), f + offset + k, width);
+            }
+            /* Reduce last column. */
+            /* TODO: wrap into function. */
+            vftype ws = vgather(w + offset + width - 1, gather_off, 1);
+            vftype upper_prevs = vgather(tmp + width - 2, gather_off, 1);
+            vftype f_prevs = vgather(f + offset + width - 2, gather_off, 1);
+            vftype fs = vgather(f + offset + width - 1, gather_off, 1);
+
+            vftype norm_coefs = vfmadd(ws, upper_prevs,
+                                       vadd(ones, vadd(ws, ws)));
+
+            vscatter(vdiv(vfmadd(ws, f_prevs, fs),
+                          norm_coefs), u + offset + width - 1, width);
+
+            /* Backward substitute, one column of the group at a time. */
+            vftype sign_mask = vbroadcast(-0.0f);
+            for (int k = 1; k < width; ++k) {
+                vftype fs =
+                    vgather(f + offset + width - 1 - k, gather_off, 1);
+                vftype uppers = vgather(tmp + width - 1 - k, gather_off, 1);
+                vftype u_prevs =
+                    vgather(u + offset + width - k, gather_off, 1);
+
+                vscatter(vfmadd(vxor(uppers, sign_mask), u_prevs, fs),
+                         u + offset + width - 1 - k, width);
+            }
+        }
+    }
+#endif
 }
 
 static inline __attribute__((always_inline))
@@ -64,8 +131,8 @@ void gauss_reduce_row_init(const ftype *__restrict__ w,
     for (unsigned int i = 0; i < width; ++i) {
         ftype w_0 = w[i];
         ftype d_0 = 1 + 2 * w_0;
-        upper_diag[i] = -w_0 / d_0;
-        rhs[i] /= d_0;
+        upper[i] = -w_0 / d_0;
+        f[i] /= d_0;
     }
 #else
     vftype ones = vbroadcast(1.0);

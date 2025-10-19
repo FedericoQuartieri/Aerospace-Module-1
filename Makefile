@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O3 -Wall -mavx2 -mfma
+CFLAGS = -O3 -Wall -mavx2 -mfma $(FLAGS)
 
 all: finite-diff lin-solver
 
