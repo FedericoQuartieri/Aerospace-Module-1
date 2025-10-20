@@ -43,7 +43,7 @@ TEST(PressureGradientTest, XGradientForwardDifference) {
     // Compute the x-gradient using the function under test
     DTYPE computed_grad = compute_pressure_x_grad(pressure.p, i, j, k);
     
-    // Calculate the expected gradient: (15.0 - 10.0) / DX = 5.0 / 0.1 = 50.0
+    // Calculate the expected gradient: (15.0 - 10.0) / DX = 5.0 / 0.001 = 5000.0
     DTYPE expected_grad = (pressure.p[idx_x_plus] - pressure.p[idx]) / DX;
     
     // Verify that the computed gradient matches the expected value
@@ -52,9 +52,9 @@ TEST(PressureGradientTest, XGradientForwardDifference) {
         << "X-gradient should be (p[i+1] - p[i]) / DX";
     
     // Also verify the actual numerical value
-    EXPECT_NEAR(computed_grad, 50.0, 1e-12)
-        << "For pressure difference of 5.0 over DX=0.1, gradient should be 50.0";
-    
+    EXPECT_NEAR(computed_grad, 5000.0, 1e-12)
+        << "For pressure difference of 5.0 over DX=0.001, gradient should be 5000.0";
+
     // Clean up allocated memory
     free(pressure.p);
 }
@@ -82,16 +82,16 @@ TEST(PressureGradientTest, YGradientForwardDifference) {
     // Compute the y-gradient using the function under test
     DTYPE computed_grad = compute_pressure_y_grad(pressure.p, i, j, k);
     
-    // Calculate the expected gradient: (7.0 - 3.0) / DY = 4.0 / 0.1 = 40.0
+    // Calculate the expected gradient: (7.0 - 3.0) / DY = 4.0 / 0.001 = 4000.0
     DTYPE expected_grad = (pressure.p[idx_y_plus] - pressure.p[idx]) / DY;
     
     // Verify the computed gradient
     EXPECT_NEAR(computed_grad, expected_grad, 1e-12)
         << "Y-gradient should be (p[j+1] - p[j]) / DY";
     
-    EXPECT_NEAR(computed_grad, 40.0, 1e-12)
-        << "For pressure difference of 4.0 over DY=0.1, gradient should be 40.0";
-    
+    EXPECT_NEAR(computed_grad, 4000.0, 1e-12)
+        << "For pressure difference of 4.0 over DY=0.001, gradient should be 4000.0";
+
     // Clean up
     free(pressure.p);
 }
@@ -119,16 +119,16 @@ TEST(PressureGradientTest, ZGradientForwardDifference) {
     // Compute the z-gradient using the function under test
     DTYPE computed_grad = compute_pressure_z_grad(pressure.p, i, j, k);
     
-    // Calculate the expected gradient: (3.0 - (-2.0)) / DZ = 5.0 / 0.1 = 50.0
+    // Calculate the expected gradient: (3.0 - (-2.0)) / DZ = 5.0 / 0.001 = 5000.0
     DTYPE expected_grad = (pressure.p[idx_z_plus] - pressure.p[idx]) / DZ;
     
     // Verify the computed gradient
     EXPECT_NEAR(computed_grad, expected_grad, 1e-12)
         << "Z-gradient should be (p[k+1] - p[k]) / DZ";
-    
-    EXPECT_NEAR(computed_grad, 50.0, 1e-12)
-        << "For pressure difference of 5.0 over DZ=0.1, gradient should be 50.0";
-    
+
+    EXPECT_NEAR(computed_grad, 5000.0, 1e-12)
+        << "For pressure difference of 5.0 over DZ=0.001, gradient should be 5000.0";
+
     // Clean up
     free(pressure.p);
 }
@@ -186,7 +186,9 @@ TEST(PressureGradientTest, NegativeGradient) {
     
     EXPECT_NEAR(grad_x, expected_grad, 1e-12)
         << "Gradient should be negative when pressure decreases";
-    EXPECT_NEAR(grad_x, -200.0, 1e-12)
+    // With DX defined as 0.001 in constants.h, the expected numeric value is:
+    // (30.0 - 50.0) / 0.001 = -20.0 / 0.001 = -20000.0
+    EXPECT_NEAR(grad_x, -20000.0, 1e-12)
         << "Expected gradient value for decreasing pressure";
     
     // Verify it's actually negative
@@ -206,9 +208,9 @@ TEST(PressureGradientTest, FullField10x10x10AllDirections) {
      *   p(i,j,k) = 1.0 + 2.0*i + 3.0*j + 4.0*k
      * 
      * This gives constant gradients everywhere:
-     *   ∂p/∂x = 2.0 / DX = 2.0 / 0.1 = 20.0
-     *   ∂p/∂y = 3.0 / DY = 3.0 / 0.1 = 30.0
-     *   ∂p/∂z = 4.0 / DZ = 4.0 / 0.1 = 40.0
+    *   ∂p/∂x = 2.0 / DX = 2.0 / 0.001 = 2000.0
+    *   ∂p/∂y = 3.0 / DY = 3.0 / 0.001 = 3000.0
+    *   ∂p/∂z = 4.0 / DZ = 4.0 / 0.001 = 4000.0
      */
     
     // Define the dimensions for this test (independent of GRID constants)
@@ -241,9 +243,9 @@ TEST(PressureGradientTest, FullField10x10x10AllDirections) {
     }
     
     // Expected constant gradients based on our linear pressure function
-    const DTYPE expected_grad_x = 2.0 / DX;  // = 20.0
-    const DTYPE expected_grad_y = 3.0 / DY;  // = 30.0
-    const DTYPE expected_grad_z = 4.0 / DZ;  // = 40.0
+    const DTYPE expected_grad_x = 2.0 / DX;  // = 2000.0
+    const DTYPE expected_grad_y = 3.0 / DY;  // = 3000.0
+    const DTYPE expected_grad_z = 4.0 / DZ;  // = 4000.0
     
     // Counter for verified gradients
     int verified_points = 0;
@@ -254,11 +256,11 @@ TEST(PressureGradientTest, FullField10x10x10AllDirections) {
         for (size_t j = 0; j < TEST_HEIGHT - 1; j++) {
             for (size_t i = 0; i < TEST_WIDTH - 1; i++) {
                 // Compute gradients using the functions under test
-                // Note: we pass the original indices from our test grid
-                size_t idx = k * (TEST_WIDTH * TEST_HEIGHT) + j * TEST_WIDTH + i;
-                size_t idx_x = k * (TEST_WIDTH * TEST_HEIGHT) + j * TEST_WIDTH + (i+1);
-                size_t idx_y = k * (TEST_WIDTH * TEST_HEIGHT) + (j+1) * TEST_WIDTH + i;
-                size_t idx_z = (k+1) * (TEST_WIDTH * TEST_HEIGHT) + j * TEST_WIDTH + i;
+                // Use the local row-major helper for indexing into our test array
+                size_t idx = rowmaj(i, j, k);
+                size_t idx_x = rowmaj(i+1, j, k);
+                size_t idx_y = rowmaj(i, j+1, k);
+                size_t idx_z = rowmaj(i, j, k+1);
                 
                 // Manually compute gradients as the functions expect
                 DTYPE grad_x = (pressure.p[idx_x] - pressure.p[idx]) / DX;
