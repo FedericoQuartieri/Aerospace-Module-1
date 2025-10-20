@@ -282,9 +282,9 @@ TEST(GFieldComputationTest, FullField10x10x10AllComponents) {
                 
                 // Expected values computed from project constants
                 // Pressure gradients (constant): grad_x = 2.0/DX, grad_y = 3.0/DY, grad_z = 4.0/DZ
-                DTYPE grad_p_x = 2.0 / DX;
-                DTYPE grad_p_y = 3.0 / DY;
-                DTYPE grad_p_z = 4.0 / DZ;
+                DTYPE grad_p_x = 2.0 * DX_INVERSE;
+                DTYPE grad_p_y = 3.0 * DY_INVERSE;
+                DTYPE grad_p_z = 4.0 * DZ_INVERSE;
 
                 // Brinkman term: -(NU / (2*K)) * U (K[idx] set to 1.0 above)
                 DTYPE brinkman_x = -(NU / (2.0 * K[idx])) * U.v_x[idx];
@@ -409,9 +409,9 @@ TEST(GFieldComputationTest, ComplexFullFieldWithViscousTerms) {
                 // ===== PRESSURE GRADIENTS =====
                 // p = 100 + 5*i + 6*j + 7*k
                 // grad_x = 5/DX, grad_y = 6/DY, grad_z = 7/DZ
-                DTYPE grad_p_x = 5.0 / DX;
-                DTYPE grad_p_y = 6.0 / DY;
-                DTYPE grad_p_z = 7.0 / DZ;
+                DTYPE grad_p_x = 5.0 * DX_INVERSE;
+                DTYPE grad_p_y = 6.0 * DY_INVERSE;
+                DTYPE grad_p_z = 7.0 * DZ_INVERSE;
                 
                 // ===== BRINKMAN TERMS =====
                 // -(NU / (2*K)) * U
@@ -431,14 +431,14 @@ TEST(GFieldComputationTest, ComplexFullFieldWithViscousTerms) {
                 
                 // Compute expected second derivatives analytically
                 // ∂²(Eta.v_x)/∂x² where Eta.v_x = coeff_eta_x * i²
-                DTYPE d2_eta_x_dx2 = 2.0 * coeff_eta_x / (DX * DX);
+                DTYPE d2_eta_x_dx2 = 2.0 * coeff_eta_x * DX_INVERSE_SQUARE;
                 
                 // ∂²(Zeta.v_y)/∂y² where Zeta.v_y = coeff_zeta_y * j²
-                DTYPE d2_zeta_y_dy2 = 2.0 * coeff_zeta_y / (DY * DY);
-                
+                DTYPE d2_zeta_y_dy2 = 2.0 * coeff_zeta_y * DY_INVERSE_SQUARE;
+
                 // ∂²(U.v_z)/∂z² where U.v_z = coeff_u_z * k²
-                DTYPE d2_u_z_dz2 = 2.0 * coeff_u_z / (DZ * DZ);
-                
+                DTYPE d2_u_z_dz2 = 2.0 * coeff_u_z * DZ_INVERSE_SQUARE;
+
                 // For g_x: viscous term = (NU/2) * [∂²η_x/∂x² + ∂²ζ_x/∂y² + ∂²u_x/∂z²]
                 // Since Zeta.v_x and U.v_x (in their respective derivative directions for cross-terms) 
                 // are designed to be zero or constant in those directions, we focus on the main terms.
