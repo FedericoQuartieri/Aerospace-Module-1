@@ -28,7 +28,7 @@
 #define DX 0.1                // Grid spacing in x
 #define DY 0.1                // Grid spacing in y
 #define DZ 0.1                // Grid spacing in z
-#define DT 0.001              // Time step
+#define DT 0.01              // Time step
 
 // Simulation parameters
 #define MAX_ITERATIONS 1000

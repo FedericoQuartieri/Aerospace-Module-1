@@ -6,7 +6,7 @@
 #include "force_field.h"
 #include "g_field.h"
 #include "utils.h"
-   
+
 /* Solver for the Navier-Stokes-Brinkman equation */
 
 int main(){
@@ -30,6 +30,7 @@ int main(){
     // Set K 
     DTYPE *K = (DTYPE *) malloc(GRID_SIZE);
     rand_fill(K);
+    
 
     // Inizialize G
     GField g_field;
@@ -43,7 +44,15 @@ int main(){
      * */     
     compute_g(&g_field, &f_field, &pressure, K, &Eta, &Zeta, &U);
     
-    printf("Done?\n");
+    VelocityField xi;
+    initialize_velocity_field(&xi);
+
+    // For each time step:
+    solve_momentum_system();
+
+
+
+
 
     free(K);
     free_force_field(&f_field);
