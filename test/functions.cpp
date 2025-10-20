@@ -297,7 +297,7 @@ TEST(VelocitySecondDerivativeTest, DirectionX){
 }
 
 
-TEST(PressureGradientTestI, DirectionXI){
+TEST(PressureGradientTestAllPoints, DirectionX){
     DTYPE dx = 0.001;
     DTYPE computed_result;
     DTYPE analytical_result;
@@ -309,9 +309,9 @@ TEST(PressureGradientTestI, DirectionXI){
     DTYPE tol = 1e-5; // possibile adattare in base a WIDTH
     DTYPE current_err;
 
-    for(int k=1; k<DEPTH; ++k){
-      for(int j=1; j<HEIGHT; ++j){
-        for(int i=1; i<WIDTH; ++i){
+    for(int k=1; k<DEPTH - 1; ++k){
+      for(int j=1; j<HEIGHT - 1; ++j){
+        for(int i=1; i<WIDTH - 1; ++i){
             
             size_t idx = rowmaj_idx(i,j,k);
             size_t idx_neighbour = rowmaj_idx(i + 1,j,k);
@@ -329,9 +329,180 @@ TEST(PressureGradientTestI, DirectionXI){
         }
       }
     }
-
     EXPECT_LT(max_err, tol) << "max error = " << max_err;
     std::cout << "PressureGradientTest.DirectionX: max error = " << max_err << " (tolerance " << tol << ")\n";
     
     free_pressure(&pressure);
+}
+
+TEST(PressureGradientTestAllPoints, DirectionY){
+    DTYPE dy = 0.001;
+    DTYPE computed_result;
+    DTYPE analytical_result;
+
+    Pressure pressure;
+    initialize_pressure(&pressure);
+
+    DTYPE max_err = 0.0;
+    DTYPE tol = 1e-5; // possibile adattare in base a WIDTH
+    DTYPE current_err;
+
+    for(int k=1; k<DEPTH - 1; ++k){
+      for(int j=1; j<HEIGHT - 1; ++j){
+        for(int i=1; i<WIDTH - 1; ++i){
+            
+            size_t idx = rowmaj_idx(i,j,k);
+            size_t idx_neighbour = rowmaj_idx(i,j+1,k);
+           
+            pressure.p[idx] = p_analytic(i,j,k,dy);
+            pressure.p[idx_neighbour] = p_analytic(i,j+1,k,dy);
+            
+            computed_result = compute_pressure_y_grad(pressure.p,i,j,k);
+            analytical_result = p_analytic_grady(i, j, k, dy);
+            current_err = fabs(computed_result - analytical_result);
+
+            if(current_err > max_err){
+                max_err = current_err;
+            }
+        }
+      }
+    }
+    EXPECT_LT(max_err, tol) << "max error = " << max_err;
+    std::cout << "PressureGradientTest.DirectionY: max error = " << max_err << " (tolerance " << tol << ")\n";
+    
+    free_pressure(&pressure);
+}
+
+
+TEST(PressureGradientTestAllPoints, DirectionZ){
+    DTYPE dz = 0.001;
+    DTYPE computed_result;
+    DTYPE analytical_result;
+
+    Pressure pressure;
+    initialize_pressure(&pressure);
+
+    DTYPE max_err = 0.0;
+    DTYPE tol = 1e-5; // possibile adattare in base a WIDTH
+    DTYPE current_err;
+
+    for(int k=1; k<DEPTH - 1; ++k){
+      for(int j=1; j<HEIGHT - 1; ++j){
+        for(int i=1; i<WIDTH - 1; ++i){
+            
+            size_t idx = rowmaj_idx(i,j,k);
+            size_t idx_neighbour = rowmaj_idx(i,j,k+1);
+           
+            pressure.p[idx] = p_analytic(i,j,k,dz);
+            pressure.p[idx_neighbour] = p_analytic(i,j,k+1,dz);
+            
+            computed_result = compute_pressure_z_grad(pressure.p,i,j,k);
+            analytical_result = p_analytic_gradz(i, j, k, dz);
+            current_err = fabs(computed_result - analytical_result);
+
+            if(current_err > max_err){
+                max_err = current_err;
+            }
+        }
+      }
+    }
+    EXPECT_LT(max_err, tol) << "max error = " << max_err;
+    std::cout << "PressureGradientTest.DirectionZ: max error = " << max_err << " (tolerance " << tol << ")\n";
+    
+    free_pressure(&pressure);
+}
+
+
+TEST(VelocitySecondDerivativeTestAllPoints, DirectionX){
+    DTYPE dx = 0.001;
+    DTYPE dy = 0.001;
+    DTYPE dz = 0.001;
+    DTYPE computed_resultxx;
+    DTYPE analytical_resultxx;
+    DTYPE computed_resultyy;
+    DTYPE analytical_resultyy;
+    DTYPE computed_resultzz;
+    DTYPE analytical_resultzz;
+
+    VelocityField U;
+    initialize_velocity_field(&U);
+
+    DTYPE tol = 1e-5;
+    DTYPE max_errxx = 0.0;
+    DTYPE current_errxx;
+    DTYPE max_erryy = 0.0;
+    DTYPE current_erryy;
+    DTYPE max_errzz = 0.0;
+    DTYPE current_errzz;
+
+    for(int k=1; k<DEPTH - 1; ++k){
+        for(int j=1; j<HEIGHT - 1; ++j){
+            for(int i=1; i<WIDTH - 1; ++i){
+                
+                size_t idx = rowmaj_idx(i,j,k);
+            
+                size_t idx_neighbour_x_before = rowmaj_idx(i-1,j,k);
+                size_t idx_neighbour_x_after = rowmaj_idx(i+1,j,k);
+
+                size_t idx_neighbour_y_before = rowmaj_idx(i,j-1,k);
+                size_t idx_neighbour_y_after = rowmaj_idx(i,j+1,k);
+                
+                size_t idx_neighbour_z_before = rowmaj_idx(i,j,k-1);
+                size_t idx_neighbour_z_after = rowmaj_idx(i,j,k+1);
+                        
+                U.v_x[idx] = ux_analytic(i,j,k,dx);
+                U.v_x[idx_neighbour_x_before] = ux_analytic(i-1,j,k,dx);
+                U.v_x[idx_neighbour_x_after] = ux_analytic(i+1,j,k,dx);
+                U.v_x[idx_neighbour_y_before] = ux_analytic(i,j-1,k,dx);
+                U.v_x[idx_neighbour_y_after] = ux_analytic(i,j+1,k,dx);
+                U.v_x[idx_neighbour_z_before] = ux_analytic(i,j,k-1,dx);
+                U.v_x[idx_neighbour_z_after] = ux_analytic(i,j,k+1,dx);
+                
+                computed_resultxx = compute_velocity_xx_grad(U.v_x,i,j,k);
+                analytical_resultxx = ux_analytic_gradxx(i, j, k, dx);
+
+                computed_resultyy = compute_velocity_yy_grad(U.v_x,i,j,k);
+                analytical_resultyy = ux_analytic_gradyy(i, j, k, dx);
+
+                computed_resultzz = compute_velocity_zz_grad(U.v_x,i,j,k);
+                analytical_resultzz = ux_analytic_gradzz(i, j, k, dx);
+                current_errxx = fabs(computed_resultxx - analytical_resultxx);
+                current_erryy = fabs(computed_resultyy - analytical_resultyy);
+                current_errzz = fabs(computed_resultzz - analytical_resultzz);
+
+                if(current_errxx > max_errxx){
+                    max_errxx = current_errxx;
+                }
+
+                if(current_erryy > max_erryy){
+                    max_erryy = current_erryy;
+                }
+
+                if(current_errzz > max_errzz){
+                    max_errzz = current_errzz;
+                }
+            }
+        }
+    }
+
+
+
+
+
+    
+
+
+
+
+
+
+    EXPECT_LT(max_errxx, tol) << "max error = " << max_errxx;
+    std::cout << "VelocitySecondDerivativeTestAllPoints.DirectionX: max error x = " << max_errxx << " (tolerance " << tol << ")\n";
+    EXPECT_LT(max_erryy, tol) << "max error = " << max_erryy;
+    std::cout << "VelocitySecondDerivativeTestAllPoints.DirectionX: max error y = " << max_erryy<< " (tolerance " << tol << ")\n";
+    EXPECT_LT(max_errzz, tol) << "max error = " << max_errzz;
+    std::cout << "VelocitySecondDerivativeTestAllPoints.DirectionX: max error z = " << max_errzz << " (tolerance " << tol << ")\n";
+
+
+    free_velocity_field(&U);
 }
