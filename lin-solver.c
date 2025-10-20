@@ -49,7 +49,7 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
     for (int i = 0; i < depth; ++i) {
         for (int j = 0; j < height; ++j) {
             /* Here we solve for a single block. */
-            size_t off = i * (depth * width) + j * width;
+            size_t off = i * (height * width) + j * width;
             solve_wDxx_tridiag(w + off, width, tmp, f + off, u + off);
         }
     }
