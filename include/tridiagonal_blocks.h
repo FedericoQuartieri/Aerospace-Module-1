@@ -2,6 +2,8 @@
 #define TRIDIAGONAL_BLOCKS_H
 #include <stddef.h>
 #include "utils.h"
+#include "velocity_field.h"
+#include "force_field.h"
 
 /**
  * @brief Solves the tridiagonal system Au = f, using the Thomas algorithm.
@@ -36,10 +38,7 @@ static void solve_Dxx_tridiag(const DTYPE *__restrict__ w,
                                DTYPE *__restrict__ u);
 
 /* Solves the block diagonal system (I - ∂xx)u = f. */
-void solve_Dxx_tridiag_blocks(const DTYPE *__restrict__ w,
-                               DTYPE *__restrict__ tmp,
-                               DTYPE *__restrict__ f,
-                               DTYPE *__restrict__ u);
+void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_component);
 
 
 #endif
