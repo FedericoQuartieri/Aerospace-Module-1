@@ -10,6 +10,7 @@
  * [      0      -w_2    1+2w_2    -w_2  ...]
  * ...
  */
+#ifdef NO_MANUAL_VECTORIZE
 static void solve_wDxx_tridiag(const ftype *__restrict__ w,
                                unsigned int n,
                                ftype *__restrict__ tmp,
@@ -34,6 +35,7 @@ static void solve_wDxx_tridiag(const ftype *__restrict__ w,
         u[n - i - 1] = f[n - 1 - i] - tmp[n - 1 - i] * u[n - i];
     }
 }
+#endif
 
 /* Solves the block diagonal system (I - ∂xx)u = f. */
 void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
