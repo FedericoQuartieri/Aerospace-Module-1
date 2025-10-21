@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdio.h>
 
 #include "lin-solver.h"
 
@@ -24,9 +25,9 @@ static void solve_wDxx_tridiag(const ftype *__restrict__ w,
     f[0] /= d_0;
     for (int i = 1; i < n; ++i) {
         ftype w_i = w[i];
-        ftype norm_coef = 1 / (1 + 2 * w_i + w_i * tmp[i - 1]);
-        tmp[i] = -w_i * norm_coef;
-        f[i] = (f[i] + w_i * f[i - 1]) * norm_coef;
+        ftype norm_coef = 1 + 2 * w_i + w_i * tmp[i - 1];
+        tmp[i] = -w_i / norm_coef;
+        f[i] = (f[i] + w_i * f[i - 1]) / norm_coef;
     }
 
     /* Perform backward substitution. */
@@ -39,9 +40,9 @@ static void solve_wDxx_tridiag(const ftype *__restrict__ w,
 
 /* Solves the block diagonal system (I - ∂xx)u = f. */
 void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
-                               unsigned int depth,
-                               unsigned int height,
-                               unsigned int width,
+                               uint32_t depth,
+                               uint32_t height,
+                               uint32_t width,
                                ftype *__restrict__ tmp,
                                ftype *__restrict__ f,
                                ftype *__restrict__ u)
@@ -51,23 +52,30 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
     for (int i = 0; i < depth; ++i) {
         for (int j = 0; j < height; ++j) {
             /* Here we solve for a single block. */
-            size_t off = i * (height * width) + j * width;
+            uint64_t off = height * width * i + width * j;
             solve_wDxx_tridiag(w + off, width, tmp, f + off, u + off);
         }
     }
 #else
     vftype ones = vbroadcast(1.0);
     vftype sign_mask = vbroadcast(-0.0f);
+
+    int32_t __attribute__((aligned(32))) offsets[VLEN];
+    for (int i = 0; i < VLEN; ++i) {
+        offsets[i] = width * i * sizeof(ftype);
+    }
+
     #ifdef FLOAT
-    __m256i gather_off = _mm256_set1_epi32(width);
+    __m256i mask = _mm256_set1_epi32(0xffffffff);
+    __m256i gather_off = _mm256_maskload_epi32(offsets, mask);
     #else
-    __m128i gather_off = _mm_set1_epi32(width);
+    __m128i gather_off = _mm_load_si128((const __m128i *) offsets);
     #endif
 
     for (int i = 0; i < depth; ++i) {
         /* Solving in groups of VLEN rows. */
         for (int j = 0; j < height; j += VLEN) {
-            uint64_t offset = (height * width) * i + width * j;
+            uint64_t offset = height * width * i + width * j;
 
             /* Reduce first column of the group. */
             vftype w_0s = vgather(w + offset, gather_off, 1);
@@ -107,7 +115,6 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                           norm_coefs), u + offset + width - 1, width);
 
             /* Backward substitute, one column of the group at a time. */
-            vftype sign_mask = vbroadcast(-0.0f);
             for (int k = 1; k < width; ++k) {
                 vftype fs =
                     vgather(f + offset + width - 1 - k, gather_off, 1);
