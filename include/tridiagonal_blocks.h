@@ -1,13 +1,13 @@
 #ifndef TRIDIAGONAL_BLOCKS_H
 #define TRIDIAGONAL_BLOCKS_H
+
 #include <stddef.h>
 #include "utils.h"
 #include "velocity_field.h"
 #include "force_field.h"
 
 /**
- * @brief Solves the tridiagonal system Au = f, using the Thomas algorithm.
- *  It's used to solve the 
+ * @brief Solves the tridiagonal system Au = f, using the Thomas algorithm. 
  *
  * The matrix A is a tridiagonal matrix of size n x n, with the following structure:
  *

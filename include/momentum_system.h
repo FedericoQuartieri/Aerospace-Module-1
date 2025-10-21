@@ -21,8 +21,3 @@ void solve_momentum_system(VelocityField U,
                            VelocityField Eta_next,
                            VelocityField Zeta_next);
 #endif
-
-
-
-
-
