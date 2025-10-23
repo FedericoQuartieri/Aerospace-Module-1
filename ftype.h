@@ -7,6 +7,7 @@
 #ifdef FLOAT
     typedef float ftype;
     typedef __m256 vftype;
+    typedef __m256i vitype;
     #define vload(...) _mm256_load_ps(__VA_ARGS__)
     #define vloadu(...) _mm256_loadu_ps(__VA_ARGS__)
     #define vstore(...) _mm256_store_ps(__VA_ARGS__)
@@ -21,6 +22,7 @@
 #else
     typedef double ftype;
     typedef __m256d vftype;
+    typedef __m128i vitype;
     #define vload(...) _mm256_load_pd(__VA_ARGS__)
     #define vloadu(...) _mm256_loadu_pd(__VA_ARGS__)
     #define vstore(...) _mm256_store_pd(__VA_ARGS__)
