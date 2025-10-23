@@ -39,9 +39,9 @@
 #define VSIZE 32
 #define VLEN (VSIZE / sizeof(ftype))
 
-inline void vscatter(vftype src,
-                     ftype *dst,
-                     uint64_t stride)
+inline __attribute__((always_inline)) void vscatter(vftype src,
+                                                    ftype *dst,
+                                                    uint64_t stride)
 {
     ftype __attribute__((aligned(32))) buff[VLEN];
     vstore(buff, src);
@@ -49,6 +49,27 @@ inline void vscatter(vftype src,
         dst[i * stride] = buff[i];
     }
 }
+
+#ifdef FLOAT
+inline void vtranspose(__m256 r0, __m256 r1, __m256 r2, __m256 r3,
+                       __m256 r4, __m256 r5, __m256 r6, __m256 r7)
+{
+}
+#else
+inline __attribute__((always_inline))
+void vtranspose(__m256d *r0, __m256d *r1, __m256d *r2, __m256d *r3)
+{
+    __m256i t0 = _mm256_unpacklo_epi64((__m256i) *r0, (__m256i) *r1);
+    __m256i t1 = _mm256_unpackhi_epi64((__m256i) *r0, (__m256i) *r1);
+    __m256i t2 = _mm256_unpacklo_epi64((__m256i) *r2, (__m256i) *r3);
+    __m256i t3 = _mm256_unpackhi_epi64((__m256i) *r2, (__m256i) *r3);
+
+    *r0 = (__m256d) _mm256_permute2x128_si256(t0, t2, 0x20);
+    *r1 = (__m256d) _mm256_permute2x128_si256(t1, t3, 0x20);
+    *r2 = (__m256d) _mm256_permute2x128_si256(t0, t2, 0x31);
+    *r3 = (__m256d) _mm256_permute2x128_si256(t1, t3, 0x31);
+}
+#endif
 
 #endif
 

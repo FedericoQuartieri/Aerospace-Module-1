@@ -138,6 +138,43 @@ DEFINE_TEST_WD_SOLVER(xx)
 DEFINE_TEST_WD_SOLVER(yy)
 DEFINE_TEST_WD_SOLVER(zz)
 
+int test_vtranspose()
+{
+#ifdef FLOAT
+    return SUCCESS;
+#else
+    double __attribute__((aligned(32))) m[16];
+    for (int i = 0; i < 16; ++i) {
+        m[i] = ((double) rand()) / RAND_MAX;
+    }
+
+    __m256d r0 = _mm256_load_pd(m);
+    __m256d r1 = _mm256_load_pd(m + 4);
+    __m256d r2 = _mm256_load_pd(m + 8);
+    __m256d r3 = _mm256_load_pd(m + 12);
+
+    vtranspose(&r0, &r1, &r2, &r3);
+
+    double __attribute__((aligned(32))) t[16];
+
+    _mm256_store_pd(t, r0);
+    _mm256_store_pd(t + 4, r1);
+    _mm256_store_pd(t + 8, r2);
+    _mm256_store_pd(t + 12, r3);
+
+    int status = SUCCESS;
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            if (m[i * 4 + j] != t[j * 4 + i]) {
+                status = FAILURE;
+            }
+        }
+    }
+
+    return status;
+#endif
+}
+
 int main(void)
 {
     srand(SEED);
@@ -153,6 +190,8 @@ int main(void)
     EXPECT_SUCCESS(test_wDzz_solver(32, 64, 64));
     EXPECT_SUCCESS(test_wDzz_solver(128, 128, 64));
     EXPECT_SUCCESS(test_wDzz_solver(32, 32, 256));
+
+    EXPECT_SUCCESS(test_vtranspose());
 
     return 0;
 }
