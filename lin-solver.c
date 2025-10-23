@@ -11,7 +11,7 @@
  * [      0      -w_2    1+2w_2    -w_2  ...]
  * ...
  */
-#ifdef NO_MANUAL_VECTORIZE
+#ifdef AUTO_VEC
 static void solve_wDxx_tridiag(const ftype *__restrict__ w,
                                unsigned int n,
                                ftype *__restrict__ tmp,
@@ -47,7 +47,7 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                                ftype *__restrict__ f,
                                ftype *__restrict__ u)
 {
-#ifdef NO_MANUAL_VECTORIZE
+#ifdef AUTO_VEC
     /* Solving for each row of the domain, one at a time. */
     for (int i = 0; i < depth; ++i) {
         for (int j = 0; j < height; ++j) {
@@ -136,8 +136,8 @@ void gauss_reduce_row_init(const ftype *__restrict__ w,
                            ftype *__restrict__ upper,
                            ftype *__restrict__ f)
 {
-#ifdef NO_MANUAL_VECTORIZE
-    for (unsigned int i = 0; i < width; ++i) {
+#ifdef AUTO_VEC
+    for (uint32_t i = 0; i < width; ++i) {
         ftype w_0 = w[i];
         ftype d_0 = 1 + 2 * w_0;
         upper[i] = -w_0 / d_0;
@@ -166,13 +166,12 @@ void gauss_reduce_row(const ftype *__restrict__ w,
                       ftype *f_prev,
                       ftype *f_dst)
 {
-#ifdef NO_MANUAL_VECTORIZE
+#ifdef AUTO_VEC
     for (uint32_t i = 0; i < width; ++i) {
         ftype w_i = w[i];
-        ftype norm_coef = 1 / (1 + 2 * w_i + w_i * upper_prev[i]);
-        upper_prev[row_stride + i] = -w_i * norm_coef;
-        f_prev[row_stride + i] = (f_prev[row_stride + i] + w_i * f_prev[i]) *
-                                 norm_coef;
+        ftype norm_coef = 1 + 2 * w_i + w_i * upper_prev[i];
+        upper_prev[row_stride + i] = -w_i / norm_coef;
+        f_dst[i] = (f_prev[row_stride + i] + w_i * f_prev[i]) / norm_coef;
     }
 #else
     vftype ones = vbroadcast(1.0);
@@ -203,7 +202,7 @@ void backward_sub_row(const ftype *__restrict__ f,
                       uint32_t row_stride,
                       ftype *__restrict__ u)
 {
-#ifdef NO_MANUAL_VECTORIZE
+#ifdef AUTO_VEC
     for (int k = 0; k < width; ++k) {
         u[k] = f[k] - upper[k] * u[k + row_stride];
     }
@@ -231,9 +230,8 @@ void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
 {
     /* We solve for each face of the domain, one at a time. */
     for (int i = 0; i < depth; ++i) {
-
         /* Gauss reduce the first row. */
-        uint64_t face_offset = (height * width) * i;
+        uint64_t face_offset = height * width * i;
         /* Using tmp to store reduced upper diagonal. */
         gauss_reduce_row_init(w + face_offset, width, tmp, f + face_offset);
         /* Gauss reduce the remaining face, one row at a time,
@@ -247,14 +245,14 @@ void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
                              f + face_offset + j * width);
         }
         /* Reduce the last row. */
-        gauss_reduce_row(w + face_offset + ((height - 1) * width),
+        gauss_reduce_row(w + face_offset + (height - 1) * width,
                          width,
                          width,
-                         tmp + ((height - 2) * width),
-                         f + face_offset + ((height - 2) * width),
+                         tmp + (height - 2) * width,
+                         f + face_offset + (height - 2) * width,
                          /* Start backward substitution by writing
                           * directly into u. */
-                         u + face_offset + ((height - 1) * width));
+                         u + face_offset + (height - 1) * width);
 
         /* Backward substitute the remaining face, one row at a time. */
         for (int j = 1; j < height; ++j) {
