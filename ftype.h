@@ -51,23 +51,50 @@ inline __attribute__((always_inline)) void vscatter(vftype src,
 }
 
 #ifdef FLOAT
-inline void vtranspose(__m256 r0, __m256 r1, __m256 r2, __m256 r3,
-                       __m256 r4, __m256 r5, __m256 r6, __m256 r7)
+inline __attribute__((always_inline))
+void vtranspose(__m256 *r0, __m256 *r1, __m256 *r2, __m256 *r3,
+                __m256 *r4, __m256 *r5, __m256 *r6, __m256 *r7)
 {
+    __m256 t0 = _mm256_unpacklo_ps(*r0, *r1);
+    __m256 t1 = _mm256_unpackhi_ps(*r0, *r1);
+    __m256 t2 = _mm256_unpacklo_ps(*r2, *r3);
+    __m256 t3 = _mm256_unpackhi_ps(*r2, *r3);
+    __m256 t4 = _mm256_unpacklo_ps(*r4, *r5);
+    __m256 t5 = _mm256_unpackhi_ps(*r4, *r5);
+    __m256 t6 = _mm256_unpacklo_ps(*r6, *r7);
+    __m256 t7 = _mm256_unpackhi_ps(*r6, *r7);
+
+    __m256 p0 = _mm256_permute2f128_ps(t0, t4, 0x20);
+    __m256 p1 = _mm256_permute2f128_ps(t2, t6, 0x20);
+    __m256 p2 = _mm256_permute2f128_ps(t1, t5, 0x20);
+    __m256 p3 = _mm256_permute2f128_ps(t3, t7, 0x20);
+    __m256 p4 = _mm256_permute2f128_ps(t0, t4, 0x31);
+    __m256 p5 = _mm256_permute2f128_ps(t2, t6, 0x31);
+    __m256 p6 = _mm256_permute2f128_ps(t1, t5, 0x31);
+    __m256 p7 = _mm256_permute2f128_ps(t3, t7, 0x31);
+
+    *r0 = _mm256_shuffle_ps(p0, p1, 0x44);
+    *r1 = _mm256_shuffle_ps(p0, p1, 0xee);
+    *r2 = _mm256_shuffle_ps(p2, p3, 0x44);
+    *r3 = _mm256_shuffle_ps(p2, p3, 0xee);
+    *r4 = _mm256_shuffle_ps(p4, p5, 0x44);
+    *r5 = _mm256_shuffle_ps(p4, p5, 0xee);
+    *r6 = _mm256_shuffle_ps(p6, p7, 0x44);
+    *r7 = _mm256_shuffle_ps(p6, p7, 0xee);
 }
 #else
 inline __attribute__((always_inline))
 void vtranspose(__m256d *r0, __m256d *r1, __m256d *r2, __m256d *r3)
 {
-    __m256i t0 = _mm256_unpacklo_epi64((__m256i) *r0, (__m256i) *r1);
-    __m256i t1 = _mm256_unpackhi_epi64((__m256i) *r0, (__m256i) *r1);
-    __m256i t2 = _mm256_unpacklo_epi64((__m256i) *r2, (__m256i) *r3);
-    __m256i t3 = _mm256_unpackhi_epi64((__m256i) *r2, (__m256i) *r3);
+    __m256d t0 = _mm256_unpacklo_pd(*r0, *r1);
+    __m256d t1 = _mm256_unpackhi_pd(*r0, *r1);
+    __m256d t2 = _mm256_unpacklo_pd(*r2, *r3);
+    __m256d t3 = _mm256_unpackhi_pd(*r2, *r3);
 
-    *r0 = (__m256d) _mm256_permute2x128_si256(t0, t2, 0x20);
-    *r1 = (__m256d) _mm256_permute2x128_si256(t1, t3, 0x20);
-    *r2 = (__m256d) _mm256_permute2x128_si256(t0, t2, 0x31);
-    *r3 = (__m256d) _mm256_permute2x128_si256(t1, t3, 0x31);
+    *r0 = _mm256_permute2f128_pd(t0, t2, 0x20);
+    *r1 = _mm256_permute2f128_pd(t1, t3, 0x20);
+    *r2 = _mm256_permute2f128_pd(t0, t2, 0x31);
+    *r3 = _mm256_permute2f128_pd(t1, t3, 0x31);
 }
 #endif
 

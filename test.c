@@ -141,7 +141,43 @@ DEFINE_TEST_WD_SOLVER(zz)
 int test_vtranspose()
 {
 #ifdef FLOAT
-    return SUCCESS;
+    float __attribute__((aligned(32))) m[64];
+    for (int i = 0; i < 64; ++i) {
+        m[i] = ((float) rand()) / RAND_MAX;
+    }
+
+    __m256 r0 = _mm256_load_ps(m);
+    __m256 r1 = _mm256_load_ps(m + 8);
+    __m256 r2 = _mm256_load_ps(m + 16);
+    __m256 r3 = _mm256_load_ps(m + 24);
+    __m256 r4 = _mm256_load_ps(m + 32);
+    __m256 r5 = _mm256_load_ps(m + 40);
+    __m256 r6 = _mm256_load_ps(m + 48);
+    __m256 r7 = _mm256_load_ps(m + 56);
+
+    vtranspose(&r0, &r1, &r2, &r3, &r4, &r5, &r6, &r7);
+
+    float __attribute__((aligned(32))) t[64];
+
+    _mm256_store_ps(t, r0);
+    _mm256_store_ps(t + 8, r1);
+    _mm256_store_ps(t + 16, r2);
+    _mm256_store_ps(t + 24, r3);
+    _mm256_store_ps(t + 32, r4);
+    _mm256_store_ps(t + 40, r5);
+    _mm256_store_ps(t + 48, r6);
+    _mm256_store_ps(t + 56, r7);
+
+    int status = SUCCESS;
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            if (m[i * 8 + j] != t[j * 8 + i]) {
+                status = FAILURE;
+            }
+        }
+    }
+
+    return status;
 #else
     double __attribute__((aligned(32))) m[16];
     for (int i = 0; i < 16; ++i) {
