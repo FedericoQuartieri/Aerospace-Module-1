@@ -55,6 +55,8 @@ inline __attribute__((always_inline))
 void vtranspose(__m256 *r0, __m256 *r1, __m256 *r2, __m256 *r3,
                 __m256 *r4, __m256 *r5, __m256 *r6, __m256 *r7)
 {
+    /* TODO: you could try using blend or insertf128. */
+
     __m256 t0 = _mm256_unpacklo_ps(*r0, *r1);
     __m256 t1 = _mm256_unpackhi_ps(*r0, *r1);
     __m256 t2 = _mm256_unpacklo_ps(*r2, *r3);

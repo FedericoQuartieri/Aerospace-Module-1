@@ -44,53 +44,88 @@ static vftype SIGN_MASK;
 #define vinv(vec) vxor(vec, SIGN_MASK)
 
 static inline __attribute__((always_inline))
-void gauss_reduce_vstrip_init(const ftype *__restrict__ w,
-                              uint32_t width,
-                              vitype gather_offset,
-                              ftype *__restrict__ upper,
-                              ftype *__restrict__ f)
+void transpose_vtile(const ftype *__restrict__ src,
+                     uint32_t src_stride,
+                     uint32_t dst_stride,
+                     ftype *__restrict__ dst)
 {
-    vftype ws = vgather(w, gather_offset, 1);
-    vftype fs = vgather(f, gather_offset, 1);
+    /* TODO: faster version if you transpose in memory using insert2f128? */
+#ifdef FLOAT
+    vftype r0 = vload(src + 0 * src_stride);
+    vftype r1 = vload(src + 1 * src_stride);
+    vftype r2 = vload(src + 2 * src_stride);
+    vftype r3 = vload(src + 3 * src_stride);
+    vftype r4 = vload(src + 4 * src_stride);
+    vftype r5 = vload(src + 5 * src_stride);
+    vftype r6 = vload(src + 6 * src_stride);
+    vftype r7 = vload(src + 7 * src_stride);
+    vtranspose(&r0, &r1, &r2, &r3, &r4, &r5, &r6, &r7);
+    vstore(dst + 0 * dst_stride, r0);
+    vstore(dst + 1 * dst_stride, r1);
+    vstore(dst + 2 * dst_stride, r2);
+    vstore(dst + 3 * dst_stride, r3);
+    vstore(dst + 4 * dst_stride, r4);
+    vstore(dst + 5 * dst_stride, r5);
+    vstore(dst + 6 * dst_stride, r6);
+    vstore(dst + 7 * dst_stride, r7);
+#else
+    vftype r0 = vload(src + 0 * src_stride);
+    vftype r1 = vload(src + 1 * src_stride);
+    vftype r2 = vload(src + 2 * src_stride);
+    vftype r3 = vload(src + 3 * src_stride);
+    vtranspose(&r0, &r1, &r2, &r3);
+    vstore(dst + 0 * dst_stride, r0);
+    vstore(dst + 1 * dst_stride, r1);
+    vstore(dst + 2 * dst_stride, r2);
+    vstore(dst + 3 * dst_stride, r3);
+#endif
+}
+
+static inline __attribute__((always_inline))
+void gauss_reduce_vstrip_init(const ftype *__restrict__ w,
+                              ftype *__restrict__ upper,
+                              ftype *__restrict__ f_src,
+                              ftype *__restrict__ f_dst)
+{
+    vftype ws = vload(w);
+    vftype fs = vload(f_src);
     vftype ds = vadd(ONES, vadd(ws, ws));
     vftype uppers = vdiv(vinv(ws), ds);
-    vscatter(uppers, upper, width);
-    vscatter(vdiv(fs, ds), f, width);
+    vstore(upper, uppers);
+    vstore(f_dst, vdiv(fs, ds));
 }
 
 static inline __attribute__((always_inline))
 void gauss_reduce_vstrip(const ftype *__restrict__ w,
-                         uint32_t width,
-                         vitype gather_offset,
                          ftype *__restrict__ upper_prev,
+                         const ftype *__restrict__ f_src,
                          ftype *f_prev,
                          ftype *f_dst)
 {
-    /* WARNING: gathers are also unaligned here. */
-    vftype ws = vgather(w, gather_offset, 1);
-    vftype upper_prevs = vgather(upper_prev, gather_offset, 1);
-    vftype f_prevs = vgather(f_prev, gather_offset, 1);
-    vftype fs = vgather(f_prev + 1, gather_offset, 1);
+    vftype ws = vload(w);
+    vftype upper_prevs = vload(upper_prev);
+    vftype f_prevs = vload(f_prev);
+    vftype fs = vload(f_src);
 
     vftype norm_coefs = vfmadd(ws, upper_prevs, vadd(ONES, vadd(ws, ws)));
 
-    vscatter(vdiv(vinv(ws), norm_coefs), upper_prev + 1, width);
-    vscatter(vdiv(vfmadd(ws, f_prevs, fs), norm_coefs), f_dst, width);
+    vstore(upper_prev + VLEN, vdiv(vinv(ws), norm_coefs));
+    vstore(f_dst, vdiv(vfmadd(ws, f_prevs, fs), norm_coefs));
 }
 
 static inline __attribute__((always_inline))
-void backward_sub_vstrip(const ftype *__restrict__ f,
-                         const ftype *__restrict__ upper,
-                         uint32_t width,
-                         vitype gather_offset,
-                         ftype *__restrict__ u)
+vftype backward_sub_vstrip(const ftype *__restrict__ f,
+                           const ftype *__restrict__ upper,
+                           vftype u_prevs,
+                           ftype *__restrict__ u)
 {
-    vftype fs = vgather(f, gather_offset, 1);
-    vftype uppers = vgather(upper, gather_offset, 1);
-    vftype u_prevs = vgather(u + 1, gather_offset, 1);
-
-    vscatter(vfmadd(vinv(uppers), u_prevs, fs), u, width);
+    vftype fs = vload(f);
+    vftype uppers = vload(upper);
+    vftype u_curr = vfmadd(vinv(uppers), u_prevs, fs);
+    vstore(u, u_curr);
+    return u_curr;
 }
+
 #endif
 
 /* Solves the block diagonal system (I - ∂xx)u = f. */
@@ -98,6 +133,7 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                                uint32_t depth,
                                uint32_t height,
                                uint32_t width,
+                               /* tmp buffer of size 2 * (VLEN * width) */
                                ftype *__restrict__ tmp,
                                ftype *__restrict__ f,
                                ftype *__restrict__ u)
@@ -115,52 +151,74 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
     ONES = vbroadcast(1.0);
     SIGN_MASK = vbroadcast(-0.0f);
 
-    int32_t __attribute__((aligned(32))) offsets[VLEN];
-    for (int i = 0; i < VLEN; ++i) {
-        offsets[i] = width * i * sizeof(ftype);
-    }
-
-    #ifdef FLOAT
-    __m256i mask = _mm256_set1_epi32(0xffffffff);
-    vitype gather_off = _mm256_maskload_epi32(offsets, mask);
-    #else
-    vitype gather_off = _mm_load_si128((const __m128i *) offsets);
-    #endif
+    ftype *__restrict__ tmp_upp = tmp;
+    ftype *__restrict__ tmp_f = tmp + width * VLEN;
 
     for (int i = 0; i < depth; ++i) {
         /* Solving in groups of VLEN rows. */
         for (int j = 0; j < height; j += VLEN) {
             uint64_t offset = height * width * i + width * j;
-            /* Reduce first column of the group. */
-            gauss_reduce_vstrip_init(w + offset,
-                                     width,
-                                     gather_off,
-                                     tmp,
-                                     f + offset);
-            /* Reduce remaining columns of the group. */
-            for (int k = 1; k < width - 1; ++k) {
-                gauss_reduce_vstrip(w + offset + k,
-                                    width,
-                                    gather_off,
-                                    tmp + k - 1,
-                                    f + offset + k - 1,
-                                    f + offset + k);
-            }
-            /* Reduce last column. */
-            gauss_reduce_vstrip(w + offset + width - 1,
-                                width,
-                                gather_off,
-                                tmp + width - 2,
-                                f + offset + width - 2,
-                                u + offset + width - 1);
 
-            /* Backward substitute, one column of the group at a time. */
-            for (int k = 1; k < width; ++k) {
-                backward_sub_vstrip(f + offset + width - 1 - k,
-                                    tmp + width - 1 - k,
-                                    width,
-                                    gather_off,
-                                    u + offset + width - 1 - k);
+            ftype f_t[VLEN * VLEN];
+            ftype w_t[VLEN * VLEN];
+            /* Load and transpose first tile. */
+            transpose_vtile(f + offset, width, VLEN, f_t); 
+            transpose_vtile(w + offset, width, VLEN, w_t); 
+
+            /* Reduce first column of the tile. */
+            gauss_reduce_vstrip_init(w_t,
+                                     tmp_upp,
+                                     f_t,
+                                     tmp_f);
+            /* Reduce remaining columns of the tile. */
+            for (int k = 1; k < VLEN; ++k) {
+                gauss_reduce_vstrip(w_t + VLEN * k,
+                                    tmp_upp + VLEN * (k - 1),
+                                    f_t + VLEN * k,
+                                    tmp_f + VLEN * (k - 1),
+                                    tmp_f + VLEN * k);
+            }
+
+            /* Reduce remaining tiles except the last one. */
+            for (uint32_t tk = VLEN; tk < width - VLEN; tk += VLEN) {
+                /* Load and transpose next tile. */
+                transpose_vtile(f + offset + tk, width, VLEN, f_t);
+                transpose_vtile(w + offset + tk, width, VLEN, w_t);
+                for (uint32_t k = 0; k < VLEN; ++k) {
+                    /* TODO: use previous vec f instead of loading again. */
+                    gauss_reduce_vstrip(w_t + VLEN * k,
+                                        tmp_upp + VLEN * (tk + k - 1),
+                                        f_t + VLEN * k,
+                                        tmp_f + VLEN * (tk + k - 1),
+                                        tmp_f + VLEN * (tk + k));
+                }
+            }
+
+            transpose_vtile(f + offset + width - VLEN, width, VLEN, f_t);
+            transpose_vtile(w + offset + width - VLEN, width, VLEN, w_t);
+            /* Reduce last tile. */
+            for (int k = 0; k < VLEN; ++k) {
+                gauss_reduce_vstrip(w_t + VLEN * k,
+                                    tmp_upp + VLEN * (width - VLEN + k - 1),
+                                    f_t + VLEN * k,
+                                    tmp_f + VLEN * (width - VLEN + k - 1),
+                                    tmp_f + VLEN * (width - VLEN + k));
+            }
+
+            ftype u_t[VLEN * VLEN] = {0};
+            vftype u_last = vbroadcast(0.0f);
+
+            for (uint32_t tk = 0; tk < width; tk += VLEN) {
+                for (int k = 0; k < VLEN; ++k) {
+                    u_last = backward_sub_vstrip(
+                        tmp_f + VLEN * (width - 1 - (tk + k)),
+                        tmp_upp + VLEN * (width - 1 - (tk + k)),
+                        u_last,
+                        u_t + VLEN * (VLEN - 1 - k));
+                }
+                 /* Transpose and store. */
+                transpose_vtile(
+                    u_t, VLEN, width, u + offset + width - VLEN - tk);
             }
         }
     }
