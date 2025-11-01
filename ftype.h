@@ -18,7 +18,6 @@
     #define vbroadcast(...) _mm256_set1_ps(__VA_ARGS__)
     #define vfmadd(...) _mm256_fmadd_ps(__VA_ARGS__)
     #define vxor(...) _mm256_xor_ps(__VA_ARGS__)
-    #define vgather(...) _mm256_i32gather_ps(__VA_ARGS__)
 #else
     typedef double ftype;
     typedef __m256d vftype;
@@ -33,7 +32,6 @@
     #define vbroadcast(...) _mm256_set1_pd(__VA_ARGS__)
     #define vfmadd(...) _mm256_fmadd_pd(__VA_ARGS__)
     #define vxor(...) _mm256_xor_pd(__VA_ARGS__)
-    #define vgather(...) _mm256_i32gather_pd(__VA_ARGS__)
 #endif
 
 #define VSIZE 32

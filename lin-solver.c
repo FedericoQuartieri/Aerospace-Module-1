@@ -41,7 +41,7 @@ static void solve_wDxx_tridiag(const ftype *__restrict__ w,
 static vftype ONES;
 static vftype SIGN_MASK;
 
-#define vinv(vec) vxor(vec, SIGN_MASK)
+#define vneg(vec) vxor(vec, SIGN_MASK)
 
 static inline __attribute__((always_inline))
 void transpose_vtile(const ftype *__restrict__ src,
@@ -90,7 +90,7 @@ void gauss_reduce_vstrip_init(const ftype *__restrict__ w,
     vftype ws = vload(w);
     vftype fs = vload(f_src);
     vftype ds = vadd(ONES, vadd(ws, ws));
-    vftype uppers = vdiv(vinv(ws), ds);
+    vftype uppers = vdiv(vneg(ws), ds);
     vstore(upper, uppers);
     vstore(f_dst, vdiv(fs, ds));
 }
@@ -106,10 +106,8 @@ void gauss_reduce_vstrip(const ftype *__restrict__ w,
     vftype upper_prevs = vload(upper_prev);
     vftype f_prevs = vload(f_prev);
     vftype fs = vload(f_src);
-
     vftype norm_coefs = vfmadd(ws, upper_prevs, vadd(ONES, vadd(ws, ws)));
-
-    vstore(upper_prev + VLEN, vdiv(vinv(ws), norm_coefs));
+    vstore(upper_prev + VLEN, vdiv(vneg(ws), norm_coefs));
     vstore(f_dst, vdiv(vfmadd(ws, f_prevs, fs), norm_coefs));
 }
 
@@ -121,7 +119,7 @@ vftype backward_sub_vstrip(const ftype *__restrict__ f,
 {
     vftype fs = vload(f);
     vftype uppers = vload(upper);
-    vftype u_curr = vfmadd(vinv(uppers), u_prevs, fs);
+    vftype u_curr = vfmadd(vneg(uppers), u_prevs, fs);
     vstore(u, u_curr);
     return u_curr;
 }
@@ -154,9 +152,9 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
     ftype *__restrict__ tmp_upp = tmp;
     ftype *__restrict__ tmp_f = tmp + width * VLEN;
 
-    for (int i = 0; i < depth; ++i) {
+    for (uint32_t i = 0; i < depth; ++i) {
         /* Solving in groups of VLEN rows. */
-        for (int j = 0; j < height; j += VLEN) {
+        for (uint32_t j = 0; j < height; j += VLEN) {
             uint64_t offset = height * width * i + width * j;
 
             ftype f_t[VLEN * VLEN];
@@ -184,7 +182,7 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                 /* Load and transpose next tile. */
                 transpose_vtile(f + offset + tk, width, VLEN, f_t);
                 transpose_vtile(w + offset + tk, width, VLEN, w_t);
-                for (uint32_t k = 0; k < VLEN; ++k) {
+                for (int k = 0; k < VLEN; ++k) {
                     /* TODO: use previous vec f instead of loading again. */
                     gauss_reduce_vstrip(w_t + VLEN * k,
                                         tmp_upp + VLEN * (tk + k - 1),
@@ -239,15 +237,11 @@ void gauss_reduce_row_init(const ftype *__restrict__ w,
         f[i] /= d_0;
     }
 #else
-    vftype ones = vbroadcast(1.0);
-    vftype sign_mask = vbroadcast(-0.0f);
-
     for (uint32_t i = 0; i < width; i += VLEN) {
         vftype ws = vload(w + i);
         vftype fs = vload(f + i);
-        vftype ds = vadd(ones, vadd(ws, ws));
-
-        vstore(upper + i, vdiv(vxor(ws, sign_mask), ds));
+        vftype ds = vadd(ONES, vadd(ws, ws));
+        vstore(upper + i, vdiv(vneg(ws), ds));
         vstore(f + i, vdiv(fs, ds));
     }
 #endif
@@ -269,23 +263,14 @@ void gauss_reduce_row(const ftype *__restrict__ w,
         f_dst[i] = (f_prev[row_stride + i] + w_i * f_prev[i]) / norm_coef;
     }
 #else
-    vftype ones = vbroadcast(1.0);
-    /* Used to invert the sign. */
-    vftype sign_mask = vbroadcast(-0.0f);
-
     for (uint32_t i = 0; i < width; i += VLEN) {
         vftype ws = vload(w + i);
         vftype upper_prevs = vload(upper_prev + i);
         vftype f_prevs = vload(f_prev + i);
         vftype fs = vload(f_prev + row_stride + i);
-
-        vftype norm_coefs = vfmadd(ws, upper_prevs,
-                                   vadd(ones, vadd(ws, ws)));
-
-        vstore(upper_prev + row_stride + i,
-               vdiv(vxor(ws, sign_mask), norm_coefs));
-        vstore(f_dst + i,
-               vdiv(vfmadd(ws, f_prevs, fs), norm_coefs));
+        vftype norm_coefs = vfmadd(ws, upper_prevs, vadd(ONES, vadd(ws, ws)));
+        vstore(upper_prev + row_stride + i, vdiv(vneg(ws), norm_coefs));
+        vstore(f_dst + i, vdiv(vfmadd(ws, f_prevs, fs), norm_coefs));
     }
 #endif
 }
@@ -302,14 +287,11 @@ void backward_sub_row(const ftype *__restrict__ f,
         u[k] = f[k] - upper[k] * u[k + row_stride];
     }
 #else
-    vftype sign_mask = vbroadcast(-0.0f);
-
     for (int k = 0; k < width; k += VLEN) {
         vftype fs = vload(f + k);
         vftype uppers = vload(upper + k);
         vftype u_prevs = vload(u + row_stride + k);
-
-        vstore(u + k, vfmadd(vxor(uppers, sign_mask), u_prevs, fs));
+        vstore(u + k, vfmadd(vneg(uppers), u_prevs, fs));
     }
 #endif
 }
@@ -323,6 +305,11 @@ void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
                                ftype *__restrict__ f,
                                ftype *__restrict__ u)
 {
+#ifndef AUTO_VEC
+    ONES = vbroadcast(1.0);
+    SIGN_MASK = vbroadcast(-0.0f);
+#endif
+
     /* We solve for each face of the domain, one at a time. */
     for (int i = 0; i < depth; ++i) {
         /* Gauss reduce the first row. */
@@ -370,6 +357,11 @@ void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
                                ftype *__restrict__ f,
                                ftype *__restrict__ u)
 {
+#ifndef AUTO_VEC
+    ONES = vbroadcast(1.0);
+    SIGN_MASK = vbroadcast(-0.0f);
+#endif
+
     /* Gauss reduce the first face. */
     for (uint32_t j = 0; j < height; ++j) {
         uint64_t row_offset = j * width;

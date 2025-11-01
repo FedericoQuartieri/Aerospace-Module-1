@@ -11,7 +11,7 @@ uint64_t rowmaj_idx(uint64_t i,
     return height * width * i + width * j + k;
 }
 
-static inline __attribute__((always_inline))
+inline __attribute__((always_inline))
 void compute_local_grad(const ftype *__restrict__ src,
                         uint64_t i,
                         uint64_t j,
@@ -23,7 +23,7 @@ void compute_local_grad(const ftype *__restrict__ src,
                         ftype *__restrict__ dst_k)
 {
     uint64_t idx = rowmaj_idx(i, j, k, height, width);
-#ifdef NO_MANUAL_VECTORIZE
+#ifdef AUTO_VEC
     ftype curr = src[idx];
     ftype next_k = src[idx + 1];
     ftype next_j = src[idx + width];
@@ -36,9 +36,10 @@ void compute_local_grad(const ftype *__restrict__ src,
     vftype next_k = vloadu(src + idx + 1);
     vftype next_j = vload(src + idx + width);
     vftype next_i = vload(src + idx + height * width);
-    vstore(dst_k + idx, vsub(next_k, curr));
-    vstore(dst_j + idx, vsub(next_j, curr));
-    vstore(dst_i + idx, vsub(next_i, curr));
+    /* WARNING: Non-temporal stores */
+    _mm256_stream_ps(dst_k + idx, vsub(next_k, curr));
+    _mm256_stream_ps(dst_j + idx, vsub(next_j, curr));
+    _mm256_stream_ps(dst_i + idx, vsub(next_i, curr));
 #endif
 }
 
@@ -52,7 +53,7 @@ void compute_grad(const ftype *__restrict__ src,
 {
     for (uint32_t i = 0; i < depth; ++i) {
         for (uint32_t j = 0; j < height; ++j) {
-#ifdef NO_MANUAL_VECTORIZE
+#ifdef AUTO_VEC
             for (uint32_t k = 0; k < width; ++k) {
 #else
             for (uint32_t k = 0; k < width; k += VLEN) {
@@ -81,7 +82,7 @@ void compute_grad_tiled(const ftype *__restrict__ src,
 
                 for (uint32_t i = 0; i < tile_depth; ++i) {
                     for (uint32_t j = 0; j < tile_height; ++j) {
-#ifdef NO_MANUAL_VECTORIZE
+#ifdef AUTO_VEC
                         for (uint32_t k = 0; k < tile_width; ++k) {
 #else
                         for (uint32_t k = 0; k < tile_width; k += VLEN) {
@@ -106,12 +107,13 @@ void compute_grad_strided(const ftype *__restrict__ src,
 {
     for (uint32_t i = 0; i < depth; ++i) {
         for (uint32_t j = 0; j < height; j += VLEN) {
-#ifdef NO_MANUAL_VECTORIZE
+#ifdef AUTO_VEC
             for (uint32_t k = 0; k < width; ++k) {
 #else
             for (uint32_t k = 0; k < width; k += VLEN) {
 #endif
                 for (uint32_t jj = 0; jj < VLEN; ++jj) {
+
                     compute_local_grad(src, i, j + jj, k,
                                        height, width, dst_i, dst_j, dst_k);
                 }
@@ -119,4 +121,3 @@ void compute_grad_strided(const ftype *__restrict__ src,
         }
     }
 }
-

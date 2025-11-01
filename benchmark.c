@@ -8,13 +8,13 @@
 #include "lin-solver.h"
 #include "finite-diff.h"
 
-#define D 32
-#define H 1024
-#define W (1024 + 128) /* Avoid cache aliasing. */
+#define D 256
+#define H 256
+#define W 256 /* Avoid cache aliasing. */
 
 #define TD 1
-#define TH 128
-#define TW 128
+#define TH 32
+#define TW 32
 
 static void rand_fill(ftype *dst, size_t count)
 {
@@ -44,6 +44,7 @@ int main(void)
 
     TIMEITN(compute_grad(w, D, H, W, grad_i, grad_j, grad_k), 50);
     TIMEITN(compute_grad_strided(w, D, H, W, grad_i, grad_j, grad_k), 50);
+    //TIMEITN(compute_grad_transpose(w, D, H, W, grad_i, grad_j, grad_k), 50);
     TIMEITN(compute_grad_tiled(
         w, D, H, W, TD, TH, TW, grad_i, grad_j, grad_k), 50);
 
