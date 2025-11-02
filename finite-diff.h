@@ -58,26 +58,30 @@ void compute_grad_at(const ftype *__restrict__ src,
 }
 
 inline __attribute__((always_inline))
-vftype compute_Dxx_at(const ftype *__restrict__ src, uint64_t idx)
+vftype compute_Dxx_at(const ftype *__restrict__ src,
+                      uint64_t idx,
+                      vftype center)
 {
-    vftype prev = vloadu(src + idx - 1);
-    vftype center = vload(src + idx);
-    vftype next = vload(src + idx + 1);
+    vftype prev = vloadu((src - 1) + idx);
+    //vftype center = vload(src + idx);
+    vftype next = vloadu(src + idx + 1);
     return vadd(prev, vsub(next, vadd(center, center)));
 }
 
 inline __attribute__((always_inline))
 vftype compute_Dyy_at(const ftype *__restrict__ src,
                       uint64_t idx,
-                      uint32_t stride)
+                      uint32_t stride,
+                      vftype center)
 {
-    vftype prev = vload(src + idx - stride);
-    vftype center = vload(src + idx);
+    vftype prev = vload((src - stride) + idx);
+    //vftype center = vload(src + idx);
     vftype next = vload(src + idx + stride);
     return vadd(prev, vsub(next, vadd(center, center)));
 }
 
 #define compute_Dzz_at(...) compute_Dyy_at(__VA_ARGS__)
+#endif
 
 #endif
 
