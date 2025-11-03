@@ -5,6 +5,8 @@
 #define DT 0.01f
 #define NU 0.01f
 
+#define ROWMAJ_IDX(z, y, x, h, w) ((h) * (w) * (z) + (w) * (y) + (x))
+
 static inline __attribute__((always_inline))
 vftype compute_g_comp_at(const ftype *__restrict__ eta,
                          const ftype *__restrict__ zeta,
@@ -52,8 +54,9 @@ vftype compute_wDxx_rhs_comp_at(const ftype *__restrict__ eta,
     vftype eta_ = vload(eta + idx);
     vftype zeta_ = vload(zeta + idx);
     vftype u_ = vload(u + idx);
-    vftype g = compute_g_comp_at(
-        eta, zeta, u, idx, height, width, k, eta_, zeta_, u_, D_pp);
+    vftype g = compute_g_comp_at(eta, zeta, u,
+                                 idx, height, width,
+                                 k, eta_, zeta_, u_, D_pp);
     return vsub(vadd(u_, vmul(dt_beta, g)), eta_);
 }
 
@@ -82,33 +85,28 @@ static void compute_wDxx_rhs(
     ftype *__restrict__ rhs_y,
     ftype *__restrict__ rhs_z)
 {
+    /* TODO: Consider on the fly rhs evaluation while solving. */
 
     vftype zeros = vbroadcast(0.0);
     vftype dt = vbroadcast(DT);
     vftype dt_nu = vbroadcast(DT * NU);
 
     for (uint32_t i = 0; i < depth; ++i) {
-        for (uint32_t j = 0; j < height; ++j) {
-#ifdef AUTO_VEC
-            for (uint32_t l = 0; l < width; ++l) {
-                /* TODO: Scalar version. */
-            }
-#else
+        for (uint32_t j = 0; j < height; j++) {
             for (uint32_t l = 0; l < width; l += VLEN) {
-                uint64_t idx = height * width * i + width * j + l;
-
-                /* TODO: Consider on the fly rhs evaluation while solving. */
+                uint64_t idx = ROWMAJ_IDX(i, j, l, height, width);
 
                 /* Compute the gradient of pressure predictor pp = p + phi. */
                 vftype Dx_p, Dy_p, Dz_p;
+                compute_grad_at(p, idx, height, width,
+                                &Dx_p, &Dy_p, &Dz_p);
                 vftype Dx_phi, Dy_phi, Dz_phi;
-                compute_grad_at(
-                    p, idx, height, width, &Dx_p, &Dy_p, &Dz_p);
-                compute_grad_at(
-                    phi, idx, height, width, &Dx_phi, &Dy_phi, &Dz_phi);
+                compute_grad_at(phi, idx, height, width,
+                                &Dx_phi, &Dy_phi, &Dz_phi);
+
                 vftype Dx_pp = vadd(Dx_p, Dx_phi);
-                /* WARNING: Pressure gradient in the last cell must be 0!
-                  These conditionals don't hurt performance apparently */
+                /* Pressure gradient in the last cell must be 0!
+                   These conditionals don't hurt performance apparently */
                 vftype Dy_pp = (j == height - 1) ? zeros : vadd(Dy_p, Dy_phi);
                 vftype Dz_pp = (i == depth - 1) ? zeros : vadd(Dz_p, Dz_phi);
 
@@ -132,11 +130,11 @@ static void compute_wDxx_rhs(
                                                 idx, height, width,
                                                 k_, Dz_pp, dt_beta));
             }
-#endif
         }
     }
 }
 
+#include <stdio.h>
 
 void solve_momentum(const ftype *__restrict__ k, /* Porosity. */
                     uint32_t depth,
@@ -165,8 +163,7 @@ void solve_momentum(const ftype *__restrict__ k, /* Porosity. */
     ftype *__restrict__ Dxx_rhs_y = tmp + num_points;
     ftype *__restrict__ Dxx_rhs_z = tmp + num_points * 2;
 
-    TIMEIT(compute_wDxx_rhs(k,
-                            p, phi,
+    TIMEIT(compute_wDxx_rhs(k, p, phi,
                             eta_x, eta_y, eta_z,
                             zeta_x, zeta_y, zeta_z,
                             u_x, u_y, u_z,
@@ -186,7 +183,6 @@ void solve_momentum(const ftype *__restrict__ k, /* Porosity. */
     //solve_wDxx_tridiag_blocks();
     //solve_wDyy_tridiag_blocks();
     //solve_wDzz_tridiag_blocks();
-
 }
 
 void solve_pressure(void)
@@ -202,9 +198,16 @@ void step(void)
 
 #include <stdlib.h>
 
-#define D 256
-#define H 256
-#define W 256
+#define D 32
+#define H 128
+#define W 128
+
+static void rand_fill(ftype *dst, size_t count)
+{
+    for (size_t i = 0; i < count; ++i) {
+        dst[i] = ((ftype) rand()) / RAND_MAX;
+    }
+}
 
 int main(void)
 {
@@ -227,6 +230,19 @@ int main(void)
     ftype *u_z = aligned_alloc(32, size * sizeof(ftype));
 
     ftype *tmp = aligned_alloc(32, size * sizeof(ftype) * 3);
+
+    rand_fill(k, size);
+    rand_fill(p, size);
+    rand_fill(phi, size);
+    rand_fill(eta_x, size);
+    rand_fill(eta_y, size);
+    rand_fill(eta_z, size);
+    rand_fill(zeta_x, size);
+    rand_fill(zeta_y, size);
+    rand_fill(zeta_z, size);
+    rand_fill(u_x, size);
+    rand_fill(u_y, size);
+    rand_fill(u_z, size);
 
     solve_momentum(k,
                    D, H, W,

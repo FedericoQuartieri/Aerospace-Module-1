@@ -7,7 +7,25 @@
 #ifdef FLOAT
     typedef float ftype;
     typedef __m256 vftype;
-    typedef __m256i vitype;
+#else
+    typedef double ftype;
+    typedef __m256d vftype;
+#endif
+
+#ifdef AUTO_VEC
+    #define VLEN 1
+    #define vftype ftype
+    #define vadd(x, y) ((x) + (y))
+    #define vsub(x, y) ((x) - (y))
+    #define vmul(x, y) ((x) * (y))
+    #define vdiv(x, y) ((x) / (y))
+    #define vload(addr) (*(addr))
+    #define vloadu(addr) vload(addr)
+    #define vstore(addr, x) *(addr) = (x)
+    #define vbroadcast(x) (x)
+#else
+    #define VLEN (32 / sizeof(ftype))
+#ifdef FLOAT
     #define vload(...) _mm256_load_ps(__VA_ARGS__)
     #define vloadu(...) _mm256_loadu_ps(__VA_ARGS__)
     #define vstore(...) _mm256_store_ps(__VA_ARGS__)
@@ -19,9 +37,6 @@
     #define vfmadd(...) _mm256_fmadd_ps(__VA_ARGS__)
     #define vxor(...) _mm256_xor_ps(__VA_ARGS__)
 #else
-    typedef double ftype;
-    typedef __m256d vftype;
-    typedef __m128i vitype;
     #define vload(...) _mm256_load_pd(__VA_ARGS__)
     #define vloadu(...) _mm256_loadu_pd(__VA_ARGS__)
     #define vstore(...) _mm256_store_pd(__VA_ARGS__)
@@ -33,9 +48,7 @@
     #define vfmadd(...) _mm256_fmadd_pd(__VA_ARGS__)
     #define vxor(...) _mm256_xor_pd(__VA_ARGS__)
 #endif
-
-#define VSIZE 32
-#define VLEN (VSIZE / sizeof(ftype))
+#endif
 
 inline __attribute__((always_inline)) void vscatter(vftype src,
                                                     ftype *dst,

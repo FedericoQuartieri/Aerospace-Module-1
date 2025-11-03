@@ -38,7 +38,7 @@ void compute_grad_transpose(const ftype *__restrict__ src,
                             ftype *__restrict__ dst_j,
                             ftype *__restrict__ dst_k);
 
-#ifndef AUTO_VEC
+
 inline __attribute__((always_inline))
 void compute_grad_at(const ftype *__restrict__ src,
                      uint64_t idx,
@@ -81,7 +81,6 @@ vftype compute_Dyy_at(const ftype *__restrict__ src,
 }
 
 #define compute_Dzz_at(...) compute_Dyy_at(__VA_ARGS__)
-#endif
 
 #endif
 
