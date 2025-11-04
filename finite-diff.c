@@ -1,7 +1,7 @@
 #include "finite-diff.h"
 #include "ftype.h"
 
-static inline __attribute__((always_inline))
+inline __attribute__((always_inline))
 uint64_t rowmaj_idx(uint64_t i,
                     uint64_t j,
                     uint64_t k,
@@ -37,9 +37,9 @@ void compute_local_grad(const ftype *__restrict__ src,
     vftype next_j = vload(src + idx + width);
     vftype next_i = vload(src + idx + height * width);
     /* WARNING: Non-temporal stores */
-    _mm256_stream_ps(dst_k + idx, vsub(next_k, curr));
-    _mm256_stream_ps(dst_j + idx, vsub(next_j, curr));
-    _mm256_stream_ps(dst_i + idx, vsub(next_i, curr));
+    vntstore(dst_k + idx, vsub(next_k, curr));
+    vntstore(dst_j + idx, vsub(next_j, curr));
+    vntstore(dst_i + idx, vsub(next_i, curr));
 #endif
 }
 

@@ -126,7 +126,7 @@ vftype backward_sub_vstrip(const ftype *__restrict__ f,
 
 #endif
 
-/* Solves the block diagonal system (I - ∂xx)u = f. */
+/* Solves the block diagonal system (I - w∂xx)u = f. */
 void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                                uint32_t depth,
                                uint32_t height,
@@ -150,6 +150,7 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
     SIGN_MASK = vbroadcast(-0.0f);
 
     ftype *__restrict__ tmp_upp = tmp;
+    /* WARNING: Cache aliasing? */
     ftype *__restrict__ tmp_f = tmp + width * VLEN;
 
     for (uint32_t i = 0; i < depth; ++i) {
@@ -157,8 +158,8 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
         for (uint32_t j = 0; j < height; j += VLEN) {
             uint64_t offset = height * width * i + width * j;
 
-            ftype f_t[VLEN * VLEN];
-            ftype w_t[VLEN * VLEN];
+            ftype __attribute__((aligned(32))) f_t[VLEN * VLEN];
+            ftype __attribute__((aligned(32))) w_t[VLEN * VLEN];
             /* Load and transpose first tile. */
             transpose_vtile(f + offset, width, VLEN, f_t); 
             transpose_vtile(w + offset, width, VLEN, w_t); 
@@ -203,7 +204,7 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                                     tmp_f + VLEN * (width - VLEN + k));
             }
 
-            ftype u_t[VLEN * VLEN] = {0};
+            ftype __attribute__((aligned(32))) u_t[VLEN * VLEN] = {0};
             vftype u_last = vbroadcast(0.0f);
 
             for (uint32_t tk = 0; tk < width; tk += VLEN) {
@@ -296,7 +297,7 @@ void backward_sub_row(const ftype *__restrict__ f,
 #endif
 }
 
-/* Solves the block diagonal system (I - ∂yy)u = f. */
+/* Solves the block diagonal system (I - w∂yy)u = f. */
 void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
                                uint32_t depth,
                                uint32_t height,
@@ -348,7 +349,7 @@ void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
     }
 }
 
-/* Solves the block diagonal system (I - ∂zz)u = f. */
+/* Solves the block diagonal system (I - w∂zz)u = f. */
 void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
                                uint32_t depth,
                                uint32_t height,

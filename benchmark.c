@@ -10,7 +10,7 @@
 
 #define D 256
 #define H 256
-#define W 256 /* Avoid cache aliasing. */
+#define W 256 /* + something to avoid cache aliasing? */
 
 #define TD 1
 #define TH 32
@@ -37,20 +37,6 @@ int main(void)
     TIMEIT(solve_wDxx_tridiag_blocks(w, D, H, W, tmp, f, u));
     TIMEIT(solve_wDyy_tridiag_blocks(w, D, H, W, tmp, f, u));
     TIMEIT(solve_wDzz_tridiag_blocks(w, D, H, W, tmp, f, u));
-
-    ftype *grad_i = aligned_alloc(32, size * sizeof(ftype));
-    ftype *grad_j = aligned_alloc(32, size * sizeof(ftype));
-    ftype *grad_k = aligned_alloc(32, size * sizeof(ftype));
-
-    TIMEITN(compute_grad(w, D, H, W, grad_i, grad_j, grad_k), 50);
-    TIMEITN(compute_grad_strided(w, D, H, W, grad_i, grad_j, grad_k), 50);
-    //TIMEITN(compute_grad_transpose(w, D, H, W, grad_i, grad_j, grad_k), 50);
-    TIMEITN(compute_grad_tiled(
-        w, D, H, W, TD, TH, TW, grad_i, grad_j, grad_k), 50);
-
-    free(grad_k);
-    free(grad_j);
-    free(grad_i);
 
     free(tmp);
     free(f);

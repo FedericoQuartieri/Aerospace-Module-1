@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <assert.h>
 
@@ -8,6 +9,17 @@
 #define SEED 42
 #define SUCCESS 0
 #define FAILURE 1
+
+#define STR(x) #x
+
+#define ASSERT_TRUE(condition)                              \
+do {                                                        \
+    if (!(condition)) {                                     \
+        printf("[ASSERT_TRUE FAILED] %s\n", #condition);    \
+        return FAILURE;                                     \
+    }                                                       \
+} while (0)
+
 
 #define EXPECT_SUCCESS(test_call)                           \
 do {                                                        \
@@ -19,6 +31,13 @@ do {                                                        \
 } while (0)
 
 static ftype abs_(ftype x) { return (x >= 0) ? x : -x; }
+
+static void rand_fill(ftype *dst, size_t count)
+{
+    for (size_t i = 0; i < count; ++i) {
+        dst[i] = ((ftype) rand()) / RAND_MAX;
+    }
+}
 
 static int verify_wD_solution(const ftype *__restrict__ w,
                               const ftype *__restrict__ f,
@@ -211,6 +230,202 @@ int test_vtranspose()
 #endif
 }
 
+#define RMJ_IDX(z, y, x, h, w) ((h) * (w) * (z) + (w) * (y) + (x))
+
+static int verify_wDxx_rhs_comp(const ftype *__restrict__ k,
+                                const ftype *__restrict__ D_pp,
+                                const ftype *__restrict__ eta,
+                                const ftype *__restrict__ zeta,
+                                const ftype *__restrict__ u,
+                                const ftype *__restrict__ rhs,
+                                int depth,
+                                int height,
+                                int width,
+                                ftype nu,
+                                ftype dt,
+                                ftype dx,
+                                ftype tol)
+{
+    uint64_t size = depth * height * width;
+    ftype *Dxx_eta = malloc(size * sizeof(ftype));
+    ftype *Dyy_zeta = malloc(size * sizeof(ftype));
+    ftype *Dzz_u = malloc(size * sizeof(ftype));
+
+    /* WARNING: We need signed ints here, otherwise indexes underflow. */
+
+    for (int i = 0; i < depth; ++i) {
+        for (int j = 0; j < height; ++j) {
+            for (int k = 0; k < width; ++k) {
+                uint64_t idx = RMJ_IDX(i, j, k, height, width);
+                /* Compute second derivatives. */
+                Dxx_eta[idx] = (eta[RMJ_IDX(i, j, k - 1, height, width)] -
+                                2 * eta[idx] +
+                                eta[RMJ_IDX(i, j, k + 1, height, width)]) /
+                               (dx * dx);
+                Dyy_zeta[idx] = (zeta[RMJ_IDX(i, j - 1, k, height, width)] -
+                                 2 * zeta[idx] +
+                                 zeta[RMJ_IDX(i, j + 1, k, height, width)]) /
+                                (dx * dx);
+                Dzz_u[idx] = (u[RMJ_IDX(i - 1, j, k, height, width)] -
+                              2 * u[idx] +
+                              u[RMJ_IDX(i + 1, j, k, height, width)]) /
+                             (dx * dx);
+            }
+        }
+    }
+
+    int status = SUCCESS;
+    for (uint64_t i = 0; i < size && status == SUCCESS; ++i) {
+        /* WARNING: Null volume force. */
+        ftype f = 0;
+        ftype g = f - D_pp[i] - nu / (2 * k[i]) * u[i] +
+                  (nu / 2) * (Dxx_eta[i] + Dyy_zeta[i] + Dzz_u[i]);
+        ftype beta = 1 + dt * nu / (2 * k[i]);
+        ftype rhs_ref = u[i] + dt / beta * g - eta[i];
+
+        if (abs(rhs_ref - rhs[i]) > tol) {
+            printf("%lu %f %f\n", i, rhs_ref, rhs[i]);
+            status = FAILURE;
+        }
+    }
+
+    free(Dzz_u);
+    free(Dyy_zeta);
+    free(Dxx_eta);
+
+    return status;
+}
+
+extern void compute_wDxx_rhs(const ftype *__restrict__ k,
+                             const ftype *__restrict__ p,
+                             const ftype *__restrict__ phi,
+                             const ftype *__restrict__ eta_x,
+                             const ftype *__restrict__ eta_y,
+                             const ftype *__restrict__ eta_z,
+                             const ftype *__restrict__ zeta_x,
+                             const ftype *__restrict__ zeta_y,
+                             const ftype *__restrict__ zeta_z,
+                             const ftype *__restrict__ u_x,
+                             const ftype *__restrict__ u_y,
+                             const ftype *__restrict__ u_z,
+                             uint32_t depth,
+                             uint32_t height,
+                             uint32_t width,
+                             ftype nu,
+                             ftype dt,
+                             ftype dx,
+                             ftype *__restrict__ rhs_x,
+                             ftype *__restrict__ rhs_y,
+                             ftype *__restrict__ rhs_z);
+
+int test_wDxx_rhs_computation(uint32_t depth,
+                              uint32_t height,
+                              uint32_t width)
+{
+    ASSERT_TRUE(width % VLEN == 0);
+
+    size_t size = (depth + 2) * height * width;
+    ftype *k = aligned_alloc(32, size * sizeof(ftype));
+    ftype *p = aligned_alloc(32, size * sizeof(ftype));
+    ftype *phi = aligned_alloc(32, size * sizeof(ftype));
+    ftype *eta = aligned_alloc(32, 3 * size * sizeof(ftype));
+    ftype *zeta = aligned_alloc(32, 3 * size * sizeof(ftype));
+    ftype *u = aligned_alloc(32, 3 * size * sizeof(ftype));
+    ftype *rhs = aligned_alloc(32, 3 * size * sizeof(ftype));
+
+    rand_fill(k, size);
+    rand_fill(p, size);
+    rand_fill(phi, size);
+    rand_fill(eta, 3 * size);
+    rand_fill(zeta, 3 * size);
+    rand_fill(u, 3 * size);
+
+    uint32_t face_size = height * width;
+
+    ftype *eta_x = eta + face_size;
+    ftype *eta_y = eta + face_size + size;
+    ftype *eta_z = eta + face_size + 2 * size;
+    ftype *zeta_x = zeta + face_size;
+    ftype *zeta_y = zeta + face_size + size;
+    ftype *zeta_z = zeta + face_size + 2 * size;
+    ftype *u_x = u + face_size;
+    ftype *u_y = u + face_size + size;
+    ftype *u_z = u + face_size + 2 * size;
+    ftype *rhs_x = rhs;
+    ftype *rhs_y = rhs + size;
+    ftype *rhs_z = rhs + 2 * size;
+
+    ftype nu = ((ftype) rand()) / RAND_MAX;
+    ftype dt = 1.0;//((ftype) rand()) / RAND_MAX;
+    ftype dx = 1.0;//((ftype) rand()) / RAND_MAX;
+
+    compute_wDxx_rhs(k, p, phi,
+                     eta_x, eta_y, eta_z,
+                     zeta_x, zeta_y, zeta_z,
+                     u_x, u_y, u_z,
+                     depth, height, width,
+                     nu,
+                     dt,
+                     dx,
+                     rhs_x, rhs_y, rhs_z);
+
+    uint64_t num_points = depth * height * width;
+    ftype *pp = malloc((num_points + height * width) * sizeof(ftype));
+    ftype *Dx_pp = malloc(num_points * sizeof(ftype));
+    ftype *Dy_pp = malloc(num_points * sizeof(ftype));
+    ftype *Dz_pp = malloc(num_points * sizeof(ftype));
+    memset(Dx_pp, 0, num_points * sizeof(ftype));
+    memset(Dy_pp, 0, num_points * sizeof(ftype));
+    memset(Dz_pp, 0, num_points * sizeof(ftype));
+
+    /* Compute pressure predictor. */
+    for (uint64_t i = 0; i < num_points; ++i) {
+        pp[i] = p[i] + phi[i];
+    }
+    /* Compute pressure predictor gradient. */
+    for (uint32_t i = 0; i < depth; ++i) {
+        for (uint32_t j = 0; j < height; ++j) {
+            for (uint32_t k = 0; k < width; ++k) {
+                uint64_t idx = RMJ_IDX(i, j, k, height, width);
+                ftype pp_ijk = pp[idx];
+                ftype Dx_pp_ijk = pp[RMJ_IDX(i, j, k + 1, height, width)] -
+                                  pp_ijk;
+                ftype Dy_pp_ijk = pp[RMJ_IDX(i, j + 1, k, height, width)] -
+                                  pp_ijk;
+                ftype Dz_pp_ijk = pp[RMJ_IDX(i + 1, j, k, height, width)] -
+                                  pp_ijk;
+                Dx_pp[idx] = Dx_pp_ijk / dx;
+                Dy_pp[idx] = (j == height - 1) ? 0 : Dy_pp_ijk / dx;
+                Dz_pp[idx] = (i == depth - 1) ? 0 : Dz_pp_ijk / dx;
+            }
+        }
+    }
+
+    int status = verify_wDxx_rhs_comp(k, Dx_pp, eta_x, zeta_x,
+                                      u_x, rhs_x, depth, height,
+                                      width, nu, dt, dx, 1e-4) ||
+                 verify_wDxx_rhs_comp(k, Dy_pp, eta_y, zeta_y,
+                                      u_y, rhs_y, depth, height,
+                                      width, nu, dt, dx, 1e-4) ||
+                 verify_wDxx_rhs_comp(k, Dz_pp, eta_z, zeta_z,
+                                      u_z, rhs_z, depth, height,
+                                      width, nu, dt, dx, 1e-4);
+
+    free(Dz_pp);
+    free(Dy_pp);
+    free(Dx_pp);
+    free(pp);
+    free(rhs);
+    free(u);
+    free(zeta);
+    free(eta);
+    free(phi);
+    free(p);
+    free(k);
+
+    return status;
+}
+
 int main(void)
 {
     srand(SEED);
@@ -228,6 +443,10 @@ int main(void)
     EXPECT_SUCCESS(test_wDzz_solver(32, 32, 256));
 
     EXPECT_SUCCESS(test_vtranspose());
+
+    EXPECT_SUCCESS(test_wDxx_rhs_computation(1, 32, 64));
+    EXPECT_SUCCESS(test_wDxx_rhs_computation(32, 64, 64));
+    EXPECT_SUCCESS(test_wDxx_rhs_computation(128, 128, 64));
 
     return 0;
 }

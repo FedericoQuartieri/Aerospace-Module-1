@@ -13,10 +13,10 @@ float: all
 auto-vec: DEFINES += -DAUTO_VEC
 auto-vec: all
 
-benchmark: finite-diff.c lin-solver.c benchmark.c
+benchmark: equations.c finite-diff.c lin-solver.c benchmark.c
 	$(CC) $(CFLAGS) -o benchmark $(DEFINES) $^
 
-test: finite-diff.c lin-solver.c test.c
+test: equations.c finite-diff.c lin-solver.c test.c
 	$(CC) $(CFLAGS) -o test $(DEFINES) $^
 
 clean:
