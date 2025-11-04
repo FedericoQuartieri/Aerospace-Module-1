@@ -4,6 +4,7 @@
 #include <assert.h>
 
 #include "lin-solver.h"
+#include "equations.h"
 #include "ftype.h"
 
 #define SEED 42
@@ -284,7 +285,6 @@ static int verify_wDxx_rhs_comp(const ftype *__restrict__ k,
         ftype rhs_ref = u[i] + dt / beta * g - eta[i];
 
         if (abs(rhs_ref - rhs[i]) > tol) {
-            printf("%lu %f %f\n", i, rhs_ref, rhs[i]);
             status = FAILURE;
         }
     }
@@ -295,28 +295,6 @@ static int verify_wDxx_rhs_comp(const ftype *__restrict__ k,
 
     return status;
 }
-
-extern void compute_wDxx_rhs(const ftype *__restrict__ k,
-                             const ftype *__restrict__ p,
-                             const ftype *__restrict__ phi,
-                             const ftype *__restrict__ eta_x,
-                             const ftype *__restrict__ eta_y,
-                             const ftype *__restrict__ eta_z,
-                             const ftype *__restrict__ zeta_x,
-                             const ftype *__restrict__ zeta_y,
-                             const ftype *__restrict__ zeta_z,
-                             const ftype *__restrict__ u_x,
-                             const ftype *__restrict__ u_y,
-                             const ftype *__restrict__ u_z,
-                             uint32_t depth,
-                             uint32_t height,
-                             uint32_t width,
-                             ftype nu,
-                             ftype dt,
-                             ftype dx,
-                             ftype *__restrict__ rhs_x,
-                             ftype *__restrict__ rhs_y,
-                             ftype *__restrict__ rhs_z);
 
 int test_wDxx_rhs_computation(uint32_t depth,
                               uint32_t height,
@@ -356,8 +334,8 @@ int test_wDxx_rhs_computation(uint32_t depth,
     ftype *rhs_z = rhs + 2 * size;
 
     ftype nu = ((ftype) rand()) / RAND_MAX;
-    ftype dt = 1.0;//((ftype) rand()) / RAND_MAX;
-    ftype dx = 1.0;//((ftype) rand()) / RAND_MAX;
+    ftype dt = ((ftype) rand()) / RAND_MAX;
+    ftype dx = ((ftype) rand()) / RAND_MAX;
 
     compute_wDxx_rhs(k, p, phi,
                      eta_x, eta_y, eta_z,
@@ -379,7 +357,7 @@ int test_wDxx_rhs_computation(uint32_t depth,
     memset(Dz_pp, 0, num_points * sizeof(ftype));
 
     /* Compute pressure predictor. */
-    for (uint64_t i = 0; i < num_points; ++i) {
+    for (uint64_t i = 0; i < num_points + height * width; ++i) {
         pp[i] = p[i] + phi[i];
     }
     /* Compute pressure predictor gradient. */
@@ -445,7 +423,7 @@ int main(void)
     EXPECT_SUCCESS(test_vtranspose());
 
     EXPECT_SUCCESS(test_wDxx_rhs_computation(1, 32, 64));
-    EXPECT_SUCCESS(test_wDxx_rhs_computation(32, 64, 64));
+    EXPECT_SUCCESS(test_wDxx_rhs_computation(32, 64, 128));
     EXPECT_SUCCESS(test_wDxx_rhs_computation(128, 128, 64));
 
     return 0;
