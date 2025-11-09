@@ -15,25 +15,40 @@
 static void solve_wDxx_tridiag(const ftype *__restrict__ w,
                                unsigned int n,
                                ftype *__restrict__ tmp,
-                               ftype *__restrict__ f,
-                               ftype *__restrict__ u)
+                               ftype *__restrict__ f_x,
+                               ftype *__restrict__ f_y,
+                               ftype *__restrict__ f_z,
+                               ftype *__restrict__ u_x,
+                               ftype *__restrict__ u_y,
+                               ftype *__restrict__ u_z)
 {
     /* Perform gaussian elimination. */
     ftype d_0 = 1 + 2 * w[0];
     /* Using tmp to store reduced upper diagonal. */
     tmp[0] = -w[0] / d_0;
-    f[0] /= d_0;
+
+    f_x[0] /= d_0;
+    f_y[0] /= d_0;
+    f_z[0] /= d_0;
+
     for (int i = 1; i < n; ++i) {
         ftype w_i = w[i];
         ftype norm_coef = 1 + 2 * w_i + w_i * tmp[i - 1];
         tmp[i] = -w_i / norm_coef;
-        f[i] = (f[i] + w_i * f[i - 1]) / norm_coef;
+        f_x[i] = (f_x[i] + w_i * f_x[i - 1]) / norm_coef;
+        f_y[i] = (f_y[i] + w_i * f_y[i - 1]) / norm_coef;
+        f_z[i] = (f_z[i] + w_i * f_z[i - 1]) / norm_coef;
     }
 
     /* Perform backward substitution. */
-    u[n - 1] = f[n - 1];
+    u_x[n - 1] = f_x[n - 1];
+    u_y[n - 1] = f_y[n - 1];
+    u_z[n - 1] = f_z[n - 1];
     for (int i = 1; i < n; ++i) {
-        u[n - i - 1] = f[n - 1 - i] - tmp[n - 1 - i] * u[n - i];
+        ftype tmp_i = tmp[n - 1 - i];
+        u_x[n - i - 1] = f_x[n - 1 - i] - tmp_i * u_x[n - i];
+        u_y[n - i - 1] = f_y[n - 1 - i] - tmp_i * u_y[n - i];
+        u_z[n - i - 1] = f_z[n - 1 - i] - tmp_i * u_z[n - i];
     }
 }
 #else
@@ -84,44 +99,71 @@ void transpose_vtile(const ftype *__restrict__ src,
 static inline __attribute__((always_inline))
 void gauss_reduce_vstrip_init(const ftype *__restrict__ w,
                               ftype *__restrict__ upper,
-                              ftype *__restrict__ f_src,
-                              ftype *__restrict__ f_dst)
+                              ftype *__restrict__ f_x_src,
+                              ftype *__restrict__ f_y_src,
+                              ftype *__restrict__ f_z_src,
+                              ftype *__restrict__ f_x_dst,
+                              ftype *__restrict__ f_y_dst,
+                              ftype *__restrict__ f_z_dst)
 {
     vftype ws = vload(w);
-    vftype fs = vload(f_src);
+    vftype fs_x = vload(f_x_src);
+    vftype fs_y = vload(f_y_src);
+    vftype fs_z = vload(f_z_src);
     vftype ds = vadd(ONES, vadd(ws, ws));
-    vftype uppers = vdiv(vneg(ws), ds);
-    vstore(upper, uppers);
-    vstore(f_dst, vdiv(fs, ds));
+    vstore(upper, vdiv(vneg(ws), ds));
+    vstore(f_x_dst, vdiv(fs_x, ds));
+    vstore(f_y_dst, vdiv(fs_y, ds));
+    vstore(f_z_dst, vdiv(fs_z, ds));
 }
 
 static inline __attribute__((always_inline))
 void gauss_reduce_vstrip(const ftype *__restrict__ w,
                          ftype *__restrict__ upper_prev,
-                         const ftype *__restrict__ f_src,
-                         ftype *f_prev,
-                         ftype *f_dst)
+                         const ftype *__restrict__ f_x_src,
+                         const ftype *__restrict__ f_y_src,
+                         const ftype *__restrict__ f_z_src,
+                         ftype *__restrict__ f_x_dst,
+                         ftype *__restrict__ f_y_dst,
+                         ftype *__restrict__ f_z_dst)
 {
     vftype ws = vload(w);
     vftype upper_prevs = vload(upper_prev);
-    vftype f_prevs = vload(f_prev);
-    vftype fs = vload(f_src);
+    vftype f_x_prevs = vload(f_x_dst - VLEN);
+    vftype f_y_prevs = vload(f_y_dst - VLEN);
+    vftype f_z_prevs = vload(f_z_dst - VLEN);
+    vftype fs_x = vload(f_x_src);
+    vftype fs_y = vload(f_y_src);
+    vftype fs_z = vload(f_z_src);
     vftype norm_coefs = vfmadd(ws, upper_prevs, vadd(ONES, vadd(ws, ws)));
     vstore(upper_prev + VLEN, vdiv(vneg(ws), norm_coefs));
-    vstore(f_dst, vdiv(vfmadd(ws, f_prevs, fs), norm_coefs));
+    vstore(f_x_dst, vdiv(vfmadd(ws, f_x_prevs, fs_x), norm_coefs));
+    vstore(f_y_dst, vdiv(vfmadd(ws, f_y_prevs, fs_y), norm_coefs));
+    vstore(f_z_dst, vdiv(vfmadd(ws, f_z_prevs, fs_z), norm_coefs));
 }
 
 static inline __attribute__((always_inline))
-vftype backward_sub_vstrip(const ftype *__restrict__ f,
-                           const ftype *__restrict__ upper,
-                           vftype u_prevs,
-                           ftype *__restrict__ u)
+void backward_sub_vstrip(const ftype *__restrict__ f_x,
+                         const ftype *__restrict__ f_y,
+                         const ftype *__restrict__ f_z,
+                         const ftype *__restrict__ upper,
+                         vftype *__restrict__ u_prevs_x,
+                         vftype *__restrict__ u_prevs_y,
+                         vftype *__restrict__ u_prevs_z,
+                         ftype *__restrict__ u_x,
+                         ftype *__restrict__ u_y,
+                         ftype *__restrict__ u_z)
 {
-    vftype fs = vload(f);
+    vftype fs_x = vload(f_x);
+    vftype fs_y = vload(f_y);
+    vftype fs_z = vload(f_z);
     vftype uppers = vload(upper);
-    vftype u_curr = vfmadd(vneg(uppers), u_prevs, fs);
-    vstore(u, u_curr);
-    return u_curr;
+    *u_prevs_x = vfmadd(vneg(uppers), *u_prevs_x, fs_x);
+    vstore(u_x, *u_prevs_x);
+    *u_prevs_y = vfmadd(vneg(uppers), *u_prevs_y, fs_y);
+    vstore(u_y, *u_prevs_y);
+    *u_prevs_z = vfmadd(vneg(uppers), *u_prevs_z, fs_z);
+    vstore(u_z, *u_prevs_z);
 }
 
 #endif
@@ -131,10 +173,14 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                                uint32_t depth,
                                uint32_t height,
                                uint32_t width,
-                               /* tmp buffer of size 2 * (VLEN * width) */
+                               /* tmp buffer of size 4 * (VLEN * width) */
                                ftype *__restrict__ tmp,
-                               ftype *__restrict__ f,
-                               ftype *__restrict__ u)
+                               ftype *__restrict__ f_x,
+                               ftype *__restrict__ f_y,
+                               ftype *__restrict__ f_z,
+                               ftype *__restrict__ u_x,
+                               ftype *__restrict__ u_y,
+                               ftype *__restrict__ u_z)
 {
 #ifdef AUTO_VEC
     /* Solving for each row of the domain, one at a time. */
@@ -142,7 +188,9 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
         for (int j = 0; j < height; ++j) {
             /* Here we solve for a single block. */
             uint64_t off = height * width * i + width * j;
-            solve_wDxx_tridiag(w + off, width, tmp, f + off, u + off);
+            solve_wDxx_tridiag(w + off, width, tmp,
+                               f_x + off, f_y + off, f_z + off,
+                               u_x + off, u_y + off, u_z + off);
         }
     }
 #else
@@ -151,73 +199,111 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
 
     ftype *__restrict__ tmp_upp = tmp;
     /* WARNING: Cache aliasing? */
-    ftype *__restrict__ tmp_f = tmp + width * VLEN;
+    ftype *__restrict__ tmp_f_x = tmp + 1 * width * VLEN;
+    ftype *__restrict__ tmp_f_y = tmp + 2 * width * VLEN;
+    ftype *__restrict__ tmp_f_z = tmp + 3 * width * VLEN;
 
     for (uint32_t i = 0; i < depth; ++i) {
         /* Solving in groups of VLEN rows. */
         for (uint32_t j = 0; j < height; j += VLEN) {
             uint64_t offset = height * width * i + width * j;
 
-            ftype __attribute__((aligned(32))) f_t[VLEN * VLEN];
+            ftype __attribute__((aligned(32))) f_x_t[VLEN * VLEN];
+            ftype __attribute__((aligned(32))) f_y_t[VLEN * VLEN];
+            ftype __attribute__((aligned(32))) f_z_t[VLEN * VLEN];
             ftype __attribute__((aligned(32))) w_t[VLEN * VLEN];
             /* Load and transpose first tile. */
-            transpose_vtile(f + offset, width, VLEN, f_t); 
+            transpose_vtile(f_x + offset, width, VLEN, f_x_t); 
+            transpose_vtile(f_y + offset, width, VLEN, f_y_t); 
+            transpose_vtile(f_z + offset, width, VLEN, f_z_t); 
             transpose_vtile(w + offset, width, VLEN, w_t); 
 
             /* Reduce first column of the tile. */
             gauss_reduce_vstrip_init(w_t,
                                      tmp_upp,
-                                     f_t,
-                                     tmp_f);
+                                     f_x_t,
+                                     f_y_t,
+                                     f_z_t,
+                                     tmp_f_x,
+                                     tmp_f_y,
+                                     tmp_f_z);
             /* Reduce remaining columns of the tile. */
             for (int k = 1; k < VLEN; ++k) {
                 gauss_reduce_vstrip(w_t + VLEN * k,
                                     tmp_upp + VLEN * (k - 1),
-                                    f_t + VLEN * k,
-                                    tmp_f + VLEN * (k - 1),
-                                    tmp_f + VLEN * k);
+                                    f_x_t + VLEN * k,
+                                    f_y_t + VLEN * k,
+                                    f_z_t + VLEN * k,
+                                    tmp_f_x + VLEN * k,
+                                    tmp_f_y + VLEN * k,
+                                    tmp_f_z + VLEN * k);
             }
 
             /* Reduce remaining tiles except the last one. */
             for (uint32_t tk = VLEN; tk < width - VLEN; tk += VLEN) {
                 /* Load and transpose next tile. */
-                transpose_vtile(f + offset + tk, width, VLEN, f_t);
+                transpose_vtile(f_x + offset + tk, width, VLEN, f_x_t);
+                transpose_vtile(f_y + offset + tk, width, VLEN, f_y_t);
+                transpose_vtile(f_z + offset + tk, width, VLEN, f_z_t);
                 transpose_vtile(w + offset + tk, width, VLEN, w_t);
                 for (int k = 0; k < VLEN; ++k) {
                     /* TODO: use previous vec f instead of loading again. */
                     gauss_reduce_vstrip(w_t + VLEN * k,
                                         tmp_upp + VLEN * (tk + k - 1),
-                                        f_t + VLEN * k,
-                                        tmp_f + VLEN * (tk + k - 1),
-                                        tmp_f + VLEN * (tk + k));
+                                        f_x_t + VLEN * k,
+                                        f_y_t + VLEN * k,
+                                        f_z_t + VLEN * k,
+                                        tmp_f_x + VLEN * (tk + k),
+                                        tmp_f_y + VLEN * (tk + k),
+                                        tmp_f_z + VLEN * (tk + k));
                 }
             }
 
-            transpose_vtile(f + offset + width - VLEN, width, VLEN, f_t);
+            transpose_vtile(f_x + offset + width - VLEN, width, VLEN, f_x_t);
+            transpose_vtile(f_y + offset + width - VLEN, width, VLEN, f_y_t);
+            transpose_vtile(f_z + offset + width - VLEN, width, VLEN, f_z_t);
             transpose_vtile(w + offset + width - VLEN, width, VLEN, w_t);
             /* Reduce last tile. */
             for (int k = 0; k < VLEN; ++k) {
                 gauss_reduce_vstrip(w_t + VLEN * k,
                                     tmp_upp + VLEN * (width - VLEN + k - 1),
-                                    f_t + VLEN * k,
-                                    tmp_f + VLEN * (width - VLEN + k - 1),
-                                    tmp_f + VLEN * (width - VLEN + k));
+                                    f_x_t + VLEN * k,
+                                    f_y_t + VLEN * k,
+                                    f_z_t + VLEN * k,
+                                    tmp_f_x + VLEN * (width - VLEN + k),
+                                    tmp_f_y + VLEN * (width - VLEN + k),
+                                    tmp_f_z + VLEN * (width - VLEN + k));
             }
 
-            ftype __attribute__((aligned(32))) u_t[VLEN * VLEN] = {0};
-            vftype u_last = vbroadcast(0.0f);
+            /* Reuse local buffers. */
+            ftype __attribute__((aligned(32))) *u_x_t = f_x_t;
+            ftype __attribute__((aligned(32))) *u_y_t = f_y_t;
+            ftype __attribute__((aligned(32))) *u_z_t = f_z_t;
+            vftype u_x_last = vbroadcast(0.0f);
+            vftype u_y_last = vbroadcast(0.0f);
+            vftype u_z_last = vbroadcast(0.0f);
 
             for (uint32_t tk = 0; tk < width; tk += VLEN) {
                 for (int k = 0; k < VLEN; ++k) {
-                    u_last = backward_sub_vstrip(
-                        tmp_f + VLEN * (width - 1 - (tk + k)),
+                    backward_sub_vstrip(
+                        tmp_f_x + VLEN * (width - 1 - (tk + k)),
+                        tmp_f_y + VLEN * (width - 1 - (tk + k)),
+                        tmp_f_z + VLEN * (width - 1 - (tk + k)),
                         tmp_upp + VLEN * (width - 1 - (tk + k)),
-                        u_last,
-                        u_t + VLEN * (VLEN - 1 - k));
+                        &u_x_last,
+                        &u_y_last,
+                        &u_z_last,
+                        u_x_t + VLEN * (VLEN - 1 - k),
+                        u_y_t + VLEN * (VLEN - 1 - k),
+                        u_z_t + VLEN * (VLEN - 1 - k));
                 }
                  /* Transpose and store. */
-                transpose_vtile(
-                    u_t, VLEN, width, u + offset + width - VLEN - tk);
+                transpose_vtile(u_x_t, VLEN, width,
+                                u_x + offset + width - VLEN - tk);
+                transpose_vtile(u_y_t, VLEN, width,
+                                u_y + offset + width - VLEN - tk);
+                transpose_vtile(u_z_t, VLEN, width,
+                                u_z + offset + width - VLEN - tk);
             }
         }
     }
@@ -228,22 +314,30 @@ static inline __attribute__((always_inline))
 void gauss_reduce_row_init(const ftype *__restrict__ w,
                            uint32_t width,
                            ftype *__restrict__ upper,
-                           ftype *__restrict__ f)
+                           ftype *__restrict__ f_x,
+                           ftype *__restrict__ f_y,
+                           ftype *__restrict__ f_z)
 {
 #ifdef AUTO_VEC
     for (uint32_t i = 0; i < width; ++i) {
         ftype w_0 = w[i];
         ftype d_0 = 1 + 2 * w_0;
         upper[i] = -w_0 / d_0;
-        f[i] /= d_0;
+        f_x[i] /= d_0;
+        f_y[i] /= d_0;
+        f_z[i] /= d_0;
     }
 #else
     for (uint32_t i = 0; i < width; i += VLEN) {
         vftype ws = vload(w + i);
-        vftype fs = vload(f + i);
+        vftype fs_x = vload(f_x + i);
+        vftype fs_y = vload(f_y + i);
+        vftype fs_z = vload(f_z + i);
         vftype ds = vadd(ONES, vadd(ws, ws));
         vstore(upper + i, vdiv(vneg(ws), ds));
-        vstore(f + i, vdiv(fs, ds));
+        vstore(f_x + i, vdiv(fs_x, ds));
+        vstore(f_y + i, vdiv(fs_y, ds));
+        vstore(f_z + i, vdiv(fs_z, ds));
     }
 #endif
 }
@@ -253,46 +347,74 @@ void gauss_reduce_row(const ftype *__restrict__ w,
                       uint32_t width,
                       uint32_t row_stride,
                       ftype *__restrict__ upper_prev,
-                      ftype *f_prev,
-                      ftype *f_dst)
+                      ftype *__restrict__ f_x_prev,
+                      ftype *__restrict__ f_y_prev,
+                      ftype *__restrict__ f_z_prev,
+                      ftype *__restrict__ f_x_dst,
+                      ftype *__restrict__ f_y_dst,
+                      ftype *__restrict__ f_z_dst)
 {
 #ifdef AUTO_VEC
     for (uint32_t i = 0; i < width; ++i) {
         ftype w_i = w[i];
         ftype norm_coef = 1 + 2 * w_i + w_i * upper_prev[i];
         upper_prev[row_stride + i] = -w_i / norm_coef;
-        f_dst[i] = (f_prev[row_stride + i] + w_i * f_prev[i]) / norm_coef;
+        f_x_dst[i] = (f_x_prev[row_stride + i] +
+                     w_i * f_x_prev[i]) / norm_coef;
+        f_y_dst[i] = (f_y_prev[row_stride + i] +
+                     w_i * f_y_prev[i]) / norm_coef;
+        f_z_dst[i] = (f_z_prev[row_stride + i] +
+                     w_i * f_z_prev[i]) / norm_coef;
     }
 #else
     for (uint32_t i = 0; i < width; i += VLEN) {
         vftype ws = vload(w + i);
         vftype upper_prevs = vload(upper_prev + i);
-        vftype f_prevs = vload(f_prev + i);
-        vftype fs = vload(f_prev + row_stride + i);
+        vftype f_x_prevs = vload(f_x_prev + i);
+        vftype f_y_prevs = vload(f_y_prev + i);
+        vftype f_z_prevs = vload(f_z_prev + i);
+        vftype fs_x = vload(f_x_prev + row_stride + i);
+        vftype fs_y = vload(f_y_prev + row_stride + i);
+        vftype fs_z = vload(f_z_prev + row_stride + i);
         vftype norm_coefs = vfmadd(ws, upper_prevs, vadd(ONES, vadd(ws, ws)));
         vstore(upper_prev + row_stride + i, vdiv(vneg(ws), norm_coefs));
-        vstore(f_dst + i, vdiv(vfmadd(ws, f_prevs, fs), norm_coefs));
+        vstore(f_x_dst + i, vdiv(vfmadd(ws, f_x_prevs, fs_x), norm_coefs));
+        vstore(f_y_dst + i, vdiv(vfmadd(ws, f_y_prevs, fs_y), norm_coefs));
+        vstore(f_z_dst + i, vdiv(vfmadd(ws, f_z_prevs, fs_z), norm_coefs));
     }
 #endif
 }
 
 static inline __attribute__((always_inline))
-void backward_sub_row(const ftype *__restrict__ f,
+void backward_sub_row(const ftype *__restrict__ f_x,
+                      const ftype *__restrict__ f_y,
+                      const ftype *__restrict__ f_z,
                       const ftype *__restrict__ upper,
                       uint32_t width,
                       uint32_t row_stride,
-                      ftype *__restrict__ u)
+                      ftype *__restrict__ u_x,
+                      ftype *__restrict__ u_y,
+                      ftype *__restrict__ u_z)
 {
 #ifdef AUTO_VEC
     for (int k = 0; k < width; ++k) {
-        u[k] = f[k] - upper[k] * u[k + row_stride];
+        ftype upper_k = upper[k];
+        u_x[k] = f_x[k] - upper_k * u_x[k + row_stride];
+        u_y[k] = f_y[k] - upper_k * u_y[k + row_stride];
+        u_z[k] = f_z[k] - upper_k * u_z[k + row_stride];
     }
 #else
     for (int k = 0; k < width; k += VLEN) {
-        vftype fs = vload(f + k);
+        vftype fs_x = vload(f_x + k);
+        vftype fs_y = vload(f_y + k);
+        vftype fs_z = vload(f_z + k);
         vftype uppers = vload(upper + k);
-        vftype u_prevs = vload(u + row_stride + k);
-        vstore(u + k, vfmadd(vneg(uppers), u_prevs, fs));
+        vftype u_x_prevs = vload(u_x + row_stride + k);
+        vftype u_y_prevs = vload(u_y + row_stride + k);
+        vftype u_z_prevs = vload(u_z + row_stride + k);
+        vstore(u_x + k, vfmadd(vneg(uppers), u_x_prevs, fs_x));
+        vstore(u_y + k, vfmadd(vneg(uppers), u_y_prevs, fs_y));
+        vstore(u_z + k, vfmadd(vneg(uppers), u_z_prevs, fs_z));
     }
 #endif
 }
@@ -303,8 +425,12 @@ void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
                                uint32_t height,
                                uint32_t width,
                                ftype *__restrict__ tmp,
-                               ftype *__restrict__ f,
-                               ftype *__restrict__ u)
+                               ftype *__restrict__ f_x,
+                               ftype *__restrict__ f_y,
+                               ftype *__restrict__ f_z,
+                               ftype *__restrict__ u_x,
+                               ftype *__restrict__ u_y,
+                               ftype *__restrict__ u_z)
 {
 #ifndef AUTO_VEC
     ONES = vbroadcast(1.0);
@@ -316,7 +442,11 @@ void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
         /* Gauss reduce the first row. */
         uint64_t face_offset = height * width * i;
         /* Using tmp to store reduced upper diagonal. */
-        gauss_reduce_row_init(w + face_offset, width, tmp, f + face_offset);
+        gauss_reduce_row_init(w + face_offset,
+                              width, tmp,
+                              f_x + face_offset,
+                              f_y + face_offset,
+                              f_z + face_offset);
         /* Gauss reduce the remaining face, one row at a time,
          * except the last one. */
         for (uint32_t j = 1; j < height - 1; ++j) {
@@ -324,39 +454,55 @@ void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
                              width,
                              width,
                              tmp + (j - 1) * width,
-                             f + face_offset + (j - 1) * width,
-                             f + face_offset + j * width);
+                             f_x + face_offset + (j - 1) * width,
+                             f_y + face_offset + (j - 1) * width,
+                             f_z + face_offset + (j - 1) * width,
+                             f_x + face_offset + j * width,
+                             f_y + face_offset + j * width,
+                             f_z + face_offset + j * width);
         }
         /* Reduce the last row. */
         gauss_reduce_row(w + face_offset + (height - 1) * width,
                          width,
                          width,
                          tmp + (height - 2) * width,
-                         f + face_offset + (height - 2) * width,
+                         f_x + face_offset + (height - 2) * width,
+                         f_y + face_offset + (height - 2) * width,
+                         f_z + face_offset + (height - 2) * width,
                          /* Start backward substitution by writing
                           * directly into u. */
-                         u + face_offset + (height - 1) * width);
+                         u_x + face_offset + (height - 1) * width,
+                         u_y + face_offset + (height - 1) * width,
+                         u_z + face_offset + (height - 1) * width);
 
         /* Backward substitute the remaining face, one row at a time. */
         for (int j = 1; j < height; ++j) {
             uint64_t row_offset = face_offset + (height - j - 1) * width;
-            backward_sub_row(f + row_offset,
+            backward_sub_row(f_x + row_offset,
+                             f_y + row_offset,
+                             f_z + row_offset,
                              tmp + row_offset - face_offset,
                              width,
                              width,
-                             u + row_offset);
+                             u_x + row_offset,
+                             u_y + row_offset,
+                             u_z + row_offset);
         }
     }
 }
 
 /* Solves the block diagonal system (I - w∂zz)u = f. */
 void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
-                               uint32_t depth,
-                               uint32_t height,
-                               uint32_t width,
+                               unsigned int depth,
+                               unsigned int height,
+                               unsigned int width,
                                ftype *__restrict__ tmp,
-                               ftype *__restrict__ f,
-                               ftype *__restrict__ u)
+                               ftype *__restrict__ f_x,
+                               ftype *__restrict__ f_y,
+                               ftype *__restrict__ f_z,
+                               ftype *__restrict__ u_x,
+                               ftype *__restrict__ u_y,
+                               ftype *__restrict__ u_z)
 {
 #ifndef AUTO_VEC
     ONES = vbroadcast(1.0);
@@ -369,7 +515,9 @@ void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
         gauss_reduce_row_init(w + row_offset,
                               width,
                               tmp + row_offset,
-                              f + row_offset);
+                              f_x + row_offset,
+                              f_y + row_offset,
+                              f_z + row_offset);
     }
 
     /* Gauss reduce the remaining domain, one face at a time,
@@ -381,8 +529,12 @@ void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
                              width,
                              height * width,
                              tmp + row_offset - (height * width),
-                             f + row_offset - (height * width),
-                             f + row_offset);
+                             f_x + row_offset - (height * width),
+                             f_y + row_offset - (height * width),
+                             f_z + row_offset - (height * width),
+                             f_x + row_offset,
+                             f_y + row_offset,
+                             f_z + row_offset);
         }
     }
     /* Reduce the last face, indirectly performing
@@ -393,8 +545,12 @@ void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
                          width,
                          height * width,
                          tmp + face_offset + j * width - (height * width),
-                         f + face_offset + j * width - (height * width),
-                         u + face_offset + j * width);
+                         f_x + face_offset + j * width - (height * width),
+                         f_y + face_offset + j * width - (height * width),
+                         f_z + face_offset + j * width - (height * width),
+                         u_x + face_offset + j * width,
+                         u_y + face_offset + j * width,
+                         u_z + face_offset + j * width);
     }
 
     /* Backward subsitute the remaining domain, one face at a time. */
@@ -402,11 +558,15 @@ void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
         for (uint32_t j = 0; j < height; ++j) {
             uint64_t row_offset =
                 (height * width) * (depth - i - 1) + width * j;
-            backward_sub_row(f + row_offset,
+            backward_sub_row(f_x + row_offset,
+                             f_y + row_offset,
+                             f_z + row_offset,
                              tmp + row_offset,
                              width,
                              height * width,
-                             u + row_offset);
+                             u_x + row_offset,
+                             u_y + row_offset,
+                             u_z + row_offset);
         }
     }
 }

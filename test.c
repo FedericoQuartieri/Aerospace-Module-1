@@ -6,6 +6,7 @@
 #include "lin-solver.h"
 #include "equations.h"
 #include "ftype.h"
+#include "utils.h"
 
 #define SEED 42
 #define SUCCESS 0
@@ -21,7 +22,6 @@ do {                                                        \
     }                                                       \
 } while (0)
 
-
 #define EXPECT_SUCCESS(test_call)                           \
 do {                                                        \
     if (test_call == SUCCESS) {                             \
@@ -32,13 +32,6 @@ do {                                                        \
 } while (0)
 
 static ftype abs_(ftype x) { return (x >= 0) ? x : -x; }
-
-static void rand_fill(ftype *dst, size_t count)
-{
-    for (size_t i = 0; i < count; ++i) {
-        dst[i] = ((ftype) rand()) / RAND_MAX;
-    }
-}
 
 static int verify_wD_solution(const ftype *__restrict__ w,
                               const ftype *__restrict__ f,
@@ -129,21 +122,41 @@ int test_wD##axes##_solver(uint32_t depth,                               \
 {                                                                        \
     size_t size = (depth + VLEN) * (height + VLEN) * (width + VLEN);     \
     ftype *w = aligned_alloc(32, size * sizeof(ftype));                  \
-    ftype *u = aligned_alloc(32, size * sizeof(ftype));                  \
-    ftype *f = aligned_alloc(32, size * sizeof(ftype));                  \
-    ftype *f_cp = aligned_alloc(32, size * sizeof(ftype));               \
+    ftype *u = aligned_alloc(32, 3 * size * sizeof(ftype));              \
+    ftype *f = aligned_alloc(32, 3 * size * sizeof(ftype));              \
+    ftype *f_cp = aligned_alloc(32, 3 * size * sizeof(ftype));           \
     ftype *tmp = aligned_alloc(32, size * sizeof(ftype));                \
+                                                                         \
+    ftype *u_x = u;                                                      \
+    ftype *f_x = f;                                                      \
+    ftype *f_x_cp = f_cp;                                                \
+    ftype *u_y = u + size;                                               \
+    ftype *f_y = f + size;                                               \
+    ftype *f_y_cp = f_cp + size;                                         \
+    ftype *u_z = u + 2 * size;                                           \
+    ftype *f_z = f + 2 * size;                                           \
+    ftype *f_z_cp = f_cp + 2 * size;                                     \
                                                                          \
     for (int i = 0; i < depth * height * width; ++i) {                   \
         w[i] = ((ftype) rand()) / RAND_MAX;                              \
-        f[i] = ((ftype) rand()) / RAND_MAX;                              \
-        f_cp[i] = f[i];                                                  \
+        f_x[i] = ((ftype) rand()) / RAND_MAX;                            \
+        f_y[i] = ((ftype) rand()) / RAND_MAX;                            \
+        f_z[i] = ((ftype) rand()) / RAND_MAX;                            \
+        f_x_cp[i] = f_x[i];                                              \
+        f_y_cp[i] = f_y[i];                                              \
+        f_z_cp[i] = f_z[i];                                              \
     }                                                                    \
                                                                          \
-    solve_wD##axes##_tridiag_blocks(w, depth, height, width, tmp, f, u); \
+    solve_wD##axes##_tridiag_blocks(w, depth, height, width, tmp,        \
+                                    f_x, f_y, f_z, u_x, u_y, u_z);       \
                                                                          \
-    int status = verify_wD##axes##_solution(                             \
-        w, f_cp, u, depth, height, width, 1e-4);                         \
+    int error = verify_wD##axes##_solution(w, f_x_cp, u_x, depth,        \
+                                           height, width, 1e-4) |        \
+                verify_wD##axes##_solution(w, f_y_cp, u_y, depth,        \
+                                           height, width, 1e-4) |        \
+                verify_wD##axes##_solution(w, f_z_cp, u_z, depth,        \
+                                           height, width, 1e-4);         \
+                                                                         \
                                                                          \
     free(tmp);                                                           \
     free(f_cp);                                                          \
@@ -151,7 +164,7 @@ int test_wD##axes##_solver(uint32_t depth,                               \
     free(u);                                                             \
     free(w);                                                             \
                                                                          \
-    return status;                                                       \
+    return error;                                                        \
 }                                                                        \
 
 DEFINE_TEST_WD_SOLVER(xx)
@@ -379,15 +392,15 @@ int test_wDxx_rhs_computation(uint32_t depth,
         }
     }
 
-    int status = verify_wDxx_rhs_comp(k, Dx_pp, eta_x, zeta_x,
-                                      u_x, rhs_x, depth, height,
-                                      width, nu, dt, dx, 1e-4) ||
-                 verify_wDxx_rhs_comp(k, Dy_pp, eta_y, zeta_y,
-                                      u_y, rhs_y, depth, height,
-                                      width, nu, dt, dx, 1e-4) ||
-                 verify_wDxx_rhs_comp(k, Dz_pp, eta_z, zeta_z,
-                                      u_z, rhs_z, depth, height,
-                                      width, nu, dt, dx, 1e-4);
+    int error = verify_wDxx_rhs_comp(k, Dx_pp, eta_x, zeta_x,
+                                     u_x, rhs_x, depth, height,
+                                     width, nu, dt, dx, 1e-4) ||
+                verify_wDxx_rhs_comp(k, Dy_pp, eta_y, zeta_y,
+                                     u_y, rhs_y, depth, height,
+                                     width, nu, dt, dx, 1e-4) ||
+                verify_wDxx_rhs_comp(k, Dz_pp, eta_z, zeta_z,
+                                     u_z, rhs_z, depth, height,
+                                     width, nu, dt, dx, 1e-4);
 
     free(Dz_pp);
     free(Dy_pp);
@@ -401,7 +414,7 @@ int test_wDxx_rhs_computation(uint32_t depth,
     free(p);
     free(k);
 
-    return status;
+    return error;
 }
 
 int main(void)
