@@ -33,6 +33,17 @@ int main(){
     DTYPE *K = (DTYPE *) malloc(GRID_SIZE);
     rand_fill(K);
     
+    DTYPE *Beta = (DTYPE *) malloc(GRID_SIZE);
+    DTYPE *Gamma = (DTYPE *) malloc(GRID_SIZE);
+    for(int k = 0; k < DEPTH; k++){
+        for(int j = 0; j < HEIGHT; j++){
+            for(int i = 0; i < WIDTH; i++){
+                size_t idx = rowmaj_idx(i,j,k);
+                Beta[idx] = 1 + (DT * NU) / (2 * K[idx]);
+                Gamma[idx] = (DT * NU) / ( 2 * Beta[idx]);
+            }
+        }
+    }
 
     // Inizialize G
     GField g_field;
@@ -58,7 +69,7 @@ int main(){
         initialize_velocity_field(&Eta_next);
         initialize_velocity_field(&Zeta_next);
         initialize_velocity_field(&U_next);
-        solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next);
+        solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma);
 
     printf("momentum\n");
 

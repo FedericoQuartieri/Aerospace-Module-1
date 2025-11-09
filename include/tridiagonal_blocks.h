@@ -31,14 +31,16 @@
  *                    the computation and will not retain its original values.
  * @param[out] u   Solution vector of size n.
  */
-static void solve_Dxx_tridiag(const DTYPE *__restrict__ w, 
+static void Thomas(const DTYPE *__restrict__ w, 
                                unsigned int n,
                                DTYPE *__restrict__ tmp,
                                DTYPE *__restrict__ f,
                                DTYPE *__restrict__ u);
 
 /* Solves the block diagonal system (I - ∂xx)u = f. */
-void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_component);
-
-
+void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_component, DTYPE *Gamma);
+/* Solves the block diagonal system (I - ∂yy)u = f. */
+void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next_component, DTYPE *f_field_component, DTYPE *Gamma);
+/* Solves the block diagonal system (I - ∂zz)u = f. */
+void solve_Dzz_tridiag_blocks(DTYPE *U_next_component, DTYPE *f_field_component, DTYPE *Gamma);
 #endif
