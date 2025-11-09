@@ -53,6 +53,7 @@ static void solve_wDxx_tridiag(const ftype *__restrict__ w,
 }
 #else
 
+static vftype ZEROS;
 static vftype ONES;
 static vftype SIGN_MASK;
 
@@ -97,24 +98,24 @@ void transpose_vtile(const ftype *__restrict__ src,
 }
 
 static inline __attribute__((always_inline))
-void gauss_reduce_vstrip_init(const ftype *__restrict__ w,
-                              ftype *__restrict__ upper,
-                              ftype *__restrict__ f_x_src,
-                              ftype *__restrict__ f_y_src,
-                              ftype *__restrict__ f_z_src,
-                              ftype *__restrict__ f_x_dst,
-                              ftype *__restrict__ f_y_dst,
-                              ftype *__restrict__ f_z_dst)
+/* WARNING: Supports only constant BCs. */
+void apply_left_bcs(ftype u0_x,
+                    ftype u0_y,
+                    ftype u0_z,
+                    ftype *__restrict__ upper,
+                    ftype *__restrict__ f_x_dst,
+                    ftype *__restrict__ f_y_dst,
+                    ftype *__restrict__ f_z_dst)
 {
-    vftype ws = vload(w);
-    vftype fs_x = vload(f_x_src);
-    vftype fs_y = vload(f_y_src);
-    vftype fs_z = vload(f_z_src);
-    vftype ds = vadd(ONES, vadd(ws, ws));
-    vstore(upper, vdiv(vneg(ws), ds));
-    vstore(f_x_dst, vdiv(fs_x, ds));
-    vstore(f_y_dst, vdiv(fs_y, ds));
-    vstore(f_z_dst, vdiv(fs_z, ds));
+    /* u_x = u_0 + (-du_y/dy -du_z/dz) * dx/2
+     * u_y = u0_y
+     * u_z = u0_z */
+
+    /* Set upper coefficient to 0 and enforce solution in rhs. */
+    vstore(upper, ZEROS);
+    vstore(f_x_dst, vbroadcast(u0_x)); /* du_y/dy = du_z/dz = 0 */
+    vstore(f_y_dst, vbroadcast(u0_y));
+    vstore(f_z_dst, vbroadcast(u0_z));
 }
 
 static inline __attribute__((always_inline))
@@ -143,13 +144,62 @@ void gauss_reduce_vstrip(const ftype *__restrict__ w,
 }
 
 static inline __attribute__((always_inline))
+vftype compute_end_bc_u(vftype ws,
+                        vftype ws2,
+                        vftype fs_prev,
+                        vftype fs,
+                        ftype un,
+                        vftype norm_coeffs)
+{
+    vftype uns = vbroadcast(un);
+    return vdiv(vsub(vfmadd(fs_prev, ws, vneg(fs)),
+                     vmul(ws2, uns)),
+                norm_coeffs);
+}
+
+static inline __attribute__((always_inline))
+/* WARNING: Supports only constant BCs. */
+void apply_right_bcs(const ftype *__restrict__ w,
+                     const ftype *__restrict__ upper_prev,
+                     /* Velocities on the wall. */
+                     ftype un_x,
+                     ftype un_y,
+                     ftype un_z,
+                     ftype *__restrict__ f_x,
+                     ftype *__restrict__ f_y,
+                     ftype *__restrict__ f_z)
+{
+    /* u_x = un_x
+     * u_y = (1 + 3w_i + w_i upper_prev_i) /
+     *       (-2w_i un_y - f_y_i + w_i f_y_i_prev)
+     * u_z = (1 + 3w_i + w_i upper_prev_i) /
+     *       (-2w_i un_z - f_y_i + w_i f_z_i_prev) */
+
+    vftype ws = vload(w);
+    vftype upper_prevs = vload(upper_prev);
+    vftype fs_y_prevs = vload(f_y - VLEN);
+    vftype fs_z_prevs = vload(f_z - VLEN);
+    vftype fs_y = vload(f_y);
+    vftype fs_z = vload(f_z);
+    vftype ws2 = vadd(ws, ws);
+    vftype norm_coeffs = vfmadd(upper_prevs, ws,
+                                vadd(ONES, vadd(ws2, ws)));
+
+    vstore(f_x, vbroadcast(un_x));
+    vstore(f_y, compute_end_bc_u(ws, ws2, fs_y_prevs,
+                                 fs_y, un_y, norm_coeffs));
+    vstore(f_z, compute_end_bc_u(ws, ws2, fs_z_prevs,
+                                 fs_z, un_z, norm_coeffs));
+}
+
+static inline __attribute__((always_inline))
 void backward_sub_vstrip(const ftype *__restrict__ f_x,
                          const ftype *__restrict__ f_y,
                          const ftype *__restrict__ f_z,
                          const ftype *__restrict__ upper,
-                         vftype *__restrict__ u_prevs_x,
-                         vftype *__restrict__ u_prevs_y,
-                         vftype *__restrict__ u_prevs_z,
+                         vftype *__restrict__ u_x_prevs,
+                         vftype *__restrict__ u_y_prevs,
+                         vftype *__restrict__ u_z_prevs,
                          ftype *__restrict__ u_x,
                          ftype *__restrict__ u_y,
                          ftype *__restrict__ u_z)
@@ -158,12 +208,12 @@ void backward_sub_vstrip(const ftype *__restrict__ f_x,
     vftype fs_y = vload(f_y);
     vftype fs_z = vload(f_z);
     vftype uppers = vload(upper);
-    *u_prevs_x = vfmadd(vneg(uppers), *u_prevs_x, fs_x);
-    vstore(u_x, *u_prevs_x);
-    *u_prevs_y = vfmadd(vneg(uppers), *u_prevs_y, fs_y);
-    vstore(u_y, *u_prevs_y);
-    *u_prevs_z = vfmadd(vneg(uppers), *u_prevs_z, fs_z);
-    vstore(u_z, *u_prevs_z);
+    *u_x_prevs = vfmadd(vneg(uppers), *u_x_prevs, fs_x);
+    vstore(u_x, *u_x_prevs);
+    *u_y_prevs = vfmadd(vneg(uppers), *u_y_prevs, fs_y);
+    vstore(u_y, *u_y_prevs);
+    *u_z_prevs = vfmadd(vneg(uppers), *u_z_prevs, fs_z);
+    vstore(u_z, *u_y_prevs);
 }
 
 #endif
@@ -173,6 +223,13 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                                uint32_t depth,
                                uint32_t height,
                                uint32_t width,
+                               /* Dirichlet boundary conditions. */
+                               ftype u0_x,
+                               ftype u0_y,
+                               ftype u0_z,
+                               ftype un_x,
+                               ftype un_y,
+                               ftype un_z,
                                /* tmp buffer of size 4 * (VLEN * width) */
                                ftype *__restrict__ tmp,
                                ftype *__restrict__ f_x,
@@ -194,6 +251,7 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
         }
     }
 #else
+    ZEROS = vbroadcast(0.0);
     ONES = vbroadcast(1.0);
     SIGN_MASK = vbroadcast(-0.0f);
 
@@ -218,15 +276,9 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
             transpose_vtile(f_z + offset, width, VLEN, f_z_t); 
             transpose_vtile(w + offset, width, VLEN, w_t); 
 
-            /* Reduce first column of the tile. */
-            gauss_reduce_vstrip_init(w_t,
-                                     tmp_upp,
-                                     f_x_t,
-                                     f_y_t,
-                                     f_z_t,
-                                     tmp_f_x,
-                                     tmp_f_y,
-                                     tmp_f_z);
+            /* Apply BCs on the first column of the tile. */
+            apply_left_bcs(u0_x, u0_y, u0_z, tmp_upp,
+                           tmp_f_x, tmp_f_y, tmp_f_z);
             /* Reduce remaining columns of the tile. */
             for (int k = 1; k < VLEN; ++k) {
                 gauss_reduce_vstrip(w_t + VLEN * k,
@@ -263,8 +315,8 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
             transpose_vtile(f_y + offset + width - VLEN, width, VLEN, f_y_t);
             transpose_vtile(f_z + offset + width - VLEN, width, VLEN, f_z_t);
             transpose_vtile(w + offset + width - VLEN, width, VLEN, w_t);
-            /* Reduce last tile. */
-            for (int k = 0; k < VLEN; ++k) {
+            /* Reduce last tile except last column. */
+            for (int k = 0; k < VLEN - 1; ++k) {
                 gauss_reduce_vstrip(w_t + VLEN * k,
                                     tmp_upp + VLEN * (width - VLEN + k - 1),
                                     f_x_t + VLEN * k,
@@ -274,15 +326,27 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                                     tmp_f_y + VLEN * (width - VLEN + k),
                                     tmp_f_z + VLEN * (width - VLEN + k));
             }
+            /* Apply BCs on the right column. */
+            apply_right_bcs(w_t + VLEN * (VLEN - 1),
+                            tmp_upp + VLEN * (width - 2),
+                            un_x,
+                            un_y,
+                            un_z,
+                            /* Write solutions into f_t buffers,
+                             * we will reuse them for u_t buffers */
+                            f_x_t + VLEN * (VLEN - 1),
+                            f_y_t + VLEN * (VLEN - 1),
+                            f_z_t + VLEN * (VLEN - 1));
 
             /* Reuse local buffers. */
             ftype __attribute__((aligned(32))) *u_x_t = f_x_t;
             ftype __attribute__((aligned(32))) *u_y_t = f_y_t;
             ftype __attribute__((aligned(32))) *u_z_t = f_z_t;
-            vftype u_x_last = vbroadcast(0.0f);
-            vftype u_y_last = vbroadcast(0.0f);
-            vftype u_z_last = vbroadcast(0.0f);
+            vftype u_x_prev = vbroadcast(0.0f);
+            vftype u_y_prev = vbroadcast(0.0f);
+            vftype u_z_prev = vbroadcast(0.0f);
 
+            /* Backward substitute one tile at a time. */
             for (uint32_t tk = 0; tk < width; tk += VLEN) {
                 for (int k = 0; k < VLEN; ++k) {
                     backward_sub_vstrip(
@@ -290,9 +354,9 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                         tmp_f_y + VLEN * (width - 1 - (tk + k)),
                         tmp_f_z + VLEN * (width - 1 - (tk + k)),
                         tmp_upp + VLEN * (width - 1 - (tk + k)),
-                        &u_x_last,
-                        &u_y_last,
-                        &u_z_last,
+                        &u_x_prev,
+                        &u_y_prev,
+                        &u_z_prev,
                         u_x_t + VLEN * (VLEN - 1 - k),
                         u_y_t + VLEN * (VLEN - 1 - k),
                         u_z_t + VLEN * (VLEN - 1 - k));
