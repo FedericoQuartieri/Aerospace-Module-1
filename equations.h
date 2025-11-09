@@ -3,6 +3,14 @@
 
 #include "ftype.h"
 
+void compute_w(const ftype *__restrict__ k,
+               uint32_t depth,
+               uint32_t height,
+               uint32_t width,
+               ftype nu,
+               ftype dt,
+               ftype *__restrict__ w);
+
 void compute_wDxx_rhs(const ftype *__restrict__ k, /* Porosity. */
                       /* Pressure from previous half-step. */
                       const ftype *__restrict__ p,
@@ -31,9 +39,13 @@ void compute_wDxx_rhs(const ftype *__restrict__ k, /* Porosity. */
                       ftype *__restrict__ rhs_z);
 
 void solve_momentum(const ftype *__restrict__ k, /* Porosity. */
+                    const ftype *__restrict__ w,
                     uint32_t depth,
                     uint32_t height,
                     uint32_t width,
+                    ftype nu,
+                    ftype dt,
+                    ftype dx,
                     ftype *__restrict__ tmp,
                     /* Pressure from previous half-step. */
                     ftype *__restrict__ p,

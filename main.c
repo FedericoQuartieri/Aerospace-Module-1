@@ -1,5 +1,6 @@
 #include "equations.h"
 #include "timeit.h"
+#include "utils.h"
 
 void step(void)
 {
@@ -13,18 +14,17 @@ void step(void)
 #define H 128
 #define W 128
 
-static void rand_fill(ftype *dst, size_t count)
-{
-    for (size_t i = 0; i < count; ++i) {
-        dst[i] = ((ftype) rand()) / RAND_MAX;
-    }
-}
+#define NU 1.0
+#define DT 0.01
+#define DX 0.01
 
 int main(void)
 {
     /* step(); */
     size_t size = (D + 2) * H * W;
     ftype *k = aligned_alloc(32, size * sizeof(ftype));
+    /* TODO: avoid allocating w, compute it on the fly from k. */
+    ftype *w = aligned_alloc(32, size * sizeof(ftype));
     ftype *p = aligned_alloc(32, size * sizeof(ftype));
     ftype *phi = aligned_alloc(32, size * sizeof(ftype));
 
@@ -40,7 +40,7 @@ int main(void)
     ftype *u_y = aligned_alloc(32, size * sizeof(ftype));
     ftype *u_z = aligned_alloc(32, size * sizeof(ftype));
 
-    ftype *tmp = aligned_alloc(32, size * sizeof(ftype) * 3);
+    ftype *tmp = aligned_alloc(32, size * sizeof(ftype) * 6);
 
     rand_fill(k, size);
     rand_fill(p, size);
@@ -55,8 +55,13 @@ int main(void)
     rand_fill(u_y, size);
     rand_fill(u_z, size);
 
+    /* Precomputing w, consider computing it on the fly when solving. */
+    compute_w(k, D, H, W, NU, DT, w);
+
     solve_momentum(k,
+                   w,
                    D, H, W,
+                   NU, DT, DX,
                    tmp,
                    p, phi,
                    eta_x + W * H, eta_y + H * W, eta_z + H * W,
@@ -64,6 +69,7 @@ int main(void)
                    u_x + H * W, u_y + H * W, u_z + H * W);
 
     free(k);
+    free(w);
     free(p);
     free(phi);
     free(eta_x);

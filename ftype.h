@@ -19,6 +19,7 @@
     #define vsub(x, y) ((x) - (y))
     #define vmul(x, y) ((x) * (y))
     #define vdiv(x, y) ((x) / (y))
+    #define vfmadd(x, y, z) ((x) * (y) + (z))
     #define vload(addr) (*(addr))
     #define vloadu(addr) vload(addr)
     #define vstore(addr, x) *(addr) = (x)

@@ -1,6 +1,22 @@
 #include "equations.h"
 #include "finite-diff.h"
 
+void compute_w(const ftype *__restrict__ k,
+               uint32_t depth,
+               uint32_t height,
+               uint32_t width,
+               ftype nu,
+               ftype dt,
+               ftype *__restrict__ w)
+{
+    vftype dt_nu = vbroadcast(nu * dt);
+    for (uint64_t i = 0; i < depth * height * width; i += VLEN) {
+        vftype k_ = vload(k + i);
+        /* w = (k dt nu) / (2k + dt nu) */
+        vstore(w, vdiv(vmul(k_, dt_nu), vadd(vadd(k_, k_), dt_nu)));
+    }
+}
+
 static inline __attribute__((always_inline))
 vftype compute_g_comp_at(const ftype *__restrict__ eta,
                          const ftype *__restrict__ zeta,
@@ -59,7 +75,7 @@ vftype compute_wDxx_rhs_comp_at(const ftype *__restrict__ eta,
     vftype g = compute_g_comp_at(eta, zeta, u,
                                  idx, height, width, nu, dx,
                                  k, eta_, zeta_, u_, D_pp);
-    return vsub(vadd(u_, vmul(dt_beta, g)), eta_);
+    return vsub(vfmadd(dt_beta, g, u_), eta_);
 }
 
 void compute_wDxx_rhs(
@@ -140,9 +156,13 @@ void compute_wDxx_rhs(
 }
 
 void solve_momentum(const ftype *__restrict__ k,
+                    const ftype *__restrict__ w,
                     uint32_t depth,
                     uint32_t height,
                     uint32_t width,
+                    ftype nu,
+                    ftype dt,
+                    ftype dx,
                     ftype *__restrict__ tmp,
                     ftype *__restrict__ p,
                     ftype *__restrict__ phi,
@@ -167,7 +187,7 @@ void solve_momentum(const ftype *__restrict__ k,
                      zeta_x, zeta_y, zeta_z,
                      u_x, u_y, u_z,
                      depth, height, width,
-                     0.1, 0.1, 0.1,
+                     nu, dt, dx,
                      wDxx_rhs_x, wDxx_rhs_y, wDxx_rhs_z);
 
     /* TODO: What if we alternate solving a group of Dxx rows,
