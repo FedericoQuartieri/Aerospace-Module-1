@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include "ftype.h"
 
-inline void rand_fill(ftype *dst, size_t count)
+extern inline void rand_fill(ftype *dst, size_t count)
 {
     for (size_t i = 0; i < count; ++i) {
         dst[i] = ((ftype) rand()) / RAND_MAX;
