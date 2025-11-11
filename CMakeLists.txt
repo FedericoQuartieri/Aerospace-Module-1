@@ -5,6 +5,9 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Find Eigen3 (header-only). Required for some tests using Eigen::Sparse/IterativeSolvers.
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+
 # --- test (googletest) ---
 enable_testing()
 add_subdirectory(third_party/googletest)
@@ -31,7 +34,7 @@ target_link_libraries(navier_stokes PRIVATE navier_core)
 
 # Test: linka googletest e la libreria core
 add_executable(tests ${TEST})
-target_link_libraries(tests PRIVATE GTest::gtest_main navier_core m)
+target_link_libraries(tests PRIVATE GTest::gtest_main navier_core m Eigen3::Eigen)
 
 include(GoogleTest)
 gtest_discover_tests(tests)

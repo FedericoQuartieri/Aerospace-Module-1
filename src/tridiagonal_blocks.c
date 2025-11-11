@@ -11,20 +11,25 @@ static void Thomas(const DTYPE *__restrict__ w,
         return; 
     }
 
+    // Thomas algorithm for symmetric tridiagonal matrix:
+    // Diagonal: (1 - 2*w), Off-diagonals: w (both sub and super)
+    // This matches the discretization: (1 + 2γΔx⁻²) with off-diagonals -γΔx⁻²
+    // where w = -γΔx⁻²
+    
     // Forward elimination step
-    DTYPE norm_coeff = 1 / (1 - 2 * w[0]);                           
-    tmp[0] = - w[0] * norm_coeff;
+    DTYPE norm_coeff = 1.0 / (1.0 - 2.0 * w[0]);                           
+    tmp[0] = w[0] * norm_coeff;  // Super-diagonal coefficient
     f[0] = f[0] * norm_coeff;
     for(int i = 1; i < n; i++){
-        norm_coeff = 1 / ((1 - 2 * w[i]) - w[i] * tmp[i - 1]); 
-        tmp[i] = -w[i] * norm_coeff;
-        f[i] = (f[i] + w[i]*f[i - 1]) * norm_coeff;
+        norm_coeff = 1.0 / ((1.0 - 2.0 * w[i]) - w[i] * tmp[i - 1]); 
+        tmp[i] = w[i] * norm_coeff;  // Super-diagonal coefficient
+        f[i] = (f[i] - w[i]*f[i - 1]) * norm_coeff;  // Sub-diagonal is also w
     }
     
     // Backward substitution
     u[n - 1] = f[n - 1];
     for(int i = 1; i < n; i++){
-        u[n - 1 - i] = -u[n - i]*tmp[n - 1 - i] + f[n - 1 - i];
+        u[n - 1 - i] = f[n - 1 - i] - tmp[n - 1 - i] * u[n - i];
     }
 }
 
