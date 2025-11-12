@@ -14,6 +14,12 @@
 #ifdef AUTO_VEC
 static void solve_wDxx_tridiag(const ftype *__restrict__ w,
                                unsigned int n,
+                               ftype u0_x,
+                               ftype u0_y,
+                               ftype u0_z,
+                               ftype un_x,
+                               ftype un_y,
+                               ftype un_z,
                                ftype *__restrict__ tmp,
                                ftype *__restrict__ f_x,
                                ftype *__restrict__ f_y,
@@ -23,15 +29,15 @@ static void solve_wDxx_tridiag(const ftype *__restrict__ w,
                                ftype *__restrict__ u_z)
 {
     /* Perform gaussian elimination. */
-    ftype d_0 = 1 + 2 * w[0];
     /* Using tmp to store reduced upper diagonal. */
-    tmp[0] = -w[0] / d_0;
 
-    f_x[0] /= d_0;
-    f_y[0] /= d_0;
-    f_z[0] /= d_0;
+    /* Left boundary conditions! */
+    tmp[0] = 0;
+    f_x[0] = u0_x;
+    f_y[0] = u0_y;
+    f_z[0] = u0_z;
 
-    for (int i = 1; i < n; ++i) {
+    for (int i = 1; i < n - 1; ++i) {
         ftype w_i = w[i];
         ftype norm_coef = 1 + 2 * w_i + w_i * tmp[i - 1];
         tmp[i] = -w_i / norm_coef;
@@ -40,10 +46,16 @@ static void solve_wDxx_tridiag(const ftype *__restrict__ w,
         f_z[i] = (f_z[i] + w_i * f_z[i - 1]) / norm_coef;
     }
 
+    /* Right boundary conditions! */
+    ftype w_n = w[n - 1];
+    u_x[n - 1] = un_x;
+    ftype norm_coeff = 1 + 3 * w_n + w_n * tmp[n - 2];
+    u_y[n - 1] = (-2 * w_n * un_y - f_y[n - 1] + w_n * f_y[n - 2]) /
+                 norm_coeff;
+    u_z[n - 1] = (-2 * w_n * un_z - f_z[n - 1] + w_n * f_z[n - 2]) /
+                 norm_coeff;
+
     /* Perform backward substitution. */
-    u_x[n - 1] = f_x[n - 1];
-    u_y[n - 1] = f_y[n - 1];
-    u_z[n - 1] = f_z[n - 1];
     for (int i = 1; i < n; ++i) {
         ftype tmp_i = tmp[n - 1 - i];
         u_x[n - i - 1] = f_x[n - 1 - i] - tmp_i * u_x[n - i];
@@ -175,10 +187,10 @@ void apply_right_bcs(const ftype *__restrict__ w,
                      vftype *__restrict__ u_z)
 {
     /* u_x = un_x
-     * u_y = (1 + 3w_i + w_i upper_prev_i) /
-     *       (-2w_i un_y - f_y_i + w_i f_y_i_prev)
-     * u_z = (1 + 3w_i + w_i upper_prev_i) /
-     *       (-2w_i un_z - f_y_i + w_i f_z_i_prev) */
+     * u_y =  (-2w_i un_y - f_y_i + w_i f_y_i_prev) /
+     *        (1 + 3w_i + w_i upper_prev_i)
+     * u_z =  (-2w_i un_z - f_z_i + w_i f_z_i_prev) /
+     *        (1 + 3w_i + w_i upper_prev_i) */
 
     vftype ws = vload(w);
     vftype upper_prevs = vload(upper_prev);
@@ -254,7 +266,8 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
         for (int j = 0; j < height; ++j) {
             /* Here we solve for a single block. */
             uint64_t off = height * width * i + width * j;
-            solve_wDxx_tridiag(w + off, width, tmp,
+            solve_wDxx_tridiag(w + off, width, u0_x, u0_y, u0_z,
+                               un_x, un_y, un_z, tmp,
                                f_x + off, f_y + off, f_z + off,
                                u_x + off, u_y + off, u_z + off);
         }
