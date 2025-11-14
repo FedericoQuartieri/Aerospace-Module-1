@@ -9,8 +9,11 @@
 #include "momentum_system.h"
 #include "pressure_system.h"
 #include "forcing_parser.h"
+#include "solve.h"
 
 /* Solver for the Navier-Stokes-Brinkman equation */
+
+
 
 int main(){
     // Initilize pressure
@@ -67,37 +70,10 @@ int main(){
      *                 [dz]    f_z   - Grad_z(P) - c * U_z + c[ Grad_xx(N_z) + Grad_yy(Z_z) + Grad_zz(U_z)] 
      * */     
     compute_g(&g_field, forcing, &pressure, K, &Eta, &Zeta, &U, 0);
-    
 
 
-    // For each time step:
-    // declare U_next, Eta_next, Zeta_next, Xi
-        VelocityField Eta_next;
-        VelocityField Zeta_next;
-        VelocityField U_next;
-        VelocityField Xi;
-        initialize_velocity_field(&Xi);
-        initialize_velocity_field(&Eta_next);
-        initialize_velocity_field(&Zeta_next);
-        initialize_velocity_field(&U_next);
-        DTYPE *u_BC_current_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
-        DTYPE *u_BC_derivative_second_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
-        DTYPE *u_BC_derivative_third_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
-
-
-        solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
-        u_BC_current_direction,
-        u_BC_derivative_second_direction,
-        u_BC_derivative_third_direction);
-
-        Pressure psi;
-        Pressure phi_lower;
-        Pressure phi_higher;
-        initialize_pressure(&psi);
-        initialize_pressure(&phi_lower);
-        initialize_pressure(&phi_higher);
-        solve_pressure_system(U_next, &psi, &phi_lower, &phi_higher, &pressure);
-
+    solve(g_field, pressure, K, Eta, Zeta, U, Beta, Gamma, WRITE_FREQUENCY);
+  
     printf("momentum\n");
 
     free(K);
@@ -107,10 +83,6 @@ int main(){
     free_velocity_field(&U);
     free_g_field(&g_field);
 
-    free_velocity_field(&Xi);
-    free_velocity_field(&Eta_next);
-    free_velocity_field(&Zeta_next);
-    free_velocity_field(&U_next);
 
     free(u_BC_current_direction);
     free(u_BC_derivative_second_direction);

@@ -32,6 +32,9 @@
 #define DY 0.001                // Grid spacing in y
 #define DZ 0.001                // Grid spacing in z
 #define DT 0.001              // Time step
+#define TOTAL_TIME 0.1      // Total simulation time
+#define STEPS (int)(TOTAL_TIME / DT)  // Number of time steps
+#define WRITE_FREQUENCY 10  // Frequency of writing output
 
 #define DX_INVERSE (1.0) / DX
 #define DY_INVERSE (1.0) / DY
