@@ -4,7 +4,13 @@ static void Thomas(const DTYPE *__restrict__ w,
                                unsigned int n,
                                DTYPE *__restrict__ tmp,
                                DTYPE *__restrict__ f,
-                               DTYPE *__restrict__ u) 
+                               DTYPE *__restrict__ u,
+                               DTYPE *__restrict__ u_BC_current_direction,
+                               DTYPE *__restrict__ u_BC_derivative_second_direction,
+                               DTYPE *__restrict__ u_BC_derivative_third_direction,
+                               DTYPE delta_space 
+
+                            ) 
 {
     // Check input 
     if (!w || !tmp || !f || !u || n == 0) {
@@ -17,15 +23,17 @@ static void Thomas(const DTYPE *__restrict__ w,
     // where w = -γΔx⁻²
     
     // Forward elimination step
-    DTYPE norm_coeff = 1.0 / (1.0 - 2.0 * w[0]);                           
-    tmp[0] = w[0] * norm_coeff;  // Super-diagonal coefficient
-    f[0] = f[0] * norm_coeff;
-    for(int i = 1; i < n; i++){
-        norm_coeff = 1.0 / ((1.0 - 2.0 * w[i]) - w[i] * tmp[i - 1]); 
-        tmp[i] = w[i] * norm_coeff;  // Super-diagonal coefficient
-        f[i] = (f[i] - w[i]*f[i - 1]) * norm_coeff;  // Sub-diagonal is also w
+    DTYPE norm_coeff = 1 / (1 - 2 * w[0]);                           
+    //tmp[0] = - w[0] * norm_coeff;
+    tmp[0] = 0.0;
+    //f[0] = f[0] * norm_coeff;
+    f[0] = u_BC_current_direction[0] - 0.5 * delta_space * (u_BC_derivative_second_direction[0] + u_BC_derivative_third_direction[0]) ;
+    for(int i = 1; i < n-1; i++){
+        norm_coeff = 1 / ((1 - 2 * w[i]) - w[i] * tmp[i - 1]); 
+        tmp[i] = -w[i] * norm_coeff;
+        f[i] = (f[i] + w[i]*f[i - 1]) * norm_coeff;
     }
-    
+    f[n-1] = u_BC_current_direction[n-1] - 0.5 * delta_space * (u_BC_derivative_second_direction[n-1] + u_BC_derivative_third_direction[n-1]);
     // Backward substitution
     u[n - 1] = f[n - 1];
     for(int i = 1; i < n; i++){
@@ -33,7 +41,11 @@ static void Thomas(const DTYPE *__restrict__ w,
     }
 }
 
-void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_component, DTYPE *Gamma){
+void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_component, DTYPE *Gamma, 
+                            DTYPE *__restrict__ u_BC_current_direction,
+                            DTYPE *__restrict__ u_BC_derivative_second_direction,
+                            DTYPE *__restrict__ u_BC_derivative_third_direction){
+
     // Initialize temporary arrays 
     DTYPE *w = (DTYPE *) malloc(GRID_SIZE * sizeof(DTYPE));
     DTYPE *tmp = (DTYPE *) malloc(GRID_SIZE * sizeof(DTYPE));
@@ -48,7 +60,10 @@ void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_componen
         for (int j = 0; j < HEIGHT; j++) {
             /* Here we solve for a single block. */
             size_t off = k * (HEIGHT * WIDTH) + j * WIDTH;
-            Thomas(w + off, WIDTH, tmp, f_field_component + off, Eta_next_component + off);
+            Thomas(w + off, WIDTH, tmp, f_field_component + off, Eta_next_component + off, u_BC_current_direction + off,
+                                u_BC_derivative_second_direction + off,
+                                u_BC_derivative_third_direction + off, DX);
+            //Eta_next_component[0]= dirichlet_left(w + off, f_field_component + off, Eta_next_component + off)
         }
     }
     
@@ -56,7 +71,9 @@ void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_componen
     free(tmp);
 }
 
-void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *f_field, DTYPE *Gamma){
+void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *f_field, DTYPE *Gamma,  DTYPE *__restrict__ u_BC_current_direction,
+                            DTYPE *__restrict__ u_BC_derivative_second_direction,
+                            DTYPE *__restrict__ u_BC_derivative_third_direction){
     // Buffer riutilizzati per ogni colonna (i,k)
     DTYPE *f_block   = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
     DTYPE *u_block   = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
@@ -80,7 +97,9 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *f_field, DTYPE *Gamma){
             }
 
             // Risolve A_y u = f con algoritmo di Thomas
-            Thomas(w_block, HEIGHT, tmp_block, f_block, u_block);
+            Thomas(w_block, HEIGHT, tmp_block, f_block, u_block, u_BC_current_direction + off,
+                                u_BC_derivative_second_direction + off,
+                                u_BC_derivative_third_direction + off, DY);
 
             // scatter risultato
             for (int j = 0; j < HEIGHT; ++j){
@@ -96,7 +115,9 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *f_field, DTYPE *Gamma){
     free(f_block);
 }
 
-void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *f_field, DTYPE *Gamma){
+void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *f_field, DTYPE *Gamma,  DTYPE *__restrict__ u_BC_current_direction,
+                            DTYPE *__restrict__ u_BC_derivative_second_direction,
+                            DTYPE *__restrict__ u_BC_derivative_third_direction){
     // Buffer riutilizzati per ogni colonna (i,k)
     DTYPE *f_block   = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
     DTYPE *u_block   = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
@@ -120,7 +141,9 @@ void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *f_field, DTYPE *Gamma){
             }
 
             // Risolve A_z u = f con algoritmo di Thomas
-            Thomas(w_block, DEPTH, tmp_block, f_block, u_block);
+            Thomas(w_block, DEPTH, tmp_block, f_block, u_block, u_BC_current_direction + off,
+                                u_BC_derivative_second_direction + off,
+                                u_BC_derivative_third_direction + off, DZ);
 
             // scatter risultato
             for (int k = 0; k < DEPTH; ++k){

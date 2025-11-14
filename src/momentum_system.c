@@ -10,16 +10,28 @@ void solve_momentum_system(VelocityField U,
                            VelocityField Eta_next,
                            VelocityField Zeta_next,
                            DTYPE *Beta,
-                           DTYPE *Gamma)
+                           DTYPE *Gamma,
+                           DTYPE *__restrict__ u_BC_current_direction,
+                           DTYPE *__restrict__ u_BC_derivative_second_direction,
+                           DTYPE *__restrict__ u_BC_derivative_third_direction)
 {
     compute_xi(g_field, U, Xi, Beta);
-    compute_eta_next(Eta, Eta_next, Xi, Gamma);
-    compute_zeta_next(Zeta, Zeta_next, Eta_next, Gamma);
-    compute_u_next(U, U_next, Zeta_next, Gamma);
+    compute_eta_next(Eta, Eta_next, Xi, Gamma, u_BC_current_direction,
+                            u_BC_derivative_second_direction,
+                            u_BC_derivative_third_direction);
+    compute_zeta_next(Zeta, Zeta_next, Eta_next, Gamma, u_BC_current_direction,
+                            u_BC_derivative_second_direction,
+                            u_BC_derivative_third_direction);
+    compute_u_next(U, U_next, Zeta_next, Gamma, u_BC_current_direction,
+                            u_BC_derivative_second_direction,
+                            u_BC_derivative_third_direction);
 }
 
 /* (I - ∂xx) (Eta_next - Eta) = Xi - Eta */
-static void compute_eta_next(VelocityField Eta, VelocityField Eta_next, VelocityField Xi, DTYPE *Gamma){
+static void compute_eta_next(VelocityField Eta, VelocityField Eta_next, VelocityField Xi, DTYPE *Gamma,    
+                            DTYPE *__restrict__ u_BC_current_direction,
+                            DTYPE *__restrict__ u_BC_derivative_second_direction,
+                            DTYPE *__restrict__ u_BC_derivative_third_direction){
     // Right-hand side for the tridiagonal system
     ForceField f_field;
     initialize_force_field(&f_field);
@@ -38,9 +50,15 @@ static void compute_eta_next(VelocityField Eta, VelocityField Eta_next, Velocity
     }
 
     // Thomas algorithm for the linear system, for each component of Eta_next
-    solve_Dxx_tridiag_blocks(Eta_next.v_x, f_field.f_x, Gamma);
-    solve_Dxx_tridiag_blocks(Eta_next.v_y, f_field.f_y, Gamma);
-    solve_Dxx_tridiag_blocks(Eta_next.v_z, f_field.f_z, Gamma);
+    solve_Dxx_tridiag_blocks(Eta_next.v_x, f_field.f_x, Gamma, u_BC_current_direction,
+                            u_BC_derivative_second_direction,
+                            u_BC_derivative_third_direction);
+    solve_Dxx_tridiag_blocks(Eta_next.v_y, f_field.f_y, Gamma, u_BC_current_direction,
+                            u_BC_derivative_second_direction,
+                            u_BC_derivative_third_direction);
+    solve_Dxx_tridiag_blocks(Eta_next.v_z, f_field.f_z, Gamma, u_BC_current_direction,
+                            u_BC_derivative_second_direction,
+                            u_BC_derivative_third_direction);
 
     // Now in Eta_next we have the solution of the linear system: s = (Eta_next - Eta)
     // we need to get Eta_next as: Eta_next = s + Eta
@@ -62,7 +80,10 @@ static void compute_eta_next(VelocityField Eta, VelocityField Eta_next, Velocity
 }
 
 /* (I - ∂yy) (Zeta_next - Zeta) = Eta_next - Zeta */
-static void compute_zeta_next(VelocityField Zeta, VelocityField Zeta_next, VelocityField Eta_next, DTYPE *Gamma){
+static void compute_zeta_next(VelocityField Zeta, VelocityField Zeta_next, VelocityField Eta_next, DTYPE *Gamma,
+                            DTYPE *__restrict__ u_BC_current_direction,
+                            DTYPE *__restrict__ u_BC_derivative_second_direction,
+                            DTYPE *__restrict__ u_BC_derivative_third_direction){
     // Right-hand side for the tridiagonal system
     ForceField f_field;
     initialize_force_field(&f_field);
@@ -81,9 +102,15 @@ static void compute_zeta_next(VelocityField Zeta, VelocityField Zeta_next, Veloc
     }
 
     // Thomas algorithm for the linear system, for each component of Zeta_next
-    solve_Dyy_tridiag_blocks(Zeta_next.v_x, f_field.f_x, Gamma);
-    solve_Dyy_tridiag_blocks(Zeta_next.v_y, f_field.f_y, Gamma);
-    solve_Dyy_tridiag_blocks(Zeta_next.v_z, f_field.f_z, Gamma);
+    solve_Dyy_tridiag_blocks(Zeta_next.v_x, f_field.f_x, Gamma, u_BC_current_direction,
+                            u_BC_derivative_second_direction,
+                            u_BC_derivative_third_direction);
+    solve_Dyy_tridiag_blocks(Zeta_next.v_y, f_field.f_y, Gamma, u_BC_current_direction,
+                            u_BC_derivative_second_direction,
+                            u_BC_derivative_third_direction);
+    solve_Dyy_tridiag_blocks(Zeta_next.v_z, f_field.f_z, Gamma, u_BC_current_direction,
+                            u_BC_derivative_second_direction,
+                            u_BC_derivative_third_direction);
 
     // Now in Eta_next we have the solution of the linear system: s = (Eta_next - Eta)
     // we need to get Eta_next as: Eta_next = s + Eta
@@ -105,7 +132,10 @@ static void compute_zeta_next(VelocityField Zeta, VelocityField Zeta_next, Veloc
 }
 
 /* (I - ∂zz) (U_next - U) = Zeta_next - U */
-static void compute_u_next(VelocityField U, VelocityField U_next, VelocityField Zeta_next, DTYPE *Gamma){
+static void compute_u_next(VelocityField U, VelocityField U_next, VelocityField Zeta_next, DTYPE *Gamma,
+                            DTYPE *__restrict__ u_BC_current_direction,
+                            DTYPE *__restrict__ u_BC_derivative_second_direction,
+                            DTYPE *__restrict__ u_BC_derivative_third_direction){
     // Right-hand side for the tridiagonal system
     ForceField f_field;
     initialize_force_field(&f_field);
@@ -124,9 +154,15 @@ static void compute_u_next(VelocityField U, VelocityField U_next, VelocityField 
     }
 
     // Thomas algorithm for the linear system, for each component of Zeta_next
-    solve_Dzz_tridiag_blocks(U_next.v_x, f_field.f_x, Gamma);
-    solve_Dzz_tridiag_blocks(U_next.v_y, f_field.f_y, Gamma);
-    solve_Dzz_tridiag_blocks(U_next.v_z, f_field.f_z, Gamma);
+    solve_Dzz_tridiag_blocks(U_next.v_x, f_field.f_x, Gamma, u_BC_current_direction,
+                            u_BC_derivative_second_direction,
+                            u_BC_derivative_third_direction);
+    solve_Dzz_tridiag_blocks(U_next.v_y, f_field.f_y, Gamma, u_BC_current_direction,
+                            u_BC_derivative_second_direction,
+                            u_BC_derivative_third_direction);
+    solve_Dzz_tridiag_blocks(U_next.v_z, f_field.f_z, Gamma, u_BC_current_direction,
+                            u_BC_derivative_second_direction,
+                            u_BC_derivative_third_direction);
 
     // Now in Eta_next we have the solution of the linear system: s = (Eta_next - Eta)
     // we need to get Eta_next as: Eta_next = s + Eta
