@@ -5,16 +5,24 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Find Eigen3 (header-only). Required for some tests using Eigen::Sparse/IterativeSolvers.
-find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+# Opzione per abilitare/disabilitare Eigen nei test
+option(ENABLE_EIGEN_TESTS "Build tests that depend on Eigen" ON)
+
+# Find Eigen3 solo se vogliamo i test che la usano
+if(ENABLE_EIGEN_TESTS)
+    find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+endif()
 
 # --- test (googletest) ---
 enable_testing()
 add_subdirectory(third_party/googletest)
 
 file(GLOB TEST "test/*.cpp")
-# include(GoogleTest) later after target
-#------------------
+
+# Se Eigen e' disabilitato, escludi il test che la usa
+if(NOT ENABLE_EIGEN_TESTS)
+    list(FILTER TEST EXCLUDE REGEX "momentum_linear_solver_test\\.cpp$")
+endif()
 
 include_directories(include)
 
@@ -34,7 +42,12 @@ target_link_libraries(navier_stokes PRIVATE navier_core)
 
 # Test: linka googletest e la libreria core
 add_executable(tests ${TEST})
-target_link_libraries(tests PRIVATE GTest::gtest_main navier_core m Eigen3::Eigen)
+
+if(ENABLE_EIGEN_TESTS)
+    target_link_libraries(tests PRIVATE GTest::gtest_main navier_core m Eigen3::Eigen)
+else()
+    target_link_libraries(tests PRIVATE GTest::gtest_main navier_core m)
+endif()
 
 include(GoogleTest)
 gtest_discover_tests(tests)
