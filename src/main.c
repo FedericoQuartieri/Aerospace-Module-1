@@ -7,6 +7,7 @@
 #include "g_field.h"
 #include "utils.h"
 #include "momentum_system.h"
+#include "pressure_system.h"
 
 /* Solver for the Navier-Stokes-Brinkman equation */
 
@@ -78,6 +79,14 @@ int main(){
         u_BC_current_direction,
         u_BC_derivative_second_direction,
         u_BC_derivative_third_direction);
+
+        Pressure psi;
+        Pressure phi_lower;
+        Pressure phi_higher;
+        initialize_pressure(&psi);
+        initialize_pressure(&phi_lower);
+        initialize_pressure(&phi_higher);
+        solve_pressure_system(U_next, &psi, &phi_lower, &phi_higher, &pressure);
 
     printf("momentum\n");
 

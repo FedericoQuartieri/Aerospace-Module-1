@@ -141,6 +141,9 @@ TEST(Momentum_linear_solver_test, Xi_computation) {
     DTYPE* K;
     VelocityField Eta, Zeta, U;
     VelocityField Eta_next, Zeta_next, U_next, Xi;
+    DTYPE *u_BC_current_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
+    DTYPE *u_BC_derivative_second_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
+    DTYPE *u_BC_derivative_third_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     
     setup_test_fields(&g_field, &f_field, &pressure, &K, &Eta, &Zeta, &U, &Eta_next, &Zeta_next, &U_next, &Xi);
 
@@ -164,7 +167,10 @@ TEST(Momentum_linear_solver_test, Xi_computation) {
         g_field.g_z[idx] = 3.0;
     }
 
-    solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma);
+    solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
+        u_BC_current_direction,
+        u_BC_derivative_second_direction,
+        u_BC_derivative_third_direction);
 
 
     for (size_t idx = 0; idx < GRID_ELEMENTS; ++idx) {
@@ -186,6 +192,9 @@ TEST(Momentum_linear_solver_test, Eta_next_computation) {
     DTYPE* K;
     VelocityField Eta, Zeta, U;
     VelocityField Eta_next, Zeta_next, U_next, Xi;
+    DTYPE *u_BC_current_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
+    DTYPE *u_BC_derivative_second_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
+    DTYPE *u_BC_derivative_third_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     
     setup_test_fields(&g_field, &f_field, &pressure, &K, &Eta, &Zeta, &U, &Eta_next, &Zeta_next, &U_next, &Xi);
 
@@ -209,7 +218,10 @@ TEST(Momentum_linear_solver_test, Eta_next_computation) {
         g_field.g_z[idx] = 3.0;
     }
 
-    solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma);
+    solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
+        u_BC_current_direction,
+        u_BC_derivative_second_direction,
+        u_BC_derivative_third_direction);
 
 
     for (size_t idx = 0; idx < GRID_ELEMENTS; ++idx) {
@@ -358,6 +370,9 @@ TEST(Momentum_linear_solver_test, Zeta_next_computation) {
     DTYPE* K;
     VelocityField Eta, Zeta, U;
     VelocityField Eta_next, Zeta_next, U_next, Xi;
+    DTYPE *u_BC_current_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
+    DTYPE *u_BC_derivative_second_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
+    DTYPE *u_BC_derivative_third_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     
     setup_test_fields(&g_field, &f_field, &pressure, &K, &Eta, &Zeta, &U, &Eta_next, &Zeta_next, &U_next, &Xi);
 
@@ -381,7 +396,10 @@ TEST(Momentum_linear_solver_test, Zeta_next_computation) {
         g_field.g_z[idx] = 3.0;
     }
 
-    solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma);
+    solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
+        u_BC_current_direction,
+        u_BC_derivative_second_direction,
+        u_BC_derivative_third_direction);
 
 
     for (size_t idx = 0; idx < GRID_ELEMENTS; ++idx) {
@@ -520,6 +538,9 @@ TEST(Momentum_linear_solver_test, U_next_computation) {
     DTYPE* K;
     VelocityField Eta, Zeta, U;
     VelocityField Eta_next, Zeta_next, U_next, Xi;
+    DTYPE *u_BC_current_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
+    DTYPE *u_BC_derivative_second_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
+    DTYPE *u_BC_derivative_third_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     
     setup_test_fields(&g_field, &f_field, &pressure, &K, &Eta, &Zeta, &U, &Eta_next, &Zeta_next, &U_next, &Xi);
 
@@ -543,7 +564,10 @@ TEST(Momentum_linear_solver_test, U_next_computation) {
         g_field.g_z[idx] = 3.0;
     }
 
-    solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma);
+    solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
+        u_BC_current_direction,
+        u_BC_derivative_second_direction,
+        u_BC_derivative_third_direction);
 
 
     for (size_t idx = 0; idx < GRID_ELEMENTS; ++idx) {

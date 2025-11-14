@@ -14,6 +14,28 @@ void initialize_velocity_field(VelocityField *v_field) {
 
 // TODO handle boundaries conditions
 
+DTYPE compute_velocity_x_grad(DTYPE *v_component, size_t i, size_t j, size_t k){
+    // Gradient is done along the x-direction -> (i-1,i+1)
+    size_t idx = rowmaj_idx(i,j,k);
+    size_t neighbour = rowmaj_idx(i+1,j,k); // i+1 since i'm doing x_gradient
+
+    return (v_component[neighbour] - v_component[idx]) * DX_INVERSE;
+}
+
+DTYPE compute_velocity_y_grad(DTYPE *v_component, size_t i, size_t j, size_t k){
+    size_t idx = rowmaj_idx(i,j,k);
+    size_t neighbour = rowmaj_idx(i,j+1,k);
+
+    return (v_component[neighbour] - v_component[idx]) * DY_INVERSE;
+}
+
+DTYPE compute_velocity_z_grad(DTYPE *v_component, size_t i, size_t j, size_t k){
+    size_t idx = rowmaj_idx(i,j,k);
+    size_t neighbour = rowmaj_idx(i,j,k+1);
+
+    return (v_component[neighbour] - v_component[idx]) * DZ_INVERSE;
+}
+
 DTYPE compute_velocity_xx_grad(DTYPE *v_component, size_t i, size_t j, size_t k){
     // Gradient is done along the x-direction -> (i-1,i,i+1)
     size_t idx = rowmaj_idx(i,j,k);

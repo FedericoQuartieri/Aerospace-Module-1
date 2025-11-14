@@ -40,6 +40,13 @@ static void Thomas(const DTYPE *__restrict__ w,
                                DTYPE *__restrict__ u_BC_derivative_second_direction,
                                DTYPE *__restrict__ u_BC_derivative_third_direction,
                                DTYPE delta_space );
+                               
+void Thomas_Pressure(const DTYPE *__restrict__ w, 
+                               unsigned int n,
+                               DTYPE *__restrict__ tmp,
+                               DTYPE *__restrict__ f,
+                               DTYPE *__restrict__ u
+                            );
 
 /* Solves the block diagonal system (I - ∂xx)u = f. */
 void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_component, DTYPE *Gamma, 
