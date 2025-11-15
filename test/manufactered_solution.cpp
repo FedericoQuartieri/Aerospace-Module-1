@@ -9,9 +9,10 @@ extern "C"
 #include "force_field.h"
 #include "velocity_field.h"
 #include "pressure.h"
+#include "solve.h"
 }
 
-TEST(GFieldComputationTest, ComplexFullFieldWithViscousTerms)
+TEST(ManufacturedSolution, ManufacturedSolutionOnVelocitySystem)
 {
 
     ForceField f_field;
@@ -61,12 +62,9 @@ TEST(GFieldComputationTest, ComplexFullFieldWithViscousTerms)
      * */
     compute_g(&g_field, &f_field, &pressure, K, &Eta, &Zeta, &U);
 
-    solve(g_field, f_field, pressure, K, Eta, Zeta, U, Beta, Gamma, frequency = 1);
+    int write_frequency = 10;
+    solve(g_field, f_field, pressure, K, Eta, Zeta, U, Beta, Gamma, write_frequency);
 
-
-    
-
-    
 
     printf("momentum\n");
 
