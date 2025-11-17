@@ -51,8 +51,119 @@ static void compute_Psi(VelocityField U_next, Pressure *psi){
     free(w);
 }
 
-static void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){};
-                        
-static void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){};
+static void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
+    // Initialize temporary arrays 
+    DTYPE *w = (DTYPE *) malloc(GRID_SIZE * sizeof(DTYPE));
+    DTYPE *w_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
+    DTYPE *rhs_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
+    DTYPE *u_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
+    DTYPE *tmp_thomas = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
+    
+    Pressure rhs;
+        initialize_pressure(&rhs);
+        for(int k = 0; k < DEPTH; k++){
+            for(int j = 0; j < HEIGHT; j++){
+                for(int i = 0; i < WIDTH; i++){
+                    size_t idx = rowmaj_idx(i,j,k);
 
-static void compute_pressure(Pressure *phi_higher, Pressure *pressure){};
+                    rhs.p[idx] = psi->p[idx];
+                    w[idx] = - DY_INVERSE_SQUARE;
+                }
+            }
+        }
+
+    // Loop sui sistemi 1D lungo Y (su ogni colonna i,k)
+    for (int k = 0; k < DEPTH; ++k) {
+        for (int i = 0; i < WIDTH; ++i) {
+            
+            size_t off = (size_t)k * (HEIGHT * WIDTH) + i; // Offset per la colonna (i,k)
+
+            // 1. GATHER (Raccogli i dati lungo Y)
+            for (int j = 0; j < HEIGHT; ++j){
+                size_t idx = off + (size_t)j * WIDTH; // Indice 3D
+                
+                // Assumendo il passo di PRESSIONE (no Gamma)
+                rhs_block[j] = rhs.p[idx]; 
+                w_block[j] = w[idx]; // w[idx] è -DY_INVERSE_SQUARE
+            }
+
+            Thomas_Pressure(w_block, HEIGHT, tmp_thomas, rhs_block, u_block);
+
+            // 3. SCATTER (Spargi il risultato in phi_lower)
+            for (int j = 0; j < HEIGHT; ++j){
+                size_t idx = off + (size_t)j * WIDTH; // Indice 3D
+                
+                phi_lower->p[idx] = u_block[j]; // Scrivi nell'array 3D di output
+            }
+        }
+    }
+
+    free(tmp_thomas);
+    free(rhs_block);
+    free(u_block);
+    free(w);
+};
+                        
+static void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
+    DTYPE *w = (DTYPE *) malloc(GRID_SIZE * sizeof(DTYPE));
+    DTYPE *w_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
+    DTYPE *rhs_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
+    DTYPE *u_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
+    DTYPE *tmp_thomas = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
+    
+    Pressure rhs;
+        initialize_pressure(&rhs);
+        for(int k = 0; k < DEPTH; k++){
+            for(int j = 0; j < HEIGHT; j++){
+                for(int i = 0; i < WIDTH; i++){
+                    size_t idx = rowmaj_idx(i,j,k);
+
+                    rhs.p[idx] = phi_lower->p[idx];
+                    w[idx] = - DZ_INVERSE_SQUARE;
+                }
+            }
+        }
+
+    // Loop sui sistemi 1D lungo Y (su ogni colonna i,k)
+    for (int j = 0; j < HEIGHT; ++j) {
+        for (int i = 0; i < WIDTH; ++i) {
+            
+            size_t off = (size_t)j * WIDTH + i;
+
+            // 1. GATHER (Raccogli i dati lungo Y)
+            for (int k = 0; k < DEPTH; ++k){
+                size_t idx = off + (size_t)k * (HEIGHT * WIDTH); // Indice 3D
+                
+                // Assumendo il passo di PRESSIONE (no Gamma)
+                rhs_block[k] = rhs.p[idx]; 
+                w_block[k] = w[idx];
+            }
+
+            Thomas_Pressure(w_block, DEPTH, tmp_thomas, rhs_block, u_block);
+
+            // 3. SCATTER (Spargi il risultato in phi_lower)
+            for (int k = 0; k < DEPTH; ++k){
+                size_t idx = off + (size_t)k * (HEIGHT * WIDTH); // Indice 3D
+                
+                phi_lower->p[idx] = u_block[k]; // Scrivi nell'array 3D di output
+            }
+        }
+    }
+
+    free(tmp_thomas);
+    free(rhs_block);
+    free(u_block);
+    free(w);
+};
+
+static void compute_pressure(Pressure *phi_higher, Pressure *pressure){
+    for(int k = 0; k < DEPTH; k++){
+        for(int j = 0; j < HEIGHT; j++){
+            for(int i = 0; i < WIDTH; i++){
+                size_t idx = rowmaj_idx(i,j,k);
+
+                pressure->p[idx] += phi_higher->p[idx];
+            }
+        }
+    }
+};
