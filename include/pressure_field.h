@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include "../include/constants.h"
+#include "velocity_field.h"
 #include "utils.h"
 
 typedef struct {
