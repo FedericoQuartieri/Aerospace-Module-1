@@ -54,7 +54,6 @@ static int verify_wD_solution(const ftype *__restrict__ w,
             /* Check first row of the block. */
             ftype w_i = w[idx];
             ftype f_i = f[idx];
-
             /* Dirichlet boundary condition! */
             /* WARNING: Works only for constant, BCs. */
             error += abs_(u0 - u[idx]);
@@ -104,31 +103,37 @@ static int verify_wDxx_solution(const ftype *__restrict__ w,
                               tol, is_comp_normal);
 }
 
-/*
 static int verify_wDyy_solution(const ftype *__restrict__ w,
                                 const ftype *__restrict__ f,
                                 const ftype *__restrict__ u,
+                                ftype u0,
+                                ftype un,
                                 uint32_t depth,
                                 uint32_t height,
                                 uint32_t width,
-                                ftype tol)
+                                ftype tol,
+                                int is_comp_normal)
 {
-    return verify_wD_solution(
-        w, f, u, depth, width, height, height * width, 1, width, tol);
+    return verify_wD_solution(w, f, u, depth, width, height,
+                              height * width, 1, width, u0, un,
+                              tol, is_comp_normal);
 }
 
 static int verify_wDzz_solution(const ftype *__restrict__ w,
                                 const ftype *__restrict__ f,
                                 const ftype *__restrict__ u,
+                                ftype u0,
+                                ftype un,
                                 uint32_t depth,
                                 uint32_t height,
                                 uint32_t width,
-                                ftype tol)
+                                ftype tol,
+                                int is_comp_normal)
 {
-    return verify_wD_solution(
-        w, f, u, height, width, depth, width, 1, height * width, tol);
+    return verify_wD_solution(w, f, u, width, height, depth,
+                              1, width, height * width, u0, un,
+                              tol, is_comp_normal);
 }
-*/
 
 #define DEFINE_TEST_WD_SOLVER(axes,                                      \
                               is_x_normal, is_y_normal, is_z_normal)     \
@@ -164,10 +169,10 @@ int test_wD##axes##_solver(uint32_t depth,                               \
     }                                                                    \
                                                                          \
     ftype u0_x = ((ftype) rand()) / RAND_MAX;                            \
-    ftype u0_y = ((ftype) rand()) / RAND_MAX;                            \
-    ftype u0_z = ((ftype) rand()) / RAND_MAX;                            \
     ftype un_x = ((ftype) rand()) / RAND_MAX;                            \
+    ftype u0_y = ((ftype) rand()) / RAND_MAX;                            \
     ftype un_y = ((ftype) rand()) / RAND_MAX;                            \
+    ftype u0_z = ((ftype) rand()) / RAND_MAX;                            \
     ftype un_z = ((ftype) rand()) / RAND_MAX;                            \
                                                                          \
     solve_wD##axes##_tridiag_blocks(w, depth, height, width,             \
@@ -187,7 +192,6 @@ int test_wD##axes##_solver(uint32_t depth,                               \
                                            height, width, 1e-4,          \
                                            is_z_normal);                 \
                                                                          \
-                                                                         \
     free(tmp);                                                           \
     free(f_cp);                                                          \
     free(f);                                                             \
@@ -198,8 +202,8 @@ int test_wD##axes##_solver(uint32_t depth,                               \
 }                                                                        \
 
 DEFINE_TEST_WD_SOLVER(xx, 1, 0, 0)
-//DEFINE_TEST_WD_SOLVER(yy)
-//DEFINE_TEST_WD_SOLVER(zz)
+DEFINE_TEST_WD_SOLVER(yy, 0, 1, 0)
+DEFINE_TEST_WD_SOLVER(zz, 0, 0, 1)
 
 int test_vtranspose()
 {
@@ -455,7 +459,6 @@ int main(void)
     EXPECT_SUCCESS(test_wDxx_solver(128, 128, 64));
     EXPECT_SUCCESS(test_wDxx_solver(512, 32, 256));
 
-    /*
     EXPECT_SUCCESS(test_wDyy_solver(32, 64, 64));
     EXPECT_SUCCESS(test_wDyy_solver(128, 128, 64));
     EXPECT_SUCCESS(test_wDyy_solver(512, 32, 256));
@@ -463,7 +466,6 @@ int main(void)
     EXPECT_SUCCESS(test_wDzz_solver(32, 64, 64));
     EXPECT_SUCCESS(test_wDzz_solver(128, 128, 64));
     EXPECT_SUCCESS(test_wDzz_solver(32, 32, 256));
-    */
 
     EXPECT_SUCCESS(test_vtranspose());
 

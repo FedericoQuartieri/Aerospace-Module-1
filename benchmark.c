@@ -34,10 +34,10 @@ void benchmark_wD_solvers(void)
 
     TIMEIT(solve_wDxx_tridiag_blocks(w, D, H, W, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
                                      tmp, f_x, f_y, f_z, u_x, u_y, u_z));
-    TIMEIT(solve_wDyy_tridiag_blocks(w, D, H, W, tmp,
-                                     f_x, f_y, f_z, u_x, u_y, u_z));
-    TIMEIT(solve_wDzz_tridiag_blocks(w, D, H, W, tmp,
-                                     f_x, f_y, f_z, u_x, u_y, u_z));
+    TIMEIT(solve_wDyy_tridiag_blocks(w, D, H, W, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+                                     tmp, f_x, f_y, f_z, u_x, u_y, u_z));
+    TIMEIT(solve_wDzz_tridiag_blocks(w, D, H, W, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+                                     tmp, f_x, f_y, f_z, u_x, u_y, u_z));
 
     free(tmp);
     free(f);
