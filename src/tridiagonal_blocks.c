@@ -1,6 +1,6 @@
 #include "tridiagonal_blocks.h"
 
-static void Thomas(const DTYPE *__restrict__ w, 
+void Thomas(const DTYPE *__restrict__ w, 
                                unsigned int n,
                                DTYPE *__restrict__ tmp,
                                DTYPE *__restrict__ f,
@@ -23,15 +23,16 @@ static void Thomas(const DTYPE *__restrict__ w,
     // where w = -γΔx⁻²
     
     // Forward elimination step
-    DTYPE norm_coeff = 1 / (1 - 2 * w[0]);                           
+    //DTYPE norm_coeff = 1.0 / (1.0 - 2.0 * w[0]);
+    DTYPE norm_coeff;                           
     //tmp[0] = - w[0] * norm_coeff;
     tmp[0] = 0.0;
     //f[0] = f[0] * norm_coeff;
     f[0] = u_BC_current_direction[0] - 0.5 * delta_space * (u_BC_derivative_second_direction[0] + u_BC_derivative_third_direction[0]) ;
     for(int i = 1; i < n-1; i++){
-        norm_coeff = 1 / ((1 - 2 * w[i]) - w[i] * tmp[i - 1]); 
-        tmp[i] = -w[i] * norm_coeff;
-        f[i] = (f[i] + w[i]*f[i - 1]) * norm_coeff;
+        norm_coeff = 1.0 / ((1.0 - 2.0 * w[i]) - w[i] * tmp[i - 1]); 
+        tmp[i] = w[i] * norm_coeff;
+        f[i] = (f[i] - w[i]*f[i - 1]) * norm_coeff;
     }
     f[n-1] = u_BC_current_direction[n-1] - 0.5 * delta_space * (u_BC_derivative_second_direction[n-1] + u_BC_derivative_third_direction[n-1]);
     // Backward substitution

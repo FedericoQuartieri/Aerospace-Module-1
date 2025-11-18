@@ -31,7 +31,7 @@
  *                    the computation and will not retain its original values.
  * @param[out] u   Solution vector of size n.
  */
-static void Thomas(const DTYPE *__restrict__ w, 
+void Thomas(const DTYPE *__restrict__ w, 
                                unsigned int n,
                                DTYPE *__restrict__ tmp,
                                DTYPE *__restrict__ f,
