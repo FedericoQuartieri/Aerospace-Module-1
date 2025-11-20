@@ -8,10 +8,18 @@
 #include "utils.h"
 #include "lin-solver.h"
 #include "equations.h"
+#include "boundary.h"
 
 #define D 256
 #define H 256
 #define W 256 /* + something to avoid cache aliasing? */
+
+DEFINE_CONSTANT_BC_U(0, 0, 0, BC_LEFT)
+DEFINE_CONSTANT_BC_U(0, 0, 0, BC_RIGHT)
+DEFINE_CONSTANT_BC_U(0, 0, 0, BC_TOP)
+DEFINE_CONSTANT_BC_U(0, 0, 0, BC_BOTTOM)
+DEFINE_CONSTANT_BC_U(0, 0, 0, BC_FRONT)
+DEFINE_CONSTANT_BC_U(0, 0, 0, BC_BACK)
 
 void benchmark_wD_solvers(void)
 {
@@ -32,11 +40,11 @@ void benchmark_wD_solvers(void)
     rand_fill(w, size);
     rand_fill(f, size);
 
-    TIMEIT(solve_wDxx_tridiag_blocks(w, D, H, W, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+    TIMEIT(solve_wDxx_tridiag_blocks(w, D, H, W,
                                      tmp, f_x, f_y, f_z, u_x, u_y, u_z));
-    TIMEIT(solve_wDyy_tridiag_blocks(w, D, H, W, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+    TIMEIT(solve_wDyy_tridiag_blocks(w, D, H, W,
                                      tmp, f_x, f_y, f_z, u_x, u_y, u_z));
-    TIMEIT(solve_wDzz_tridiag_blocks(w, D, H, W, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+    TIMEIT(solve_wDzz_tridiag_blocks(w, D, H, W,
                                      tmp, f_x, f_y, f_z, u_x, u_y, u_z));
 
     free(tmp);

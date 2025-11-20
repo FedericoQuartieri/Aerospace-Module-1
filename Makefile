@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O3 -Wall -mavx2 -mfma
+CFLAGS = -O3 -Wall -mavx2 -mfma -flto
 
 DEFINES =
 
@@ -11,7 +11,7 @@ float: DEFINES += -DFLOAT
 float: all
 
 auto-vec: DEFINES += -DAUTO_VEC
-auto-vec: all
+auto-vec: test
 
 main: main.c equations.c finite-diff.c lin-solver.c
 	$(CC) $(CFLAGS) -o main $(DEFINES) $^

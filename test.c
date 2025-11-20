@@ -5,14 +5,13 @@
 
 #include "lin-solver.h"
 #include "equations.h"
+#include "boundary.h"
 #include "ftype.h"
 #include "utils.h"
 
 #define SEED 42
 #define SUCCESS 0
 #define FAILURE 1
-
-#define STR(x) #x
 
 #define ASSERT_TRUE(condition)                              \
 do {                                                        \
@@ -136,7 +135,8 @@ static int verify_wDzz_solution(const ftype *__restrict__ w,
 }
 
 #define DEFINE_TEST_WD_SOLVER(axes,                                      \
-                              is_x_normal, is_y_normal, is_z_normal)     \
+                              is_x_normal, is_y_normal, is_z_normal,     \
+                              u0_x, u0_y, u0_z, un_x, un_y, un_z)        \
 int test_wD##axes##_solver(uint32_t depth,                               \
                            uint32_t height,                              \
                            uint32_t width)                               \
@@ -168,15 +168,7 @@ int test_wD##axes##_solver(uint32_t depth,                               \
         f_z_cp[i] = f_z[i];                                              \
     }                                                                    \
                                                                          \
-    ftype u0_x = ((ftype) rand()) / RAND_MAX;                            \
-    ftype un_x = ((ftype) rand()) / RAND_MAX;                            \
-    ftype u0_y = ((ftype) rand()) / RAND_MAX;                            \
-    ftype un_y = ((ftype) rand()) / RAND_MAX;                            \
-    ftype u0_z = ((ftype) rand()) / RAND_MAX;                            \
-    ftype un_z = ((ftype) rand()) / RAND_MAX;                            \
-                                                                         \
     solve_wD##axes##_tridiag_blocks(w, depth, height, width,             \
-                                    u0_x, u0_y, u0_z, un_x, un_y, un_z,  \
                                     tmp, f_x, f_y, f_z, u_x, u_y, u_z);  \
                                                                          \
     int error = verify_wD##axes##_solution(w, f_x_cp, u_x,               \
@@ -201,9 +193,38 @@ int test_wD##axes##_solver(uint32_t depth,                               \
     return error;                                                        \
 }                                                                        \
 
-DEFINE_TEST_WD_SOLVER(xx, 1, 0, 0)
-DEFINE_TEST_WD_SOLVER(yy, 0, 1, 0)
-DEFINE_TEST_WD_SOLVER(zz, 0, 0, 1)
+#define LEFT_BC_U_X 0.1
+#define LEFT_BC_U_Y 0.2
+#define LEFT_BC_U_Z 0.3
+#define RIGHT_BC_U_X 0.4
+#define RIGHT_BC_U_Y 0.5
+#define RIGHT_BC_U_Z 0.6
+#define TOP_BC_U_X -0.1
+#define TOP_BC_U_Y -0.2
+#define TOP_BC_U_Z -0.3
+#define BOTTOM_BC_U_X -0.3
+#define BOTTOM_BC_U_Y -0.5
+#define BOTTOM_BC_U_Z -0.6
+#define FRONT_BC_U_X 0.7
+#define FRONT_BC_U_Y 0.9
+#define FRONT_BC_U_Z 0.1
+#define BACK_BC_U_X 0.0
+#define BACK_BC_U_Y -0.3
+#define BACK_BC_U_Z 0.8
+
+DEFINE_CONSTANT_BC_U(LEFT_BC_U_X, LEFT_BC_U_Y, LEFT_BC_U_Z, BC_LEFT)
+DEFINE_CONSTANT_BC_U(RIGHT_BC_U_X, RIGHT_BC_U_Y, RIGHT_BC_U_Z, BC_RIGHT)
+DEFINE_CONSTANT_BC_U(TOP_BC_U_X, TOP_BC_U_Y, TOP_BC_U_Z, BC_TOP)
+DEFINE_CONSTANT_BC_U(BOTTOM_BC_U_X, BOTTOM_BC_U_Y, BOTTOM_BC_U_Z, BC_BOTTOM)
+DEFINE_CONSTANT_BC_U(FRONT_BC_U_X, FRONT_BC_U_Y, FRONT_BC_U_Z, BC_FRONT)
+DEFINE_CONSTANT_BC_U(BACK_BC_U_X, BACK_BC_U_Y, BACK_BC_U_Z, BC_BACK)
+
+DEFINE_TEST_WD_SOLVER(xx, 1, 0, 0, LEFT_BC_U_X, LEFT_BC_U_Y, LEFT_BC_U_Z,
+                      RIGHT_BC_U_X, RIGHT_BC_U_Y, RIGHT_BC_U_Z)
+DEFINE_TEST_WD_SOLVER(yy, 0, 1, 0, TOP_BC_U_X, TOP_BC_U_Y, TOP_BC_U_Z,
+                      BOTTOM_BC_U_X, BOTTOM_BC_U_Y, BOTTOM_BC_U_Z)
+DEFINE_TEST_WD_SOLVER(zz, 0, 0, 1, FRONT_BC_U_X, FRONT_BC_U_Y, FRONT_BC_U_Z,
+                      BACK_BC_U_X, BACK_BC_U_Y, BACK_BC_U_Z)
 
 int test_vtranspose()
 {

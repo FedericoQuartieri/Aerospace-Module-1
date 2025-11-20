@@ -2,16 +2,139 @@
 #include <stdio.h>
 
 #include "lin-solver.h"
-
-static vftype ZEROS;
-static vftype ONES;
+#include "boundary.h"
 
 #ifdef AUTO_VEC
     #define vneg(v) (-(v))
 #else
-    static vftype SIGN_MASK;
     #define vneg(vec) vxor(vec, SIGN_MASK)
 #endif
+
+DECLARE_BC_U(BC_LEFT)
+DECLARE_BC_U(BC_RIGHT)
+DECLARE_BC_U(BC_TOP)
+DECLARE_BC_U(BC_BOTTOM)
+DECLARE_BC_U(BC_FRONT)
+DECLARE_BC_U(BC_BACK)
+
+/* TODO: Remove these. */
+static vftype ZEROS;
+static vftype ONES;
+static vftype SIGN_MASK;
+
+static inline __attribute__((always_inline))
+void apply_start_bc(vftype u0_x,
+                    vftype u0_y,
+                    vftype u0_z,
+                    ftype *__restrict__ upper,
+                    ftype *__restrict__ f_x,
+                    ftype *__restrict__ f_y,
+                    ftype *__restrict__ f_z)
+{
+    /* u_x = u_0 + (-du_y/dy -du_z/dz) * dx/2
+     * u_y = u0_y
+     * u_z = u0_z */
+
+    /* Set upper coefficient to 0 and enforce solution in rhs. */
+    vstore(upper, ZEROS);
+    vstore(f_x, u0_x); /* du_y/dy = du_z/dz = 0 */
+    vstore(f_y, u0_y);
+    vstore(f_z, u0_z);
+}
+
+static inline __attribute__((always_inline))
+vftype compute_end_bc_tang_u(vftype ws,
+                             vftype ws2,
+                             vftype fs_prev,
+                             vftype fs,
+                             vftype uns,
+                             vftype norm_coeffs)
+{
+    return vdiv(vsub(vfmadd(fs_prev, ws, vneg(fs)),
+                     vmul(ws2, uns)),
+                norm_coeffs);
+}
+
+static inline __attribute__((always_inline))
+void apply_end_bc(const ftype *__restrict__ w,
+                  const ftype *__restrict__ upper_prev,
+                  const ftype *__restrict__ f_y_prev,
+                  const ftype *__restrict__ f_z_prev,
+                  const ftype *__restrict__ f_y,
+                  const ftype *__restrict__ f_z,
+                  vftype un_x,
+                  vftype un_y,
+                  vftype un_z,
+                  vftype *__restrict__ u_x,
+                  vftype *__restrict__ u_y,
+                  vftype *__restrict__ u_z)
+{
+    /* u_x = un_x
+     * u_y =  (-2w_i un_y - f_y_i + w_i f_y_i_prev) /
+     *        (1 + 3w_i + w_i upper_prev_i)
+     * u_z =  (-2w_i un_z - f_z_i + w_i f_z_i_prev) /
+     *        (1 + 3w_i + w_i upper_prev_i) */
+
+    vftype ws = vload(w);
+    vftype upper_prevs = vload(upper_prev);
+    vftype fs_y_prevs = vload(f_y_prev);
+    vftype fs_z_prevs = vload(f_z_prev);
+    vftype fs_y = vload(f_y);
+    vftype fs_z = vload(f_z);
+    vftype ws2 = vadd(ws, ws);
+    vftype norm_coeffs = vfmadd(upper_prevs, ws,
+                                vadd(ONES, vadd(ws2, ws)));
+
+    *u_x = un_x;
+    *u_y = compute_end_bc_tang_u(ws, ws2, fs_y_prevs,
+                                 fs_y, un_y, norm_coeffs);
+    *u_z = compute_end_bc_tang_u(ws, ws2, fs_z_prevs,
+                                 fs_z, un_z, norm_coeffs);
+}
+
+
+static inline __attribute__((always_inline))
+void apply_left_bc(uint32_t x,
+                   uint32_t y,
+                   uint32_t z,
+                   ftype *__restrict__ upper,
+                   ftype *__restrict__ f_x,
+                   ftype *__restrict__ f_y,
+                   ftype *__restrict__ f_z)
+{
+    vftype u0_x, u0_y, u0_z;
+    _get_left_bc_u(x, y, z, &u0_x, &u0_y, &u0_z);
+
+    apply_start_bc(u0_x, u0_y, u0_z, upper, f_x, f_y, f_z);
+}
+
+static inline __attribute__((always_inline))
+void apply_right_bc(const ftype *__restrict__ w,
+                    const ftype *__restrict__ upper_prev,
+                    const ftype *__restrict__ f_y_prev,
+                    const ftype *__restrict__ f_z_prev,
+                    uint32_t x,
+                    uint32_t y,
+                    uint32_t z,
+                    ftype *__restrict__ f_x,
+                    ftype *__restrict__ f_y,
+                    ftype *__restrict__ f_z,
+                    vftype *__restrict__ u_x,
+                    vftype *__restrict__ u_y,
+                    vftype *__restrict__ u_z)
+{
+    vftype un_x, un_y, un_z;
+    _get_right_bc_u(x, y, z, &un_x, &un_y, &un_z);
+
+    apply_end_bc(w, upper_prev, f_y_prev, f_z_prev,
+                 f_y, f_z, un_x, un_y, un_z, u_x, u_y, u_z);
+
+    vstore(f_x, *u_x);
+    vstore(f_y, *u_y);
+    vstore(f_z, *u_z);
+}
+
+#ifdef AUTO_VEC
 
 /* Solves Au=f using the Thomas algorithm,
  * where A is a nxn tridiagonal matrix of the type:
@@ -21,16 +144,10 @@ static vftype ONES;
  * [      0      -w_2    1+2w_2    -w_2  ...]
  * ...
  */
-#ifdef AUTO_VEC
-
 static void solve_wDxx_tridiag(const ftype *__restrict__ w,
-                               unsigned int n,
-                               ftype u0_x,
-                               ftype u0_y,
-                               ftype u0_z,
-                               ftype un_x,
-                               ftype un_y,
-                               ftype un_z,
+                               uint32_t y,
+                               uint32_t z,
+                               uint32_t n,
                                ftype *__restrict__ tmp,
                                ftype *__restrict__ f_x,
                                ftype *__restrict__ f_y,
@@ -44,9 +161,7 @@ static void solve_wDxx_tridiag(const ftype *__restrict__ w,
 
     /* Left boundary conditions! */
     tmp[0] = 0;
-    f_x[0] = u0_x;
-    f_y[0] = u0_y;
-    f_z[0] = u0_z;
+    _get_left_bc_u(0, y, z, &f_x[0], &f_y[0], &f_z[0]);
 
     for (int i = 1; i < n - 1; ++i) {
         ftype w_i = w[i];
@@ -58,8 +173,9 @@ static void solve_wDxx_tridiag(const ftype *__restrict__ w,
     }
 
     /* Right boundary conditions! */
+    ftype un_y, un_z;
+    _get_right_bc_u(0, y, z, &u_x[n - 1], &un_y, &un_z);
     ftype w_n = w[n - 1];
-    u_x[n - 1] = un_x;
     ftype norm_coeff = 1 + 3 * w_n + w_n * tmp[n - 2];
     u_y[n - 1] = (-2 * w_n * un_y - f_y[n - 1] + w_n * f_y[n - 2]) /
                  norm_coeff;
@@ -141,85 +257,6 @@ void gauss_reduce_vstrip(const ftype *__restrict__ w,
 }
 
 static inline __attribute__((always_inline))
-/* WARNING: Supports only constant BCs. */
-void apply_left_bcs(ftype u0_x,
-                    ftype u0_y,
-                    ftype u0_z,
-                    ftype *__restrict__ upper,
-                    ftype *__restrict__ f_x_dst,
-                    ftype *__restrict__ f_y_dst,
-                    ftype *__restrict__ f_z_dst)
-{
-    /* u_x = u_0 + (-du_y/dy -du_z/dz) * dx/2
-     * u_y = u0_y
-     * u_z = u0_z */
-
-    /* Set upper coefficient to 0 and enforce solution in rhs. */
-    vstore(upper, ZEROS);
-    vstore(f_x_dst, vbroadcast(u0_x)); /* du_y/dy = du_z/dz = 0 */
-    vstore(f_y_dst, vbroadcast(u0_y));
-    vstore(f_z_dst, vbroadcast(u0_z));
-}
-
-static inline __attribute__((always_inline))
-vftype compute_right_bc_tang_u(vftype ws,
-                               vftype ws2,
-                               vftype fs_prev,
-                               vftype fs,
-                               ftype un,
-                               vftype norm_coeffs)
-{
-    vftype uns = vbroadcast(un);
-    return vdiv(vsub(vfmadd(fs_prev, ws, vneg(fs)),
-                     vmul(ws2, uns)),
-                norm_coeffs);
-}
-
-static inline __attribute__((always_inline))
-/* WARNING: Supports only constant BCs. */
-void apply_right_bcs(const ftype *__restrict__ w,
-                     const ftype *__restrict__ upper_prev,
-                     const ftype *__restrict__ f_y_prev,
-                     const ftype *__restrict__ f_z_prev,
-                     /* Velocities on the wall. */
-                     ftype un_x,
-                     ftype un_y,
-                     ftype un_z,
-                     ftype *__restrict__ f_x,
-                     ftype *__restrict__ f_y,
-                     ftype *__restrict__ f_z,
-                     vftype *__restrict__ u_x,
-                     vftype *__restrict__ u_y,
-                     vftype *__restrict__ u_z)
-{
-    /* u_x = un_x
-     * u_y =  (-2w_i un_y - f_y_i + w_i f_y_i_prev) /
-     *        (1 + 3w_i + w_i upper_prev_i)
-     * u_z =  (-2w_i un_z - f_z_i + w_i f_z_i_prev) /
-     *        (1 + 3w_i + w_i upper_prev_i) */
-
-    vftype ws = vload(w);
-    vftype upper_prevs = vload(upper_prev);
-    vftype fs_y_prevs = vload(f_y_prev);
-    vftype fs_z_prevs = vload(f_z_prev);
-    vftype fs_y = vload(f_y);
-    vftype fs_z = vload(f_z);
-    vftype ws2 = vadd(ws, ws);
-    vftype norm_coeffs = vfmadd(upper_prevs, ws,
-                                vadd(ONES, vadd(ws2, ws)));
-
-    *u_x = vbroadcast(un_x);
-    *u_y = compute_right_bc_tang_u(ws, ws2, fs_y_prevs,
-                                   fs_y, un_y, norm_coeffs);
-    *u_z = compute_right_bc_tang_u(ws, ws2, fs_z_prevs,
-                                   fs_z, un_z, norm_coeffs);
-
-    vstore(f_x, *u_x);
-    vstore(f_y, *u_y);
-    vstore(f_z, *u_z);
-}
-
-static inline __attribute__((always_inline))
 void backward_sub_vstrip(const ftype *__restrict__ f_x,
                          const ftype *__restrict__ f_y,
                          const ftype *__restrict__ f_z,
@@ -250,13 +287,6 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                                uint32_t depth,
                                uint32_t height,
                                uint32_t width,
-                               /* Dirichlet boundary conditions. */
-                               ftype u0_x,
-                               ftype u0_y,
-                               ftype u0_z,
-                               ftype un_x,
-                               ftype un_y,
-                               ftype un_z,
                                /* tmp buffer of size 4 * (VLEN * width) */
                                ftype *__restrict__ tmp,
                                ftype *__restrict__ f_x,
@@ -272,8 +302,7 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
         for (int j = 0; j < height; ++j) {
             /* Here we solve for a single block. */
             uint64_t off = height * width * i + width * j;
-            solve_wDxx_tridiag(w + off, width, u0_x, u0_y, u0_z,
-                               un_x, un_y, un_z, tmp,
+            solve_wDxx_tridiag(w + off, j, i, width, tmp,
                                f_x + off, f_y + off, f_z + off,
                                u_x + off, u_y + off, u_z + off);
         }
@@ -305,8 +334,7 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
             transpose_vtile(w + offset, width, VLEN, w_t); 
 
             /* Apply BCs on the first column of the tile. */
-            apply_left_bcs(u0_x, u0_y, u0_z, tmp_upp,
-                           tmp_f_x, tmp_f_y, tmp_f_z);
+            apply_left_bc(0, j, i, tmp_upp, tmp_f_x, tmp_f_y, tmp_f_z);
             /* Reduce remaining columns of the tile. */
             for (int k = 1; k < VLEN; ++k) {
                 gauss_reduce_vstrip(w_t + VLEN * k,
@@ -357,21 +385,19 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
 
             vftype u_x_prev, u_y_prev, u_z_prev;
             /* Apply BCs on the right column. */
-            apply_right_bcs(w_t + VLEN * (VLEN - 1),
-                            tmp_upp + VLEN * (width - 2),
-                            tmp_f_y + VLEN * (width - 2),
-                            tmp_f_z + VLEN * (width - 2),
-                            un_x,
-                            un_y,
-                            un_z,
-                            /* Write solutions into f_t buffers,
-                             * we will reuse them for u_t buffers */
-                            f_x_t + VLEN * (VLEN - 1),
-                            f_y_t + VLEN * (VLEN - 1),
-                            f_z_t + VLEN * (VLEN - 1),
-                            &u_x_prev,
-                            &u_y_prev,
-                            &u_z_prev);
+            apply_right_bc(w_t + VLEN * (VLEN - 1),
+                           tmp_upp + VLEN * (width - 2),
+                           tmp_f_y + VLEN * (width - 2),
+                           tmp_f_z + VLEN * (width - 2),
+                           width - 1, j, i,
+                           /* Write solutions into f_t buffers,
+                            * we will reuse them for u_t buffers */
+                           f_x_t + VLEN * (VLEN - 1),
+                           f_y_t + VLEN * (VLEN - 1),
+                           f_z_t + VLEN * (VLEN - 1),
+                           &u_x_prev,
+                           &u_y_prev,
+                           &u_z_prev);
 
             /* Reuse local buffers. */
             ftype __attribute__((aligned(32))) *u_x_t = f_x_t;
@@ -476,46 +502,44 @@ void backward_sub_row(const ftype *__restrict__ f_x,
 }
 
 static inline __attribute__((always_inline))
-void apply_top_bcs(ftype u0_x,
-                   ftype u0_y,
-                   ftype u0_z,
-                   ftype *__restrict__ upper,
-                   ftype *__restrict__ f_x_dst,
-                   ftype *__restrict__ f_y_dst,
-                   ftype *__restrict__ f_z_dst)
+void apply_top_bc(uint32_t x,
+                  uint32_t y,
+                  uint32_t z,
+                  ftype *__restrict__ upper,
+                  ftype *__restrict__ f_x,
+                  ftype *__restrict__ f_y,
+                  ftype *__restrict__ f_z)
 {
-    apply_left_bcs(u0_y, u0_x, u0_z, upper, f_y_dst, f_x_dst, f_z_dst);
+    vftype u0_x, u0_y, u0_z;
+    _get_top_bc_u(x, y, z, &u0_x, &u0_y, &u0_z);
+
+    apply_start_bc(u0_y, u0_x, u0_z, upper, f_y, f_x, f_z);
 }
 
 static inline __attribute__((always_inline))
-void apply_bottom_bcs(const ftype *__restrict__ w,
-                      const ftype *__restrict__ upper_prev,
-                      const ftype *__restrict__ f_x,
-                      const ftype *__restrict__ f_z,
-                      uint32_t row_stride,
-                      /* Velocities on the wall. */
-                      ftype un_x,
-                      ftype un_y,
-                      ftype un_z,
-                      ftype *__restrict__ u_x,
-                      ftype *__restrict__ u_y,
-                      ftype *__restrict__ u_z)
+void apply_bottom_bc(const ftype *__restrict__ w,
+                     const ftype *__restrict__ upper_prev,
+                     const ftype *__restrict__ f_x_prev,
+                     const ftype *__restrict__ f_z_prev,
+                     const ftype *__restrict__ f_x,
+                     const ftype *__restrict__ f_z,
+                     uint32_t x,
+                     uint32_t y,
+                     uint32_t z,
+                     ftype *__restrict__ u_x,
+                     ftype *__restrict__ u_y,
+                     ftype *__restrict__ u_z)
 {
-    vftype ws = vload(w);
-    vftype upper_prevs = vload(upper_prev);
-    vftype fs_x_prevs = vload(f_x - row_stride);
-    vftype fs_z_prevs = vload(f_z - row_stride);
-    vftype fs_x = vload(f_x);
-    vftype fs_z = vload(f_z);
-    vftype ws2 = vadd(ws, ws);
-    vftype norm_coeffs = vfmadd(upper_prevs, ws,
-                                vadd(ONES, vadd(ws2, ws)));
+    vftype un_x, un_y, un_z;
+    _get_bottom_bc_u(x, y, z, &un_x, &un_y, &un_z);
 
-    vstore(u_y, vbroadcast(un_y));
-    vstore(u_x, compute_right_bc_tang_u(ws, ws2, fs_x_prevs,
-                                        fs_x, un_x, norm_coeffs));
-    vstore(u_z, compute_right_bc_tang_u(ws, ws2, fs_z_prevs,
-                                        fs_z, un_z, norm_coeffs));
+    vftype _un_x, _un_y, _un_z;
+    apply_end_bc(w, upper_prev, f_x_prev, f_z_prev, f_x, f_z,
+                 un_y, un_x, un_z, &_un_y, &_un_x, &_un_z);
+
+    vstore(u_x, _un_x);
+    vstore(u_y, _un_y);
+    vstore(u_z, _un_z);
 }
 
 /* Solves the block diagonal system (I - w∂yy)u = f. */
@@ -523,12 +547,6 @@ void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
                                uint32_t depth,
                                uint32_t height,
                                uint32_t width,
-                               ftype u0_x,
-                               ftype u0_y,
-                               ftype u0_z,
-                               ftype un_x,
-                               ftype un_y,
-                               ftype un_z,
                                ftype *__restrict__ tmp,
                                ftype *__restrict__ f_x,
                                ftype *__restrict__ f_y,
@@ -537,13 +555,9 @@ void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
                                ftype *__restrict__ u_y,
                                ftype *__restrict__ u_z)
 {
-#ifndef AUTO_VEC
+    ZEROS = vbroadcast(0.0);
     ONES = vbroadcast(1.0);
     SIGN_MASK = vbroadcast(-0.0f);
-#else
-    ZEROS = 0.0;
-    ONES = 1.0;
-#endif
 
     /* We solve for each face of the domain, one at a time. */
     for (int i = 0; i < depth; ++i) {
@@ -552,11 +566,10 @@ void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
 
         /* Apply BCs on the first row of the domain. */
         for (uint32_t k = 0; k < width; k += VLEN) {
-            apply_top_bcs(u0_x, u0_y, u0_z,
-                          tmp + k,
-                          f_x + face_offset + k,
-                          f_y + face_offset + k,
-                          f_z + face_offset + k);
+            apply_top_bc(k, 0, i, tmp + k,
+                         f_x + face_offset + k,
+                         f_y + face_offset + k,
+                         f_z + face_offset + k);
         }
         /* Gauss reduce the remaining face, one row at a time,
          * except the last one. */
@@ -571,15 +584,16 @@ void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
         }
         /* Apply BCs on the last row. */
         for (uint32_t k = 0; k < width; k += VLEN) {
-            apply_bottom_bcs(w + face_offset + width * (height - 1) + k,
-                             tmp + width * (height - 2) + k,
-                             f_x + face_offset + width * (height - 1) + k,
-                             f_z + face_offset + width * (height - 1) + k,
-                             width,
-                             un_x, un_y, un_z,
-                             u_x + face_offset + width * (height - 1) + k,
-                             u_y + face_offset + width * (height - 1) + k,
-                             u_z + face_offset + width * (height - 1) + k);
+            apply_bottom_bc(w + face_offset + width * (height - 1) + k,
+                            tmp + width * (height - 2) + k,
+                            f_x + face_offset + width * (height - 2) + k,
+                            f_z + face_offset + width * (height - 2) + k,
+                            f_x + face_offset + width * (height - 1) + k,
+                            f_z + face_offset + width * (height - 1) + k,
+                            k, height - 1, i,
+                            u_x + face_offset + width * (height - 1) + k,
+                            u_y + face_offset + width * (height - 1) + k,
+                            u_z + face_offset + width * (height - 1) + k);
         }
 
         /* Backward substitute the remaining face, one row at a time. */
@@ -599,47 +613,51 @@ void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
 }
 
 static inline __attribute__((always_inline))
-void apply_front_bcs(ftype u0_x,
-                     ftype u0_y,
-                     ftype u0_z,
-                     ftype *__restrict__ upper,
-                     ftype *__restrict__ f_x_dst,
-                     ftype *__restrict__ f_y_dst,
-                     ftype *__restrict__ f_z_dst)
+void apply_front_bc(uint32_t x,
+                    uint32_t y,
+                    uint32_t z,
+                    ftype *__restrict__ upper,
+                    ftype *__restrict__ f_x,
+                    ftype *__restrict__ f_y,
+                    ftype *__restrict__ f_z)
 {
-    apply_left_bcs(u0_z, u0_x, u0_y, upper, f_z_dst, f_x_dst, f_y_dst);
+    vftype u0_x, u0_y, u0_z;
+    _get_front_bc_u(x, y, z, &u0_x, &u0_y, &u0_z);
+
+    apply_start_bc(u0_z, u0_x, u0_y, upper, f_z, f_x, f_y);
 }
 
 static inline __attribute__((always_inline))
-void apply_back_bcs(const ftype *__restrict__ w,
-                    const ftype *__restrict__ upper_prev,
-                    const ftype *__restrict__ f_x,
-                    const ftype *__restrict__ f_y,
-                    uint32_t row_stride,
-                    /* Velocities on the wall. */
-                    ftype un_x,
-                    ftype un_y,
-                    ftype un_z,
-                    ftype *__restrict__ u_x,
-                    ftype *__restrict__ u_y,
-                    ftype *__restrict__ u_z)
+void apply_back_bc(const ftype *__restrict__ w,
+                   const ftype *__restrict__ upper_prev,
+                   const ftype *__restrict__ f_x_prev,
+                   const ftype *__restrict__ f_y_prev,
+                   const ftype *__restrict__ f_x,
+                   const ftype *__restrict__ f_y,
+                   uint32_t x,
+                   uint32_t y,
+                   uint32_t z,
+                   ftype *__restrict__ u_x,
+                   ftype *__restrict__ u_y,
+                   ftype *__restrict__ u_z)
 {
-    /* WARNING: Don't mess up the order of the arguments! This is correct! */
-    apply_bottom_bcs(w, upper_prev, f_x, f_y, row_stride,
-                     un_x, un_z, un_y, u_x, u_z, u_y);
+    vftype un_x, un_y, un_z;
+    _get_back_bc_u(x, y, z, &un_x, &un_y, &un_z);
+
+    vftype _un_x, _un_y, _un_z;
+    apply_end_bc(w, upper_prev, f_x_prev, f_y_prev, f_x, f_y,
+                 un_z, un_x, un_y, &_un_z, &_un_x, &_un_y);
+
+    vstore(u_x, _un_x);
+    vstore(u_y, _un_y);
+    vstore(u_z, _un_z);
 }
 
 /* Solves the block diagonal system (I - w∂zz)u = f. */
 void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
-                               unsigned int depth,
-                               unsigned int height,
-                               unsigned int width,
-                               ftype u0_x,
-                               ftype u0_y,
-                               ftype u0_z,
-                               ftype un_x,
-                               ftype un_y,
-                               ftype un_z,
+                               uint32_t depth,
+                               uint32_t height,
+                               uint32_t width,
                                ftype *__restrict__ tmp,
                                ftype *__restrict__ f_x,
                                ftype *__restrict__ f_y,
@@ -648,22 +666,18 @@ void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
                                ftype *__restrict__ u_y,
                                ftype *__restrict__ u_z)
 {
-#ifndef AUTO_VEC
+    ZEROS = vbroadcast(0.0);
     ONES = vbroadcast(1.0);
     SIGN_MASK = vbroadcast(-0.0f);
-#else
-    ZEROS = 0.0;
-    ONES = 1.0;
-#endif
 
     /* Apply BCs to the first face. */
     for (uint32_t j = 0; j < height; ++j) {
         for (uint32_t k = 0; k < width; k += VLEN) {
-            apply_front_bcs(u0_x, u0_y, u0_z,
-                            tmp + width * j + k,
-                            f_x + width * j + k,
-                            f_y + width * j + k,
-                            f_z + width * j + k);
+            apply_front_bc(k, j, 0,
+                           tmp + width * j + k,
+                           f_x + width * j + k,
+                           f_y + width * j + k,
+                           f_z + width * j + k);
         }
     }
 
@@ -685,15 +699,16 @@ void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
     uint64_t face_offset = height * width * (depth - 1);
     for (uint32_t j = 0; j < height; ++j) {
         for (uint32_t k = 0; k < width; k += VLEN) {
-            apply_back_bcs(w + face_offset + width * j + k,
-                           tmp + height * width * (depth - 2) + width * j + k,
-                           f_x + face_offset + width * j + k,
-                           f_y + face_offset + width * j + k,
-                           height * width,
-                           un_x, un_y, un_z,
-                           u_x + face_offset + width * j + k,
-                           u_y + face_offset + width * j + k,
-                           u_z + face_offset + width * j + k);
+            apply_back_bc(w + face_offset + width * j + k,
+                          tmp + height * width * (depth - 2) + width * j + k,
+                          f_x + height * width * (depth - 2) + width * j + k,
+                          f_y + height * width * (depth - 2) + width * j + k,
+                          f_x + face_offset + width * j + k,
+                          f_y + face_offset + width * j + k,
+                          k, j, depth - 1,
+                          u_x + face_offset + width * j + k,
+                          u_y + face_offset + width * j + k,
+                          u_z + face_offset + width * j + k);
         }
     }
 
