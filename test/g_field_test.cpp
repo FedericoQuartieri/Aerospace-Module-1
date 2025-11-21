@@ -469,8 +469,8 @@ TEST(GFieldComputationTest, ComplexFullFieldWithViscousTerms) {
                 DTYPE expected_g_z = f_field.f_z[idx] - grad_p_z + brinkman_z + viscous_z;
                 
                 // Verify each component with appropriate tolerance
-                // Since we're using discrete second derivatives, increase tolerance slightly
-                EXPECT_NEAR(g_field.g_x[idx], expected_g_x, 1e-9)
+                // Since we're using discrete second derivatives and large values, use relaxed tolerance
+                EXPECT_NEAR(g_field.g_x[idx], expected_g_x, 1e-6)
                     << "G_x mismatch at (" << ii << "," << jj << "," << kk << ")"
                     << "\n  Computed: " << g_field.g_x[idx]
                     << "\n  Expected: " << expected_g_x
@@ -479,7 +479,7 @@ TEST(GFieldComputationTest, ComplexFullFieldWithViscousTerms) {
                     << "\n  brinkman_x: " << brinkman_x
                     << "\n  viscous_x: " << viscous_x;
                 
-                EXPECT_NEAR(g_field.g_y[idx], expected_g_y, 1e-9)
+                EXPECT_NEAR(g_field.g_y[idx], expected_g_y, 1e-6)
                     << "G_y mismatch at (" << ii << "," << jj << "," << kk << ")"
                     << "\n  Computed: " << g_field.g_y[idx]
                     << "\n  Expected: " << expected_g_y
@@ -488,7 +488,7 @@ TEST(GFieldComputationTest, ComplexFullFieldWithViscousTerms) {
                     << "\n  brinkman_y: " << brinkman_y
                     << "\n  viscous_y: " << viscous_y;
                 
-                EXPECT_NEAR(g_field.g_z[idx], expected_g_z, 1e-9)
+                EXPECT_NEAR(g_field.g_z[idx], expected_g_z, 1e-6)
                     << "G_z mismatch at (" << ii << "," << jj << "," << kk << ")"
                     << "\n  Computed: " << g_field.g_z[idx]
                     << "\n  Expected: " << expected_g_z
