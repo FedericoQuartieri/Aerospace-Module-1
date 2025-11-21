@@ -12,6 +12,7 @@ typedef struct {
 } ForceField;
 
 void initialize_force_field(ForceField *f_field);
+void rand_fill_force_field(ForceField *f_field);
 void free_force_field(ForceField *f_field);
 
 #endif // FORCE_FIELD_H

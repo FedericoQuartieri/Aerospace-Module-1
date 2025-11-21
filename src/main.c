@@ -16,6 +16,7 @@ int main(){
     // Initialize Force field
     ForceField f_field;
     initialize_force_field(&f_field);
+    rand_fill_force_field(&f_field);
 
     // Initilize pressure
     Pressure pressure;
