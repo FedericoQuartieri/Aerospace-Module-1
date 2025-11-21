@@ -49,6 +49,7 @@ static void compute_Psi(VelocityField U_next, Pressure *psi){
 
     free(tmp);
     free(w);
+    free_pressure(&rhs);
 }
 
 static void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
@@ -102,6 +103,8 @@ static void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
     free(rhs_block);
     free(u_block);
     free(w);
+    free(w_block);
+    free_pressure(&rhs);
 };
                         
 static void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
@@ -145,7 +148,7 @@ static void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
             for (int k = 0; k < DEPTH; ++k){
                 size_t idx = off + (size_t)k * (HEIGHT * WIDTH); // Indice 3D
                 
-                phi_lower->p[idx] = u_block[k]; // Scrivi nell'array 3D di output
+                phi_higher->p[idx] = u_block[k]; // Scrivi nell'array 3D di output
             }
         }
     }
@@ -154,6 +157,8 @@ static void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
     free(rhs_block);
     free(u_block);
     free(w);
+    free(w_block);
+    free_pressure(&rhs);
 };
 
 static void compute_pressure(Pressure *phi_higher, Pressure *pressure){

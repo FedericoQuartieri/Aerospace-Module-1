@@ -67,11 +67,11 @@ void Thomas_Pressure(const DTYPE *__restrict__ w,
         norm_coeff = 1.0 / ((1.0 - 2.0 * w[i]) - w[i] * tmp[i - 1]); 
         tmp[i] = w[i] * norm_coeff;  // Super-diagonal coefficient
         f[i] = (f[i] - w[i]*f[i - 1]) * norm_coeff;  // Sub-diagonal is also w
-        // Backward substitution
-        u[n - 1] = f[n - 1];
-        for(int i = 1; i < n; i++){
-            u[n - 1 - i] = f[n - 1 - i] - tmp[n - 1 - i] * u[n - i];
-        }
+    }
+    // Backward substitution
+    u[n - 1] = f[n - 1];
+    for(int i = 1; i < n; i++){
+        u[n - 1 - i] = f[n - 1 - i] - tmp[n - 1 - i] * u[n - i];
     }
 }
 
