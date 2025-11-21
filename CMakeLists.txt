@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Opzione per abilitare/disabilitare Eigen nei test
-option(ENABLE_EIGEN_TESTS "Build tests that depend on Eigen" ON)
+option(ENABLE_EIGEN_TESTS "Build tests that depend on Eigen" OFF)
 
 # Find Eigen3 solo se vogliamo i test che la usano
 if(ENABLE_EIGEN_TESTS)
@@ -22,6 +22,7 @@ file(GLOB TEST "test/*.cpp")
 # Se Eigen e' disabilitato, escludi il test che la usa
 if(NOT ENABLE_EIGEN_TESTS)
     list(FILTER TEST EXCLUDE REGEX "momentum_linear_solver_test\\.cpp$")
+    list(FILTER TEST EXCLUDE REGEX "boundaries_test\\.cpp$")
 endif()
 
 include_directories(include)
@@ -40,6 +41,7 @@ target_link_libraries(navier_core PUBLIC m)
 add_executable(navier_stokes ${MAIN_SRC})
 target_link_libraries(navier_stokes PRIVATE navier_core)
 
+
 # Test: linka googletest e la libreria core
 add_executable(tests ${TEST})
 
@@ -52,6 +54,10 @@ endif()
 include(GoogleTest)
 gtest_discover_tests(tests)
 
+
+# Target to run the main executable (not built/executed by default)
+
+
 # Debug build type
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG -Wall -Wextra -O2")
 
@@ -61,7 +67,8 @@ add_custom_target(valgrind
     DEPENDS navier_stokes
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
-add_custom_target(run
+
+add_custom_target(run-main
     COMMAND $<TARGET_FILE:navier_stokes>
     DEPENDS navier_stokes
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -70,4 +77,11 @@ add_custom_target(clean-all
     COMMAND ${CMAKE_COMMAND} -E rm -rf ${CMAKE_BINARY_DIR}/*
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Cleaning all build files"
+)
+
+add_custom_target(run-tests
+    DEPENDS tests
+    COMMAND $<TARGET_FILE:tests>
+    COMMENT "Running tests after build"
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )

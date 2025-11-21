@@ -88,6 +88,8 @@ static void compute_zeta_next(VelocityField Zeta, VelocityField Zeta_next, Veloc
     // Right-hand side for the tridiagonal system
     ForceField f_field;
     initialize_force_field(&f_field);
+    rand_fill_force_field(&f_field);
+
     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
@@ -140,6 +142,8 @@ static void compute_u_next(VelocityField U, VelocityField U_next, VelocityField 
     // Right-hand side for the tridiagonal system
     ForceField f_field;
     initialize_force_field(&f_field);
+    rand_fill_force_field(&f_field);
+
     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
