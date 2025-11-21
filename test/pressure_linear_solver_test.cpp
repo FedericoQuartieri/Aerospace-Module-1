@@ -78,23 +78,7 @@ TEST(Pressure_linear_solver_test, Psi_computation) {
     const int n = WIDTH;  // Size of a single row (one tridiagonal system)
     
     double w = - DX_INVERSE_SQUARE;
-    
-    // Build matrix A for a single row where A = (I - γ∂²/∂x²)
-    // From slide: diagonal = (1 + 2γΔx⁻²), off-diagonals = -γΔx⁻²
-    // With w = -γΔx⁻², this becomes:
-    // Diagonal: 1 - 2*w
-    // Off-diagonals: w (symmetric)
-    SpMat mat(n, n);
-    std::vector<Eigen::Triplet<double>> triplets;
-    triplets.reserve(3 * n - 2);
-    for (int i = 0; i < n; ++i) {
-        triplets.emplace_back(i, i, 1.0 - 2.0 * w);  // main diagonal
-        if (i > 0) triplets.emplace_back(i, i - 1, w);  // sub-diagonal
-        if (i + 1 < n) triplets.emplace_back(i, i + 1, w);  // super-diagonal
-    }
-    mat.setFromTriplets(triplets.begin(), triplets.end());
 
-    // Build RHS for the first row (k=0, j=0): b = Xi - Eta for the x-component
     Pressure rhs_matrix;
     initialize_pressure(&rhs_matrix);
      for(int k = 0; k < DEPTH; k++){
@@ -108,47 +92,210 @@ TEST(Pressure_linear_solver_test, Psi_computation) {
             }
         }
     }
+    
+    // Build matrix A for a single row where A = (I - γ∂²/∂x²)
+    // From slide: diagonal = (1 + 2γΔx⁻²), off-diagonals = -γΔx⁻²
+    // With w = -γΔx⁻², this becomes:
+    // Diagonal: 1 - 2*w
+    // Off-diagonals: w (symmetric)
 
-    SpVec rhs_vector(n);
-    for (int i = 0; i < n; ++i) {
-        size_t idx = rowmaj_idx(i, 0, 0);  // First row: j=0, k=0
-        rhs_vector[i] = rhs_matrix.p[idx];
+    SpMat mat(n, n);
+        std::vector<Eigen::Triplet<double>> triplets;
+        triplets.reserve(3 * n - 2);
+        for (int i = 0; i < n; ++i) {
+            triplets.emplace_back(i, i, 1.0 - 2.0 * w);  // main diagonal
+            if (i > 0) triplets.emplace_back(i, i - 1, w);  // sub-diagonal
+            if (i + 1 < n) triplets.emplace_back(i, i + 1, w);  // super-diagonal
+        }
+        mat.setFromTriplets(triplets.begin(), triplets.end());
+
+
+    for (int k = 0; k < DEPTH; k++) {
+        for (int j = 0; j < HEIGHT; j++) {
+            // Build RHS for this specific row (j, k)
+            SpVec rhs_vector(n);
+            for (int i = 0; i < n; ++i) {
+                size_t idx = rowmaj_idx(i, j, k);
+                rhs_vector[i] = rhs_matrix.p[idx];
+            }
+
+            // Solve with GMRES
+            double tol = 1.e-13;
+            int maxit = 1000;
+
+            Eigen::GMRES<SpMat> gmres;
+            gmres.setMaxIterations(maxit);
+            gmres.setTolerance(tol);
+            gmres.compute(mat);
+            SpVec s = gmres.solve(rhs_vector);
+
+            // Compare C solver output (psi) with Eigen GMRES solution for this row
+            for (int i = 0; i < WIDTH; ++i) {
+                size_t idx = rowmaj_idx(i, j, k);
+                double expected = s[i];
+                EXPECT_NEAR(psi.p[idx], expected, 1e-10) 
+                    << "Row (j=" << j << ",k=" << k << "), i=" << i << " (idx=" << idx << ")"
+                    << ": C solver psi = " << psi.p[idx] << ", Eigen = " << expected;
+            }
+        }
     }
 
-    // Check matrix properties
-    std::cout << "Testing first row (k=0, j=0):" << std::endl;
-    std::cout << "Matrix size: " << mat.rows() << "x" << mat.cols() << std::endl;
-    std::cout << "Non zero entries: " << mat.nonZeros() << std::endl;
-    std::cout << "w coefficient: " << w << std::endl;
-    SpMat B = SpMat(mat.transpose()) - mat;  // Check symmetry
-    std::cout << "Norm of skew-symmetric part: " << B.norm() << std::endl;
+    free_pressure(&rhs_matrix);
+    cleanup_test_fields(&U_next, &psi, &phi_lower, &phi_higher, &pressure);
+}
 
-    // Set parameters for solver
-    double tol = 1.e-13;                 // Convergence tolerance
-    int maxit = 1000;                     // Maximum iterations
-
-    Eigen::GMRES<SpMat> gmres;
-    gmres.setMaxIterations(maxit);
-    gmres.setTolerance(tol);
-    gmres.compute(mat);
-    SpVec s = gmres.solve(rhs_vector); 
+TEST(Pressure_linear_solver_test, Phi_lower_computation) {
+    VelocityField U_next; 
+    Pressure psi;
+    Pressure phi_lower; 
+    Pressure phi_higher;
+    Pressure pressure;
     
-    std::cout << "Eigen GMRES solver:" << std::endl;
-    std::cout << "#iterations:     " << gmres.iterations() << std::endl;
-    std::cout << "relative residual: " << gmres.error() << std::endl;
-    
-    // Compute residual ||As - rhs|| as a measure of solution quality
-    double residual_norm = (mat * s - rhs_vector).norm();
-    std::cout << "residual norm ||As-rhs||: " << residual_norm << std::endl;
+    setup_test_fields(&U_next, &psi, &phi_lower, &phi_higher, &pressure);
 
-    // Compare: Eta_next from C solver should equal s + Eta for the first row
-    std::cout << "Comparing C solver (psi) vs Eigen GMRES solution for first row:" << std::endl;
-    for (int i = 0; i < WIDTH; ++i) {
-        size_t idx = rowmaj_idx(i, 0, 0);
-        double expected = s[i];
-        EXPECT_NEAR(psi.p[idx], expected, 1e-10) 
-            << "Mismatch at i=" << i << " (grid index " << idx << ")"
-            << ": C solver psi = " << psi.p[idx] << ", Eigen = " << expected;
+    solve_pressure_system(U_next, &psi, &phi_lower, &phi_higher, &pressure);
+
+
+    // Test a single row (block) instead of the entire grid
+    // solve_Dxx_tridiag_blocks solves HEIGHT*DEPTH independent tridiagonal systems,
+    // each of size WIDTH. We test the first row (k=0, j=0).
+    using SpMat = Eigen::SparseMatrix<double>;
+    using SpVec = Eigen::VectorXd;
+
+    const int n = HEIGHT;
+    
+    double w = - DY_INVERSE_SQUARE;
+
+    Pressure rhs_matrix;
+    initialize_pressure(&rhs_matrix);
+     for(int k = 0; k < DEPTH; k++){
+        for(int j = 0; j < HEIGHT; j++){
+            for(int i = 0; i < WIDTH; i++){
+                size_t idx = rowmaj_idx(i,j,k);
+
+                rhs_matrix.p[idx] = psi.p[idx];
+            }
+        }
+    }
+
+    SpMat mat(n, n);
+        std::vector<Eigen::Triplet<double>> triplets;
+        triplets.reserve(3 * n - 2);
+        for (int i = 0; i < n; ++i) {
+            triplets.emplace_back(i, i, 1.0 - 2.0 * w);  // main diagonal
+            if (i > 0) triplets.emplace_back(i, i - 1, w);  // sub-diagonal
+            if (i + 1 < n) triplets.emplace_back(i, i + 1, w);  // super-diagonal
+        }
+        mat.setFromTriplets(triplets.begin(), triplets.end());
+
+
+    for (int k = 0; k < DEPTH; k++) {
+        for (int i = 0; i < WIDTH; i++) {
+            // Build RHS for this specific row (j, k)
+            SpVec rhs_vector(n);
+            for (int j = 0; j < n; ++j) {
+                size_t idx = rowmaj_idx(i, j, k);
+                rhs_vector[j] = rhs_matrix.p[idx];
+            }
+
+            // Solve with GMRES
+            double tol = 1.e-13;
+            int maxit = 1000;
+
+            Eigen::GMRES<SpMat> gmres;
+            gmres.setMaxIterations(maxit);
+            gmres.setTolerance(tol);
+            gmres.compute(mat);
+            SpVec s = gmres.solve(rhs_vector);
+
+            // Compare C solver output (psi) with Eigen GMRES solution for this row
+            for (int j = 0; j < HEIGHT; ++j) {
+                size_t idx = rowmaj_idx(i, j, k);
+                double expected = s[j];
+                EXPECT_NEAR(phi_lower.p[idx], expected, 1e-10) 
+                    << "Row (j=" << j << ",k=" << k << "), i=" << i << " (idx=" << idx << ")"
+                    << ": C solver phi_lower = " << phi_lower.p[idx] << ", Eigen = " << expected;
+            }
+        }
+    }
+
+    free_pressure(&rhs_matrix);
+    cleanup_test_fields(&U_next, &psi, &phi_lower, &phi_higher, &pressure);
+}
+
+TEST(Pressure_linear_solver_test, Phi_higher_computation) {
+    VelocityField U_next; 
+    Pressure psi;
+    Pressure phi_lower; 
+    Pressure phi_higher;
+    Pressure pressure;
+    
+    setup_test_fields(&U_next, &psi, &phi_lower, &phi_higher, &pressure);
+
+    solve_pressure_system(U_next, &psi, &phi_lower, &phi_higher, &pressure);
+
+
+    // Test a single row (block) instead of the entire grid
+    // solve_Dxx_tridiag_blocks solves HEIGHT*DEPTH independent tridiagonal systems,
+    // each of size WIDTH. We test the first row (k=0, j=0).
+    using SpMat = Eigen::SparseMatrix<double>;
+    using SpVec = Eigen::VectorXd;
+
+    const int n = DEPTH;
+    
+    double w = - DZ_INVERSE_SQUARE;
+
+    Pressure rhs_matrix;
+    initialize_pressure(&rhs_matrix);
+     for(int k = 0; k < DEPTH; k++){
+        for(int j = 0; j < HEIGHT; j++){
+            for(int i = 0; i < WIDTH; i++){
+                size_t idx = rowmaj_idx(i,j,k);
+
+                rhs_matrix.p[idx] = phi_lower.p[idx];
+            }
+        }
+    }
+
+    SpMat mat(n, n);
+        std::vector<Eigen::Triplet<double>> triplets;
+        triplets.reserve(3 * n - 2);
+        for (int i = 0; i < n; ++i) {
+            triplets.emplace_back(i, i, 1.0 - 2.0 * w);  // main diagonal
+            if (i > 0) triplets.emplace_back(i, i - 1, w);  // sub-diagonal
+            if (i + 1 < n) triplets.emplace_back(i, i + 1, w);  // super-diagonal
+        }
+        mat.setFromTriplets(triplets.begin(), triplets.end());
+
+
+    for (int j = 0; j < HEIGHT; j++) {
+        for (int i = 0; i < WIDTH; i++) {
+            // Build RHS for this specific row (j, k)
+            SpVec rhs_vector(n);
+            for (int k = 0; k < n; ++k) {
+                size_t idx = rowmaj_idx(i, j, k);
+                rhs_vector[k] = rhs_matrix.p[idx];
+            }
+
+            // Solve with GMRES
+            double tol = 1.e-13;
+            int maxit = 1000;
+
+            Eigen::GMRES<SpMat> gmres;
+            gmres.setMaxIterations(maxit);
+            gmres.setTolerance(tol);
+            gmres.compute(mat);
+            SpVec s = gmres.solve(rhs_vector);
+
+            // Compare C solver output (psi) with Eigen GMRES solution for this row
+            for (int k = 0; k < DEPTH; ++k) {
+                size_t idx = rowmaj_idx(i, j, k);
+                double expected = s[k];
+                EXPECT_NEAR(phi_higher.p[idx], expected, 1e-10) 
+                    << "Row (j=" << j << ",k=" << k << "), i=" << i << " (idx=" << idx << ")"
+                    << ": C solver phi_higher = " << phi_higher.p[idx] << ", Eigen = " << expected;
+            }
+        }
     }
 
     free_pressure(&rhs_matrix);

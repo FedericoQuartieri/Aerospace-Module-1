@@ -166,7 +166,6 @@ static void compute_pressure(Pressure *phi_higher, Pressure *pressure){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
-
                 pressure->p[idx] += phi_higher->p[idx];
             }
         }
