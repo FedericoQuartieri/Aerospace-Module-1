@@ -35,6 +35,7 @@ static void compute_eta_next(VelocityField Eta, VelocityField Eta_next, Velocity
     ForceField f_field;
     initialize_force_field(&f_field);
     rand_fill_force_field(&f_field);
+
     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
