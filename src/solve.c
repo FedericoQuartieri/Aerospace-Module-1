@@ -24,7 +24,7 @@ static void swap_pressure(Pressure *pressure, Pressure *pressure_next) {
     tmp = pressure->p; pressure->p = pressure_next->p; pressure_next->p = tmp;
 } 
 
-void solve (GField g_field, Pressure pressure, DTYPE* K, VelocityField Eta, VelocityField Zeta, VelocityField U, DTYPE* Beta, DTYPE* Gamma, DTYPE *u_BC_current_direction, DTYPE *u_BC_derivative_second_direction, DTYPE *u_BC_derivative_third_direction, int write_frequency) {
+void solve (GField g_field, forcing_function_t forcing, Pressure pressure, DTYPE* K, VelocityField Eta, VelocityField Zeta, VelocityField U, DTYPE* Beta, DTYPE* Gamma, DTYPE *u_BC_current_direction, DTYPE *u_BC_derivative_second_direction, DTYPE *u_BC_derivative_third_direction, int write_frequency) {
     
     /* 
         For the seriel implementation, we will use a separate thread to write the .vtk, 
@@ -60,7 +60,10 @@ void solve (GField g_field, Pressure pressure, DTYPE* K, VelocityField Eta, Velo
     initialize_pressure(&pressure_next);
 
     for (int t = 0; t < STEPS; t++) {
-        
+
+        // Update G field
+        compute_g(&g_field, forcing, &pressure, K, &Eta, &Zeta, &U, t);        
+
         solve_momentum_system(U, Eta, Zeta, Xi, g_field, U_next, Eta_next, Zeta_next, Beta, Gamma, u_BC_current_direction, u_BC_derivative_second_direction, u_BC_derivative_third_direction);
 
         // not implemented yet
@@ -100,6 +103,7 @@ void solve (GField g_field, Pressure pressure, DTYPE* K, VelocityField Eta, Velo
         swap_velocity(&Eta, &Eta_next);
         swap_velocity(&Zeta, &Zeta_next);
         swap_pressure(&pressure, &pressure_next);
+
     }
 
     free_velocity_field(&Xi);

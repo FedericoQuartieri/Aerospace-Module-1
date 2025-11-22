@@ -59,7 +59,6 @@ int main(){
         return 1;
     }
 
-    destroy_forcing_function();
 
 
     // Inizialize G
@@ -72,18 +71,17 @@ int main(){
      *            G:   [dy] =  f_y   - Grad_y(P) - c * U_y + c[ Grad_xx(N_y) + Grad_yy(Z_y) + Grad_zz(U_y)]
      *                 [dz]    f_z   - Grad_z(P) - c * U_z + c[ Grad_xx(N_z) + Grad_yy(Z_z) + Grad_zz(U_z)] 
      * */     
-    compute_g(&g_field, forcing, &pressure, K, &Eta, &Zeta, &U, 0);
-
-
 
     DTYPE *u_BC_current_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
     DTYPE *u_BC_derivative_second_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
     DTYPE *u_BC_derivative_third_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
 
-
-    solve(g_field, pressure, K, Eta, Zeta, U, Beta, Gamma, u_BC_current_direction, u_BC_derivative_second_direction, u_BC_derivative_third_direction, WRITE_FREQUENCY);
+    solve(g_field, forcing, pressure, K, Eta, Zeta, U, Beta, Gamma, u_BC_current_direction, u_BC_derivative_second_direction, u_BC_derivative_third_direction, WRITE_FREQUENCY);
   
     printf("momentum\n");
+
+    destroy_forcing_function();
+
 
     free(K);
     free_pressure(&pressure);
