@@ -1,6 +1,5 @@
 #include "g_field.h"
-#include <stdlib.h>
-#include <string.h>
+
 
 void initialize_g_field(GField *g_field){
     g_field->g_x = (DTYPE *) malloc(GRID_SIZE);
@@ -12,7 +11,7 @@ void initialize_g_field(GField *g_field){
     memset(g_field->g_z, 0, GRID_SIZE);
 }
 
-void compute_g(GField *g_field, ForceField *f_field, Pressure *pressure, DTYPE *K, VelocityField *Eta, VelocityField *Zeta, VelocityField *U){
+void compute_g(GField *g_field, forcing_function_t forcing, Pressure *pressure, DTYPE *K, VelocityField *Eta, VelocityField *Zeta, VelocityField *U, int time_step){
 
     // TODO: check boundaries condition
     for(int k = 1; k < DEPTH; k++){
@@ -21,7 +20,7 @@ void compute_g(GField *g_field, ForceField *f_field, Pressure *pressure, DTYPE *
                 
                 size_t idx = rowmaj_idx(i,j,k);
 
-                g_field->g_x[idx] = f_field->f_x[idx] 
+                g_field->g_x[idx] = forcing(i*DX,j*DY,k*DZ, time_step*DT , 0)
                                     - compute_pressure_x_grad(pressure->p,i,j,k) 
                                     - (NU / (2.0 * K[idx])) * U->v_x[idx]
                                     + (NU/2.0) * (compute_velocity_xx_grad(Eta->v_x,i,j,k)  
@@ -29,7 +28,7 @@ void compute_g(GField *g_field, ForceField *f_field, Pressure *pressure, DTYPE *
                                                 + compute_velocity_zz_grad(U->v_x,i,j,k));
                                     
 
-                g_field->g_y[idx] = f_field->f_y[idx] 
+                g_field->g_y[idx] =  forcing(i*DX,j*DY,k*DZ, time_step*DT , 1)
                                     - compute_pressure_y_grad(pressure->p,i,j,k) 
                                     - (NU / (2.0 * K[idx])) * U->v_y[idx]
                                     + (NU/2.0) * (compute_velocity_xx_grad(Eta->v_y,i,j,k)  
@@ -37,7 +36,7 @@ void compute_g(GField *g_field, ForceField *f_field, Pressure *pressure, DTYPE *
                                                 + compute_velocity_zz_grad(U->v_y,i,j,k)); 
                  
 
-                g_field->g_z[idx] = f_field->f_z[idx] 
+                g_field->g_z[idx] =  forcing(i*DX,j*DY,k*DZ, time_step*DT , 2)
                                     - compute_pressure_z_grad(pressure->p,i,j,k) 
                                     - (NU / (2.0 * K[idx])) * U->v_z[idx]
                                     + (NU/2.0) * (compute_velocity_xx_grad(Eta->v_z,i,j,k)  

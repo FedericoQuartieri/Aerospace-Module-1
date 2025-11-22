@@ -8,16 +8,11 @@
 #include "utils.h"
 #include "momentum_system.h"
 #include "pressure_system.h"
+#include "forcing_parser.h"
 
 /* Solver for the Navier-Stokes-Brinkman equation */
 
 int main(){
-
-    // Initialize Force field
-    ForceField f_field;
-    initialize_force_field(&f_field);
-    rand_fill_force_field(&f_field);
-
     // Initilize pressure
     Pressure pressure;
     initialize_pressure(&pressure);
@@ -47,6 +42,20 @@ int main(){
         }
     }
 
+    
+    forcing_function_t forcing;
+    double x, y, z, t;
+    double fx, fy, fz;
+
+    forcing = parse_forcing_function("../forcing.txt");
+    if (!forcing) {
+        /* Error already printed to stderr */
+        return 1;
+    }
+
+    destroy_forcing_function();
+
+
     // Inizialize G
     GField g_field;
     initialize_g_field(&g_field);
@@ -57,7 +66,7 @@ int main(){
      *            G:   [dy] =  f_y   - Grad_y(P) - c * U_y + c[ Grad_xx(N_y) + Grad_yy(Z_y) + Grad_zz(U_y)]
      *                 [dz]    f_z   - Grad_z(P) - c * U_z + c[ Grad_xx(N_z) + Grad_yy(Z_z) + Grad_zz(U_z)] 
      * */     
-    compute_g(&g_field, &f_field, &pressure, K, &Eta, &Zeta, &U);
+    compute_g(&g_field, forcing, &pressure, K, &Eta, &Zeta, &U, 0);
     
 
 
@@ -92,7 +101,6 @@ int main(){
     printf("momentum\n");
 
     free(K);
-    free_force_field(&f_field);
     free_pressure(&pressure);
     free_velocity_field(&Eta);
     free_velocity_field(&Zeta);
