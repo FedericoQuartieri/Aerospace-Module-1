@@ -75,7 +75,13 @@ int main(){
     compute_g(&g_field, forcing, &pressure, K, &Eta, &Zeta, &U, 0);
 
 
-    solve(g_field, pressure, K, Eta, Zeta, U, Beta, Gamma, WRITE_FREQUENCY);
+
+    DTYPE *u_BC_current_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
+    DTYPE *u_BC_derivative_second_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
+    DTYPE *u_BC_derivative_third_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
+
+
+    solve(g_field, pressure, K, Eta, Zeta, U, Beta, Gamma, u_BC_current_direction, u_BC_derivative_second_direction, u_BC_derivative_third_direction, WRITE_FREQUENCY);
   
     printf("momentum\n");
 
@@ -85,7 +91,6 @@ int main(){
     free_velocity_field(&Zeta);
     free_velocity_field(&U);
     free_g_field(&g_field);
-
 
     free(u_BC_current_direction);
     free(u_BC_derivative_second_direction);
