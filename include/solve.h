@@ -11,7 +11,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-void solve (GField g_field, ForceField f_field, Pressure pressure, DTYPE* K, 
+void solve (GField g_field, Pressure pressure, DTYPE* K, 
             VelocityField Eta, VelocityField Zeta, VelocityField U, DTYPE* Beta, 
-            DTYPE* Gamma, int write_frequency);
+            DTYPE* Gamma, DTYPE *u_BC_current_direction, DTYPE *u_BC_derivative_second_direction, DTYPE *u_BC_derivative_third_direction, int write_frequency);
 
