@@ -9,6 +9,7 @@ void compute_w(const ftype *__restrict__ k,
                ftype dt,
                ftype *__restrict__ w)
 {
+    /* WARNING: Scale w by 1/dx^2 */
     vftype dt_nu = vbroadcast(nu * dt);
     for (uint64_t i = 0; i < depth * height * width; i += VLEN) {
         vftype k_ = vload(k + i);
@@ -117,6 +118,8 @@ void compute_wDxx_rhs(
             for (uint32_t l = 0; l < width; l += VLEN) {
                 uint64_t idx = height * width * i + width * j + l;
 
+                /* WARNING: Not too sure about were not to compute rhs. */
+
                 /* Compute the gradient of pressure predictor pp = p + phi. */
                 vftype Dx_p, Dy_p, Dz_p;
                 compute_grad_at(p, idx, height, width,
@@ -199,6 +202,9 @@ void solve_momentum(const ftype *__restrict__ k,
      * I guess the number of iterations would be the same, but we're
      * would maximize the temporal reuse of the data.
      * I think it's worth investigating. */
+
+
+    /* TODO: Let solve_* perform this sum for solved blocks. */
 
     //solve_wDxx_tridiag_blocks();
     //solve_wDyy_tridiag_blocks();

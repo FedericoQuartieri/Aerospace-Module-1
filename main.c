@@ -56,6 +56,7 @@ int main(void)
     rand_fill(u_z, size);
 
     /* Precomputing w, consider computing it on the fly when solving. */
+    /* WARNING: Scale w by 1/dx^2 */
     compute_w(k, D, H, W, NU, DT, w);
 
     solve_momentum(k,

@@ -22,6 +22,9 @@ static vftype ZEROS;
 static vftype ONES;
 static vftype SIGN_MASK;
 
+
+/* WARNING: You must scale w by 1/dx^2!! */
+
 static inline __attribute__((always_inline))
 void apply_start_bc(vftype u0_x,
                     vftype u0_y,
@@ -354,7 +357,7 @@ void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
                 transpose_vtile(f_y + offset + tk, width, VLEN, f_y_t);
                 transpose_vtile(f_z + offset + tk, width, VLEN, f_z_t);
                 transpose_vtile(w + offset + tk, width, VLEN, w_t);
-                for (int k = 0; k < VLEN; ++k) {
+                for (uint32_t k = 0; k < VLEN; ++k) {
                     /* TODO: use previous vec f instead of loading again. */
                     gauss_reduce_vstrip(w_t + VLEN * k,
                                         tmp_upp + VLEN * (tk + k - 1),
@@ -726,6 +729,278 @@ void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
                              u_x + row_offset,
                              u_y + row_offset,
                              u_z + row_offset);
+        }
+    }
+}
+
+
+#define load_vtile(src, stride,      \
+                   r1, r2, r3, r4,   \
+                   r5, r6, r7, r8)   \
+do {                                 \
+    r1 = vload(src + 0 * stride);    \
+    r2 = vload(src + 1 * stride);    \
+    r3 = vload(src + 2 * stride);    \
+    r4 = vload(src + 3 * stride);    \
+    r5 = vload(src + 4 * stride);    \
+    r6 = vload(src + 5 * stride);    \
+    r7 = vload(src + 6 * stride);    \
+    r8 = vload(src + 7 * stride);    \
+} while (0)
+
+#define fin_diff(r1, r2, r3, r4, \
+                 r5, r6, r7, r8) \
+do {                             \
+    r1 = r2 - r1;                \
+    r2 = r3 - r2;                \
+    r3 = r4 - r2;                \
+    r4 = r5 - r4;                \
+    r5 = r6 - r5;                \
+    r6 = r7 - r6;                \
+    r7 = r8 - r7;                \
+} while (0)
+
+static inline __attribute__((always_inline))
+vftype compute_div_vtile(const ftype *__restrict__ src_x,
+                         const ftype *__restrict__ src_y,
+                         const ftype *__restrict__ src_z,
+                         uint32_t height,
+                         uint32_t width,
+                         vftype prev_rx0,
+                         vftype prev_ry0,
+                         vftype prev_rz0,
+                         int is_first_tile,
+                         int is_first_row,
+                         int is_first_face,
+                         uint32_t dst_stride,
+                         ftype *__restrict__ dst)
+{
+    vftype ry0, ry1, ry2, ry3, ry4, ry5, ry6, ry7, ry8;
+    ry0 = prev_ry0;
+    load_vtile(src_y, width, ry1, ry2, ry3, ry4, ry5, ry6, ry7, ry8);
+    if (is_first_row) {
+        ry0 = 2 * (ry1 - ry0);
+    } else {
+        ry0 = ry1 - ry0;
+    }
+    fin_diff(ry1, ry2, ry3, ry4, ry5, ry6, ry7, ry8);
+
+    vftype rz0, rz1, rz2, rz3, rz4, rz5, rz6, rz7, rz8;
+    load_vtile(src_z, width, rz1, rz2, rz3, rz4, rz5, rz6, rz7, rz8);
+    if (is_first_face) {
+        rz0 = 2 * (rz1 - prev_rz0);
+        rz1 = 2 * (rz2 - prev_rz0);
+        rz2 = 2 * (rz3 - prev_rz0);
+        rz3 = 2 * (rz4 - prev_rz0);
+        rz4 = 2 * (rz5 - prev_rz0);
+        rz5 = 2 * (rz6 - prev_rz0);
+        rz6 = 2 * (rz7 - prev_rz0);
+        rz7 = 2 * (rz8 - prev_rz0);
+    } else {
+        vftype rz1_p, rz2_p, rz3_p, rz4_p, rz5_p, rz6_p, rz7_p, rz8_p;
+        load_vtile(src_z - height * width, width,
+                   rz1_p, rz2_p, rz3_p, rz4_p, rz5_p, rz6_p, rz7_p, rz8_p);
+
+        rz0 = rz1 - rz1_p;
+        rz1 = rz2 - rz2_p;
+        rz2 = rz3 - rz3_p;
+        rz3 = rz4 - rz4_p;
+        rz4 = rz5 - rz5_p;
+        rz5 = rz6 - rz6_p;
+        rz6 = rz7 - rz7_p;
+        rz7 = rz8 - rz8_p;
+    }
+
+    rz0 = ry0 + rz0;
+    rz1 = ry1 + rz1;
+    rz2 = ry2 + rz2;
+    rz3 = ry3 + rz3;
+    rz4 = ry4 + rz4;
+    rz5 = ry5 + rz5;
+    rz6 = ry6 + rz6;
+    rz7 = ry7 + rz7;
+
+    vtranspose(&rz0, &rz1, &rz2, &rz3, &rz4, &rz5, &rz6, &rz7);
+
+    vftype rx0, rx1, rx2, rx3, rx4, rx5, rx6, rx7, rx8;
+    rx0 = prev_rx0;
+    load_vtile(src_x, width, rx1, rx2, rx3, rx4, rx5, rx6, rx7, rx8);
+    vtranspose(&rx1, &rx2, &rx3, &rx4, &rx5, &rx6, &rx7, &rx8);
+    if (is_first_tile) {
+        rx0 = 2 * (rx1 - rx0);
+    } else {
+        rx0 = rx1 - rx0;
+    }
+    fin_diff(rx1, rx2, rx3, rx4, rx5, rx6, rx7, rx8);
+
+    rz0 = rx0 + rz0;
+    rz1 = rx1 + rz1;
+    rz2 = rx2 + rz2;
+    rz3 = rx3 + rz3;
+    rz4 = rx4 + rz4;
+    rz5 = rx5 + rz5;
+    rz6 = rx6 + rz6;
+    rz7 = rx7 + rz7;
+
+    vstore(dst + 0 * dst_stride, rz0);
+    vstore(dst + 1 * dst_stride, rz1);
+    vstore(dst + 2 * dst_stride, rz2);
+    vstore(dst + 3 * dst_stride, rz3);
+    vstore(dst + 4 * dst_stride, rz4);
+    vstore(dst + 5 * dst_stride, rz5);
+    vstore(dst + 6 * dst_stride, rz6);
+    vstore(dst + 7 * dst_stride, rz7);
+
+    return rx8;
+}
+
+static inline __attribute__((always_inline))
+void gauss_reduce_vcol(const ftype *__restrict__ f_src,
+                       vftype *__restrict__ f_prev,
+                       vftype *__restrict__ upper_prev,
+                       ftype *__restrict__ upper,
+                       ftype *__restrict__ f_dst)
+{
+    vftype f = vload(f_src);
+    vftype norm_coeff = 3 - *upper_prev;
+
+    *upper_prev = 1 / norm_coeff;
+    *f_prev = (f - *f_prev) / norm_coeff;
+
+    vstore(upper, *upper_prev);
+    vstore(f_dst, *f_prev);
+}
+
+static inline __attribute__((always_inline))
+void backward_sub_vcol(const ftype *__restrict__ f,
+                       const ftype *__restrict__ upper,
+                       vftype *__restrict__ p_prev,
+                       ftype *__restrict__ p)
+{
+    vftype f_ = vload(f);
+    vftype upp = vload(upper);
+    *p_prev = vfmadd(vneg(upp), *p_prev, f_);
+    vstore(p, *p_prev);
+}
+
+static inline __attribute__((always_inline))
+void solve_vtiles_row(const ftype *__restrict__ u_x,
+                      const ftype *__restrict__ u_y,
+                      const ftype *__restrict__ u_z,
+                      uint32_t height,
+                      uint32_t width,
+                      ftype u0_x,
+                      ftype u0_y,
+                      ftype u0_z,
+                      int is_first_row,
+                      int is_first_face,
+                      ftype *__restrict__ tmp,
+                      ftype *__restrict__ p)
+{
+    ftype *__restrict__ tmp_upp = tmp;
+    ftype *__restrict__ tmp_f = tmp + width * VLEN;
+
+    ftype __attribute__((aligned(32))) div_u_t[VLEN * VLEN];
+
+    vftype last_u_x =
+        compute_div_vtile(u_x, u_y, u_z,
+                          height, width,
+                          vbroadcast(u0_x),
+                          is_first_row ? vbroadcast(u0_y) :
+                                         vload(u_y - width),
+                          /* I can still pass u0_z even if not used. */
+                          vbroadcast(u0_z),
+                          1, is_first_row, is_first_face,
+                          VLEN, div_u_t);
+
+    vftype upp_prev = vbroadcast(0);
+    vftype f_prev = vbroadcast(0);
+     /* TODO: Apply left BCs. */
+    for (int k = 0; k < VLEN; ++k) {
+        gauss_reduce_vcol(div_u_t + VLEN * k,
+                          &f_prev, &upp_prev,
+                          tmp_upp + VLEN * k,
+                          tmp_f + VLEN * k);
+    }
+
+    for (uint32_t tk = VLEN; tk < width; tk += VLEN) {
+        last_u_x = compute_div_vtile(u_x + tk, u_y + tk, u_z + tk,
+                                     height, width,
+                                     last_u_x,
+                                     is_first_row ?
+                                        vbroadcast(u0_y) :
+                                        vload(u_y - width + tk),
+                                     vbroadcast(u0_z),
+                                     0, is_first_row, is_first_face,
+                                     VLEN, div_u_t);
+
+        for (uint32_t k = 0; k < VLEN; ++k) {
+            gauss_reduce_vcol(div_u_t + VLEN * k,
+                              &f_prev, &upp_prev,
+                              tmp_upp + VLEN * (tk + k),
+                              tmp_f + VLEN * (tk + k));
+        }
+    }
+
+    ftype __attribute__((aligned(32))) p_t[VLEN * VLEN];
+
+    for (uint32_t tk = 0; tk < width; tk += VLEN) {
+        vftype p_prev = vbroadcast(0);
+        for (uint32_t k = 0; k < VLEN; ++k) {
+            backward_sub_vcol(tmp_f + VLEN * (width - 1 - (tk + k)),
+                              tmp_upp + VLEN * (width - 1 - (tk + k)),
+                              &p_prev,
+                              p_t + VLEN * (VLEN - 1 - k));
+        }
+        transpose_vtile(p_t, VLEN, width, p + width - VLEN - tk);
+    }
+}
+
+void solve_Dxx_tridiag_blocks(uint32_t depth,
+                              uint32_t height,
+                              uint32_t width,
+                              ftype u0_x,
+                              ftype u0_y,
+                              ftype u0_z,
+                              ftype *__restrict__ tmp,
+                              ftype *__restrict__ u_x,
+                              ftype *__restrict__ u_y,
+                              ftype *__restrict__ u_z,
+                              ftype *__restrict__ p)
+{
+    /* Solve first tile row of the first face. */
+    solve_vtiles_row(u_x, u_y, u_z, height, width,
+                     u0_x, u0_y, u0_z, 1, 1, tmp, p);
+    /* Solve remaining tile rows of the first face. */
+    for (uint32_t j = VLEN; j < height; j += VLEN) {
+        solve_vtiles_row(u_x + width * j,
+                         u_y + width * j,
+                         u_z + width * j,
+                         height, width,
+                         u0_x, u0_y, u0_z,
+                         0, 1, tmp,
+                         p + width * j);
+    }
+    /* Solve remaining faces. */
+    for (uint32_t i = 1; i < depth; ++i) {
+        /* Solve first tile row of the face. */
+        solve_vtiles_row(u_x + height * width * i,
+                         u_y + height * width * i,
+                         u_z + height * width * i,
+                         height, width,
+                         u0_x, u0_y, u0_z,
+                         1, 0, tmp,
+                         p + height * width * i);
+        /* Solve remaining tile rows of the face. */
+        for (uint32_t j = VLEN; j < height; j += VLEN) {
+            uint64_t offset = height * width * i + width * j;
+            solve_vtiles_row(u_x + offset,
+                             u_y + offset,
+                             u_z + offset,
+                             height, width,
+                             u0_x, u0_y, u0_z,
+                             0, 0, tmp,
+                             p + offset);
         }
     }
 }

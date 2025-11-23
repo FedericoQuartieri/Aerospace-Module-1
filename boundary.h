@@ -3,8 +3,6 @@
 
 #include "ftype.h"
 
-#define MACRO_VAL(x) x
-
 #define BC_LEFT left
 #define BC_RIGHT right
 #define BC_TOP top

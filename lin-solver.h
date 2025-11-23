@@ -42,4 +42,17 @@ void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
                                ftype *__restrict__ u_y,
                                ftype *__restrict__ u_z);
 
+void solve_Dxx_tridiag_blocks(uint32_t depth,
+                              uint32_t height,
+                              uint32_t width,
+                              ftype u0_x,
+                              ftype u0_y,
+                              ftype u0_z,
+                              ftype *__restrict__ tmp,
+                              ftype *__restrict__ u_x,
+                              ftype *__restrict__ u_y,
+                              ftype *__restrict__ u_z,
+                              ftype *__restrict__ p);
+
+
 #endif

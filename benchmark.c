@@ -37,8 +37,12 @@ void benchmark_wD_solvers(void)
     ftype *u_z = u + 2 * size;
     ftype *f_z = f + 2 * size;
 
+    /* Write something! Otherwise no physical memory
+     * is allocated if you're only reading from it. */
     rand_fill(w, size);
-    rand_fill(f, size);
+    rand_fill(f_x, size);
+    rand_fill(f_y, size);
+    rand_fill(f_z, size);
 
     TIMEIT(solve_wDxx_tridiag_blocks(w, D, H, W,
                                      tmp, f_x, f_y, f_z, u_x, u_y, u_z));
@@ -46,6 +50,8 @@ void benchmark_wD_solvers(void)
                                      tmp, f_x, f_y, f_z, u_x, u_y, u_z));
     TIMEIT(solve_wDzz_tridiag_blocks(w, D, H, W,
                                      tmp, f_x, f_y, f_z, u_x, u_y, u_z));
+
+    TIMEIT(solve_Dxx_tridiag_blocks(D, H, W, 0.0, 0.0, 0.0, tmp, u_x, u_y, u_z, w));
 
     free(tmp);
     free(f);
@@ -122,6 +128,6 @@ void benchmark_wDxx_rhs_computation(void)
 int main(void)
 {
     benchmark_wD_solvers();
-    benchmark_wDxx_rhs_computation();
+    //benchmark_wDxx_rhs_computation();
     return 0;
 }
