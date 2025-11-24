@@ -11,7 +11,7 @@ TEST(utils, boundary) {
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
                 if(!is_boundary(i,j,k)){
-                    printf("Index %zu is not at boundary (%d,%d,%d)\n", rowmaj_idx(i,j,k), i,j,k);
+                    //printf("Index %zu is not at boundary (%d,%d,%d)\n", rowmaj_idx(i,j,k), i,j,k);
                 }
             }
         }

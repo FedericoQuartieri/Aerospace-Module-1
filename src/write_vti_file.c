@@ -68,8 +68,7 @@ void write_vti_file(const char *filename,
         "      </PointData>\n"
         "    </Piece>\n"
         "  </ImageData>\n"
-        "  <AppendedData encoding=\"raw\">\n"
-        "_");
+        "  <AppendedData encoding=\"raw\">\n   _");  // Spazio + underscore
 
     // -------- RAW BLOCKS --------
     fwrite(&block_size, sizeof(uint32_t), 1, f);

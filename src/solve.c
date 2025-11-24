@@ -1,6 +1,7 @@
 #include "solve.h"
 #include "io_thread.h"
 
+
 /* 
     Get the pointers to the Velocity struct and swap each pointers inside them
 */
@@ -24,7 +25,11 @@ static void swap_pressure(Pressure *pressure, Pressure *pressure_next) {
     tmp = pressure->p; pressure->p = pressure_next->p; pressure_next->p = tmp;
 } 
 
-void solve (GField g_field, forcing_function_t forcing, Pressure pressure, DTYPE* K, VelocityField Eta, VelocityField Zeta, VelocityField U, DTYPE* Beta, DTYPE* Gamma, DTYPE *u_BC_current_direction, DTYPE *u_BC_derivative_second_direction, DTYPE *u_BC_derivative_third_direction, int write_frequency) {
+void solve (GField g_field, forcing_function_t forcing, Pressure pressure, DTYPE* K, 
+            VelocityField Eta, VelocityField Zeta, VelocityField U, 
+            DTYPE* Beta, DTYPE* Gamma, 
+            DTYPE *u_BC_current_direction, DTYPE *u_BC_derivative_second_direction, DTYPE *u_BC_derivative_third_direction, 
+            int write_frequency, bool full_output, VelocityField** U_record, Pressure** P_record) {
     
     /* 
         For the seriel implementation, we will use a separate thread to write the .vtk, 
@@ -99,10 +104,28 @@ void solve (GField g_field, forcing_function_t forcing, Pressure pressure, DTYPE
             pthread_mutex_unlock(&io_queue.mutex);
         }
 
+        if (full_output) {
+            /* Store current solution in the record vectors */
+            VelocityField U_copy;
+            Pressure P_copy;
+            initialize_velocity_field(&U_copy);
+            initialize_pressure(&P_copy);
+
+            memcpy(U_copy.v_x, U_next.v_x, GRID_SIZE);
+            memcpy(U_copy.v_y, U_next.v_y, GRID_SIZE);
+            memcpy(U_copy.v_z, U_next.v_z, GRID_SIZE);
+            memcpy(P_copy.p,  pressure_next.p, GRID_SIZE);
+
+            (*U_record)[t] = U_copy;
+            (*P_record)[t] = P_copy;
+        }
+
         swap_velocity(&U, &U_next);
         swap_velocity(&Eta, &Eta_next);
         swap_velocity(&Zeta, &Zeta_next);
         swap_pressure(&pressure, &pressure_next);
+
+        
 
     }
 

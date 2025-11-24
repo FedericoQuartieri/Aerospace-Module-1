@@ -10,8 +10,14 @@
 #include "pressure.h"
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <stdbool.h>
+#include "io_thread.h"
 
 void solve (GField g_field, forcing_function_t forcing, Pressure pressure, DTYPE* K, 
-            VelocityField Eta, VelocityField Zeta, VelocityField U, DTYPE* Beta, 
-            DTYPE* Gamma, DTYPE *u_BC_current_direction, DTYPE *u_BC_derivative_second_direction, DTYPE *u_BC_derivative_third_direction, int write_frequency);
+            VelocityField Eta, VelocityField Zeta, VelocityField U, 
+            DTYPE* Beta, DTYPE* Gamma, 
+            DTYPE *u_BC_current_direction, DTYPE *u_BC_derivative_second_direction, DTYPE *u_BC_derivative_third_direction, 
+            int write_frequency, bool full_output, VelocityField** U_record, Pressure** P_record);
 
+
+            
