@@ -61,8 +61,8 @@ void solve (GField g_field, forcing_function_t forcing, Pressure pressure, DTYPE
     initialize_velocity_field(&Zeta_next);
     initialize_velocity_field(&U_next);
 
-    Pressure pressure_next;
-    initialize_pressure(&pressure_next);
+    //Pressure pressure_next;
+    //initialize_pressure(&pressure_next);
 
     for (int t = 0; t < STEPS; t++) {
 
@@ -72,7 +72,7 @@ void solve (GField g_field, forcing_function_t forcing, Pressure pressure, DTYPE
         solve_momentum_system(U, Eta, Zeta, Xi, g_field, U_next, Eta_next, Zeta_next, Beta, Gamma, u_BC_current_direction, u_BC_derivative_second_direction, u_BC_derivative_third_direction);
 
         // not implemented yet
-        // solve_pressure_system(pressure, pressure_next, U_next);
+        solve_pressure_system(U_next, &pressure);
 
         if (t % write_frequency == 0) {
 
@@ -95,7 +95,7 @@ void solve (GField g_field, forcing_function_t forcing, Pressure pressure, DTYPE
             memcpy(io_queue.U_buf[idx].v_x, U_next.v_x, GRID_SIZE);
             memcpy(io_queue.U_buf[idx].v_y, U_next.v_y, GRID_SIZE);
             memcpy(io_queue.U_buf[idx].v_z, U_next.v_z, GRID_SIZE);
-            memcpy(io_queue.P_buf[idx].p,  pressure_next.p, GRID_SIZE);
+            memcpy(io_queue.P_buf[idx].p,  pressure.p, GRID_SIZE);
 
             /* Signal that the next buffer is ready, so update .count */
             pthread_mutex_lock(&io_queue.mutex);
@@ -114,7 +114,7 @@ void solve (GField g_field, forcing_function_t forcing, Pressure pressure, DTYPE
             memcpy(U_copy.v_x, U_next.v_x, GRID_SIZE);
             memcpy(U_copy.v_y, U_next.v_y, GRID_SIZE);
             memcpy(U_copy.v_z, U_next.v_z, GRID_SIZE);
-            memcpy(P_copy.p,  pressure_next.p, GRID_SIZE);
+            memcpy(P_copy.p,  pressure.p, GRID_SIZE);
 
             (*U_record)[t] = U_copy;
             (*P_record)[t] = P_copy;
@@ -123,7 +123,7 @@ void solve (GField g_field, forcing_function_t forcing, Pressure pressure, DTYPE
         swap_velocity(&U, &U_next);
         swap_velocity(&Eta, &Eta_next);
         swap_velocity(&Zeta, &Zeta_next);
-        swap_pressure(&pressure, &pressure_next);
+        //swap_pressure(&pressure, &pressure_next);
 
         
 

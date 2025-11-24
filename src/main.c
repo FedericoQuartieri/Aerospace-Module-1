@@ -28,9 +28,6 @@ int main(){
     initialize_velocity_field(&Eta);
     initialize_velocity_field(&Zeta);
     initialize_velocity_field(&U);
-    DTYPE *u_BC_current_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
-    DTYPE *u_BC_derivative_second_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
-    DTYPE *u_BC_derivative_third_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
 
     // Set K 
     DTYPE *K = (DTYPE *) malloc(GRID_SIZE);
