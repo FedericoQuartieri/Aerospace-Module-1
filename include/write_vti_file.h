@@ -7,8 +7,6 @@
 
 void write_vti_file(const char *filename,
                     const VelocityField *U,
-                    const Pressure *P,
-                    int Nx, int Ny, int Nz,
-                    double dx, double dy, double dz);
+                    const Pressure      *P);
 
 #endif // WRITE_VTI_FILE_H

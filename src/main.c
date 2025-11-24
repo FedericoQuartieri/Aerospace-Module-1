@@ -72,9 +72,9 @@ int main(){
      *                 [dz]    f_z   - Grad_z(P) - c * U_z + c[ Grad_xx(N_z) + Grad_yy(Z_z) + Grad_zz(U_z)] 
      * */     
 
-    DTYPE *u_BC_current_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
-    DTYPE *u_BC_derivative_second_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
-    DTYPE *u_BC_derivative_third_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
+    DTYPE *u_BC_current_direction = malloc(GRID_SIZE);
+    DTYPE *u_BC_derivative_second_direction = malloc(GRID_SIZE);
+    DTYPE *u_BC_derivative_third_direction = malloc(GRID_SIZE);
 
     solve(g_field, forcing, pressure, K, Eta, Zeta, U, Beta, Gamma, u_BC_current_direction, u_BC_derivative_second_direction, u_BC_derivative_third_direction, WRITE_FREQUENCY);
   

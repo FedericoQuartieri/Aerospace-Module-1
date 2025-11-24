@@ -4,6 +4,8 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <iomanip>
+
 
 // Include C headers in extern "C" block for C++ compatibility
 extern "C"
@@ -95,47 +97,99 @@ static double p_exact_value(double x, double y, double z, double t)
     return factor * st * cx * sy * (sz - cz);
 }
 
-/* ----- Helper function to read VTK file ----- */
+
+/* ----- Helper function to read VTK file ----- */ 
 bool read_last_vtk_file(VelocityField &U_numerical, Pressure &P_numerical)
 {
-    // Last timestep is always STEPS since we write every step
-    int last_step = STEPS;
-    
+    int last_step = STEPS - 1;
+
     std::stringstream filename;
-    filename << "output/velocity_field_" << last_step << ".vtk";
-    
-    std::ifstream file(filename.str());
+    filename << "../build/output/solution_0000" << last_step << ".vti";
+
+    std::ifstream file(filename.str(), std::ios::binary);
     if (!file.is_open()) {
         std::cerr << "Failed to open " << filename.str() << std::endl;
         return false;
     }
-    
+
     std::string line;
-    // Skip header lines until we find POINT_DATA
+
+    // 1. Find <AppendedData>
     while (std::getline(file, line)) {
-        if (line.find("POINT_DATA") != std::string::npos) {
+        if (line.find("<AppendedData") != std::string::npos) {
+            std::cout << "[DEBUG] Found <AppendedData>" << std::endl;
             break;
         }
     }
-    
-    // Read velocity components
-    std::getline(file, line); // VECTORS Velocity double
-    for (size_t idx = 0; idx < GRID_SIZE; idx++) {
-        file >> U_numerical.v_x[idx] >> U_numerical.v_y[idx] >> U_numerical.v_z[idx];
+
+    // 2. Skip exactly one byte: the '_' marker
+    char underscore;
+    file.read(&underscore, 1);
+
+    if (underscore != '_') {
+        std::cerr << "[ERROR] Expected '_' after <AppendedData>, got '" << underscore << "'\n";
+        return false;
     }
-    
-    // Skip to pressure data
-    std::getline(file, line); // empty line
-    std::getline(file, line); // SCALARS Pressure double
-    std::getline(file, line); // LOOKUP_TABLE default
-    
-    for (size_t idx = 0; idx < GRID_SIZE; idx++) {
-        file >> P_numerical.p[idx];
-    }
-    
-    file.close();
+
+    std::streampos data_start = file.tellg();
+    std::cout << "[DEBUG] Binary data starts at position: " << data_start << std::endl;
+
+    file.seekg(data_start);
+
+    uint32_t block_size = 0;
+    const uint32_t expected = WIDTH * HEIGHT * DEPTH * sizeof(DTYPE);
+
+    auto read_block = [&](const char* label, char* dst)
+    {
+        std::cout << "\n[DEBUG] Reading block: " << label << std::endl;
+
+        file.read(reinterpret_cast<char*>(&block_size), sizeof(uint32_t));
+
+        std::cout << "[DEBUG]   block_size read = " << block_size << std::endl;
+        std::cout << "[DEBUG]   expected       = " << expected << std::endl;
+
+        if (!file.good()) {
+            std::cout << "[ERROR] file.read(block_size) failed while reading header of " << label << std::endl;
+            return false;
+        }
+
+        if (block_size != expected) {
+            std::cout << "[ERROR] Block size mismatch for " << label
+                      << ". block_size=" << block_size
+                      << " expected=" << expected << std::endl;
+            return false;
+        }
+
+        // read block_size bytes
+        file.read(dst, block_size);
+
+        std::cout << "[DEBUG]   bytes actually read = " << file.gcount()
+                  << " (should be " << block_size << ")" << std::endl;
+
+        if (!file.good()) {
+            std::cout << "[ERROR] file.read(data) failed while reading data for " << label << std::endl;
+            return false;
+        }
+
+        return true;
+    };
+
+    // ---- PRESSURE ----
+    if (!read_block("Pressure", (char*)P_numerical.p)) return false;
+
+    // ---- U_x ----
+    if (!read_block("Velocity_x", (char*)U_numerical.v_x)) return false;
+
+    // ---- U_y ----
+    if (!read_block("Velocity_y", (char*)U_numerical.v_y)) return false;
+
+    // ---- U_z ----
+    if (!read_block("Velocity_z", (char*)U_numerical.v_z)) return false;
+
+    std::cout << "\n[DEBUG] Successfully read all VTI fields\n";
+
     return true;
-}
+} 
 
 
 TEST(ManufacturedSolution, VelocitySystemConvergence)
@@ -188,15 +242,15 @@ TEST(ManufacturedSolution, VelocitySystemConvergence)
     }
 
     // Set K (permeability)
-    DTYPE *K = (DTYPE *)malloc(GRID_SIZE * sizeof(DTYPE));
-    for (size_t i = 0; i < GRID_SIZE; i++) {
+    DTYPE *K = (DTYPE *)malloc(GRID_SIZE);
+    for (size_t i = 0; i < GRID_ELEMENTS; i++) {
         K[i] = 1.0; // Uniform permeability
     }
 
     // Compute Beta and Gamma
-    DTYPE *Beta = (DTYPE *)malloc(GRID_SIZE * sizeof(DTYPE));
-    DTYPE *Gamma = (DTYPE *)malloc(GRID_SIZE * sizeof(DTYPE));
-    for (size_t idx = 0; idx < GRID_SIZE; idx++) {
+    DTYPE *Beta = (DTYPE *)malloc(GRID_SIZE);
+    DTYPE *Gamma = (DTYPE *)malloc(GRID_SIZE);
+    for (size_t idx = 0; idx < GRID_ELEMENTS; idx++) {
         Beta[idx] = 1.0 + (DT * NU) / (2.0 * K[idx]);
         Gamma[idx] = (DT * NU) / (2.0 * Beta[idx]);
     }
@@ -206,9 +260,9 @@ TEST(ManufacturedSolution, VelocitySystemConvergence)
     initialize_g_field(&g_field);
 
     // Boundary conditions (can be zero or exact solution at boundaries)
-    DTYPE *u_BC_current = (DTYPE *)calloc(GRID_SIZE, sizeof(DTYPE));
-    DTYPE *u_BC_second = (DTYPE *)calloc(GRID_SIZE, sizeof(DTYPE));
-    DTYPE *u_BC_third = (DTYPE *)calloc(GRID_SIZE, sizeof(DTYPE));
+    DTYPE *u_BC_current = (DTYPE *)calloc(GRID_ELEMENTS, sizeof(DTYPE));
+    DTYPE *u_BC_second = (DTYPE *)calloc(GRID_ELEMENTS, sizeof(DTYPE));
+    DTYPE *u_BC_third = (DTYPE *)calloc(GRID_ELEMENTS, sizeof(DTYPE));
 
     // Run solver with manufactured forcing - write every timestep for accuracy
     int write_frequency = 1;

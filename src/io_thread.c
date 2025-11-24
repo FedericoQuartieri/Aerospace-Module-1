@@ -64,11 +64,7 @@ void *io_thread_func(void *arg)
         char filename[256];
         sprintf(filename, "output/solution_%06d.vti", ts);
 
-        write_vti_file(filename,
-                       &q->U_buf[idx],
-                       &q->P_buf[idx],
-                       WIDTH, HEIGHT, DEPTH,
-                       DX, DY, DZ);
+        write_vti_file(filename, &q->U_buf[idx], &q->P_buf[idx]);
     }
 
     return NULL;
