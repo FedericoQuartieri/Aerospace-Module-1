@@ -1,18 +1,21 @@
 #include "pressure_system.h"
 #include "velocity_field.h"
 
-void solve_pressure_system(VelocityField U_next, 
-                           Pressure *psi, 
-                           Pressure *phi_lower, 
-                           Pressure *phi_higher,
+void solve_pressure_system(VelocityField U_next,
                            Pressure *pressure
                         )
 {
+    Pressure psi;
+        Pressure phi_lower;
+        Pressure phi_higher;
+        initialize_pressure(&psi);
+        initialize_pressure(&phi_lower);
+        initialize_pressure(&phi_higher);
                             
-    compute_Psi(U_next, psi);
-    compute_Phi_lower(psi,  phi_lower);
-    compute_Phi_higher(phi_lower, phi_higher);
-    compute_pressure(phi_higher, pressure);
+    compute_Psi(U_next, &psi);
+    compute_Phi_lower(&psi,  &phi_lower);
+    compute_Phi_higher(&phi_lower, &phi_higher);
+    compute_pressure(&phi_higher, pressure);
 }
 
 static void compute_Psi(VelocityField U_next, Pressure *psi){

@@ -66,7 +66,7 @@ TEST(Pressure_linear_solver_test, Psi_computation) {
     
     setup_test_fields(&U_next, &psi, &phi_lower, &phi_higher, &pressure);
 
-    solve_pressure_system(U_next, &psi, &phi_lower, &phi_higher, &pressure);
+    solve_pressure_system(U_next, &pressure);
 
 
     // Test a single row (block) instead of the entire grid
@@ -153,7 +153,7 @@ TEST(Pressure_linear_solver_test, Phi_lower_computation) {
     
     setup_test_fields(&U_next, &psi, &phi_lower, &phi_higher, &pressure);
 
-    solve_pressure_system(U_next, &psi, &phi_lower, &phi_higher, &pressure);
+    solve_pressure_system(U_next, &pressure);
 
 
     // Test a single row (block) instead of the entire grid
@@ -232,7 +232,7 @@ TEST(Pressure_linear_solver_test, Phi_higher_computation) {
     
     setup_test_fields(&U_next, &psi, &phi_lower, &phi_higher, &pressure);
 
-    solve_pressure_system(U_next, &psi, &phi_lower, &phi_higher, &pressure);
+    solve_pressure_system(U_next, &pressure);
 
 
     // Test a single row (block) instead of the entire grid

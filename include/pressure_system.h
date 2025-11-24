@@ -10,10 +10,7 @@
  * U, Eta, Zeta are the solution of time step n
  * U_next, Zeta_next, Eta_next are the solution at step n+1
  *  */ 
-void solve_pressure_system(VelocityField U_next, 
-                           Pressure *psi, 
-                           Pressure *phi_lower, 
-                           Pressure *phi_higher,
+void solve_pressure_system(VelocityField U_next,
                            Pressure *pressure
                         );
 

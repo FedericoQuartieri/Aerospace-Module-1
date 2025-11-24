@@ -90,13 +90,8 @@ int main(){
         u_BC_derivative_second_direction,
         u_BC_derivative_third_direction);
 
-        Pressure psi;
-        Pressure phi_lower;
-        Pressure phi_higher;
-        initialize_pressure(&psi);
-        initialize_pressure(&phi_lower);
-        initialize_pressure(&phi_higher);
-        solve_pressure_system(U_next, &psi, &phi_lower, &phi_higher, &pressure);
+        
+        solve_pressure_system(U_next, &pressure);
 
     printf("momentum\n");
 
