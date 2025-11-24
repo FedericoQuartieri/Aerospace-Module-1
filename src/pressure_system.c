@@ -18,7 +18,7 @@ void solve_pressure_system(VelocityField U_next,
     compute_pressure(&phi_higher, pressure);
 }
 
-static void compute_Psi(VelocityField U_next, Pressure *psi){
+void compute_Psi(VelocityField U_next, Pressure *psi){
     // Initialize temporary arrays 
     DTYPE *w = (DTYPE *) malloc(GRID_SIZE * sizeof(DTYPE));
     DTYPE *tmp = (DTYPE *) malloc(GRID_SIZE * sizeof(DTYPE));
@@ -55,7 +55,7 @@ static void compute_Psi(VelocityField U_next, Pressure *psi){
     free_pressure(&rhs);
 }
 
-static void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
+void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
     // Initialize temporary arrays 
     DTYPE *w = (DTYPE *) malloc(GRID_SIZE * sizeof(DTYPE));
     DTYPE *w_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
@@ -110,7 +110,7 @@ static void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
     free_pressure(&rhs);
 };
                         
-static void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
+void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
     DTYPE *w = (DTYPE *) malloc(GRID_SIZE * sizeof(DTYPE));
     DTYPE *w_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
     DTYPE *rhs_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
@@ -164,7 +164,7 @@ static void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
     free_pressure(&rhs);
 };
 
-static void compute_pressure(Pressure *phi_higher, Pressure *pressure){
+void compute_pressure(Pressure *phi_higher, Pressure *pressure){
     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){

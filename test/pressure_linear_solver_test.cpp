@@ -66,7 +66,8 @@ TEST(Pressure_linear_solver_test, Psi_computation) {
     
     setup_test_fields(&U_next, &psi, &phi_lower, &phi_higher, &pressure);
 
-    solve_pressure_system(U_next, &pressure);
+    // Call only compute_Psi to test this specific step
+    compute_Psi(U_next, &psi);
 
 
     // Test a single row (block) instead of the entire grid
@@ -153,7 +154,9 @@ TEST(Pressure_linear_solver_test, Phi_lower_computation) {
     
     setup_test_fields(&U_next, &psi, &phi_lower, &phi_higher, &pressure);
 
-    solve_pressure_system(U_next, &pressure);
+    // Call compute_Psi first, then compute_Phi_lower
+    compute_Psi(U_next, &psi);
+    compute_Phi_lower(&psi, &phi_lower);
 
 
     // Test a single row (block) instead of the entire grid
@@ -232,7 +235,10 @@ TEST(Pressure_linear_solver_test, Phi_higher_computation) {
     
     setup_test_fields(&U_next, &psi, &phi_lower, &phi_higher, &pressure);
 
-    solve_pressure_system(U_next, &pressure);
+    // Call all intermediate steps to test phi_higher
+    compute_Psi(U_next, &psi);
+    compute_Phi_lower(&psi, &phi_lower);
+    compute_Phi_higher(&phi_lower, &phi_higher);
 
 
     // Test a single row (block) instead of the entire grid
