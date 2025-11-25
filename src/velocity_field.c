@@ -6,7 +6,9 @@ void initialize_velocity_field(VelocityField *v_field) {
     v_field->v_x = (DTYPE*) malloc(GRID_SIZE);
     v_field->v_y = (DTYPE*) malloc(GRID_SIZE);
     v_field->v_z = (DTYPE*) malloc(GRID_SIZE);
+}
 
+void rand_fill_velocity_field(VelocityField *v_field) {
     rand_fill(v_field->v_x);
     rand_fill(v_field->v_y);
     rand_fill(v_field->v_z);

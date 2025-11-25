@@ -7,6 +7,10 @@ void initialize_pressure(Pressure *pressure){
     memset(pressure->p, 0, GRID_SIZE);
 }
 
+void rand_fill_pressure(Pressure *pressure){
+    rand_fill(pressure->p);
+}
+
 // TODO handle boundaries conditions
 
 DTYPE compute_pressure_x_grad(DTYPE *p, size_t i, size_t j, size_t k){

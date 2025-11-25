@@ -233,6 +233,7 @@ TEST(VelocitySecondDerivativeTest, DirectionX){
 
     VelocityField U;
     initialize_velocity_field(&U);
+    rand_fill_velocity_field(&U);
 
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -426,6 +427,7 @@ TEST(VelocitySecondDerivativeTestAllPoints, DirectionX){
 
     VelocityField U;
     initialize_velocity_field(&U);
+    rand_fill_velocity_field(&U);
 
     DTYPE tol = 1e-5;
     DTYPE max_errxx = 0.0;

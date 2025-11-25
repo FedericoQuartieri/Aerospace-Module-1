@@ -17,15 +17,8 @@ endif()
 enable_testing()
 add_subdirectory(third_party/googletest)
 
-# Collect all test sources
-file(GLOB TEST "test/*.cpp")
-
-# If Eigen is disabled, exclude tests that require it
-if(NOT ENABLE_EIGEN_TESTS)
-    list(FILTER TEST EXCLUDE REGEX "momentum_linear_solver_test\\.cpp$")
-    list(FILTER TEST EXCLUDE REGEX "boundaries_test\\.cpp$")
-    list(FILTER TEST EXCLUDE REGEX "pressure_linear_solver_test\\.cpp$")
-endif()
+# Include GoogleTest module for gtest_discover_tests
+include(GoogleTest)
 
 # Global include directory for project headers
 include_directories(include)
@@ -52,17 +45,40 @@ target_link_libraries(navier_core PUBLIC m)
 add_executable(navier_stokes ${MAIN_SRC})
 target_link_libraries(navier_stokes PRIVATE navier_core)
 
-# Tests executable: link GoogleTest and the core library
-add_executable(tests ${TEST})
+# Collect all test sources
+file(GLOB TEST_SOURCES "test/*.cpp")
 
-if(ENABLE_EIGEN_TESTS)
-    target_link_libraries(tests PRIVATE GTest::gtest_main navier_core m Eigen3::Eigen)
-else()
-    target_link_libraries(tests PRIVATE GTest::gtest_main navier_core m)
+# If Eigen is disabled, exclude tests that require it
+if(NOT ENABLE_EIGEN_TESTS)
+    list(FILTER TEST_SOURCES EXCLUDE REGEX "momentum_linear_solver_test\\.cpp$")
+    list(FILTER TEST_SOURCES EXCLUDE REGEX "boundaries_test\\.cpp$")
+    list(FILTER TEST_SOURCES EXCLUDE REGEX "pressure_linear_solver_test\\.cpp$")
 endif()
 
-include(GoogleTest)
-gtest_discover_tests(tests)
+# Collect all test target names
+set(ALL_TEST_TARGETS "")
+
+# Create a separate executable for each test file
+foreach(TEST_SRC ${TEST_SOURCES})
+    # Get the filename without path and extension
+    get_filename_component(TEST_NAME ${TEST_SRC} NAME_WE)
+    
+    # Add to list of all test targets
+    list(APPEND ALL_TEST_TARGETS ${TEST_NAME})
+    
+    # Create executable for this specific test
+    add_executable(${TEST_NAME} ${TEST_SRC})
+    
+    # Link against GoogleTest and core library
+    if(ENABLE_EIGEN_TESTS AND ${TEST_NAME} MATCHES "momentum_linear_solver_test|boundaries_test|pressure_linear_solver_test")
+        target_link_libraries(${TEST_NAME} PRIVATE GTest::gtest_main navier_core m Eigen3::Eigen)
+    else()
+        target_link_libraries(${TEST_NAME} PRIVATE GTest::gtest_main navier_core m)
+    endif()
+    
+    # Register with CTest
+    gtest_discover_tests(${TEST_NAME})
+endforeach()
 
 # Debug build flags
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG -Wall -Wextra -O2")
@@ -88,10 +104,21 @@ add_custom_target(clean-all
     COMMENT "Cleaning all build files"
 )
 
-# Utility target: build and immediately run tests
-add_custom_target(run-tests
-    DEPENDS tests
-    COMMAND $<TARGET_FILE:tests>
-    COMMENT "Running tests after build"
+# Utility target: run all tests (DEPENDS on all test executables)
+add_custom_target(run-all-tests
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure || true
+    DEPENDS ${ALL_TEST_TARGETS}
+    COMMENT "Running all tests"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+
+# Create individual run targets for each test
+foreach(TEST_SRC ${TEST_SOURCES})
+    get_filename_component(TEST_NAME ${TEST_SRC} NAME_WE)
+    add_custom_target(run-${TEST_NAME}
+        COMMAND $<TARGET_FILE:${TEST_NAME}>
+        DEPENDS ${TEST_NAME}
+        COMMENT "Running ${TEST_NAME}"
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    )
+endforeach()

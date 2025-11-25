@@ -13,6 +13,7 @@ typedef struct {
 
 void initialize_velocity_field(VelocityField *v_field);
 void free_velocity_field(VelocityField *v_field);
+void rand_fill_velocity_field(VelocityField *v_field);
 DTYPE compute_velocity_x_grad(DTYPE *v_component, size_t i, size_t j, size_t k);
 DTYPE compute_velocity_y_grad(DTYPE *v_component, size_t i, size_t j, size_t k);
 DTYPE compute_velocity_z_grad(DTYPE *v_component, size_t i, size_t j, size_t k);

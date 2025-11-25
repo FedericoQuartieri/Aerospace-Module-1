@@ -52,6 +52,10 @@ void setup_test_fields(GField* g_field, Pressure* pressure,
     initialize_velocity_field(Eta);
     initialize_velocity_field(Zeta);
     initialize_velocity_field(U);
+
+    rand_fill_velocity_field(Eta);
+    rand_fill_velocity_field(Zeta);
+    rand_fill_velocity_field(U);
     
     if (initialize_to_zero) {
         // Initialize all fields to zero
