@@ -875,7 +875,10 @@ void solve_vtiles_row(const ftype *__restrict__ u_x,
                       ftype *__restrict__ p)
 {
     ftype *__restrict__ tmp_upp = tmp;
-    ftype *__restrict__ tmp_f = tmp + width;
+    /* WARNING: I should skip max(width, height, depth)
+     * elements when using this function with the fused version,
+     * atm just skip an entire face. */
+    ftype *__restrict__ tmp_f = tmp + height * width;
 
     ftype __attribute__((aligned(32))) div_u_t[VLEN * VLEN];
 
@@ -956,8 +959,6 @@ void solve_Dxx_tridiag_blocks(uint32_t depth,
         tmp[k] = upp;
     }
 
-    /* TODO: Apply right BCs. */
-
     /* Solve the first face, where div(u) = 0. */
     for (uint32_t j = 0; j < height; j += VLEN) {
 
@@ -973,6 +974,7 @@ void solve_Dxx_tridiag_blocks(uint32_t depth,
             transpose_vtile(p_t, VLEN, width,
                             p + width * j + width - VLEN - tk);
         }
+        /* TODO: Apply right BCs. */
     }
 
     /* Solve remaining faces. */
@@ -1021,6 +1023,16 @@ void backward_sub_scalar(const ftype *__restrict__ f,
     vstore(p, f_ - p_prev * vbroadcast(upper));
 }
 
+static inline __attribute__((always_inline))
+void backward_sub_scalar_ip(const ftype *__restrict__ p_prev,
+                            ftype upper,
+                            ftype *__restrict__ p)
+{
+    vftype f_ = vload(p);
+    vftype p_prev_ = vload(p_prev);
+    vstore(p, f_ - p_prev_ * vbroadcast(upper));
+}
+
 void solve_Dyy_tridiag_blocks(uint32_t depth,
                               uint32_t height,
                               uint32_t width,
@@ -1030,7 +1042,9 @@ void solve_Dyy_tridiag_blocks(uint32_t depth,
 {
     ftype upp = 0.0;
     /* We can reduce once, each row of the first face
-     * is the same system. */
+     * is the same system, perhaps recompute it if you
+     * want to avoid reading from it, but only to normalize
+     * the f. When doing backward sub, read from it! */
     for (uint32_t j = 0; j < height; ++j) {
         upp = -1.0 / (3.0 + upp);
         /* Store only once, then broadcast later. */
@@ -1135,73 +1149,207 @@ void solve_Dzz_tridiag_blocks(uint32_t depth,
     }
 }
 
+#define max(x, y) ((x) > (y) ? (x) : (y))
+
 void solve_pressure_fused(uint32_t depth,
                           uint32_t height,
                           uint32_t width,
+                          ftype *__restrict__ tmp,
                           ftype *__restrict__ u_x,
                           ftype *__restrict__ u_y,
                           ftype *__restrict__ u_z,
-                          ftype *__restrict__ tmp,
                           ftype *__restrict__ p)
 {
-    ftype *__restrict__ tmp_upp_Dxx, tmp_upp_Dyy, tmp_upp_Dzz;
+    uint32_t max_dim = max(width, max(height, depth));
+
+    ftype upp = 0.0;
+    for (uint32_t i = 0; i < max_dim; ++i) {
+        upp = -1.0 / (3.0 + upp);
+        /* Store only once, then broadcast later. */
+        tmp[i] = upp;
+    }
 
     /* Store intermediate solutions inside p?
      * perhaps use a separate tmp storage of size,
-     * so you don't pay extra TLB misses. *
+     * so you don't pay extra TLB misses. */
 
     /* Using p seems fine though, you use less space
-     * and the number of TLP misses shouldn't be more. */
+     * and the number of TLB misses shouldn't be more. */
 
-    /* Solve for first face. */
+    ftype __attribute__((aligned(32))) p_t[VLEN * VLEN];
 
-    /* Solve first tile of first row. */
-
-    for (uint32_t k = VLEN; k < width; k += VLEN) {
-        /* Solve first row of tiles. */
-    }
-    /* Advance Dyy for first row of tiles. */
-
-    for (uint32_t j = VLEN; j < height; j += VLEN) {
-
-        /* Solve first tile of current row. */
-
-        for (uint32_t k = VLEN; k < width; k += VLEN) {
-            /* Solve current row of tiles. */
-
+    /* Solve Dxx the first tile row, where div(u) = 0. */
+    for (uint32_t tk = 0; tk < width; tk += VLEN) {
+        ftype p_ = tmp[width - 1];
+        for (uint32_t k = 0; k < VLEN; ++k) {
+            p_ = -p_ * tmp[width - 1 - (tk + k)];
+            vstore(p_t + VLEN * (VLEN - 1 - k), vbroadcast(p_));
         }
-
-        /* Advance Dyy for current row of tiles. */
+        transpose_vtile(p_t, VLEN, width, p + width - VLEN - tk);
+    }
+    /* Advance Dyy reduction for the first tile row. */
+    /* TODO: apply_left_bc_hom_neumann(); */
+    for (uint32_t j = 1; j < VLEN; ++j) {
+        ftype upp = tmp[j - 1];
+        for (uint32_t k = 0; k < width; k += VLEN) {
+            gauss_reduce_scalar(width,
+                                upp,
+                                p + width * j + k);
+        }
     }
 
-    /* Backward substitute for Dyy the first face. */
-
-    /* Advance Dzz for first face. */
-
-    for (uint32_t i = 1; i < depth; ++i) {
-        /* Solve first tile of first row. */
-
-        for (uint32_t k = VLEN; k < width; k += VLEN) {
-            /* Solve first row of tiles. */
-        }
-        /* Advance Dyy for first row of tiles. */
-
-        for (uint32_t j = VLEN; j < height; j += VLEN) {
-
-            /* Solve first tile of current row. */
-
-            for (uint32_t k = VLEN; k < width; k += VLEN) {
-                /* Solve current row of tiles. */
-
+    /* Solve Dxx the remaining tile rows, where div(u) = 0. */
+    for (uint32_t tj = VLEN; tj < height - VLEN; tj += VLEN) {
+        for (uint32_t tk = 0; tk < width; tk += VLEN) {
+            ftype p_ = tmp[width - 1];
+            for (uint32_t k = 0; k < VLEN; ++k) {
+                p_ = -p_ * tmp[width - 1 - (tk + k)];
+                vstore(p_t + VLEN * (VLEN - 1 - k), vbroadcast(p_));
             }
-
-            /* Advance Dyy for current row of tiles. */
+            transpose_vtile(p_t, VLEN, width,
+                            p + width * tj + width - VLEN - tk);
         }
-
-        /* Backward substitute for Dyy the current face. */
-
-        /* Advance Dzz for current face. */
+        /* Advance Dyy reduction. */
+        for (uint32_t j = 0; j < VLEN; ++j) {
+            ftype upp = tmp[tj + j - 1];
+            for (uint32_t k = 0; k < width; k += VLEN) {
+                gauss_reduce_scalar(width,
+                                    upp,
+                                    p + width * (tj + j) + k);
+            }
+        }
     }
 
-    /* Backward substitute for Dzz the entire domain. */
+    /* Solve Dxx for the last tile row, where div(u) = 0. */
+    for (uint32_t tk = 0; tk < width; tk += VLEN) {
+        ftype p_ = tmp[width - 1];
+        for (uint32_t k = 0; k < VLEN; ++k) {
+            p_ = -p_ * tmp[width - 1 - (tk + k)];
+            vstore(p_t + VLEN * (VLEN - 1 - k), vbroadcast(p_));
+        }
+        transpose_vtile(p_t, VLEN, width,
+                        p + width * (height - VLEN) + width - VLEN - tk);
+    }
+    /* Advance Dyy reduction for the first tile row. */
+    for (uint32_t j = 0; j < VLEN - 1; ++j) {
+        ftype upp = tmp[height - VLEN + j - 1];
+        for (uint32_t k = 0; k < width; k += VLEN) {
+            gauss_reduce_scalar(width,
+                                upp,
+                                p + width * (height - VLEN + j) + k);
+        }
+    }
+    /* TODO: apply_right_bc_hom_neumann(); */
+
+    /* Backward substitute first face. */
+    for (uint32_t j = 1; j < height; ++j) {
+        ftype upp = tmp[height - 1 - j];
+        for (uint32_t k = 0; k < width; k += VLEN) {
+            backward_sub_scalar_ip(p + width * (height - j) + k,
+                                   upp,
+                                   p + width * (height - 1 - j) + k);
+        }
+    }
+
+    /* TODO: apply_left_bc_hom_neumann(); for Dzz. */
+
+    for (uint32_t i = 1; i < depth - 1; ++i) {
+
+        uint64_t face_offset = height * width * i;
+
+        /* Solve first tile row of the face. */
+        solve_vtiles_row(u_x + face_offset,
+                         u_y + face_offset,
+                         u_z + face_offset,
+                         height, width,
+                         1, tmp,
+                         p + face_offset);
+
+        /* TODO: apply_left_bc_hom_neumann(); */
+
+        for (uint32_t j = 1; j < VLEN; ++j) {
+            ftype upp = tmp[j - 1];
+            for (uint32_t k = 0; k < width; k += VLEN) {
+                gauss_reduce_scalar(width,
+                                    upp,
+                                    p + face_offset + width * j + k);
+            }
+        }
+
+        /* Solve remaining tile rows of the face. */
+        for (uint32_t tj = VLEN; tj < height - VLEN; tj += VLEN) {
+            solve_vtiles_row(u_x + face_offset + width * tj,
+                             u_y + face_offset + width * tj,
+                             u_z + face_offset + width * tj,
+                             height, width,
+                             0, tmp,
+                             p + face_offset + width * tj);
+
+            /* TODO: apply_left_bc_hom_neumann(); */
+
+            /* Advance Dyy. */
+            for (uint32_t j = 1; j < VLEN; ++j) {
+                ftype upp = tmp[j - 1];
+                for (uint32_t k = 0; k < width; k += VLEN) {
+                    gauss_reduce_scalar(width,
+                                        upp,
+                                        p + face_offset +
+                                            width * (tj + j) + k);
+                }
+            }
+        }
+
+        solve_vtiles_row(u_x + face_offset + width * (height - VLEN),
+                         u_y + face_offset + width * (height - VLEN),
+                         u_z + face_offset + width * (height - VLEN),
+                         height, width,
+                         0, tmp,
+                         p + face_offset + width * (height - VLEN));
+
+        /* TODO: apply_left_bc_hom_neumann(); */
+
+        /* Advance Dyy. */
+        for (uint32_t j = 1; j < VLEN; ++j) {
+            ftype upp = tmp[height - VLEN + j - 1];
+            for (uint32_t k = 0; k < width; k += VLEN) {
+                gauss_reduce_scalar(width,
+                                    upp,
+                                    p + face_offset +
+                                        width * (height - VLEN + j) + k);
+            }
+        }
+
+        /* TODO: apply_right_bc_hom_neumann() */
+
+        /* Backward substitute Dyy. */
+        for (uint32_t j = 1; j < height; ++j) {
+            ftype upp = tmp[height - 1 - j];
+            for (uint32_t k = 0; k < width; k += VLEN) {
+                backward_sub_scalar_ip(p + face_offset +
+                                           width * (height - j) + k,
+                                       upp,
+                                       p + face_offset +
+                                           width * (height - 1 - j) + k);
+            }
+        }
+
+        /* Advance Dzz. */
+    }
+
+    /* TODO: Loop for last face, with Dzz BCs. */
+
+    /* Backward substitute Dzz. */
+    for (uint32_t i = 1; i < depth; ++i) {
+        ftype upp = tmp[depth - 1 - i];
+        for (uint32_t j = 0; j < height; ++j) {
+            for (uint32_t k = 0; k < width; k += VLEN) {
+
+                backward_sub_scalar_ip(p + height * width * (depth - i) +
+                                           width * j + k,
+                                       upp,
+                                       p + height * width * (depth - 1 - i) +
+                                           width * j + k);
+            }
+        }
+    }
 }

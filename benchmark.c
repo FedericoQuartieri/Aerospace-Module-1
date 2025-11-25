@@ -10,9 +10,9 @@
 #include "equations.h"
 #include "boundary.h"
 
-#define D 256
-#define H 256
-#define W 256 /* + something to avoid cache aliasing? */
+#define D 512
+#define H 512
+#define W 512 /* + something to avoid cache aliasing? */
 
 DEFINE_CONSTANT_BC_U(0, 0, 0, BC_LEFT)
 DEFINE_CONSTANT_BC_U(0, 0, 0, BC_RIGHT)
@@ -45,17 +45,22 @@ void benchmark_wD_solvers(void)
     rand_fill(f_y, size);
     rand_fill(f_z, size);
 
+    /*
     TIMEIT(solve_wDxx_tridiag_blocks(w, D, H, W,
                                      tmp, f_x, f_y, f_z, u_x, u_y, u_z));
     TIMEIT(solve_wDyy_tridiag_blocks(w, D, H, W,
                                      tmp, f_x, f_y, f_z, u_x, u_y, u_z));
     TIMEIT(solve_wDzz_tridiag_blocks(w, D, H, W,
                                      tmp, f_x, f_y, f_z, u_x, u_y, u_z));
+    */
 
     TIMEIT(solve_Dxx_tridiag_blocks(D, H, W, tmp, u_x, u_y, u_z, w));
     TIMEIT(solve_Dyy_tridiag_blocks(D, H, W, tmp, w, p));
     TIMEIT(solve_Dzz_tridiag_blocks(D, H, W, tmp, p, w));
 
+    TIMEIT(solve_pressure_fused(D, H, W, tmp, u_x, u_y, u_z, p));
+
+    free(p);
     free(tmp);
     free(f);
     free(u);

@@ -51,5 +51,27 @@ void solve_Dxx_tridiag_blocks(uint32_t depth,
                               ftype *__restrict__ u_z,
                               ftype *__restrict__ p);
 
+void solve_Dyy_tridiag_blocks(uint32_t depth,
+                              uint32_t height,
+                              uint32_t width,
+                              ftype *__restrict__ tmp,
+                              ftype *__restrict__ f,
+                              ftype *__restrict__ p);
+
+void solve_Dzz_tridiag_blocks(uint32_t depth,
+                              uint32_t height,
+                              uint32_t width,
+                              ftype *__restrict__ tmp,
+                              ftype *__restrict__ f,
+                              ftype *__restrict__ p);
+
+void solve_pressure_fused(uint32_t depth,
+                          uint32_t height,
+                          uint32_t width,
+                          ftype *__restrict__ tmp,
+                          ftype *__restrict__ u_x,
+                          ftype *__restrict__ u_y,
+                          ftype *__restrict__ u_z,
+                          ftype *__restrict__ p);
 
 #endif
