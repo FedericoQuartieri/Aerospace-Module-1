@@ -28,6 +28,7 @@ void benchmark_wD_solvers(void)
     ftype *u = aligned_alloc(32, 3 * size * sizeof(ftype));
     ftype *f = aligned_alloc(32, 3 * size * sizeof(ftype));
     ftype *tmp = aligned_alloc(32, size * sizeof(ftype));
+    ftype *p = aligned_alloc(32, size * sizeof(ftype));
 
     /* WARNING: Cache aliasing? */
     ftype *u_x = u;
@@ -51,7 +52,9 @@ void benchmark_wD_solvers(void)
     TIMEIT(solve_wDzz_tridiag_blocks(w, D, H, W,
                                      tmp, f_x, f_y, f_z, u_x, u_y, u_z));
 
-    TIMEIT(solve_Dxx_tridiag_blocks(D, H, W, 0.0, 0.0, 0.0, tmp, u_x, u_y, u_z, w));
+    TIMEIT(solve_Dxx_tridiag_blocks(D, H, W, tmp, u_x, u_y, u_z, w));
+    TIMEIT(solve_Dyy_tridiag_blocks(D, H, W, tmp, w, p));
+    TIMEIT(solve_Dzz_tridiag_blocks(D, H, W, tmp, p, w));
 
     free(tmp);
     free(f);
