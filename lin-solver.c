@@ -286,18 +286,18 @@ void backward_sub_vstrip(const ftype *__restrict__ f_x,
 #endif
 
 /* Solves the block diagonal system (I - w∂xx)u = f. */
-void solve_wDxx_tridiag_blocks(const ftype *__restrict__ w,
-                               uint32_t depth,
-                               uint32_t height,
-                               uint32_t width,
-                               /* tmp buffer of size 4 * (VLEN * width) */
-                               ftype *__restrict__ tmp,
-                               ftype *__restrict__ f_x,
-                               ftype *__restrict__ f_y,
-                               ftype *__restrict__ f_z,
-                               ftype *__restrict__ u_x,
-                               ftype *__restrict__ u_y,
-                               ftype *__restrict__ u_z)
+void solve_momentum_Dxx(const ftype *__restrict__ w,
+                        uint32_t depth,
+                        uint32_t height,
+                        uint32_t width,
+                        /* tmp buffer of size 4 * (VLEN * width) */
+                        ftype *__restrict__ tmp,
+                        ftype *__restrict__ f_x,
+                        ftype *__restrict__ f_y,
+                        ftype *__restrict__ f_z,
+                        ftype *__restrict__ u_x,
+                        ftype *__restrict__ u_y,
+                        ftype *__restrict__ u_z)
 {
 #ifdef AUTO_VEC
     /* Solving for each row of the domain, one at a time. */
@@ -546,17 +546,17 @@ void apply_bottom_bc(const ftype *__restrict__ w,
 }
 
 /* Solves the block diagonal system (I - w∂yy)u = f. */
-void solve_wDyy_tridiag_blocks(const ftype *__restrict__ w,
-                               uint32_t depth,
-                               uint32_t height,
-                               uint32_t width,
-                               ftype *__restrict__ tmp,
-                               ftype *__restrict__ f_x,
-                               ftype *__restrict__ f_y,
-                               ftype *__restrict__ f_z,
-                               ftype *__restrict__ u_x,
-                               ftype *__restrict__ u_y,
-                               ftype *__restrict__ u_z)
+void solve_momentum_Dyy(const ftype *__restrict__ w,
+                        uint32_t depth,
+                        uint32_t height,
+                        uint32_t width,
+                        ftype *__restrict__ tmp,
+                        ftype *__restrict__ f_x,
+                        ftype *__restrict__ f_y,
+                        ftype *__restrict__ f_z,
+                        ftype *__restrict__ u_x,
+                        ftype *__restrict__ u_y,
+                        ftype *__restrict__ u_z)
 {
     ZEROS = vbroadcast(0.0);
     ONES = vbroadcast(1.0);
@@ -657,17 +657,17 @@ void apply_back_bc(const ftype *__restrict__ w,
 }
 
 /* Solves the block diagonal system (I - w∂zz)u = f. */
-void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
-                               uint32_t depth,
-                               uint32_t height,
-                               uint32_t width,
-                               ftype *__restrict__ tmp,
-                               ftype *__restrict__ f_x,
-                               ftype *__restrict__ f_y,
-                               ftype *__restrict__ f_z,
-                               ftype *__restrict__ u_x,
-                               ftype *__restrict__ u_y,
-                               ftype *__restrict__ u_z)
+void solve_momentum_Dzz(const ftype *__restrict__ w,
+                        uint32_t depth,
+                        uint32_t height,
+                        uint32_t width,
+                        ftype *__restrict__ tmp,
+                        ftype *__restrict__ f_x,
+                        ftype *__restrict__ f_y,
+                        ftype *__restrict__ f_z,
+                        ftype *__restrict__ u_x,
+                        ftype *__restrict__ u_y,
+                        ftype *__restrict__ u_z)
 {
     ZEROS = vbroadcast(0.0);
     ONES = vbroadcast(1.0);
@@ -733,6 +733,26 @@ void solve_wDzz_tridiag_blocks(const ftype *__restrict__ w,
     }
 }
 
+#ifndef FLOAT
+
+#define load_vtile(src, stride,      \
+                   r1, r2, r3, r4)   \
+do {                                 \
+    r1 = vload(src + 0 * stride);    \
+    r2 = vload(src + 1 * stride);    \
+    r3 = vload(src + 2 * stride);    \
+    r4 = vload(src + 3 * stride);    \
+} while (0)
+
+#define fin_diff(r0, r1, r2, r3, r4) \
+do {                                 \
+    r0 = r1 - r0;                    \
+    r1 = r2 - r1;                    \
+    r2 = r3 - r2;                    \
+    r3 = r4 - r3;                    \
+} while (0)
+
+#else
 
 #define load_vtile(src, stride,      \
                    r1, r2, r3, r4,   \
@@ -754,12 +774,14 @@ do {                                 \
     r0 = r1 - r0;                    \
     r1 = r2 - r1;                    \
     r2 = r3 - r2;                    \
-    r3 = r4 - r2;                    \
+    r3 = r4 - r3;                    \
     r4 = r5 - r4;                    \
     r5 = r6 - r5;                    \
     r6 = r7 - r6;                    \
     r7 = r8 - r7;                    \
 } while (0)
+
+#endif
 
 #define vtile_ddz(src, idx, width, stride) \
     (vload(src + width * idx) - vload(src + width * idx - stride))
@@ -776,6 +798,60 @@ vftype compute_div_vtile(const ftype *__restrict__ src_x,
                          uint32_t dst_stride,
                          ftype *__restrict__ dst)
 {
+    /* WARNING: Scale by -1/dxdt */
+
+#ifndef FLOAT
+    /* Loads u_y tile and computes du_y/dy. */
+    vftype ry0, ry1, ry2, ry3, ry4;
+    if (!is_first_row) {
+        ry0 = vload(src_y - width);
+    }
+    load_vtile(src_y, width, ry1, ry2, ry3, ry4);
+
+    fin_diff(ry0, ry1, ry2, ry3, ry4);
+    /* ry* now contains ddy*. */
+
+    uint64_t face_stride = height * width;
+    vftype div0 = vtile_ddz(src_z, 0, width, face_stride) + ry0;
+    vftype div1 = vtile_ddz(src_z, 1, width, face_stride) + ry1;
+    vftype div2 = vtile_ddz(src_z, 2, width, face_stride) + ry2;
+    vftype div3 = vtile_ddz(src_z, 3, width, face_stride) + ry3;
+
+    if (is_first_row) {
+        div0 = vbroadcast(0);
+    }
+
+    vtranspose(&div0, &div1, &div2, &div3);
+
+    if (is_first_tile) {
+        div0 = vbroadcast(0);
+    }
+
+    vftype rx0, rx1, rx2, rx3, rx4;
+    load_vtile(src_x, width, rx1, rx2, rx3, rx4); 
+
+    if (is_first_row) {
+        rx1 = vbroadcast(0);
+    }
+
+    vtranspose(&rx1, &rx2, &rx3, &rx4);
+    if (is_first_tile) {
+        /* So that ddx0 goes to zero. */
+        rx0 = rx1;
+    } else {
+        rx0 = rx0_prev;
+    }
+
+    fin_diff(rx0, rx1, rx2, rx3, rx4);
+
+    vstore(dst + 0 * dst_stride, div0 + rx0);
+    vstore(dst + 1 * dst_stride, div1 + rx1);
+    vstore(dst + 2 * dst_stride, div2 + rx2);
+    vstore(dst + 3 * dst_stride, div3 + rx3);
+
+    return rx4;
+
+#else
     /* Loads u_y tile and computes du_y/dy. */
     vftype ry0, ry1, ry2, ry3, ry4, ry5, ry6, ry7, ry8;
     if (!is_first_row) {
@@ -833,16 +909,18 @@ vftype compute_div_vtile(const ftype *__restrict__ src_x,
     vstore(dst + 7 * dst_stride, div7 + rx7);
 
     return rx8;
+#endif
 }
 
 static inline __attribute__((always_inline))
 void gauss_reduce_vcol(const ftype *__restrict__ f_src,
-                       ftype upper_prev,
+                       ftype upper,
                        vftype *__restrict__ f_prev,
                        ftype *__restrict__ f_dst)
 {
     vftype f = vload(f_src);
-    vftype norm_coeff_inv = vbroadcast(-upper_prev);//3 + *upper_prev;
+     /* WARNING: Is this a problem for precision? */
+    vftype norm_coeff_inv = vbroadcast(-upper);//3 + *upper_prev;
 
     //*upper_prev = 1 / norm_coeff;
     //*f_prev = (f + *f_prev) / norm_coeff;
@@ -890,13 +968,12 @@ void solve_vtiles_row(const ftype *__restrict__ u_x,
                           1, is_first_row,
                           VLEN, div_u_t);
 
-    /* TODO: Apply left BCs. */
-    vftype f_prev = vload(div_u_t) / 3.0;
+    vftype f_prev = vload(div_u_t) / 3.0; /* Left BCs applied. */
     vstore(tmp_f, f_prev);
 
     for (int k = 1; k < VLEN; ++k) {
         gauss_reduce_vcol(div_u_t + VLEN * k,
-                          tmp_upp[k - 1],
+                          tmp_upp[k],
                           &f_prev,
                           tmp_f + VLEN * k);
     }
@@ -910,7 +987,7 @@ void solve_vtiles_row(const ftype *__restrict__ u_x,
 
         for (uint32_t k = 0; k < VLEN; ++k) {
             gauss_reduce_vcol(div_u_t + VLEN * k,
-                              tmp_upp[tk + k - 1],
+                              tmp_upp[tk + k],
                               &f_prev,
                               tmp_f + VLEN * (tk + k));
         }
@@ -918,8 +995,8 @@ void solve_vtiles_row(const ftype *__restrict__ u_x,
 
     ftype __attribute__((aligned(32))) p_t[VLEN * VLEN];
 
+    vftype p_prev = vbroadcast(0);
     for (uint32_t tk = 0; tk < width; tk += VLEN) {
-        vftype p_prev = vbroadcast(0);
         for (uint32_t k = 0; k < VLEN; ++k) {
             backward_sub_vcol(tmp_f + VLEN * (width - 1 - (tk + k)),
                               tmp_upp[width - 1 - (tk + k)],
@@ -930,51 +1007,35 @@ void solve_vtiles_row(const ftype *__restrict__ u_x,
     }
 }
 
-void solve_Dxx_tridiag_blocks(uint32_t depth,
-                              uint32_t height,
-                              uint32_t width,
-                              ftype *__restrict__ tmp,
-                              ftype *__restrict__ u_x,
-                              ftype *__restrict__ u_y,
-                              ftype *__restrict__ u_z,
-                              ftype *__restrict__ p)
+void solve_pressure_Dxx(uint32_t depth,
+                        uint32_t height,
+                        uint32_t width,
+                        ftype *__restrict__ tmp,
+                        ftype *__restrict__ u_x,
+                        ftype *__restrict__ u_y,
+                        ftype *__restrict__ u_z,
+                        ftype *__restrict__ p)
 {
-    /* TODO: All the first face can simply ignore
-     * the f term, it's zero, no need to distinguish
-     * between first tile/row. */
-
-    /* WARNING: There's no need to solve the first face again,
-     * it's going to be the same across all timesteps. */
-
-    /* TODO: Apply left BCs. */
-
-    ftype upp = 0.0;
+    ftype upp = -2.0 / 3; /* Left BC. */
+    tmp[0] = upp;
     /* We can reduce once, each row of the first face
      * is the same system. */
-    for (uint32_t k = 0; k < width; ++k) {
+    for (uint32_t k = 1; k < width - 1; ++k) {
         /* Gauss reduce tile column, rhs = 0 here. */
         upp = -1.0 / (3.0 + upp);
         /* Store only once, then broadcast later. */
         //vstore(tmp + VLEN * k, upp);
         tmp[k] = upp;
     }
+    tmp[width - 1] = -1 / (2 + tmp[width - 2]); /* Right BC. */
 
     /* Solve the first face, where div(u) = 0. */
-    for (uint32_t j = 0; j < height; j += VLEN) {
-
-        ftype __attribute__((aligned(32))) p_t[VLEN * VLEN];
-
-        /* Backward substitute, one tile at a time. */
+    /* WARNING: There's no need to solve the first face again,
+     * it's going to be same (zero) across all timesteps. */
+    for (uint32_t j = 0; j < height; ++j) {
         for (uint32_t tk = 0; tk < width; tk += VLEN) {
-            ftype p_ = tmp[width - 1];
-            for (uint32_t k = 0; k < VLEN; ++k) {
-                p_ = -p_ * tmp[width - 1 - (tk + k)];
-                vstore(p_t + VLEN * (VLEN - 1 - k), vbroadcast(p_));
-            }
-            transpose_vtile(p_t, VLEN, width,
-                            p + width * j + width - VLEN - tk);
+            vstore(p + width * j + tk, vbroadcast(0));
         }
-        /* TODO: Apply right BCs. */
     }
 
     /* Solve remaining faces. */
@@ -1033,12 +1094,12 @@ void backward_sub_scalar_ip(const ftype *__restrict__ p_prev,
     vstore(p, f_ - p_prev_ * vbroadcast(upper));
 }
 
-void solve_Dyy_tridiag_blocks(uint32_t depth,
-                              uint32_t height,
-                              uint32_t width,
-                              ftype *__restrict__ tmp,
-                              ftype *__restrict__ f,
-                              ftype *__restrict__ p)
+void solve_pressure_Dyy(uint32_t depth,
+                        uint32_t height,
+                        uint32_t width,
+                        ftype *__restrict__ tmp,
+                        ftype *__restrict__ f,
+                        ftype *__restrict__ p)
 {
     ftype upp = 0.0;
     /* We can reduce once, each row of the first face
@@ -1088,12 +1149,12 @@ void solve_Dyy_tridiag_blocks(uint32_t depth,
     }
 }
 
-void solve_Dzz_tridiag_blocks(uint32_t depth,
-                              uint32_t height,
-                              uint32_t width,
-                              ftype *__restrict__ tmp,
-                              ftype *__restrict__ f,
-                              ftype *__restrict__ p)
+void solve_pressure_Dzz(uint32_t depth,
+                        uint32_t height,
+                        uint32_t width,
+                        ftype *__restrict__ tmp,
+                        ftype *__restrict__ f,
+                        ftype *__restrict__ p)
 {
     /* TODO: Reduce this once for the longest dimension
      * between depth, height, width, then use it for Dxx, Dyy and Dzz. */

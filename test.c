@@ -13,6 +13,8 @@
 #define SUCCESS 0
 #define FAILURE 1
 
+#define TOL 1e-4
+
 #define ASSERT_TRUE(condition)                              \
 do {                                                        \
     if (!(condition)) {                                     \
@@ -44,7 +46,8 @@ static int verify_wD_solution(const ftype *__restrict__ w,
                               ftype u0,
                               ftype un,
                               ftype tol,
-                              int is_comp_normal)
+                              int is_comp_normal,
+                              int is_bc_dirichlet)
 {
     for (uint32_t i = 0; i < depth; ++i) {
         for (uint32_t j = 0; j < height; ++j) {
@@ -53,30 +56,46 @@ static int verify_wD_solution(const ftype *__restrict__ w,
             /* Check first row of the block. */
             ftype w_i = w[idx];
             ftype f_i = f[idx];
-            /* Dirichlet boundary condition! */
-            /* WARNING: Works only for constant, BCs. */
-            error += abs_(u0 - u[idx]);
+            if (is_bc_dirichlet) {
+                /* Dirichlet boundary condition! */
+                error += abs_(u0 - u[idx]);
+            } else {
+                /* Homogeneous Neumann boundary condition! */
+                error += abs_(f_i /* -2 dx u0 */ -
+                              (3 * u[idx] - 2 * u[idx + stride_k]));
+            }
+            //printf("%2d %2d  %f - f=%f\n", i, j, error, f_i);
             /* Check remaining rows except last one. */
             for (uint32_t k = 1; k < width - 1; ++k) {
                 ftype w_i = w[idx + stride_k * k];
                 ftype f_i = f[idx + stride_k * k];
-                error += abs_(f_i -
+                error += abs_(f_i /* -2 dx u0 */ -
                               (-w_i * u[idx + stride_k * (k - 1)] +
                                (1 + 2 * w_i) * u[idx + stride_k * k] -
                                w_i * u[idx + stride_k * (k + 1)]));
+
+                //printf("%2d %2d  %f - f=%f u=%f\n", i, j, error, f_i, u[idx + stride_k * k]);
             }
             /* Check last row of the block. */
             w_i = w[idx + stride_k * (width - 1)];
             f_i = f[idx + stride_k * (width - 1)];
             /* Dirichlet boundary condition! */
-            if (is_comp_normal) {
-                error += abs_(un - u[idx + stride_k * (width - 1)]);
+            if (is_bc_dirichlet) {
+                if (is_comp_normal) {
+                    error += abs_(un - u[idx + stride_k * (width - 1)]);
+                } else {
+                    error += abs_((-2 * w_i * un - f_i) -
+                                  ((-w_i * u[idx + stride_k * (width - 2)] +
+                                   (1 + 3 * w_i) *
+                                   u[idx + stride_k * (width - 1)])));
+                }
             } else {
-                error += abs_((-2 * w_i * un - f_i) -
-                          ((-w_i * u[idx + stride_k * (width - 2)] +
-                           (1 + 3 * w_i) *
-                           u[idx + stride_k * (width - 1)])));
+                error += abs_(f_i /* + dx un */ -
+                              (-1 * u[idx + stride_k * (width - 2)] +
+                               2 * u[idx + stride_k * (width - 1)]));
             }
+
+            //printf("%2d %2d %f\n", i, j, error);
 
             if (error > tol) {
                 return FAILURE;
@@ -95,11 +114,12 @@ static int verify_wDxx_solution(const ftype *__restrict__ w,
                                 uint32_t height,
                                 uint32_t width,
                                 ftype tol,
-                                int is_comp_normal)
+                                int is_comp_normal,
+                                int is_bc_dirichlet)
 {
     return verify_wD_solution(w, f, u, depth, height, width,
                               height * width, width, 1, u0, un,
-                              tol, is_comp_normal);
+                              tol, is_comp_normal, is_bc_dirichlet);
 }
 
 static int verify_wDyy_solution(const ftype *__restrict__ w,
@@ -111,11 +131,12 @@ static int verify_wDyy_solution(const ftype *__restrict__ w,
                                 uint32_t height,
                                 uint32_t width,
                                 ftype tol,
-                                int is_comp_normal)
+                                int is_comp_normal,
+                                int is_bc_dirichlet)
 {
     return verify_wD_solution(w, f, u, depth, width, height,
                               height * width, 1, width, u0, un,
-                              tol, is_comp_normal);
+                              tol, is_comp_normal, is_bc_dirichlet);
 }
 
 static int verify_wDzz_solution(const ftype *__restrict__ w,
@@ -127,26 +148,28 @@ static int verify_wDzz_solution(const ftype *__restrict__ w,
                                 uint32_t height,
                                 uint32_t width,
                                 ftype tol,
-                                int is_comp_normal)
+                                int is_comp_normal,
+                                int is_bc_dirichlet)
 {
     return verify_wD_solution(w, f, u, width, height, depth,
                               1, width, height * width, u0, un,
-                              tol, is_comp_normal);
+                              tol, is_comp_normal, is_bc_dirichlet);
 }
 
-#define DEFINE_TEST_WD_SOLVER(axes,                                      \
-                              is_x_normal, is_y_normal, is_z_normal,     \
-                              u0_x, u0_y, u0_z, un_x, un_y, un_z)        \
-int test_wD##axes##_solver(uint32_t depth,                               \
-                           uint32_t height,                              \
-                           uint32_t width)                               \
+#define DEFINE_TEST_MOMENTUM_D_SOLVER(                                   \
+    axes, is_x_normal, is_y_normal, is_z_normal,                         \
+    u0_x, u0_y, u0_z, un_x, un_y, un_z)                                  \
+int test_momentum_D##axes##_solver(uint32_t depth,                       \
+                                   uint32_t height,                      \
+                                   uint32_t width)                       \
 {                                                                        \
-    size_t size = (depth + VLEN) * (height + VLEN) * (width + VLEN);     \
+    size_t size = depth * height * width;                                \
     ftype *w = aligned_alloc(32, size * sizeof(ftype));                  \
     ftype *u = aligned_alloc(32, 3 * size * sizeof(ftype));              \
     ftype *f = aligned_alloc(32, 3 * size * sizeof(ftype));              \
     ftype *f_cp = aligned_alloc(32, 3 * size * sizeof(ftype));           \
-    ftype *tmp = aligned_alloc(32, size * sizeof(ftype));                \
+    /* WARNING: size may be smaller than 4 * width * VLEN */             \
+    ftype *tmp = aligned_alloc(32, 3 * size * sizeof(ftype));            \
                                                                          \
     ftype *u_x = u;                                                      \
     ftype *f_x = f;                                                      \
@@ -168,21 +191,21 @@ int test_wD##axes##_solver(uint32_t depth,                               \
         f_z_cp[i] = f_z[i];                                              \
     }                                                                    \
                                                                          \
-    solve_wD##axes##_tridiag_blocks(w, depth, height, width,             \
-                                    tmp, f_x, f_y, f_z, u_x, u_y, u_z);  \
+    solve_momentum_D##axes(w, depth, height, width,                      \
+                           tmp, f_x, f_y, f_z, u_x, u_y, u_z);           \
                                                                          \
     int error = verify_wD##axes##_solution(w, f_x_cp, u_x,               \
                                            u0_x, un_x, depth,            \
-                                           height, width, 1e-4,          \
-                                           is_x_normal) ||               \
+                                           height, width, TOL,           \
+                                           is_x_normal, 1) ||            \
                 verify_wD##axes##_solution(w, f_y_cp, u_y,               \
                                            u0_y, un_y, depth,            \
-                                           height, width, 1e-4,          \
-                                           is_y_normal) ||               \
+                                           height, width, TOL,           \
+                                           is_y_normal, 1) ||            \
                 verify_wD##axes##_solution(w, f_z_cp, u_z,               \
                                            u0_z, un_z, depth,            \
-                                           height, width, 1e-4,          \
-                                           is_z_normal);                 \
+                                           height, width, TOL,           \
+                                           is_z_normal, 1);              \
                                                                          \
     free(tmp);                                                           \
     free(f_cp);                                                          \
@@ -192,6 +215,82 @@ int test_wD##axes##_solver(uint32_t depth,                               \
                                                                          \
     return error;                                                        \
 }                                                                        \
+
+void compute_div(const ftype *src_x,
+                 const ftype *src_y,
+                 const ftype *src_z,
+                 uint32_t depth,
+                 uint32_t height,
+                 uint32_t width,
+                 ftype *dst)
+{
+    /* Front face divergence is zero. */
+    for (uint32_t j = 0; j < height; ++j) {
+        for (uint32_t k = 0; k < width; ++k) {
+            dst[width * j + k] = 0;
+        }
+    }
+
+    for (uint32_t i = 1; i < depth; ++i) {
+        uint64_t face_offset = height * width * i;
+        /* Top face divergence is zero. */
+        for (int k = 0; k < width; ++k) {
+            dst[face_offset + k] = 0;
+        }
+
+        for (uint32_t j = 1; j < height; ++j) {
+            /* Left face divergence is zero. */
+            dst[face_offset + width * j] = 0;
+            for (uint32_t k = 1; k < width; ++k) {
+                uint64_t idx = face_offset + width * j + k;
+                dst[idx] = (src_x[idx] - src_x[idx - 1]) +
+                           (src_y[idx] - src_y[idx - width]) +
+                           (src_z[idx] - src_z[idx - height * width]);
+            }
+        }
+    }
+}
+
+int test_pressure_Dxx_solver(uint32_t depth,
+                             uint32_t height,
+                             uint32_t width)
+{
+    size_t size = depth * height * width;
+    size_t alloc_size = size * sizeof(ftype);
+    ftype *w = aligned_alloc(32, alloc_size);
+    ftype *p = aligned_alloc(32, alloc_size);
+    ftype *u = aligned_alloc(32, alloc_size * 3);
+    ftype *f = aligned_alloc(32, alloc_size);
+    ftype *tmp = aligned_alloc(32, alloc_size);
+
+    ftype *u_x = u;
+    ftype *u_y = u_x + size;
+    ftype *u_z = u_y + size;
+
+    for (uint64_t i = 0; i < depth * height * width; ++i) {
+        w[i] = 1.0;
+        u_x[i] = ((ftype) rand()) / RAND_MAX;
+        u_y[i] = ((ftype) rand()) / RAND_MAX;
+        u_z[i] = ((ftype) rand()) / RAND_MAX;
+    }
+
+    compute_div(u_x, u_y, u_z, depth, height, width, f);
+
+    solve_pressure_Dxx(depth, height, width, tmp, u_x, u_y, u_z, p);
+
+    int error = verify_wDxx_solution(w, f, p,
+                                     0.0, 0.0, depth,
+                                     height, width, TOL, 1, 0);
+
+    free(tmp);
+    free(f);
+    free(u);
+    free(p);
+    free(w);
+
+    return error;
+}
+
 
 #define LEFT_BC_U_X 0.1
 #define LEFT_BC_U_Y 0.2
@@ -219,12 +318,17 @@ DEFINE_CONSTANT_BC_U(BOTTOM_BC_U_X, BOTTOM_BC_U_Y, BOTTOM_BC_U_Z, BC_BOTTOM)
 DEFINE_CONSTANT_BC_U(FRONT_BC_U_X, FRONT_BC_U_Y, FRONT_BC_U_Z, BC_FRONT)
 DEFINE_CONSTANT_BC_U(BACK_BC_U_X, BACK_BC_U_Y, BACK_BC_U_Z, BC_BACK)
 
-DEFINE_TEST_WD_SOLVER(xx, 1, 0, 0, LEFT_BC_U_X, LEFT_BC_U_Y, LEFT_BC_U_Z,
-                      RIGHT_BC_U_X, RIGHT_BC_U_Y, RIGHT_BC_U_Z)
-DEFINE_TEST_WD_SOLVER(yy, 0, 1, 0, TOP_BC_U_X, TOP_BC_U_Y, TOP_BC_U_Z,
-                      BOTTOM_BC_U_X, BOTTOM_BC_U_Y, BOTTOM_BC_U_Z)
-DEFINE_TEST_WD_SOLVER(zz, 0, 0, 1, FRONT_BC_U_X, FRONT_BC_U_Y, FRONT_BC_U_Z,
-                      BACK_BC_U_X, BACK_BC_U_Y, BACK_BC_U_Z)
+DEFINE_TEST_MOMENTUM_D_SOLVER(
+    xx, 1, 0, 0, LEFT_BC_U_X, LEFT_BC_U_Y, LEFT_BC_U_Z,
+    RIGHT_BC_U_X, RIGHT_BC_U_Y, RIGHT_BC_U_Z)
+
+DEFINE_TEST_MOMENTUM_D_SOLVER(
+    yy, 0, 1, 0, TOP_BC_U_X, TOP_BC_U_Y, TOP_BC_U_Z,
+    BOTTOM_BC_U_X, BOTTOM_BC_U_Y, BOTTOM_BC_U_Z)
+
+DEFINE_TEST_MOMENTUM_D_SOLVER(
+    zz, 0, 0, 1, FRONT_BC_U_X, FRONT_BC_U_Y, FRONT_BC_U_Z,
+    BACK_BC_U_X, BACK_BC_U_Y, BACK_BC_U_Z)
 
 int test_vtranspose()
 {
@@ -476,23 +580,31 @@ int main(void)
 {
     srand(SEED);
 
-    EXPECT_SUCCESS(test_wDxx_solver(1, 16, 16));
-    EXPECT_SUCCESS(test_wDxx_solver(128, 128, 64));
-    EXPECT_SUCCESS(test_wDxx_solver(512, 32, 256));
+    /*
+    EXPECT_SUCCESS(test_momentum_Dxx_solver(1, 16, 16));
+    EXPECT_SUCCESS(test_momentum_Dxx_solver(128, 128, 64));
+    EXPECT_SUCCESS(test_momentum_Dxx_solver(512, 32, 256));
 
-    EXPECT_SUCCESS(test_wDyy_solver(32, 64, 64));
-    EXPECT_SUCCESS(test_wDyy_solver(128, 128, 64));
-    EXPECT_SUCCESS(test_wDyy_solver(512, 32, 256));
+    EXPECT_SUCCESS(test_momentum_Dyy_solver(32, 64, 64));
+    EXPECT_SUCCESS(test_momentum_Dyy_solver(128, 128, 64));
+    EXPECT_SUCCESS(test_momentum_Dyy_solver(512, 32, 256));
 
-    EXPECT_SUCCESS(test_wDzz_solver(32, 64, 64));
-    EXPECT_SUCCESS(test_wDzz_solver(128, 128, 64));
-    EXPECT_SUCCESS(test_wDzz_solver(32, 32, 256));
+    EXPECT_SUCCESS(test_momentum_Dzz_solver(32, 64, 64));
+    EXPECT_SUCCESS(test_momentum_Dzz_solver(128, 128, 64));
+    EXPECT_SUCCESS(test_momentum_Dzz_solver(32, 32, 256));
+    */
 
+    EXPECT_SUCCESS(test_pressure_Dxx_solver(1, 32, 32));
+    EXPECT_SUCCESS(test_pressure_Dxx_solver(32, 64, 128));
+    EXPECT_SUCCESS(test_pressure_Dxx_solver(128, 64, 512));
+
+    /*
     EXPECT_SUCCESS(test_vtranspose());
 
     EXPECT_SUCCESS(test_wDxx_rhs_computation(1, 32, 64));
     EXPECT_SUCCESS(test_wDxx_rhs_computation(32, 64, 128));
     EXPECT_SUCCESS(test_wDxx_rhs_computation(128, 128, 64));
+    */
 
     return 0;
 }

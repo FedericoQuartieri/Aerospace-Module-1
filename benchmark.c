@@ -21,7 +21,7 @@ DEFINE_CONSTANT_BC_U(0, 0, 0, BC_BOTTOM)
 DEFINE_CONSTANT_BC_U(0, 0, 0, BC_FRONT)
 DEFINE_CONSTANT_BC_U(0, 0, 0, BC_BACK)
 
-void benchmark_wD_solvers(void)
+void benchmark_solvers(void)
 {
     size_t size = (D + VLEN) * (H + VLEN) * (W + VLEN);
     ftype *w = aligned_alloc(32, size * sizeof(ftype));
@@ -54,9 +54,9 @@ void benchmark_wD_solvers(void)
                                      tmp, f_x, f_y, f_z, u_x, u_y, u_z));
     */
 
-    TIMEIT(solve_Dxx_tridiag_blocks(D, H, W, tmp, u_x, u_y, u_z, w));
-    TIMEIT(solve_Dyy_tridiag_blocks(D, H, W, tmp, w, p));
-    TIMEIT(solve_Dzz_tridiag_blocks(D, H, W, tmp, p, w));
+    TIMEIT(solve_pressure_Dxx(D, H, W, tmp, u_x, u_y, u_z, w));
+    TIMEIT(solve_pressure_Dyy(D, H, W, tmp, w, p));
+    TIMEIT(solve_pressure_Dzz(D, H, W, tmp, p, w));
 
     TIMEIT(solve_pressure_fused(D, H, W, tmp, u_x, u_y, u_z, p));
 
@@ -135,7 +135,7 @@ void benchmark_wDxx_rhs_computation(void)
 
 int main(void)
 {
-    benchmark_wD_solvers();
+    benchmark_solvers();
     //benchmark_wDxx_rhs_computation();
     return 0;
 }
