@@ -69,12 +69,13 @@ static int verify_wD_solution(const ftype *__restrict__ w,
             for (uint32_t k = 1; k < width - 1; ++k) {
                 ftype w_i = w[idx + stride_k * k];
                 ftype f_i = f[idx + stride_k * k];
-                error += abs_(f_i /* -2 dx u0 */ -
+                ftype err = abs_(f_i /* -2 dx u0 */ -
                               (-w_i * u[idx + stride_k * (k - 1)] +
                                (1 + 2 * w_i) * u[idx + stride_k * k] -
                                w_i * u[idx + stride_k * (k + 1)]));
+                error += err;
 
-                //printf("%2d %2d  %f - f=%f u=%f\n", i, j, error, f_i, u[idx + stride_k * k]);
+                //printf("%2d %2d  %f - f=%f u=%f\n", i, j, err, f_i, u[idx + stride_k * k]);
             }
             /* Check last row of the block. */
             w_i = w[idx + stride_k * (width - 1)];
@@ -291,6 +292,42 @@ int test_pressure_Dxx_solver(uint32_t depth,
     return error;
 }
 
+#define DEFINE_TEST_PRESSURE_D_SOLVER(axes)                                \
+int test_pressure_D##axes##_solver(uint32_t depth,                         \
+                                   uint32_t height,                        \
+                                   uint32_t width)                         \
+{                                                                          \
+    size_t size = depth * height * width;                                  \
+    size_t alloc_size = size * sizeof(ftype);                              \
+    ftype *w = aligned_alloc(32, alloc_size);                              \
+    ftype *p = aligned_alloc(32, alloc_size);                              \
+    ftype *f = aligned_alloc(32, alloc_size);                              \
+    ftype *f_cp = aligned_alloc(32, alloc_size);                           \
+    /* WARNING: Only max(d, h, w) tmp space would be required. */          \
+    ftype *tmp = aligned_alloc(32, alloc_size);                            \
+                                                                           \
+    for (uint64_t i = 0; i < depth * height * width; ++i) {                \
+        w[i] = 1.0;                                                        \
+        f[i] = ((ftype) rand()) / RAND_MAX;                                \
+        f_cp[i] = f[i];                                                    \
+    }                                                                      \
+                                                                           \
+    solve_pressure_D##axes(depth, height, width, tmp, f, p);               \
+                                                                           \
+    int error = verify_wD##axes##_solution(w, f_cp, p,                     \
+                                           0.0, 0.0, depth,                \
+                                           height, width, TOL, 1, 0);      \
+                                                                           \
+    free(tmp);                                                             \
+    free(f);                                                               \
+    free(p);                                                               \
+    free(w);                                                               \
+                                                                           \
+    return error;                                                          \
+}
+
+DEFINE_TEST_PRESSURE_D_SOLVER(yy)
+DEFINE_TEST_PRESSURE_D_SOLVER(zz)
 
 #define LEFT_BC_U_X 0.1
 #define LEFT_BC_U_Y 0.2
@@ -580,7 +617,12 @@ int main(void)
 {
     srand(SEED);
 
-    /*
+    EXPECT_SUCCESS(test_vtranspose());
+
+    EXPECT_SUCCESS(test_wDxx_rhs_computation(1, 32, 64));
+    EXPECT_SUCCESS(test_wDxx_rhs_computation(32, 64, 128));
+    EXPECT_SUCCESS(test_wDxx_rhs_computation(128, 128, 64));
+
     EXPECT_SUCCESS(test_momentum_Dxx_solver(1, 16, 16));
     EXPECT_SUCCESS(test_momentum_Dxx_solver(128, 128, 64));
     EXPECT_SUCCESS(test_momentum_Dxx_solver(512, 32, 256));
@@ -592,19 +634,18 @@ int main(void)
     EXPECT_SUCCESS(test_momentum_Dzz_solver(32, 64, 64));
     EXPECT_SUCCESS(test_momentum_Dzz_solver(128, 128, 64));
     EXPECT_SUCCESS(test_momentum_Dzz_solver(32, 32, 256));
-    */
 
     EXPECT_SUCCESS(test_pressure_Dxx_solver(1, 32, 32));
     EXPECT_SUCCESS(test_pressure_Dxx_solver(32, 64, 128));
     EXPECT_SUCCESS(test_pressure_Dxx_solver(128, 64, 512));
 
-    /*
-    EXPECT_SUCCESS(test_vtranspose());
+    EXPECT_SUCCESS(test_pressure_Dyy_solver(1, 32, 32));
+    EXPECT_SUCCESS(test_pressure_Dyy_solver(32, 64, 128));
+    EXPECT_SUCCESS(test_pressure_Dyy_solver(128, 64, 512));
 
-    EXPECT_SUCCESS(test_wDxx_rhs_computation(1, 32, 64));
-    EXPECT_SUCCESS(test_wDxx_rhs_computation(32, 64, 128));
-    EXPECT_SUCCESS(test_wDxx_rhs_computation(128, 128, 64));
-    */
+    EXPECT_SUCCESS(test_pressure_Dzz_solver(64, 32, 32));
+    EXPECT_SUCCESS(test_pressure_Dzz_solver(256, 32, 128));
+    EXPECT_SUCCESS(test_pressure_Dzz_solver(128, 64, 64));
 
     return 0;
 }

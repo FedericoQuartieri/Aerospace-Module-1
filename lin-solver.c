@@ -321,6 +321,9 @@ void solve_momentum_Dxx(const ftype *__restrict__ w,
     ftype *__restrict__ tmp_f_y = tmp + 2 * width * VLEN;
     ftype *__restrict__ tmp_f_z = tmp + 3 * width * VLEN;
 
+    /* TODO: Why don't you write the solution directly to f?
+     * You can reduce the number of cache misses. */
+
     for (uint32_t i = 0; i < depth; ++i) {
         /* Solving in groups of VLEN rows. */
         for (uint32_t j = 0; j < height; j += VLEN) {
@@ -1024,10 +1027,9 @@ void solve_pressure_Dxx(uint32_t depth,
         /* Gauss reduce tile column, rhs = 0 here. */
         upp = -1.0 / (3.0 + upp);
         /* Store only once, then broadcast later. */
-        //vstore(tmp + VLEN * k, upp);
         tmp[k] = upp;
     }
-    tmp[width - 1] = -1 / (2 + tmp[width - 2]); /* Right BC. */
+    tmp[width - 1] = -1.0 / (2 + tmp[width - 2]); /* Right BC. */
 
     /* Solve the first face, where div(u) = 0. */
     /* WARNING: There's no need to solve the first face again,
@@ -1062,11 +1064,11 @@ void solve_pressure_Dxx(uint32_t depth,
 
 static inline __attribute__((always_inline))
 void gauss_reduce_scalar(uint32_t row_stride,
-                         ftype upper_prev,
+                         ftype upper,
                          ftype *__restrict__ f)
 {
     vftype f_prev = vload(f - row_stride);
-    vftype norm_coeff_inv = vbroadcast(-upper_prev);
+    vftype norm_coeff_inv = vbroadcast(-upper);
     //vftype norm_coeff = 3 + upp_prev;
 
     //vstore(upper, -1.0f / norm_coeff);
@@ -1097,32 +1099,30 @@ void backward_sub_scalar_ip(const ftype *__restrict__ p_prev,
 void solve_pressure_Dyy(uint32_t depth,
                         uint32_t height,
                         uint32_t width,
+                        /* tmp of size height * width + height */
                         ftype *__restrict__ tmp,
                         ftype *__restrict__ f,
                         ftype *__restrict__ p)
 {
-    ftype upp = 0.0;
-    /* We can reduce once, each row of the first face
-     * is the same system, perhaps recompute it if you
-     * want to avoid reading from it, but only to normalize
-     * the f. When doing backward sub, read from it! */
-    for (uint32_t j = 0; j < height; ++j) {
+
+    ftype upp = -2.0 / 3; /* Left BC. */
+    tmp[0] = upp;
+    for (uint32_t j = 1; j < height - 1; ++j) {
         upp = -1.0 / (3.0 + upp);
-        /* Store only once, then broadcast later. */
-        //vstore(tmp + VLEN * k, upp);
         tmp[j] = upp;
     }
+    tmp[height - 1] = -1.0 / (2 + tmp[height - 2]); /* Right BC. */
 
     for (uint32_t i = 0; i < depth; ++i) {
         uint64_t face_offset = height * width * i;
 
-        /* BCs for the first row. */
+        /* Neumann BCs for the first row. */
         for (uint32_t k = 0; k < width; k += VLEN) {
-            //apply_left_bc_hom_neumann();
+            vstore(f + face_offset + k, vload(f + face_offset + k) / 3.0);
         }
 
-        for (uint32_t j = 1; j < height - 1; ++j) {
-            ftype upp = tmp[j - 1];
+        for (uint32_t j = 1; j < height; ++j) {
+            ftype upp = tmp[j];
             for (uint32_t k = 0; k < width; k += VLEN) {
                 gauss_reduce_scalar(width,
                                     upp,
@@ -1130,14 +1130,16 @@ void solve_pressure_Dyy(uint32_t depth,
             }
         }
 
-        /* BCs for the last row. */
+        /* BCs for the last row already applied. */
         for (uint32_t k = 0; k < width; k += VLEN) {
-            //apply_right_bc_neumann();
+            vstore(p + face_offset + width * (height - 1) + k,
+                   vload(f + face_offset + width * (height - 1) + k));
         }
 
         for (uint32_t j = 1; j < height; ++j) {
             ftype upp = tmp[height - 1 - j];
             for (uint32_t k = 0; k < width; k += VLEN) {
+                /* TODO: Write solution directly to f. */
                 backward_sub_scalar(f + face_offset +
                                         width * (height - 1 - j) + k,
                                     upp,
@@ -1156,39 +1158,37 @@ void solve_pressure_Dzz(uint32_t depth,
                         ftype *__restrict__ f,
                         ftype *__restrict__ p)
 {
-    /* TODO: Reduce this once for the longest dimension
-     * between depth, height, width, then use it for Dxx, Dyy and Dzz. */
-    ftype upp = 0.0;
-    for (uint32_t i = 0; i < depth; ++i) {
+    ftype upp = -2.0 / 3; /* Left BC. */
+    tmp[0] = upp;
+    for (uint32_t i = 1; i < depth - 1; ++i) {
         upp = -1.0 / (3.0 + upp);
         /* Store only once, then broadcast later. */
-        //vstore(tmp + VLEN * k, upp);
         tmp[i] = upp;
     }
+    tmp[depth - 1] = -1.0 / (2 + tmp[depth - 2]); /* Right BC. */
 
     /* Apply BCs to first face. */
     for (uint32_t j = 0; j < height; ++j) {
         for (uint32_t k = 0; k < width; k += VLEN) {
-            //apply_left_bc_hom_neumann();
+            vstore(f + width * j + k, vload(f + width * j + k) / 3.0);
         }
     }
 
-    for (uint32_t i = 1; i < depth - 1; ++i) {
-        ftype upp = tmp[i - 1];
+    for (uint32_t i = 1; i < depth; ++i) {
+        ftype upp = tmp[i];
         for (uint32_t j = 0; j < height; ++j) {
             for (uint32_t k = 0; k < width; k += VLEN) {
                 gauss_reduce_scalar(height * width,
                                     upp,
-                                    f + height * width * i +
-                                        width * j + k);
+                                    f + height * width * i + width * j + k);
             }
         }
     }
 
-    /* Apply BCs to the last face. */
     for (uint32_t j = 0; j < height; ++j) {
         for (uint32_t k = 0; k < width; k += VLEN) {
-            //apply_right_bc_hom_neumann();
+            vstore(p + height * width * (depth - 1) + width * j + k,
+                   vload(f + height * width * (depth - 1) + width * j + k));
         }
     }
 
@@ -1198,7 +1198,7 @@ void solve_pressure_Dzz(uint32_t depth,
         for (uint32_t j = 0; j < height; ++j) {
             for (uint32_t k = 0; k < width; k += VLEN) {
 
-                uint64_t offset = height * width * (depth - i - 1) +
+                uint64_t offset = height * width * (depth - 1 - i) +
                                   width * j + k;
 
                 backward_sub_scalar(f + offset,
