@@ -167,7 +167,7 @@ TEST(Momentum_linear_solver_test, Xi_computation) {
         g_field.g_z[idx] = 3.0;
     }
 
-    solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
+    solve_momentum_system(U, Eta, Zeta, Xi, g_field, U_next, Eta_next, Zeta_next, Beta, Gamma,
         u_BC_current_direction,
         u_BC_derivative_second_direction,
         u_BC_derivative_third_direction);
@@ -239,7 +239,7 @@ TEST(Momentum_linear_solver_test, Eta_next_computation) {
     memset(u_BC_derivative_second_direction, 0, GRID_SIZE * sizeof(DTYPE));
     memset(u_BC_derivative_third_direction, 0, GRID_SIZE * sizeof(DTYPE));
 
-    solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
+    solve_momentum_system(U, Eta, Zeta, Xi, g_field, U_next, Eta_next, Zeta_next, Beta, Gamma,
         u_BC_current_direction,
         u_BC_derivative_second_direction,
         u_BC_derivative_third_direction);
@@ -455,7 +455,7 @@ TEST(Momentum_linear_solver_test, Zeta_next_computation) {
     memset(u_BC_derivative_second_direction, 0, GRID_SIZE * sizeof(DTYPE));
     memset(u_BC_derivative_third_direction, 0, GRID_SIZE * sizeof(DTYPE));
 
-    solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
+    solve_momentum_system(U, Eta, Zeta, Xi, g_field, U_next, Eta_next, Zeta_next, Beta, Gamma,
         u_BC_current_direction,
         u_BC_derivative_second_direction,
         u_BC_derivative_third_direction);
@@ -658,7 +658,7 @@ TEST(Momentum_linear_solver_test, U_next_computation) {
     memset(u_BC_derivative_second_direction, 0, GRID_SIZE * sizeof(DTYPE));
     memset(u_BC_derivative_third_direction, 0, GRID_SIZE * sizeof(DTYPE));
 
-    solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
+    solve_momentum_system(U, Eta, Zeta, Xi, g_field, U_next, Eta_next, Zeta_next, Beta, Gamma,
         u_BC_current_direction,
         u_BC_derivative_second_direction,
         u_BC_derivative_third_direction);

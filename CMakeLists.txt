@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Option to enable/disable Eigen-dependent tests
-option(ENABLE_EIGEN_TESTS "Build tests that depend on Eigen" OFF)
+option(ENABLE_EIGEN_TESTS "Build tests that depend on Eigen" ON)
 
 # Find Eigen3 only if we want the tests that use it
 if(ENABLE_EIGEN_TESTS)
@@ -80,6 +80,12 @@ foreach(TEST_SRC ${TEST_SOURCES})
     gtest_discover_tests(${TEST_NAME})
 endforeach()
 
+# Make 'all' target build everything (main executable + all tests)
+add_custom_target(build_everything ALL
+    DEPENDS navier_stokes ${ALL_TEST_TARGETS}
+    COMMENT "Building main executable and all tests"
+)
+
 # Debug build flags
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG -Wall -Wextra -O2")
 
@@ -90,10 +96,10 @@ add_custom_target(valgrind
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-# Utility target: run the main executable
+# Utility target: run the main executable (assumes already built)
 add_custom_target(run-main
     COMMAND $<TARGET_FILE:navier_stokes>
-    DEPENDS navier_stokes
+    COMMENT "Running navier_stokes"
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -104,20 +110,18 @@ add_custom_target(clean-all
     COMMENT "Cleaning all build files"
 )
 
-# Utility target: run all tests (DEPENDS on all test executables)
+# Utility target: run all tests (assumes already built)
 add_custom_target(run-all-tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure || true
-    DEPENDS ${ALL_TEST_TARGETS}
     COMMENT "Running all tests"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
-# Create individual run targets for each test
+# Create individual run targets for each test (assumes already built)
 foreach(TEST_SRC ${TEST_SOURCES})
     get_filename_component(TEST_NAME ${TEST_SRC} NAME_WE)
     add_custom_target(run-${TEST_NAME}
         COMMAND $<TARGET_FILE:${TEST_NAME}>
-        DEPENDS ${TEST_NAME}
         COMMENT "Running ${TEST_NAME}"
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     )
