@@ -58,17 +58,17 @@ vftype compute_g_comp_at(const ftype *__restrict__ eta,
 }
 
 static inline __attribute__((always_inline))
-vftype compute_wDxx_rhs_comp_at(const ftype *__restrict__ eta,
-                                const ftype *__restrict__ zeta,
-                                const ftype *__restrict__ u,
-                                uint64_t idx,
-                                uint32_t height,
-                                uint32_t width,
-                                ftype nu,
-                                ftype dx,
-                                vftype k,
-                                vftype D_pp,
-                                vftype dt_beta)
+vftype compute_momentum_Dxx_rhs_comp_at(const ftype *__restrict__ eta,
+                                        const ftype *__restrict__ zeta,
+                                        const ftype *__restrict__ u,
+                                        uint64_t idx,
+                                        uint32_t height,
+                                        uint32_t width,
+                                        ftype nu,
+                                        ftype dx,
+                                        vftype k,
+                                        vftype D_pp,
+                                        vftype dt_beta)
 {
     vftype eta_ = vload(eta + idx);
     vftype zeta_ = vload(zeta + idx);
@@ -79,7 +79,7 @@ vftype compute_wDxx_rhs_comp_at(const ftype *__restrict__ eta,
     return vsub(vfmadd(dt_beta, g, u_), eta_);
 }
 
-void compute_wDxx_rhs(
+void compute_momentum_Dxx_rhs(
     const ftype *__restrict__ k, /* Porosity. */
     /* Pressure from previous half-step. */
     const ftype *__restrict__ p,
@@ -100,6 +100,9 @@ void compute_wDxx_rhs(
     uint32_t depth,
     uint32_t height,
     uint32_t width,
+    ftype u_ex_x,
+    ftype u_ex_y,
+    ftype u_ex_z,
     ftype nu, /* Viscosity */
     ftype dt, /* Timestep size */
     ftype dx, /* Grid cell size */
@@ -109,12 +112,15 @@ void compute_wDxx_rhs(
 {
     /* TODO: Consider on the fly rhs evaluation while solving. */
 
-    vftype vzero = vbroadcast(0.0);
     vftype vdt = vbroadcast(dt);
     vftype vdt_nu = vbroadcast(dt * nu);
 
-    for (uint32_t i = 0; i < depth; ++i) {
-        for (uint32_t j = 0; j < height; j++) {
+    /* We can avoid computing rhs at i = 0, j = 0, k = 0,
+     * i = depth - 1 (for z), j = height - 1 (for y)
+     * and k = width - 1 (for x). */
+
+    for (uint32_t i = 1; i < depth; ++i) {
+        for (uint32_t j = 1; j < height; j++) {
             for (uint32_t l = 0; l < width; l += VLEN) {
                 uint64_t idx = height * width * i + width * j + l;
 
@@ -129,10 +135,8 @@ void compute_wDxx_rhs(
                                 &Dx_phi, &Dy_phi, &Dz_phi);
 
                 vftype Dx_pp = vadd(Dx_p, Dx_phi);
-                /* Pressure gradient in the last cell must be 0!
-                   These conditionals don't hurt performance apparently */
-                vftype Dy_pp = (j == height - 1) ? vzero : vadd(Dy_p, Dy_phi);
-                vftype Dz_pp = (i == depth - 1) ? vzero : vadd(Dz_p, Dz_phi);
+                vftype Dy_pp = vadd(Dy_p, Dy_phi);
+                vftype Dz_pp = vadd(Dz_p, Dz_phi);
 
                 /* Computes dt/beta */
                 vftype k_ = vload(k + idx);
@@ -142,18 +146,66 @@ void compute_wDxx_rhs(
                 /* NT stores make no difference here,
                  * loads are bottlenecking. */
                 vstore(rhs_x + idx,
-                       compute_wDxx_rhs_comp_at(eta_x, zeta_x, u_x,
-                                                idx, height, width, nu, dx,
-                                                k_, Dx_pp, dt_beta));
+                       compute_momentum_Dxx_rhs_comp_at(eta_x, zeta_x, u_x,
+                                                        idx, height, width,
+                                                        nu, dx, k_, Dx_pp,
+                                                        dt_beta));
                 vstore(rhs_y + idx,
-                       compute_wDxx_rhs_comp_at(eta_y, zeta_y, u_y,
-                                                idx, height, width, nu, dx,
-                                                k_, Dy_pp, dt_beta));
+                       compute_momentum_Dxx_rhs_comp_at(eta_y, zeta_y, u_y,
+                                                        idx, height, width,
+                                                        nu, dx, k_, Dy_pp,
+                                                        dt_beta));
                 vstore(rhs_z + idx,
-                       compute_wDxx_rhs_comp_at(eta_z, zeta_z, u_z,
-                                                idx, height, width, nu, dx,
-                                                k_, Dz_pp, dt_beta));
+                       compute_momentum_Dxx_rhs_comp_at(eta_z, zeta_z, u_z,
+                                                        idx, height, width,
+                                                        nu, dx, k_, Dz_pp,
+                                                        dt_beta));
             }
+
+            /* For y and z, correct Dxx(eta) using the ghost node. */
+            uint64_t idx = height * width * i + width * j + width - 1;
+            ftype coeff = 2 * k[idx] * dt / (2 * k[idx] + dt * nu) *
+                          nu / (2 * dx * dx);
+            rhs_y[idx] -= coeff * (eta_y[idx + 1] + eta_y[idx] - 2 * u_ex_y);
+            rhs_z[idx] -= coeff * (eta_z[idx + 1] + eta_z[idx] - 2 * u_ex_z);
+        }
+
+        /* TODO: Temporary patch, perform loop peeling instead. */
+        for (uint32_t l = 0; l < width; l += VLEN) {
+            uint64_t idx = height * width * i + width * (height - 1) + l;
+            /* For x and z, correct Dyy(zeta) using the ghost node. */
+
+            vftype k_ = vload(k + idx);
+            vftype coeff = 2 * k_ * dt / (2 * k_ + dt * nu) *
+                           nu / (2 * dx * dx);
+
+            vstore(rhs_x + idx, vload(rhs_x + idx) -
+                                coeff * (vload(zeta_x + idx + width) +
+                                         vload(zeta_x + idx) - 2 * u_ex_x));
+
+            vstore(rhs_z + idx, vload(rhs_z + idx) -
+                                coeff * (vload(zeta_z + idx + width) +
+                                         vload(zeta_z + idx) - 2 * u_ex_z));
+        }
+    }
+
+    /* TODO: Temporary patch, perform loop peeling instead. */
+    for (uint32_t j = 0; j < height; ++j) {
+        for (uint32_t l = 0; l < width; l += VLEN) {
+            uint64_t idx = height * width * (depth - 1) + width * j + l;
+            /* For x and y, correct Dzz(u) using the ghost node. */
+
+            vftype k_ = vload(k + idx);
+            vftype coeff = 2 * k_ * dt / (2 * k_ + dt * nu) *
+                           nu / (2 * dx * dx);
+
+            vstore(rhs_x + idx, vload(rhs_x + idx) -
+                                coeff * (vload(u_x + idx + height * width) +
+                                         vload(u_x + idx) - 2 * u_ex_x));
+
+            vstore(rhs_y + idx, vload(rhs_y + idx) -
+                                coeff * (vload(u_y + idx + height * width) +
+                                         vload(u_y + idx) - 2 * u_ex_y));
         }
     }
 }
@@ -181,17 +233,19 @@ void solve_momentum(const ftype *__restrict__ k,
 {
     uint64_t num_points = depth * height * width;
     /* WARNING: Cache aliasing? */
-    ftype *__restrict__ wDxx_rhs_x = tmp;
-    ftype *__restrict__ wDxx_rhs_y = tmp + num_points;
-    ftype *__restrict__ wDxx_rhs_z = tmp + num_points * 2;
+    ftype *__restrict__ Dxx_rhs_x = tmp;
+    ftype *__restrict__ Dxx_rhs_y = tmp + num_points;
+    ftype *__restrict__ Dxx_rhs_z = tmp + num_points * 2;
 
-    compute_wDxx_rhs(k, p, phi,
-                     eta_x, eta_y, eta_z,
-                     zeta_x, zeta_y, zeta_z,
-                     u_x, u_y, u_z,
-                     depth, height, width,
-                     nu, dt, dx,
-                     wDxx_rhs_x, wDxx_rhs_y, wDxx_rhs_z);
+    compute_momentum_Dxx_rhs(k, p, phi,
+                             eta_x, eta_y, eta_z,
+                             zeta_x, zeta_y, zeta_z,
+                             u_x, u_y, u_z,
+                             depth, height, width,
+                             /* WARNING: Currently passing 0 as u_ex. */
+                             0.0, 0.0, 0.0,
+                             nu, dt, dx,
+                             Dxx_rhs_x, Dxx_rhs_y, Dxx_rhs_z);
 
     /* TODO: What if we alternate solving a group of Dxx rows,
      * and advancing the Dyy solver reduction over those solved rows,

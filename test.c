@@ -442,19 +442,23 @@ int test_vtranspose()
 
 #define RMJ_IDX(z, y, x, h, w) ((h) * (w) * (z) + (w) * (y) + (x))
 
-static int verify_wDxx_rhs_comp(const ftype *__restrict__ k,
-                                const ftype *__restrict__ D_pp,
-                                const ftype *__restrict__ eta,
-                                const ftype *__restrict__ zeta,
-                                const ftype *__restrict__ u,
-                                const ftype *__restrict__ rhs,
-                                int depth,
-                                int height,
-                                int width,
-                                ftype nu,
-                                ftype dt,
-                                ftype dx,
-                                ftype tol)
+static int verify_momentum_Dxx_rhs_comp(const ftype *__restrict__ k,
+                                        const ftype *__restrict__ D_pp,
+                                        const ftype *__restrict__ eta,
+                                        const ftype *__restrict__ zeta,
+                                        const ftype *__restrict__ u,
+                                        const ftype *__restrict__ rhs,
+                                        int depth,
+                                        int height,
+                                        int width,
+                                        ftype u_ex,
+                                        ftype nu,
+                                        ftype dt,
+                                        ftype dx,
+                                        ftype tol,
+                                        int is_x_comp,
+                                        int is_y_comp,
+                                        int is_z_comp)
 {
     uint64_t size = depth * height * width;
     ftype *Dxx_eta = malloc(size * sizeof(ftype));
@@ -462,39 +466,72 @@ static int verify_wDxx_rhs_comp(const ftype *__restrict__ k,
     ftype *Dzz_u = malloc(size * sizeof(ftype));
 
     /* WARNING: We need signed ints here, otherwise indexes underflow. */
-
     for (int i = 0; i < depth; ++i) {
         for (int j = 0; j < height; ++j) {
-            for (int k = 0; k < width; ++k) {
-                uint64_t idx = RMJ_IDX(i, j, k, height, width);
+            for (int l = 0; l < width; ++l) {
+                uint64_t idx = RMJ_IDX(i, j, l, height, width);
                 /* Compute second derivatives. */
-                Dxx_eta[idx] = (eta[RMJ_IDX(i, j, k - 1, height, width)] -
+                Dxx_eta[idx] = (eta[RMJ_IDX(i, j, l - 1, height, width)] -
                                 2 * eta[idx] +
-                                eta[RMJ_IDX(i, j, k + 1, height, width)]) /
+                                eta[RMJ_IDX(i, j, l + 1, height, width)]) /
                                (dx * dx);
-                Dyy_zeta[idx] = (zeta[RMJ_IDX(i, j - 1, k, height, width)] -
+                Dyy_zeta[idx] = (zeta[RMJ_IDX(i, j - 1, l, height, width)] -
                                  2 * zeta[idx] +
-                                 zeta[RMJ_IDX(i, j + 1, k, height, width)]) /
+                                 zeta[RMJ_IDX(i, j + 1, l, height, width)]) /
                                 (dx * dx);
-                Dzz_u[idx] = (u[RMJ_IDX(i - 1, j, k, height, width)] -
+                Dzz_u[idx] = (u[RMJ_IDX(i - 1, j, l, height, width)] -
                               2 * u[idx] +
-                              u[RMJ_IDX(i + 1, j, k, height, width)]) /
+                              u[RMJ_IDX(i + 1, j, l, height, width)]) /
                              (dx * dx);
+
+                /* Ghost node interpolation. */
+                if (!is_x_comp && l == width - 1) {
+                    Dxx_eta[idx] = (eta[RMJ_IDX(i, j, l - 1, height, width)] -
+                                    3 * eta[idx] + 2 * u_ex) / (dx * dx);
+                }
+
+                if (!is_y_comp && j == height - 1) {
+                    Dyy_zeta[idx] = (zeta[RMJ_IDX(i, j - 1, l, height, width)] -
+                                     3 * zeta[idx] + 2 * u_ex) / (dx * dx);
+                }
+
+                if (!is_z_comp && i == depth - 1) {
+                    Dzz_u[idx] = (u[RMJ_IDX(i - 1, j, l, height, width)] -
+                                  3 * u[idx] + 2 * u_ex) / (dx * dx);
+                }
             }
         }
     }
 
     int status = SUCCESS;
-    for (uint64_t i = 0; i < size && status == SUCCESS; ++i) {
-        /* WARNING: Null volume force. */
-        ftype f = 0;
-        ftype g = f - D_pp[i] - nu / (2 * k[i]) * u[i] +
-                  (nu / 2) * (Dxx_eta[i] + Dyy_zeta[i] + Dzz_u[i]);
-        ftype beta = 1 + dt * nu / (2 * k[i]);
-        ftype rhs_ref = u[i] + dt / beta * g - eta[i];
+    for (uint32_t i = 0; i < depth && status == SUCCESS; ++i) {
+        for (uint32_t j = 0; j < height && status == SUCCESS; ++j) {
+            for (uint32_t l = 0; l < width && status == SUCCESS; ++l) {
+                uint64_t idx = height * width * i + width * j + l;
 
-        if (abs(rhs_ref - rhs[i]) > tol) {
-            status = FAILURE;
+                ftype rhs_ref;
+                if (i == 0 || j == 0 || l == 0 ||
+                    (is_x_comp && l == width - 1) ||
+                    (is_y_comp && j == height - 1) ||
+                    (is_z_comp && i == depth - 1))
+                {
+                    /* No need to compute rhs here. */
+
+                } else {
+                    /* WARNING: Null volume force. */
+                    ftype f = 0;
+                    ftype g = f - D_pp[idx] - nu / (2 * k[idx]) * u[idx] +
+                              (nu / 2) * (Dxx_eta[idx] + Dyy_zeta[idx] +
+                                          Dzz_u[idx]);
+                    ftype beta = 1 + dt * nu / (2 * k[idx]);
+                    rhs_ref = u[idx] + dt / beta * g - eta[idx];
+
+                    ftype err = abs_(rhs_ref - rhs[idx]);
+                    if (err > tol) {
+                        status = FAILURE;
+                    }
+                }
+           }
         }
     }
 
@@ -505,9 +542,9 @@ static int verify_wDxx_rhs_comp(const ftype *__restrict__ k,
     return status;
 }
 
-int test_wDxx_rhs_computation(uint32_t depth,
-                              uint32_t height,
-                              uint32_t width)
+int test_momentum_Dxx_rhs_computation(uint32_t depth,
+                                      uint32_t height,
+                                      uint32_t width)
 {
     ASSERT_TRUE(width % VLEN == 0);
 
@@ -542,19 +579,24 @@ int test_wDxx_rhs_computation(uint32_t depth,
     ftype *rhs_y = rhs + size;
     ftype *rhs_z = rhs + 2 * size;
 
+    ftype u_ex_x = ((ftype) rand()) / RAND_MAX;
+    ftype u_ex_y = ((ftype) rand()) / RAND_MAX;
+    ftype u_ex_z = ((ftype) rand()) / RAND_MAX;
+
     ftype nu = ((ftype) rand()) / RAND_MAX;
     ftype dt = ((ftype) rand()) / RAND_MAX;
     ftype dx = ((ftype) rand()) / RAND_MAX;
 
-    compute_wDxx_rhs(k, p, phi,
-                     eta_x, eta_y, eta_z,
-                     zeta_x, zeta_y, zeta_z,
-                     u_x, u_y, u_z,
-                     depth, height, width,
-                     nu,
-                     dt,
-                     dx,
-                     rhs_x, rhs_y, rhs_z);
+    compute_momentum_Dxx_rhs(k, p, phi,
+                             eta_x, eta_y, eta_z,
+                             zeta_x, zeta_y, zeta_z,
+                             u_x, u_y, u_z,
+                             depth, height, width,
+                             u_ex_x, u_ex_y, u_ex_z,
+                             nu,
+                             dt,
+                             dx,
+                             rhs_x, rhs_y, rhs_z);
 
     uint64_t num_points = depth * height * width;
     ftype *pp = malloc((num_points + height * width) * sizeof(ftype));
@@ -572,31 +614,35 @@ int test_wDxx_rhs_computation(uint32_t depth,
     /* Compute pressure predictor gradient. */
     for (uint32_t i = 0; i < depth; ++i) {
         for (uint32_t j = 0; j < height; ++j) {
-            for (uint32_t k = 0; k < width; ++k) {
-                uint64_t idx = RMJ_IDX(i, j, k, height, width);
+            for (uint32_t l = 0; l < width; ++l) {
+                uint64_t idx = RMJ_IDX(i, j, l, height, width);
                 ftype pp_ijk = pp[idx];
-                ftype Dx_pp_ijk = pp[RMJ_IDX(i, j, k + 1, height, width)] -
+                ftype Dx_pp_ijk = pp[RMJ_IDX(i, j, l + 1, height, width)] -
                                   pp_ijk;
-                ftype Dy_pp_ijk = pp[RMJ_IDX(i, j + 1, k, height, width)] -
+                ftype Dy_pp_ijk = pp[RMJ_IDX(i, j + 1, l, height, width)] -
                                   pp_ijk;
-                ftype Dz_pp_ijk = pp[RMJ_IDX(i + 1, j, k, height, width)] -
+                ftype Dz_pp_ijk = pp[RMJ_IDX(i + 1, j, l, height, width)] -
                                   pp_ijk;
-                Dx_pp[idx] = Dx_pp_ijk / dx;
+                /* Pressure gradient is zero at the right boundaries. */
+                Dx_pp[idx] = (l == width - 1) ? 0 : Dx_pp_ijk / dx;
                 Dy_pp[idx] = (j == height - 1) ? 0 : Dy_pp_ijk / dx;
                 Dz_pp[idx] = (i == depth - 1) ? 0 : Dz_pp_ijk / dx;
             }
         }
     }
 
-    int error = verify_wDxx_rhs_comp(k, Dx_pp, eta_x, zeta_x,
-                                     u_x, rhs_x, depth, height,
-                                     width, nu, dt, dx, 1e-4) ||
-                verify_wDxx_rhs_comp(k, Dy_pp, eta_y, zeta_y,
-                                     u_y, rhs_y, depth, height,
-                                     width, nu, dt, dx, 1e-4) ||
-                verify_wDxx_rhs_comp(k, Dz_pp, eta_z, zeta_z,
-                                     u_z, rhs_z, depth, height,
-                                     width, nu, dt, dx, 1e-4);
+    int error = verify_momentum_Dxx_rhs_comp(k, Dx_pp, eta_x, zeta_x,
+                                             u_x, rhs_x, depth, height,
+                                             width, u_ex_x, nu, dt, dx, TOL,
+                                             1, 0, 0) ||
+                verify_momentum_Dxx_rhs_comp(k, Dy_pp, eta_y, zeta_y,
+                                             u_y, rhs_y, depth, height,
+                                             width, u_ex_y, nu, dt, dx, TOL,
+                                             0, 1, 0) ||
+                verify_momentum_Dxx_rhs_comp(k, Dz_pp, eta_z, zeta_z,
+                                             u_z, rhs_z, depth, height,
+                                             width, u_ex_z, nu, dt, dx, TOL,
+                                             0, 0, 1);
 
     free(Dz_pp);
     free(Dy_pp);
@@ -619,9 +665,9 @@ int main(void)
 
     EXPECT_SUCCESS(test_vtranspose());
 
-    EXPECT_SUCCESS(test_wDxx_rhs_computation(1, 32, 64));
-    EXPECT_SUCCESS(test_wDxx_rhs_computation(32, 64, 128));
-    EXPECT_SUCCESS(test_wDxx_rhs_computation(128, 128, 64));
+    EXPECT_SUCCESS(test_momentum_Dxx_rhs_computation(16, 32, 64));
+    EXPECT_SUCCESS(test_momentum_Dxx_rhs_computation(32, 64, 128));
+    EXPECT_SUCCESS(test_momentum_Dxx_rhs_computation(128, 128, 64));
 
     EXPECT_SUCCESS(test_momentum_Dxx_solver(1, 16, 16));
     EXPECT_SUCCESS(test_momentum_Dxx_solver(128, 128, 64));

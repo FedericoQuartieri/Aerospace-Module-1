@@ -10,9 +10,9 @@
 #include "equations.h"
 #include "boundary.h"
 
-#define D 512
-#define H 512
-#define W 512 /* + something to avoid cache aliasing? */
+#define D 128
+#define H 128
+#define W 128 /* + something to avoid cache aliasing? */
 
 DEFINE_CONSTANT_BC_U(0, 0, 0, BC_LEFT)
 DEFINE_CONSTANT_BC_U(0, 0, 0, BC_RIGHT)
@@ -67,7 +67,7 @@ void benchmark_solvers(void)
     free(w);
 }
 
-void benchmark_wDxx_rhs_computation(void)
+void benchmark_momentum_Dxx_rhs_computation(void)
 {
     size_t size = (D + 2) * H * W;
 
@@ -106,15 +106,15 @@ void benchmark_wDxx_rhs_computation(void)
 
     uint32_t face_size = H * W;
 
-    TIMEIT(compute_wDxx_rhs(k, p, phi,
-                            eta_x + face_size, eta_y + face_size, eta_z + face_size,
-                            zeta_x + face_size, zeta_y + face_size, zeta_z + face_size,
-                            u_x + face_size, u_y + face_size, u_z + face_size,
-                            D, H, W,
-                            nu,
-                            dt,
-                            dx,
-                            rhs_x, rhs_y, rhs_z));
+    TIMEIT(compute_momentum_Dxx_rhs(
+        k, p, phi,
+        eta_x + face_size, eta_y + face_size, eta_z + face_size,
+        zeta_x + face_size, zeta_y + face_size, zeta_z + face_size,
+        u_x + face_size, u_y + face_size, u_z + face_size,
+        D, H, W,
+        0.0, 0.0, 0.0,
+        nu, dt, dx,
+        rhs_x, rhs_y, rhs_z));
 
     free(rhs_z);
     free(rhs_y);
@@ -136,6 +136,6 @@ void benchmark_wDxx_rhs_computation(void)
 int main(void)
 {
     benchmark_solvers();
-    //benchmark_wDxx_rhs_computation();
+    benchmark_momentum_Dxx_rhs_computation();
     return 0;
 }
