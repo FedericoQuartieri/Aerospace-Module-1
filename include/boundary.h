@@ -10,6 +10,8 @@
 #define BC_FRONT front
 #define BC_BACK back
 
+/* TODO: Define delta_u getters. */
+
 #define DECLARE_BC_U(boundary) \
         _DECLARE_BC_U(boundary)
 
@@ -40,7 +42,6 @@ void _get_##boundary##_bc_u(uint32_t __attribute__((unused)) x,  \
     *u_z = vbroadcast(uz);                                       \
 }
 
-/* TODO: Use LTO to enable inlining across translation units. */
 #define _DEFINE_FUNCTION_BC_U(func, boundary)                    \
 void _get_##boundary##_bc_u(uint32_t __attribute__((unused)) x,  \
                             uint32_t __attribute__((unused)) y,  \

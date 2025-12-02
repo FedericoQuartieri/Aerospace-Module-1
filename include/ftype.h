@@ -53,6 +53,13 @@
 #endif
 #endif
 
+inline void fmemset(ftype *dst, ftype x, uint64_t count)
+{
+    for (uint64_t i = 0; i < count; ++i) {
+        dst[i] = x;
+    }
+}
+
 inline __attribute__((always_inline)) void vscatter(vftype src,
                                                     ftype *dst,
                                                     uint64_t stride)

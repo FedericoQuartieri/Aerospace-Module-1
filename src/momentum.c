@@ -1,8 +1,201 @@
-#include <string.h>
 #include <stdio.h>
 
 #include "lin-solver.h"
 #include "boundary.h"
+#include "consts.h"
+#include "finite-diff.h"
+
+static inline __attribute__((always_inline))
+vftype compute_g_comp_at(const ftype *__restrict__ eta,
+                         const ftype *__restrict__ zeta,
+                         const ftype *__restrict__ u,
+                         uint64_t idx,
+                         uint32_t height,
+                         uint32_t width,
+                         ftype nu,
+                         ftype dx,
+                         vftype k,
+                         vftype eta_,
+                         vftype zeta_,
+                         vftype u_,
+                         vftype D_pp)
+{
+    /* Compute second derivatives. */
+    /* WARNING: Allocate extra face at the start. */
+    vftype Dxx_eta = compute_Dxx_at(eta, idx, eta_);
+    vftype Dyy_zeta = compute_Dyy_at(zeta, idx, width, zeta_);
+    vftype Dzz_u = compute_Dzz_at(u, idx, height * width, u_);
+
+    /* WARNING: Null volume force. */
+    vftype f_ = vbroadcast(0.0);
+    vftype nu_half = vbroadcast(nu / 2);
+    vftype inv_dx = vbroadcast(1 / dx);
+    vftype inv_dxdx = vbroadcast(1 / (dx * dx));
+
+    /* yes, it's ugly :/ */
+    return vadd(f_,
+                vsub(vmul(nu_half,
+                          vsub(vmul(vadd(Dxx_eta,
+                                         vadd(Dyy_zeta,
+                                              Dzz_u)),
+                                    inv_dxdx),
+                               vdiv(u_, k))),
+                     vmul(D_pp,
+                          inv_dx)));
+}
+
+static inline __attribute__((always_inline))
+vftype compute_momentum_Dxx_rhs_comp_at(const ftype *__restrict__ eta,
+                                        const ftype *__restrict__ zeta,
+                                        const ftype *__restrict__ u,
+                                        uint64_t idx,
+                                        uint32_t height,
+                                        uint32_t width,
+                                        ftype nu,
+                                        ftype dx,
+                                        vftype k,
+                                        vftype D_pp,
+                                        vftype dt_beta)
+{
+    vftype eta_ = vload(eta + idx);
+    vftype zeta_ = vload(zeta + idx);
+    vftype u_ = vload(u + idx);
+    vftype g = compute_g_comp_at(eta, zeta, u,
+                                 idx, height, width, nu, dx,
+                                 k, eta_, zeta_, u_, D_pp);
+    return vsub(vfmadd(dt_beta, g, u_), eta_);
+}
+
+void compute_momentum_Dxx_rhs(
+    const ftype *__restrict__ k, /* Porosity. */
+    /* Pressure from previous half-step. */
+    const ftype *__restrict__ p,
+    /* Pressure correction from previous half-step. */
+    const ftype *__restrict__ phi,
+    /* (I - wDxx) velocity from previous step */
+    const ftype *__restrict__ eta_x,
+    const ftype *__restrict__ eta_y,
+    const ftype *__restrict__ eta_z,
+    /* (I - wDyy) velocity from previous step */
+    const ftype *__restrict__ zeta_x,
+    const ftype *__restrict__ zeta_y,
+    const ftype *__restrict__ zeta_z,
+    /* Velocity from previous step */
+    const ftype *__restrict__ u_x,
+    const ftype *__restrict__ u_y,
+    const ftype *__restrict__ u_z,
+    uint32_t depth,
+    uint32_t height,
+    uint32_t width,
+    ftype u_ex_x,
+    ftype u_ex_y,
+    ftype u_ex_z,
+    ftype nu, /* Viscosity */
+    ftype dt, /* Timestep size */
+    ftype dx, /* Grid cell size */
+    ftype *__restrict__ rhs_x,
+    ftype *__restrict__ rhs_y,
+    ftype *__restrict__ rhs_z)
+{
+    /* TODO: Consider on the fly rhs evaluation while solving. */
+
+    vftype vdt = vbroadcast(dt);
+    vftype vdt_nu = vbroadcast(dt * nu);
+
+    /* We can avoid computing rhs at i = 0, j = 0, k = 0,
+     * i = depth - 1 (for z), j = height - 1 (for y)
+     * and k = width - 1 (for x). */
+
+    for (uint32_t i = 1; i < depth; ++i) {
+        for (uint32_t j = 1; j < height; j++) {
+            for (uint32_t l = 0; l < width; l += VLEN) {
+                uint64_t idx = height * width * i + width * j + l;
+
+                /* WARNING: Not too sure about were not to compute rhs. */
+
+                /* Compute the gradient of pressure predictor pp = p + phi. */
+                vftype Dx_p, Dy_p, Dz_p;
+                compute_grad_at(p, idx, height, width,
+                                &Dx_p, &Dy_p, &Dz_p);
+                vftype Dx_phi, Dy_phi, Dz_phi;
+                compute_grad_at(phi, idx, height, width,
+                                &Dx_phi, &Dy_phi, &Dz_phi);
+
+                vftype Dx_pp = vadd(Dx_p, Dx_phi);
+                vftype Dy_pp = vadd(Dy_p, Dy_phi);
+                vftype Dz_pp = vadd(Dz_p, Dz_phi);
+
+                /* Computes dt/beta */
+                vftype k_ = vload(k + idx);
+                vftype kk = vadd(k_, k_);
+                vftype dt_beta = vdiv(vmul(kk, vdt), vadd(kk, vdt_nu));
+
+                /* NT stores make no difference here,
+                 * loads are bottlenecking. */
+                vstore(rhs_x + idx,
+                       compute_momentum_Dxx_rhs_comp_at(eta_x, zeta_x, u_x,
+                                                        idx, height, width,
+                                                        nu, dx, k_, Dx_pp,
+                                                        dt_beta));
+                vstore(rhs_y + idx,
+                       compute_momentum_Dxx_rhs_comp_at(eta_y, zeta_y, u_y,
+                                                        idx, height, width,
+                                                        nu, dx, k_, Dy_pp,
+                                                        dt_beta));
+                vstore(rhs_z + idx,
+                       compute_momentum_Dxx_rhs_comp_at(eta_z, zeta_z, u_z,
+                                                        idx, height, width,
+                                                        nu, dx, k_, Dz_pp,
+                                                        dt_beta));
+            }
+
+            /* For y and z, correct Dxx(eta) using the ghost node. */
+            uint64_t idx = height * width * i + width * j + width - 1;
+            ftype coeff = 2 * k[idx] * dt / (2 * k[idx] + dt * nu) *
+                          nu / (2 * dx * dx);
+            rhs_y[idx] -= coeff * (eta_y[idx + 1] + eta_y[idx] - 2 * u_ex_y);
+            rhs_z[idx] -= coeff * (eta_z[idx + 1] + eta_z[idx] - 2 * u_ex_z);
+        }
+
+        /* TODO: Temporary patch, perform loop peeling instead. */
+        for (uint32_t l = 0; l < width; l += VLEN) {
+            uint64_t idx = height * width * i + width * (height - 1) + l;
+            /* For x and z, correct Dyy(zeta) using the ghost node. */
+
+            vftype k_ = vload(k + idx);
+            vftype coeff = 2 * k_ * dt / (2 * k_ + dt * nu) *
+                           nu / (2 * dx * dx);
+
+            vstore(rhs_x + idx, vload(rhs_x + idx) -
+                                coeff * (vload(zeta_x + idx + width) +
+                                         vload(zeta_x + idx) - 2 * u_ex_x));
+
+            vstore(rhs_z + idx, vload(rhs_z + idx) -
+                                coeff * (vload(zeta_z + idx + width) +
+                                         vload(zeta_z + idx) - 2 * u_ex_z));
+        }
+    }
+
+    /* TODO: Temporary patch, perform loop peeling instead. */
+    for (uint32_t j = 0; j < height; ++j) {
+        for (uint32_t l = 0; l < width; l += VLEN) {
+            uint64_t idx = height * width * (depth - 1) + width * j + l;
+            /* For x and y, correct Dzz(u) using the ghost node. */
+
+            vftype k_ = vload(k + idx);
+            vftype coeff = 2 * k_ * dt / (2 * k_ + dt * nu) *
+                           nu / (2 * dx * dx);
+
+            vstore(rhs_x + idx, vload(rhs_x + idx) -
+                                coeff * (vload(u_x + idx + height * width) +
+                                         vload(u_x + idx) - 2 * u_ex_x));
+
+            vstore(rhs_y + idx, vload(rhs_y + idx) -
+                                coeff * (vload(u_y + idx + height * width) +
+                                         vload(u_y + idx) - 2 * u_ex_y));
+        }
+    }
+}
 
 #ifdef AUTO_VEC
     #define vneg(v) (-(v))
@@ -286,18 +479,18 @@ void backward_sub_vstrip(const ftype *__restrict__ f_x,
 #endif
 
 /* Solves the block diagonal system (I - w∂xx)u = f. */
-void solve_momentum_Dxx(const ftype *__restrict__ w,
-                        uint32_t depth,
-                        uint32_t height,
-                        uint32_t width,
-                        /* tmp buffer of size 4 * (VLEN * width) */
-                        ftype *__restrict__ tmp,
-                        ftype *__restrict__ f_x,
-                        ftype *__restrict__ f_y,
-                        ftype *__restrict__ f_z,
-                        ftype *__restrict__ u_x,
-                        ftype *__restrict__ u_y,
-                        ftype *__restrict__ u_z)
+static void solve_momentum_Dxx(const ftype *__restrict__ w,
+                              uint32_t depth,
+                              uint32_t height,
+                              uint32_t width,
+                              /* tmp buffer of size 4 * (VLEN * width) */
+                              ftype *__restrict__ tmp,
+                              ftype *__restrict__ f_x,
+                              ftype *__restrict__ f_y,
+                              ftype *__restrict__ f_z,
+                              ftype *__restrict__ u_x,
+                              ftype *__restrict__ u_y,
+                              ftype *__restrict__ u_z)
 {
 #ifdef AUTO_VEC
     /* Solving for each row of the domain, one at a time. */
@@ -549,17 +742,17 @@ void apply_bottom_bc(const ftype *__restrict__ w,
 }
 
 /* Solves the block diagonal system (I - w∂yy)u = f. */
-void solve_momentum_Dyy(const ftype *__restrict__ w,
-                        uint32_t depth,
-                        uint32_t height,
-                        uint32_t width,
-                        ftype *__restrict__ tmp,
-                        ftype *__restrict__ f_x,
-                        ftype *__restrict__ f_y,
-                        ftype *__restrict__ f_z,
-                        ftype *__restrict__ u_x,
-                        ftype *__restrict__ u_y,
-                        ftype *__restrict__ u_z)
+static void solve_momentum_Dyy(const ftype *__restrict__ w,
+                               uint32_t depth,
+                               uint32_t height,
+                               uint32_t width,
+                               ftype *__restrict__ tmp,
+                               ftype *__restrict__ f_x,
+                               ftype *__restrict__ f_y,
+                               ftype *__restrict__ f_z,
+                               ftype *__restrict__ u_x,
+                               ftype *__restrict__ u_y,
+                               ftype *__restrict__ u_z)
 {
     ZEROS = vbroadcast(0.0);
     ONES = vbroadcast(1.0);
@@ -660,17 +853,17 @@ void apply_back_bc(const ftype *__restrict__ w,
 }
 
 /* Solves the block diagonal system (I - w∂zz)u = f. */
-void solve_momentum_Dzz(const ftype *__restrict__ w,
-                        uint32_t depth,
-                        uint32_t height,
-                        uint32_t width,
-                        ftype *__restrict__ tmp,
-                        ftype *__restrict__ f_x,
-                        ftype *__restrict__ f_y,
-                        ftype *__restrict__ f_z,
-                        ftype *__restrict__ u_x,
-                        ftype *__restrict__ u_y,
-                        ftype *__restrict__ u_z)
+static void solve_momentum_Dzz(const ftype *__restrict__ w,
+                               uint32_t depth,
+                               uint32_t height,
+                               uint32_t width,
+                               ftype *__restrict__ tmp,
+                               ftype *__restrict__ f_x,
+                               ftype *__restrict__ f_y,
+                               ftype *__restrict__ f_z,
+                               ftype *__restrict__ u_x,
+                               ftype *__restrict__ u_y,
+                               ftype *__restrict__ u_z)
 {
     ZEROS = vbroadcast(0.0);
     ONES = vbroadcast(1.0);
@@ -736,681 +929,71 @@ void solve_momentum_Dzz(const ftype *__restrict__ w,
     }
 }
 
-#ifndef FLOAT
 
-#define load_vtile(src, stride,      \
-                   r1, r2, r3, r4)   \
-do {                                 \
-    r1 = vload(src + 0 * stride);    \
-    r2 = vload(src + 1 * stride);    \
-    r3 = vload(src + 2 * stride);    \
-    r4 = vload(src + 3 * stride);    \
-} while (0)
-
-#define fin_diff(r0, r1, r2, r3, r4) \
-do {                                 \
-    r0 = r1 - r0;                    \
-    r1 = r2 - r1;                    \
-    r2 = r3 - r2;                    \
-    r3 = r4 - r3;                    \
-} while (0)
-
-#else
-
-#define load_vtile(src, stride,      \
-                   r1, r2, r3, r4,   \
-                   r5, r6, r7, r8)   \
-do {                                 \
-    r1 = vload(src + 0 * stride);    \
-    r2 = vload(src + 1 * stride);    \
-    r3 = vload(src + 2 * stride);    \
-    r4 = vload(src + 3 * stride);    \
-    r5 = vload(src + 4 * stride);    \
-    r6 = vload(src + 5 * stride);    \
-    r7 = vload(src + 6 * stride);    \
-    r8 = vload(src + 7 * stride);    \
-} while (0)
-
-#define fin_diff(r0, r1, r2, r3, r4, \
-                 r5, r6, r7, r8)     \
-do {                                 \
-    r0 = r1 - r0;                    \
-    r1 = r2 - r1;                    \
-    r2 = r3 - r2;                    \
-    r3 = r4 - r3;                    \
-    r4 = r5 - r4;                    \
-    r5 = r6 - r5;                    \
-    r6 = r7 - r6;                    \
-    r7 = r8 - r7;                    \
-} while (0)
-
-#endif
-
-#define vtile_ddz(src, idx, width, stride) \
-    (vload(src + width * idx) - vload(src + width * idx - stride))
-
-static inline __attribute__((always_inline))
-vftype compute_div_vtile(const ftype *__restrict__ src_x,
-                         const ftype *__restrict__ src_y,
-                         const ftype *__restrict__ src_z,
-                         uint32_t height,
-                         uint32_t width,
-                         vftype rx0_prev,
-                         int is_first_tile,
-                         int is_first_row,
-                         uint32_t dst_stride,
-                         ftype *__restrict__ dst)
+void momentum_init(field_size size, field3 field);
 {
-    /* WARNING: Scale by -1/dxdt */
+    uint64_t size = size.depth * size.height * size.width * sizeof(ftype);
 
-#ifndef FLOAT
-    /* Loads u_y tile and computes du_y/dy. */
-    vftype ry0, ry1, ry2, ry3, ry4;
-    if (!is_first_row) {
-        ry0 = vload(src_y - width);
-    }
-    load_vtile(src_y, width, ry1, ry2, ry3, ry4);
+    memset(field.x, 0, size);
+    memset(field.y, 0, size);
+    memset(field.z, 0, size);
 
-    fin_diff(ry0, ry1, ry2, ry3, ry4);
-    /* ry* now contains ddy*. */
+    /* Initialize front face. */
+    for (uint32_t j = 0; j < size.height; ++j) {
+        for (uint32_t k = 0; k < size.width; k += VLEN) {
+            vftype u_x, u_y, u_z;
+            _get_front_bc_u(k, j, 0, &u_x, &u_y, &u_z);
 
-    uint64_t face_stride = height * width;
-    vftype div0 = vtile_ddz(src_z, 0, width, face_stride) + ry0;
-    vftype div1 = vtile_ddz(src_z, 1, width, face_stride) + ry1;
-    vftype div2 = vtile_ddz(src_z, 2, width, face_stride) + ry2;
-    vftype div3 = vtile_ddz(src_z, 3, width, face_stride) + ry3;
-
-    if (is_first_row) {
-        div0 = vbroadcast(0);
+            uint64_t idx = width * j + k;
+            vstore(field.x + idx, u_x);
+            vstore(field.y + idx, u_y);
+            vstore(field.z + idx, u_z);
     }
 
-    vtranspose(&div0, &div1, &div2, &div3);
+    for (uint32_t i = 1; i < size.depth - 1; ++i) {
+        /* Initialize top face. */
+        for (uint32_t k = 0; k < size.width; k += VLEN) {
+            vftype u_x, u_y, u_z;
+            _get_top_bc_u(k, 0, i, &u_x, &u_y, &u_z);
 
-    if (is_first_tile) {
-        div0 = vbroadcast(0);
-    }
+            uint64_t idx = size.height * size.width * i + k;
+            vstore(field.x + idx, u_x);
+            vstore(field.y + idx, u_y);
+            vstore(field.z + idx, u_z);
+        }
 
-    vftype rx0, rx1, rx2, rx3, rx4;
-    load_vtile(src_x, width, rx1, rx2, rx3, rx4); 
+        for (uint32_t j = 1; j < size.height - 1; ++j) {
+            /* TODO: I need a scalar bc getter. */
+        }
 
-    if (is_first_row) {
-        rx1 = vbroadcast(0);
-    }
+        /* Initialize bottom face. */
+        for (uint32_t k = 0; k < size.width; k += VLEN) {
+            vftype u_x, u_y, u_z;
+            _get_bottom_bc_u(k, size.height - 1, i, &u_x, &u_y, &u_z);
 
-    vtranspose(&rx1, &rx2, &rx3, &rx4);
-    if (is_first_tile) {
-        /* So that ddx0 goes to zero. */
-        rx0 = rx1;
-    } else {
-        rx0 = rx0_prev;
-    }
-
-    fin_diff(rx0, rx1, rx2, rx3, rx4);
-
-    vstore(dst + 0 * dst_stride, div0 + rx0);
-    vstore(dst + 1 * dst_stride, div1 + rx1);
-    vstore(dst + 2 * dst_stride, div2 + rx2);
-    vstore(dst + 3 * dst_stride, div3 + rx3);
-
-    return rx4;
-
-#else
-    /* Loads u_y tile and computes du_y/dy. */
-    vftype ry0, ry1, ry2, ry3, ry4, ry5, ry6, ry7, ry8;
-    if (!is_first_row) {
-        ry0 = vload(src_y - width);
-    }
-    load_vtile(src_y, width, ry1, ry2, ry3, ry4, ry5, ry6, ry7, ry8);
-
-    fin_diff(ry0, ry1, ry2, ry3, ry4, ry5, ry6, ry7, ry8);
-    /* ry* now contains ddy*. */
-
-    uint64_t face_stride = height * width;
-    vftype div0 = vtile_ddz(src_z, 0, width, face_stride) + ry0;
-    vftype div1 = vtile_ddz(src_z, 1, width, face_stride) + ry1;
-    vftype div2 = vtile_ddz(src_z, 2, width, face_stride) + ry2;
-    vftype div3 = vtile_ddz(src_z, 3, width, face_stride) + ry3;
-    vftype div4 = vtile_ddz(src_z, 4, width, face_stride) + ry4;
-    vftype div5 = vtile_ddz(src_z, 5, width, face_stride) + ry5;
-    vftype div6 = vtile_ddz(src_z, 6, width, face_stride) + ry6;
-    vftype div7 = vtile_ddz(src_z, 7, width, face_stride) + ry7;
-
-    if (is_first_row) {
-        div0 = vbroadcast(0);
-    }
-
-    vtranspose(&div0, &div1, &div2, &div3, &div4, &div5, &div6, &div7);
-
-    if (is_first_tile) {
-        div0 = vbroadcast(0);
-    }
-
-    vftype rx0, rx1, rx2, rx3, rx4, rx5, rx6, rx7, rx8;
-    load_vtile(src_x, width, rx1, rx2, rx3, rx4, rx5, rx6, rx7, rx8); 
-
-    if (is_first_row) {
-        rx1 = vbroadcast(0);
-    }
-
-    vtranspose(&rx1, &rx2, &rx3, &rx4, &rx5, &rx6, &rx7, &rx8);
-    if (is_first_tile) {
-        /* So that ddx0 goes to zero. */
-        rx0 = rx1;
-    } else {
-        rx0 = rx0_prev;
-    }
-
-    fin_diff(rx0, rx1, rx2, rx3, rx4, rx5, rx6, rx7, rx8);
-
-    vstore(dst + 0 * dst_stride, div0 + rx0);
-    vstore(dst + 1 * dst_stride, div1 + rx1);
-    vstore(dst + 2 * dst_stride, div2 + rx2);
-    vstore(dst + 3 * dst_stride, div3 + rx3);
-    vstore(dst + 4 * dst_stride, div4 + rx4);
-    vstore(dst + 5 * dst_stride, div5 + rx5);
-    vstore(dst + 6 * dst_stride, div6 + rx6);
-    vstore(dst + 7 * dst_stride, div7 + rx7);
-
-    return rx8;
-#endif
-}
-
-static inline __attribute__((always_inline))
-void gauss_reduce_vcol(const ftype *__restrict__ f_src,
-                       ftype upper,
-                       vftype *__restrict__ f_prev,
-                       ftype *__restrict__ f_dst)
-{
-    vftype f = vload(f_src);
-     /* WARNING: Is this a problem for precision? */
-    vftype norm_coeff_inv = vbroadcast(-upper);//3 + *upper_prev;
-
-    //*upper_prev = 1 / norm_coeff;
-    //*f_prev = (f + *f_prev) / norm_coeff;
-    *f_prev = (f + *f_prev) * norm_coeff_inv;
-
-    //vstore(upper, *upper_prev);
-    vstore(f_dst, *f_prev);
-}
-
-static inline __attribute__((always_inline))
-void backward_sub_vcol(const ftype *__restrict__ f,
-                       ftype upper,
-                       vftype *__restrict__ p_prev,
-                       ftype *__restrict__ p)
-{
-    vftype f_ = vload(f);
-    vftype upp = vbroadcast(upper);
-    *p_prev = f_ - *p_prev * upp;
-    vstore(p, *p_prev);
-}
-
-static inline __attribute__((always_inline))
-void solve_vtiles_row(const ftype *__restrict__ u_x,
-                      const ftype *__restrict__ u_y,
-                      const ftype *__restrict__ u_z,
-                      uint32_t height,
-                      uint32_t width,
-                      int is_first_row,
-                      ftype *__restrict__ tmp,
-                      ftype *__restrict__ p)
-{
-    ftype *__restrict__ tmp_upp = tmp;
-    /* WARNING: I should skip max(width, height, depth)
-     * elements when using this function with the fused version,
-     * atm just skip an entire face. */
-    ftype *__restrict__ tmp_f = tmp + height * width;
-
-    ftype __attribute__((aligned(32))) div_u_t[VLEN * VLEN];
-
-    vftype last_u_x =
-        compute_div_vtile(u_x, u_y, u_z,
-                          height, width,
-                          /* Not used. */
-                          vbroadcast(0),
-                          1, is_first_row,
-                          VLEN, div_u_t);
-
-    vftype f_prev = vload(div_u_t) / 3.0; /* Left BCs applied. */
-    vstore(tmp_f, f_prev);
-
-    for (int k = 1; k < VLEN; ++k) {
-        gauss_reduce_vcol(div_u_t + VLEN * k,
-                          tmp_upp[k],
-                          &f_prev,
-                          tmp_f + VLEN * k);
-    }
-
-    for (uint32_t tk = VLEN; tk < width; tk += VLEN) {
-        last_u_x = compute_div_vtile(u_x + tk, u_y + tk, u_z + tk,
-                                     height, width,
-                                     last_u_x,
-                                     0, is_first_row,
-                                     VLEN, div_u_t);
-
-        for (uint32_t k = 0; k < VLEN; ++k) {
-            gauss_reduce_vcol(div_u_t + VLEN * k,
-                              tmp_upp[tk + k],
-                              &f_prev,
-                              tmp_f + VLEN * (tk + k));
+            uint64_t idx = size.height * size.width * i +
+                           (size.height - 1) * j + k;
+            vstore(field.x + idx, u_x);
+            vstore(field.y + idx, u_y);
+            vstore(field.z + idx, u_z);
         }
     }
 
-    ftype __attribute__((aligned(32))) p_t[VLEN * VLEN];
+    /* Initialize back face. */
+    for (uint32_t j = 0; j < size.height; ++j) {
+        for (uint32_t k = 0; k < size.width; k += VLEN) {
+            vftype u_x, u_y, u_z;
+            _get_back_bc_u(k, j, 0, &u_x, &u_y, &u_z);
 
-    vftype p_prev = vbroadcast(0);
-    for (uint32_t tk = 0; tk < width; tk += VLEN) {
-        for (uint32_t k = 0; k < VLEN; ++k) {
-            backward_sub_vcol(tmp_f + VLEN * (width - 1 - (tk + k)),
-                              tmp_upp[width - 1 - (tk + k)],
-                              &p_prev,
-                              p_t + VLEN * (VLEN - 1 - k));
-        }
-        transpose_vtile(p_t, VLEN, width, p + width - VLEN - tk);
+            uint64_t idx = size.height * size.width *
+                           (depth - 1) + size.width * j + k;
+            vstore(field.x + idx, u_x);
+            vstore(field.y + idx, u_y);
+            vstore(field.z + idx, u_z);
     }
 }
 
-void solve_pressure_Dxx(uint32_t depth,
-                        uint32_t height,
-                        uint32_t width,
-                        ftype *__restrict__ tmp,
-                        ftype *__restrict__ u_x,
-                        ftype *__restrict__ u_y,
-                        ftype *__restrict__ u_z,
-                        ftype *__restrict__ p)
+void momentum_solve()
 {
-    ftype upp = -2.0 / 3; /* Left BC. */
-    tmp[0] = upp;
-    /* We can reduce once, each row of the first face
-     * is the same system. */
-    for (uint32_t k = 1; k < width - 1; ++k) {
-        /* Gauss reduce tile column, rhs = 0 here. */
-        upp = -1.0 / (3.0 + upp);
-        /* Store only once, then broadcast later. */
-        tmp[k] = upp;
-    }
-    tmp[width - 1] = -1.0 / (2 + tmp[width - 2]); /* Right BC. */
-
-    /* Solve the first face, where div(u) = 0. */
-    /* WARNING: There's no need to solve the first face again,
-     * it's going to be same (zero) across all timesteps. */
-    for (uint32_t j = 0; j < height; ++j) {
-        for (uint32_t tk = 0; tk < width; tk += VLEN) {
-            vstore(p + width * j + tk, vbroadcast(0));
-        }
-    }
-
-    /* Solve remaining faces. */
-    for (uint32_t i = 1; i < depth; ++i) {
-        /* Solve first tile row of the face. */
-        solve_vtiles_row(u_x + height * width * i,
-                         u_y + height * width * i,
-                         u_z + height * width * i,
-                         height, width,
-                         1, tmp,
-                         p + height * width * i);
-        /* Solve remaining tile rows of the face. */
-        for (uint32_t j = VLEN; j < height; j += VLEN) {
-            uint64_t offset = height * width * i + width * j;
-            solve_vtiles_row(u_x + offset,
-                             u_y + offset,
-                             u_z + offset,
-                             height, width,
-                             0, tmp,
-                             p + offset);
-        }
-    }
-}
-
-static inline __attribute__((always_inline))
-void gauss_reduce_scalar(uint32_t row_stride,
-                         ftype upper,
-                         ftype *__restrict__ f)
-{
-    vftype f_prev = vload(f - row_stride);
-    vftype norm_coeff_inv = vbroadcast(-upper);
-    //vftype norm_coeff = 3 + upp_prev;
-
-    //vstore(upper, -1.0f / norm_coeff);
-    vstore(f, (vload(f) + f_prev) * norm_coeff_inv);
-}
-
-static inline __attribute__((always_inline))
-void backward_sub_scalar(const ftype *__restrict__ f,
-                         ftype upper,
-                         uint32_t row_stride,
-                         ftype *__restrict__ p)
-{
-    vftype f_ = vload(f);
-    vftype p_prev = vload(p + row_stride);
-    vstore(p, f_ - p_prev * vbroadcast(upper));
-}
-
-static inline __attribute__((always_inline))
-void backward_sub_scalar_ip(const ftype *__restrict__ p_prev,
-                            ftype upper,
-                            ftype *__restrict__ p)
-{
-    vftype f_ = vload(p);
-    vftype p_prev_ = vload(p_prev);
-    vstore(p, f_ - p_prev_ * vbroadcast(upper));
-}
-
-void solve_pressure_Dyy(uint32_t depth,
-                        uint32_t height,
-                        uint32_t width,
-                        /* tmp of size height * width + height */
-                        ftype *__restrict__ tmp,
-                        ftype *__restrict__ f,
-                        ftype *__restrict__ p)
-{
-
-    ftype upp = -2.0 / 3; /* Left BC. */
-    tmp[0] = upp;
-    for (uint32_t j = 1; j < height - 1; ++j) {
-        upp = -1.0 / (3.0 + upp);
-        tmp[j] = upp;
-    }
-    tmp[height - 1] = -1.0 / (2 + tmp[height - 2]); /* Right BC. */
-
-    for (uint32_t i = 0; i < depth; ++i) {
-        uint64_t face_offset = height * width * i;
-
-        /* Neumann BCs for the first row. */
-        for (uint32_t k = 0; k < width; k += VLEN) {
-            vstore(f + face_offset + k, vload(f + face_offset + k) / 3.0);
-        }
-
-        for (uint32_t j = 1; j < height; ++j) {
-            ftype upp = tmp[j];
-            for (uint32_t k = 0; k < width; k += VLEN) {
-                gauss_reduce_scalar(width,
-                                    upp,
-                                    f + face_offset + width * j + k);
-            }
-        }
-
-        /* BCs for the last row already applied. */
-        for (uint32_t k = 0; k < width; k += VLEN) {
-            vstore(p + face_offset + width * (height - 1) + k,
-                   vload(f + face_offset + width * (height - 1) + k));
-        }
-
-        for (uint32_t j = 1; j < height; ++j) {
-            ftype upp = tmp[height - 1 - j];
-            for (uint32_t k = 0; k < width; k += VLEN) {
-                /* TODO: Write solution directly to f. */
-                backward_sub_scalar(f + face_offset +
-                                        width * (height - 1 - j) + k,
-                                    upp,
-                                    width,
-                                    p + face_offset +
-                                        width * (height - 1 - j) + k);
-            }
-        }
-    }
-}
-
-void solve_pressure_Dzz(uint32_t depth,
-                        uint32_t height,
-                        uint32_t width,
-                        ftype *__restrict__ tmp,
-                        ftype *__restrict__ f,
-                        ftype *__restrict__ p)
-{
-    ftype upp = -2.0 / 3; /* Left BC. */
-    tmp[0] = upp;
-    for (uint32_t i = 1; i < depth - 1; ++i) {
-        upp = -1.0 / (3.0 + upp);
-        /* Store only once, then broadcast later. */
-        tmp[i] = upp;
-    }
-    tmp[depth - 1] = -1.0 / (2 + tmp[depth - 2]); /* Right BC. */
-
-    /* Apply BCs to first face. */
-    for (uint32_t j = 0; j < height; ++j) {
-        for (uint32_t k = 0; k < width; k += VLEN) {
-            vstore(f + width * j + k, vload(f + width * j + k) / 3.0);
-        }
-    }
-
-    for (uint32_t i = 1; i < depth; ++i) {
-        ftype upp = tmp[i];
-        for (uint32_t j = 0; j < height; ++j) {
-            for (uint32_t k = 0; k < width; k += VLEN) {
-                gauss_reduce_scalar(height * width,
-                                    upp,
-                                    f + height * width * i + width * j + k);
-            }
-        }
-    }
-
-    for (uint32_t j = 0; j < height; ++j) {
-        for (uint32_t k = 0; k < width; k += VLEN) {
-            vstore(p + height * width * (depth - 1) + width * j + k,
-                   vload(f + height * width * (depth - 1) + width * j + k));
-        }
-    }
-
-    /* Backward substitute. */
-    for (uint32_t i = 1; i < depth; ++i) {
-        ftype upp = tmp[depth - 1 - i];
-        for (uint32_t j = 0; j < height; ++j) {
-            for (uint32_t k = 0; k < width; k += VLEN) {
-
-                uint64_t offset = height * width * (depth - 1 - i) +
-                                  width * j + k;
-
-                backward_sub_scalar(f + offset,
-                                    upp,
-                                    height * width,
-                                    p + offset);
-            }
-        }
-    }
-}
-
-#define max(x, y) ((x) > (y) ? (x) : (y))
-
-void solve_pressure_fused(uint32_t depth,
-                          uint32_t height,
-                          uint32_t width,
-                          ftype *__restrict__ tmp,
-                          ftype *__restrict__ u_x,
-                          ftype *__restrict__ u_y,
-                          ftype *__restrict__ u_z,
-                          ftype *__restrict__ p)
-{
-    uint32_t max_dim = max(width, max(height, depth));
-
-    ftype upp = 0.0;
-    for (uint32_t i = 0; i < max_dim; ++i) {
-        upp = -1.0 / (3.0 + upp);
-        /* Store only once, then broadcast later. */
-        tmp[i] = upp;
-    }
-
-    /* Store intermediate solutions inside p?
-     * perhaps use a separate tmp storage of size,
-     * so you don't pay extra TLB misses. */
-
-    /* Using p seems fine though, you use less space
-     * and the number of TLB misses shouldn't be more. */
-
-    ftype __attribute__((aligned(32))) p_t[VLEN * VLEN];
-
-    /* Solve Dxx the first tile row, where div(u) = 0. */
-    for (uint32_t tk = 0; tk < width; tk += VLEN) {
-        ftype p_ = tmp[width - 1];
-        for (uint32_t k = 0; k < VLEN; ++k) {
-            p_ = -p_ * tmp[width - 1 - (tk + k)];
-            vstore(p_t + VLEN * (VLEN - 1 - k), vbroadcast(p_));
-        }
-        transpose_vtile(p_t, VLEN, width, p + width - VLEN - tk);
-    }
-    /* Advance Dyy reduction for the first tile row. */
-    /* TODO: apply_left_bc_hom_neumann(); */
-    for (uint32_t j = 1; j < VLEN; ++j) {
-        ftype upp = tmp[j - 1];
-        for (uint32_t k = 0; k < width; k += VLEN) {
-            gauss_reduce_scalar(width,
-                                upp,
-                                p + width * j + k);
-        }
-    }
-
-    /* Solve Dxx the remaining tile rows, where div(u) = 0. */
-    for (uint32_t tj = VLEN; tj < height - VLEN; tj += VLEN) {
-        for (uint32_t tk = 0; tk < width; tk += VLEN) {
-            ftype p_ = tmp[width - 1];
-            for (uint32_t k = 0; k < VLEN; ++k) {
-                p_ = -p_ * tmp[width - 1 - (tk + k)];
-                vstore(p_t + VLEN * (VLEN - 1 - k), vbroadcast(p_));
-            }
-            transpose_vtile(p_t, VLEN, width,
-                            p + width * tj + width - VLEN - tk);
-        }
-        /* Advance Dyy reduction. */
-        for (uint32_t j = 0; j < VLEN; ++j) {
-            ftype upp = tmp[tj + j - 1];
-            for (uint32_t k = 0; k < width; k += VLEN) {
-                gauss_reduce_scalar(width,
-                                    upp,
-                                    p + width * (tj + j) + k);
-            }
-        }
-    }
-
-    /* Solve Dxx for the last tile row, where div(u) = 0. */
-    for (uint32_t tk = 0; tk < width; tk += VLEN) {
-        ftype p_ = tmp[width - 1];
-        for (uint32_t k = 0; k < VLEN; ++k) {
-            p_ = -p_ * tmp[width - 1 - (tk + k)];
-            vstore(p_t + VLEN * (VLEN - 1 - k), vbroadcast(p_));
-        }
-        transpose_vtile(p_t, VLEN, width,
-                        p + width * (height - VLEN) + width - VLEN - tk);
-    }
-    /* Advance Dyy reduction for the first tile row. */
-    for (uint32_t j = 0; j < VLEN - 1; ++j) {
-        ftype upp = tmp[height - VLEN + j - 1];
-        for (uint32_t k = 0; k < width; k += VLEN) {
-            gauss_reduce_scalar(width,
-                                upp,
-                                p + width * (height - VLEN + j) + k);
-        }
-    }
-    /* TODO: apply_right_bc_hom_neumann(); */
-
-    /* Backward substitute first face. */
-    for (uint32_t j = 1; j < height; ++j) {
-        ftype upp = tmp[height - 1 - j];
-        for (uint32_t k = 0; k < width; k += VLEN) {
-            backward_sub_scalar_ip(p + width * (height - j) + k,
-                                   upp,
-                                   p + width * (height - 1 - j) + k);
-        }
-    }
-
-    /* TODO: apply_left_bc_hom_neumann(); for Dzz. */
-
-    for (uint32_t i = 1; i < depth - 1; ++i) {
-
-        uint64_t face_offset = height * width * i;
-
-        /* Solve first tile row of the face. */
-        solve_vtiles_row(u_x + face_offset,
-                         u_y + face_offset,
-                         u_z + face_offset,
-                         height, width,
-                         1, tmp,
-                         p + face_offset);
-
-        /* TODO: apply_left_bc_hom_neumann(); */
-
-        for (uint32_t j = 1; j < VLEN; ++j) {
-            ftype upp = tmp[j - 1];
-            for (uint32_t k = 0; k < width; k += VLEN) {
-                gauss_reduce_scalar(width,
-                                    upp,
-                                    p + face_offset + width * j + k);
-            }
-        }
-
-        /* Solve remaining tile rows of the face. */
-        for (uint32_t tj = VLEN; tj < height - VLEN; tj += VLEN) {
-            solve_vtiles_row(u_x + face_offset + width * tj,
-                             u_y + face_offset + width * tj,
-                             u_z + face_offset + width * tj,
-                             height, width,
-                             0, tmp,
-                             p + face_offset + width * tj);
-
-            /* TODO: apply_left_bc_hom_neumann(); */
-
-            /* Advance Dyy. */
-            for (uint32_t j = 1; j < VLEN; ++j) {
-                ftype upp = tmp[j - 1];
-                for (uint32_t k = 0; k < width; k += VLEN) {
-                    gauss_reduce_scalar(width,
-                                        upp,
-                                        p + face_offset +
-                                            width * (tj + j) + k);
-                }
-            }
-        }
-
-        solve_vtiles_row(u_x + face_offset + width * (height - VLEN),
-                         u_y + face_offset + width * (height - VLEN),
-                         u_z + face_offset + width * (height - VLEN),
-                         height, width,
-                         0, tmp,
-                         p + face_offset + width * (height - VLEN));
-
-        /* TODO: apply_left_bc_hom_neumann(); */
-
-        /* Advance Dyy. */
-        for (uint32_t j = 1; j < VLEN; ++j) {
-            ftype upp = tmp[height - VLEN + j - 1];
-            for (uint32_t k = 0; k < width; k += VLEN) {
-                gauss_reduce_scalar(width,
-                                    upp,
-                                    p + face_offset +
-                                        width * (height - VLEN + j) + k);
-            }
-        }
-
-        /* TODO: apply_right_bc_hom_neumann() */
-
-        /* Backward substitute Dyy. */
-        for (uint32_t j = 1; j < height; ++j) {
-            ftype upp = tmp[height - 1 - j];
-            for (uint32_t k = 0; k < width; k += VLEN) {
-                backward_sub_scalar_ip(p + face_offset +
-                                           width * (height - j) + k,
-                                       upp,
-                                       p + face_offset +
-                                           width * (height - 1 - j) + k);
-            }
-        }
-
-        /* Advance Dzz. */
-    }
-
-    /* TODO: Loop for last face, with Dzz BCs. */
-
-    /* Backward substitute Dzz. */
-    for (uint32_t i = 1; i < depth; ++i) {
-        ftype upp = tmp[depth - 1 - i];
-        for (uint32_t j = 0; j < height; ++j) {
-            for (uint32_t k = 0; k < width; k += VLEN) {
-
-                backward_sub_scalar_ip(p + height * width * (depth - i) +
-                                           width * j + k,
-                                       upp,
-                                       p + height * width * (depth - 1 - i) +
-                                           width * j + k);
-            }
-        }
-    }
+    return;
 }

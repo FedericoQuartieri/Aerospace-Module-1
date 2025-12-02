@@ -10,9 +10,9 @@
 #include "equations.h"
 #include "boundary.h"
 
-#define D 128
-#define H 128
-#define W 128 /* + something to avoid cache aliasing? */
+#define D 256
+#define H 256
+#define W 256 /* + something to avoid cache aliasing? */
 
 DEFINE_CONSTANT_BC_U(0, 0, 0, BC_LEFT)
 DEFINE_CONSTANT_BC_U(0, 0, 0, BC_RIGHT)
