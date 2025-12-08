@@ -1,4 +1,5 @@
 #include "pressure.h"
+
 #include "ftype.h"
 #include "field.h"
 
@@ -56,16 +57,16 @@ do {                                 \
     (vload(src + width * idx) - vload(src + width * idx - stride))
 
 static inline __attribute__((always_inline))
-vftype compute_div_vtile(const ftype *__restrict__ src_x,
-                         const ftype *__restrict__ src_y,
-                         const ftype *__restrict__ src_z,
+vftype compute_div_vtile(const ftype *restrict src_x,
+                         const ftype *restrict src_y,
+                         const ftype *restrict src_z,
                          uint32_t height,
                          uint32_t width,
                          vftype rx0_prev,
                          int is_first_tile,
                          int is_first_row,
                          uint32_t dst_stride,
-                         ftype *__restrict__ dst)
+                         ftype *restrict dst)
 {
     /* WARNING: Scale by -1/dxdt */
 
@@ -182,10 +183,10 @@ vftype compute_div_vtile(const ftype *__restrict__ src_x,
 }
 
 static inline __attribute__((always_inline))
-void gauss_reduce_vcol(const ftype *__restrict__ f_src,
+void gauss_reduce_vcol(const ftype *restrict f_src,
                        ftype upper,
-                       vftype *__restrict__ f_prev,
-                       ftype *__restrict__ f_dst)
+                       vftype *restrict f_prev,
+                       ftype *restrict f_dst)
 {
     vftype f = vload(f_src);
      /* WARNING: Is this a problem for precision? */
@@ -200,10 +201,10 @@ void gauss_reduce_vcol(const ftype *__restrict__ f_src,
 }
 
 static inline __attribute__((always_inline))
-void backward_sub_vcol(const ftype *__restrict__ f,
+void backward_sub_vcol(const ftype *restrict f,
                        ftype upper,
-                       vftype *__restrict__ p_prev,
-                       ftype *__restrict__ p)
+                       vftype *restrict p_prev,
+                       ftype *restrict p)
 {
     vftype f_ = vload(f);
     vftype upp = vbroadcast(upper);
@@ -212,20 +213,20 @@ void backward_sub_vcol(const ftype *__restrict__ f,
 }
 
 static inline __attribute__((always_inline))
-void solve_vtiles_row(const ftype *__restrict__ u_x,
-                      const ftype *__restrict__ u_y,
-                      const ftype *__restrict__ u_z,
+void solve_vtiles_row(const ftype *restrict u_x,
+                      const ftype *restrict u_y,
+                      const ftype *restrict u_z,
                       uint32_t height,
                       uint32_t width,
                       int is_first_row,
-                      ftype *__restrict__ tmp,
-                      ftype *__restrict__ p)
+                      ftype *restrict tmp,
+                      ftype *restrict p)
 {
-    ftype *__restrict__ tmp_upp = tmp;
+    ftype *restrict tmp_upp = tmp;
     /* WARNING: I should skip max(width, height, depth)
      * elements when using this function with the fused version,
      * atm just skip an entire face. */
-    ftype *__restrict__ tmp_f = tmp + height * width;
+    ftype *restrict tmp_f = tmp + height * width;
 
     ftype __attribute__((aligned(32))) div_u_t[VLEN * VLEN];
 
@@ -276,14 +277,14 @@ void solve_vtiles_row(const ftype *__restrict__ u_x,
     }
 }
 
-void solve_pressure_Dxx(uint32_t depth,
-                        uint32_t height,
-                        uint32_t width,
-                        ftype *__restrict__ tmp,
-                        ftype *__restrict__ u_x,
-                        ftype *__restrict__ u_y,
-                        ftype *__restrict__ u_z,
-                        ftype *__restrict__ p)
+static void solve_Dxx_blocks(const ftype *restrict u_x,
+                             const ftype *restrict u_y,
+                             const ftype *restrict u_z,
+                             uint32_t depth,
+                             uint32_t height,
+                             uint32_t width,
+                             ftype *restrict tmp,
+                             ftype *restrict p)
 {
     ftype upp = -2.0 / 3; /* Left BC. */
     tmp[0] = upp;
@@ -331,7 +332,7 @@ void solve_pressure_Dxx(uint32_t depth,
 static inline __attribute__((always_inline))
 void gauss_reduce_scalar(uint32_t row_stride,
                          ftype upper,
-                         ftype *__restrict__ f)
+                         ftype *restrict f)
 {
     vftype f_prev = vload(f - row_stride);
     vftype norm_coeff_inv = vbroadcast(-upper);
@@ -342,10 +343,10 @@ void gauss_reduce_scalar(uint32_t row_stride,
 }
 
 static inline __attribute__((always_inline))
-void backward_sub_scalar(const ftype *__restrict__ f,
+void backward_sub_scalar(const ftype *restrict f,
                          ftype upper,
                          uint32_t row_stride,
-                         ftype *__restrict__ p)
+                         ftype *restrict p)
 {
     vftype f_ = vload(f);
     vftype p_prev = vload(p + row_stride);
@@ -353,24 +354,23 @@ void backward_sub_scalar(const ftype *__restrict__ f,
 }
 
 static inline __attribute__((always_inline))
-void backward_sub_scalar_ip(const ftype *__restrict__ p_prev,
+void backward_sub_scalar_ip(const ftype *restrict p_prev,
                             ftype upper,
-                            ftype *__restrict__ p)
+                            ftype *restrict p)
 {
     vftype f_ = vload(p);
     vftype p_prev_ = vload(p_prev);
     vstore(p, f_ - p_prev_ * vbroadcast(upper));
 }
 
-void solve_pressure_Dyy(uint32_t depth,
-                        uint32_t height,
-                        uint32_t width,
-                        /* tmp of size height * width + height */
-                        ftype *__restrict__ tmp,
-                        ftype *__restrict__ f,
-                        ftype *__restrict__ p)
+static void solve_Dyy_blocks(uint32_t depth,
+                             uint32_t height,
+                             uint32_t width,
+                             /* tmp of size height * width + height */
+                             ftype *restrict tmp,
+                             ftype *restrict f,
+                             ftype *restrict p)
 {
-
     ftype upp = -2.0 / 3; /* Left BC. */
     tmp[0] = upp;
     for (uint32_t j = 1; j < height - 1; ++j) {
@@ -417,12 +417,12 @@ void solve_pressure_Dyy(uint32_t depth,
     }
 }
 
-void solve_pressure_Dzz(uint32_t depth,
-                        uint32_t height,
-                        uint32_t width,
-                        ftype *__restrict__ tmp,
-                        ftype *__restrict__ f,
-                        ftype *__restrict__ p)
+void solve_Dzz_blocks(uint32_t depth,
+                      uint32_t height,
+                      uint32_t width,
+                      ftype *restrict tmp,
+                      ftype *restrict f,
+                      ftype *restrict p)
 {
     ftype upp = -2.0 / 3; /* Left BC. */
     tmp[0] = upp;
@@ -481,11 +481,11 @@ void solve_pressure_Dzz(uint32_t depth,
 void solve_pressure_fused(uint32_t depth,
                           uint32_t height,
                           uint32_t width,
-                          ftype *__restrict__ tmp,
-                          ftype *__restrict__ u_x,
-                          ftype *__restrict__ u_y,
-                          ftype *__restrict__ u_z,
-                          ftype *__restrict__ p)
+                          ftype *restrict tmp,
+                          ftype *restrict u_x,
+                          ftype *restrict u_y,
+                          ftype *restrict u_z,
+                          ftype *restrict p)
 {
     uint32_t max_dim = max(width, max(height, depth));
 
@@ -681,14 +681,38 @@ void solve_pressure_fused(uint32_t depth,
     }
 }
 
-
 void pressure_init(field_size size, field field)
 {
     uint64_t num_points = size.depth * size.height *size.width;
     memset(field, 0, num_points * sizeof(ftype));
 }
 
-void pressure_solve()
+void pressure_solve(const_field3 velocity,
+                    field_size size,
+                    field pressure,
+                    field pressure_delta,
+                    ArenaAllocator *arena)
 {
-    return;
+    arena_enter(arena);
+
+    field tmp = field_alloc(size, arena);
+    field sol = field_alloc(size, arena);
+
+    solve_Dxx_blocks(velocity.x, velocity.y, velocity.z,
+                     size.depth, size.height, size.width,
+                     tmp, pressure_delta);
+
+    solve_Dyy_blocks(size.depth, size.height, size.width, tmp,
+                     pressure_delta, sol);
+
+    solve_Dzz_blocks(size.depth, size.height, size.width, tmp,
+                     sol, pressure_delta);
+
+    /* Update pressure. */
+    uint64_t num_points = field_num_points(size);
+    for (uint64_t i = 0; i < num_points; ++i) {
+        pressure[i] += pressure_delta[i];
+    }
+
+    arena_exit(arena);
 }

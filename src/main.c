@@ -1,12 +1,13 @@
 #include "alloc.h"
 #include "boundary.h"
+#include "consts.h"
 #include "solver.h"
 
 #define DEPTH 128
 #define HEIGHT 128
 #define WIDTH 128
 
-#define NUM_TIMESTEP 10
+#define NUM_TIMESTEPS 10
 
 DEFINE_NU(1.00)
 DEFINE_DT(0.01)
@@ -24,9 +25,9 @@ DEFINE_CONSTANT_BC_U(0, 0, 0, BC_BACK)
 int main(void)
 {
     ArenaAllocator arena;
-    arena_init(&arena, DEPTH * HEIGTH * WIDTH * sizeof(ftype) * 30);
+    arena_init(&arena, DEPTH * HEIGHT * WIDTH * sizeof(ftype) * 30);
 
-    Solver *solver = solver_alloc(&arena, DEPTH, HEIGHT, WIDTH);
+    Solver *solver = solver_alloc(DEPTH, HEIGHT, WIDTH, &arena);
     solver_init(solver);
 
     for (int t = 0; t < NUM_TIMESTEPS; ++t) {

@@ -53,13 +53,6 @@
 #endif
 #endif
 
-inline void fmemset(ftype *dst, ftype x, uint64_t count)
-{
-    for (uint64_t i = 0; i < count; ++i) {
-        dst[i] = x;
-    }
-}
-
 inline __attribute__((always_inline)) void vscatter(vftype src,
                                                     ftype *dst,
                                                     uint64_t stride)
@@ -121,5 +114,44 @@ void vtranspose(__m256d *r0, __m256d *r1, __m256d *r2, __m256d *r3)
 }
 #endif
 
+static inline __attribute__((always_inline))
+void transpose_vtile(const ftype *restrict src,
+                     uint32_t src_stride,
+                     uint32_t dst_stride,
+                     ftype *restrict dst)
+{
+    /* TODO: faster version if you transpose in memory using insert2f128? */
+#ifdef FLOAT
+    vftype r0 = vload(src + 0 * src_stride);
+    vftype r1 = vload(src + 1 * src_stride);
+    vftype r2 = vload(src + 2 * src_stride);
+    vftype r3 = vload(src + 3 * src_stride);
+    vftype r4 = vload(src + 4 * src_stride);
+    vftype r5 = vload(src + 5 * src_stride);
+    vftype r6 = vload(src + 6 * src_stride);
+    vftype r7 = vload(src + 7 * src_stride);
+    vtranspose(&r0, &r1, &r2, &r3, &r4, &r5, &r6, &r7);
+    vstore(dst + 0 * dst_stride, r0);
+    vstore(dst + 1 * dst_stride, r1);
+    vstore(dst + 2 * dst_stride, r2);
+    vstore(dst + 3 * dst_stride, r3);
+    vstore(dst + 4 * dst_stride, r4);
+    vstore(dst + 5 * dst_stride, r5);
+    vstore(dst + 6 * dst_stride, r6);
+    vstore(dst + 7 * dst_stride, r7);
+#else
+    vftype r0 = vload(src + 0 * src_stride);
+    vftype r1 = vload(src + 1 * src_stride);
+    vftype r2 = vload(src + 2 * src_stride);
+    vftype r3 = vload(src + 3 * src_stride);
+    vtranspose(&r0, &r1, &r2, &r3);
+    vstore(dst + 0 * dst_stride, r0);
+    vstore(dst + 1 * dst_stride, r1);
+    vstore(dst + 2 * dst_stride, r2);
+    vstore(dst + 3 * dst_stride, r3);
 #endif
+}
+
+#endif
+
 

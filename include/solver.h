@@ -4,7 +4,7 @@
 #include "ftype.h"
 #include "alloc.h"
 
-struct Solver {};
+struct Solver;
 
 typedef struct Solver Solver;
 

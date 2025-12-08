@@ -1,30 +1,20 @@
-#include <string.h>
-
+#include "solver.h"
+#include "momentum.h"
+#include "pressure.h"
 #include "ftype.h"
 #include "field.h"
-#include "solver.h"
-
-static void compute_gamma(const_field porosity, field_size size, field dst)
-{
-    uint64_t num_points = size.depth * size.height * size.width;
-    for (uint64_t i = 0; i < num_points; i += VLEN) {
-        vftype k = vload(porosity + i);
-        /* w = (k dt nu) / (2k + dt nu) / (dx dx) */
-        vstore(dst + i,
-               (k * _DT * _NU) / (2 * k + _DT * _NU) / (_DX * _DX));
-    }
-}
+#include "consts.h"
 
 struct Solver {
     ArenaAllocator *arena;
-    ffield_size domain_size;
-    ffield porosity;
-    ffield gamma;
-    ffield pressure;
-    ffield pressure_delta;
-    ffield3 velocity_Dxx;
-    ffield3 velocity_Dyy;
-    ffield3 velocity_Dzz;
+    field_size domain_size;
+    field porosity;
+    field gamma;
+    field pressure;
+    field pressure_delta;
+    field3 velocity_Dxx;
+    field3 velocity_Dyy;
+    field3 velocity_Dzz;
 };
 
 Solver *solver_alloc(uint32_t domain_depth,
@@ -43,14 +33,16 @@ Solver *solver_alloc(uint32_t domain_depth,
     domain_size.width = domain_width;
     solver->domain_size = domain_size;
 
-    solver->porosity = ffield_alloc(domain_size, arena);
-    solver->gamma = ffield_alloc(domain_size, arena);
-    solver->pressure = ffield_alloc(domain_size, arena);
-    solver->pressure_delta = ffield_alloc(domain_size, arena);
+    solver->porosity = field_alloc(domain_size, arena);
+    solver->gamma = field_alloc(domain_size, arena);
+    solver->pressure = field_alloc(domain_size, arena);
+    solver->pressure_delta = field_alloc(domain_size, arena);
 
-    solver->velocity_Dxx = ffield3_alloc(domain_size, arena);
-    solver->velocity_Dyy = ffield3_alloc(domain_size, arena);
-    solver->velocity_Dzz = ffield3_alloc(domain_size, arena);
+     /* Extra faces for in-bound finite difference. */
+    domain_size.depth = domain_depth + 2;
+    solver->velocity_Dxx = field3_alloc(domain_size, arena);
+    solver->velocity_Dyy = field3_alloc(domain_size, arena);
+    solver->velocity_Dzz = field3_alloc(domain_size, arena);
 
     return solver;
 }
@@ -69,9 +61,8 @@ void solver_init(Solver *solver)
     arena_enter(solver->arena);
 
     /* Setting constant unit porosity. */
-    uint64_t num_points = field_num_points(domain_size);
-    ftype *tmp = arena_push_count(solver->arena, ftype, num_points);
-    fmemset(tmp, 1.0, num_points);
+    field tmp = field_alloc(domain_size, solver->arena);
+    field_fill(domain_size, 1.0, tmp);
     solver_set_porosity(solver, tmp);
 
     arena_exit(solver->arena);
@@ -79,12 +70,25 @@ void solver_init(Solver *solver)
 
 void solver_set_porosity(Solver *solver, const ftype *src)
 {
-    uint64_t num_points = field_num_points(solver->domain_size);
-    memcpy(solver->gamma, src, num_points * sizeof(ftype));
-    compute_gamma(src, domain_size, solver->gamma);
+    field_copy(solver->domain_size, src, solver->gamma);
+    compute_gamma(src, solver->domain_size, solver->porosity);
 }
 
 void solver_step(Solver *solver, uint64_t timestep)
 {
-    return;
+    momentum_solve(solver->porosity,
+                   solver->gamma,
+                   solver->pressure,
+                   solver->pressure_delta,
+                   solver->domain_size,
+                   solver->velocity_Dxx,
+                   solver->velocity_Dyy,
+                   solver->velocity_Dzz,
+                   solver->arena);
+
+    pressure_solve(to_const_field3(solver->velocity_Dzz),
+                   solver->domain_size,
+                   solver->pressure,
+                   solver->pressure_delta,
+                   solver->arena);
 }

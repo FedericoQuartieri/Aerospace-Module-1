@@ -1,11 +1,10 @@
 #ifndef ALLOC_H
 #define ALLOC_H
 
-#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 #define ALIGN_TO 64u
-
-#define __attribute__((aligned(ALIGN_TO))) ALIGNED;
 
 struct ArenaAllocator {
     void *start_;
@@ -14,41 +13,44 @@ struct ArenaAllocator {
 
 typedef struct ArenaAllocator ArenaAllocator;
 
-void arena_init(ArenaAllocator *arena, uint64_t size)
+static inline void arena_init(ArenaAllocator *arena, uint64_t size)
 {
-    arena->start_ = aligned_alloc(64, size);
+    /* TODO: Use mmap() here as well,
+     * should be safer with huge sizes. */
+    arena->start_ = aligned_alloc(ALIGN_TO, size);
+    arena->pos_ = 0;
 }
 
-void arena_init_hugetlb(ArenaAllocator *arena, uint64_t size)
+static inline void arena_init_hugetlb(ArenaAllocator *arena, uint64_t size)
 {
     /* TODO: Use mmap() with MAP_HUGETLB */
     arena_init(arena, size);
 }
 
-void arena_destroy(ArenaAllocator *arena)
+static inline void arena_destroy(ArenaAllocator *arena)
 {
     free(arena->start_);
 }
 
-inline uint64_t arena_pos(ArenaAllocator *arena)
+static inline uint64_t arena_pos(ArenaAllocator *arena)
 {
     return arena->pos_;
 }
 
-inline ALIGNED void *arena_push(ArenaAllocator *arena, uint64_t size)
+static inline void *arena_push(ArenaAllocator *arena, uint64_t size)
 {
-    uint64_t pos = (arena->pos_ + ALIGN_TO) & (0xffffffff & ALIGN_TO);
+    uint64_t pos = (arena->pos_ + ALIGN_TO) & ~(ALIGN_TO - 1u);
     arena->pos_ = pos + size;
     return ((char *) arena->start_) + pos;
 }
 
-inline void arena_pop_to(ArenaAllocator *arena, uint64_t pos)
+static inline void arena_pop_to(ArenaAllocator *arena, uint64_t pos)
 {
-    arena->pos = pos;
+    arena->pos_  = pos;
 }
 
 #define arena_push_count(arena, type, count) \
-    (type *) arena_push((arena), (count) * sizeof(type))
+    arena_push((arena), (count) * sizeof(type))
 
 #define arena_enter(arena) uint64_t __arena_pos = arena_pos((arena))
 

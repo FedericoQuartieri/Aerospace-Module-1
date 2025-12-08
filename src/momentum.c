@@ -1,19 +1,19 @@
-#include <stdio.h>
+#include "momentum.h"
 
-#include "lin-solver.h"
+#include "ftype.h"
+#include "alloc.h"
+#include "field.h"
+#include "finite-diff.h"
 #include "boundary.h"
 #include "consts.h"
-#include "finite-diff.h"
 
 static inline __attribute__((always_inline))
-vftype compute_g_comp_at(const ftype *__restrict__ eta,
-                         const ftype *__restrict__ zeta,
-                         const ftype *__restrict__ u,
+vftype compute_g_comp_at(const ftype *restrict eta,
+                         const ftype *restrict zeta,
+                         const ftype *restrict u,
                          uint64_t idx,
                          uint32_t height,
                          uint32_t width,
-                         ftype nu,
-                         ftype dx,
                          vftype k,
                          vftype eta_,
                          vftype zeta_,
@@ -28,9 +28,9 @@ vftype compute_g_comp_at(const ftype *__restrict__ eta,
 
     /* WARNING: Null volume force. */
     vftype f_ = vbroadcast(0.0);
-    vftype nu_half = vbroadcast(nu / 2);
-    vftype inv_dx = vbroadcast(1 / dx);
-    vftype inv_dxdx = vbroadcast(1 / (dx * dx));
+    vftype nu_half = vbroadcast(_NU / 2);
+    vftype inv_dx = vbroadcast(1 / _DX);
+    vftype inv_dxdx = vbroadcast(1 / (_DX * _DX));
 
     /* yes, it's ugly :/ */
     return vadd(f_,
@@ -45,62 +45,56 @@ vftype compute_g_comp_at(const ftype *__restrict__ eta,
 }
 
 static inline __attribute__((always_inline))
-vftype compute_momentum_Dxx_rhs_comp_at(const ftype *__restrict__ eta,
-                                        const ftype *__restrict__ zeta,
-                                        const ftype *__restrict__ u,
-                                        uint64_t idx,
-                                        uint32_t height,
-                                        uint32_t width,
-                                        ftype nu,
-                                        ftype dx,
-                                        vftype k,
-                                        vftype D_pp,
-                                        vftype dt_beta)
+vftype compute_Dxx_rhs_comp_at(const ftype *restrict eta,
+                               const ftype *restrict zeta,
+                               const ftype *restrict u,
+                               uint64_t idx,
+                               uint32_t height,
+                               uint32_t width,
+                               vftype k,
+                               vftype D_pp,
+                               vftype dt_beta)
 {
     vftype eta_ = vload(eta + idx);
     vftype zeta_ = vload(zeta + idx);
     vftype u_ = vload(u + idx);
     vftype g = compute_g_comp_at(eta, zeta, u,
-                                 idx, height, width, nu, dx,
+                                 idx, height, width,
                                  k, eta_, zeta_, u_, D_pp);
     return vsub(vfmadd(dt_beta, g, u_), eta_);
 }
 
-void compute_momentum_Dxx_rhs(
-    const ftype *__restrict__ k, /* Porosity. */
-    /* Pressure from previous half-step. */
-    const ftype *__restrict__ p,
-    /* Pressure correction from previous half-step. */
-    const ftype *__restrict__ phi,
-    /* (I - wDxx) velocity from previous step */
-    const ftype *__restrict__ eta_x,
-    const ftype *__restrict__ eta_y,
-    const ftype *__restrict__ eta_z,
-    /* (I - wDyy) velocity from previous step */
-    const ftype *__restrict__ zeta_x,
-    const ftype *__restrict__ zeta_y,
-    const ftype *__restrict__ zeta_z,
-    /* Velocity from previous step */
-    const ftype *__restrict__ u_x,
-    const ftype *__restrict__ u_y,
-    const ftype *__restrict__ u_z,
-    uint32_t depth,
-    uint32_t height,
-    uint32_t width,
-    ftype u_ex_x,
-    ftype u_ex_y,
-    ftype u_ex_z,
-    ftype nu, /* Viscosity */
-    ftype dt, /* Timestep size */
-    ftype dx, /* Grid cell size */
-    ftype *__restrict__ rhs_x,
-    ftype *__restrict__ rhs_y,
-    ftype *__restrict__ rhs_z)
+void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
+                     /* Pressure from previous half-step. */
+                     const ftype *restrict p,
+                     /* Pressure correction from previous half-step. */
+                     const ftype *restrict phi,
+                     /* (I - wDxx) velocity from previous step */
+                     const ftype *restrict eta_x,
+                     const ftype *restrict eta_y,
+                     const ftype *restrict eta_z,
+                     /* (I - wDyy) velocity from previous step */
+                     const ftype *restrict zeta_x,
+                     const ftype *restrict zeta_y,
+                     const ftype *restrict zeta_z,
+                     /* Velocity from previous step */
+                     const ftype *restrict u_x,
+                     const ftype *restrict u_y,
+                     const ftype *restrict u_z,
+                     uint32_t depth,
+                     uint32_t height,
+                     uint32_t width,
+                     ftype u_ex_x,
+                     ftype u_ex_y,
+                     ftype u_ex_z,
+                     ftype *restrict rhs_x,
+                     ftype *restrict rhs_y,
+                     ftype *restrict rhs_z)
 {
     /* TODO: Consider on the fly rhs evaluation while solving. */
 
-    vftype vdt = vbroadcast(dt);
-    vftype vdt_nu = vbroadcast(dt * nu);
+    vftype vdt = vbroadcast(_DT);
+    vftype vdt_nu = vbroadcast(_DT * _NU);
 
     /* We can avoid computing rhs at i = 0, j = 0, k = 0,
      * i = depth - 1 (for z), j = height - 1 (for y)
@@ -110,8 +104,6 @@ void compute_momentum_Dxx_rhs(
         for (uint32_t j = 1; j < height; j++) {
             for (uint32_t l = 0; l < width; l += VLEN) {
                 uint64_t idx = height * width * i + width * j + l;
-
-                /* WARNING: Not too sure about were not to compute rhs. */
 
                 /* Compute the gradient of pressure predictor pp = p + phi. */
                 vftype Dx_p, Dy_p, Dz_p;
@@ -133,26 +125,23 @@ void compute_momentum_Dxx_rhs(
                 /* NT stores make no difference here,
                  * loads are bottlenecking. */
                 vstore(rhs_x + idx,
-                       compute_momentum_Dxx_rhs_comp_at(eta_x, zeta_x, u_x,
-                                                        idx, height, width,
-                                                        nu, dx, k_, Dx_pp,
-                                                        dt_beta));
+                       compute_Dxx_rhs_comp_at(eta_x, zeta_x, u_x,
+                                               idx, height, width,
+                                               k_, Dx_pp, dt_beta));
                 vstore(rhs_y + idx,
-                       compute_momentum_Dxx_rhs_comp_at(eta_y, zeta_y, u_y,
-                                                        idx, height, width,
-                                                        nu, dx, k_, Dy_pp,
-                                                        dt_beta));
+                       compute_Dxx_rhs_comp_at(eta_y, zeta_y, u_y,
+                                               idx, height, width,
+                                                k_, Dy_pp, dt_beta));
                 vstore(rhs_z + idx,
-                       compute_momentum_Dxx_rhs_comp_at(eta_z, zeta_z, u_z,
-                                                        idx, height, width,
-                                                        nu, dx, k_, Dz_pp,
-                                                        dt_beta));
+                       compute_Dxx_rhs_comp_at(eta_z, zeta_z, u_z,
+                                               idx, height, width,
+                                               k_, Dz_pp, dt_beta));
             }
 
             /* For y and z, correct Dxx(eta) using the ghost node. */
             uint64_t idx = height * width * i + width * j + width - 1;
-            ftype coeff = 2 * k[idx] * dt / (2 * k[idx] + dt * nu) *
-                          nu / (2 * dx * dx);
+            ftype coeff = 2 * k[idx] * _DT / (2 * k[idx] + _DT * _NU) *
+                          _NU / (2 * _DX * _DX);
             rhs_y[idx] -= coeff * (eta_y[idx + 1] + eta_y[idx] - 2 * u_ex_y);
             rhs_z[idx] -= coeff * (eta_z[idx + 1] + eta_z[idx] - 2 * u_ex_z);
         }
@@ -163,8 +152,8 @@ void compute_momentum_Dxx_rhs(
             /* For x and z, correct Dyy(zeta) using the ghost node. */
 
             vftype k_ = vload(k + idx);
-            vftype coeff = 2 * k_ * dt / (2 * k_ + dt * nu) *
-                           nu / (2 * dx * dx);
+            vftype coeff = 2 * k_ * _DX / (2 * k_ + _DT * _NU) *
+                           _NU / (2 * _DX * _DX);
 
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(zeta_x + idx + width) +
@@ -183,8 +172,8 @@ void compute_momentum_Dxx_rhs(
             /* For x and y, correct Dzz(u) using the ghost node. */
 
             vftype k_ = vload(k + idx);
-            vftype coeff = 2 * k_ * dt / (2 * k_ + dt * nu) *
-                           nu / (2 * dx * dx);
+            vftype coeff = 2 * k_ * _DT / (2 * k_ + _DT * _NU) *
+                           _NU / (2 * _DX * _DX);
 
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(u_x + idx + height * width) +
@@ -215,17 +204,16 @@ static vftype ZEROS;
 static vftype ONES;
 static vftype SIGN_MASK;
 
-
 /* WARNING: You must scale w by 1/dx^2!! */
 
 static inline __attribute__((always_inline))
 void apply_start_bc(vftype u0_x,
                     vftype u0_y,
                     vftype u0_z,
-                    ftype *__restrict__ upper,
-                    ftype *__restrict__ f_x,
-                    ftype *__restrict__ f_y,
-                    ftype *__restrict__ f_z)
+                    ftype *restrict upper,
+                    ftype *restrict f_x,
+                    ftype *restrict f_y,
+                    ftype *restrict f_z)
 {
     /* u_x = u_0 + (-du_y/dy -du_z/dz) * dx/2
      * u_y = u0_y
@@ -252,18 +240,18 @@ vftype compute_end_bc_tang_u(vftype ws,
 }
 
 static inline __attribute__((always_inline))
-void apply_end_bc(const ftype *__restrict__ w,
-                  const ftype *__restrict__ upper_prev,
-                  const ftype *__restrict__ f_y_prev,
-                  const ftype *__restrict__ f_z_prev,
-                  const ftype *__restrict__ f_y,
-                  const ftype *__restrict__ f_z,
+void apply_end_bc(const ftype *restrict w,
+                  const ftype *restrict upper_prev,
+                  const ftype *restrict f_y_prev,
+                  const ftype *restrict f_z_prev,
+                  const ftype *restrict f_y,
+                  const ftype *restrict f_z,
                   vftype un_x,
                   vftype un_y,
                   vftype un_z,
-                  vftype *__restrict__ u_x,
-                  vftype *__restrict__ u_y,
-                  vftype *__restrict__ u_z)
+                  vftype *restrict u_x,
+                  vftype *restrict u_y,
+                  vftype *restrict u_z)
 {
     /* u_x = un_x
      * u_y =  (-2w_i un_y - f_y_i + w_i f_y_i_prev) /
@@ -293,10 +281,10 @@ static inline __attribute__((always_inline))
 void apply_left_bc(uint32_t x,
                    uint32_t y,
                    uint32_t z,
-                   ftype *__restrict__ upper,
-                   ftype *__restrict__ f_x,
-                   ftype *__restrict__ f_y,
-                   ftype *__restrict__ f_z)
+                   ftype *restrict upper,
+                   ftype *restrict f_x,
+                   ftype *restrict f_y,
+                   ftype *restrict f_z)
 {
     vftype u0_x, u0_y, u0_z;
     _get_left_bc_u(x, y, z, &u0_x, &u0_y, &u0_z);
@@ -305,19 +293,19 @@ void apply_left_bc(uint32_t x,
 }
 
 static inline __attribute__((always_inline))
-void apply_right_bc(const ftype *__restrict__ w,
-                    const ftype *__restrict__ upper_prev,
-                    const ftype *__restrict__ f_y_prev,
-                    const ftype *__restrict__ f_z_prev,
+void apply_right_bc(const ftype *restrict w,
+                    const ftype *restrict upper_prev,
+                    const ftype *restrict f_y_prev,
+                    const ftype *restrict f_z_prev,
                     uint32_t x,
                     uint32_t y,
                     uint32_t z,
-                    ftype *__restrict__ f_x,
-                    ftype *__restrict__ f_y,
-                    ftype *__restrict__ f_z,
-                    vftype *__restrict__ u_x,
-                    vftype *__restrict__ u_y,
-                    vftype *__restrict__ u_z)
+                    ftype *restrict f_x,
+                    ftype *restrict f_y,
+                    ftype *restrict f_z,
+                    vftype *restrict u_x,
+                    vftype *restrict u_y,
+                    vftype *restrict u_z)
 {
     vftype un_x, un_y, un_z;
     _get_right_bc_u(x, y, z, &un_x, &un_y, &un_z);
@@ -340,17 +328,17 @@ void apply_right_bc(const ftype *__restrict__ w,
  * [      0      -w_2    1+2w_2    -w_2  ...]
  * ...
  */
-static void solve_wDxx_tridiag(const ftype *__restrict__ w,
+static void solve_wDxx_tridiag(const ftype *restrict w,
                                uint32_t y,
                                uint32_t z,
                                uint32_t n,
-                               ftype *__restrict__ tmp,
-                               ftype *__restrict__ f_x,
-                               ftype *__restrict__ f_y,
-                               ftype *__restrict__ f_z,
-                               ftype *__restrict__ u_x,
-                               ftype *__restrict__ u_y,
-                               ftype *__restrict__ u_z)
+                               ftype *restrict tmp,
+                               ftype *restrict f_x,
+                               ftype *restrict f_y,
+                               ftype *restrict f_z,
+                               ftype *restrict u_x,
+                               ftype *restrict u_y,
+                               ftype *restrict u_z)
 {
     /* Perform gaussian elimination. */
     /* Using tmp to store reduced upper diagonal. */
@@ -390,52 +378,14 @@ static void solve_wDxx_tridiag(const ftype *__restrict__ w,
 #else
 
 static inline __attribute__((always_inline))
-void transpose_vtile(const ftype *__restrict__ src,
-                     uint32_t src_stride,
-                     uint32_t dst_stride,
-                     ftype *__restrict__ dst)
-{
-    /* TODO: faster version if you transpose in memory using insert2f128? */
-#ifdef FLOAT
-    vftype r0 = vload(src + 0 * src_stride);
-    vftype r1 = vload(src + 1 * src_stride);
-    vftype r2 = vload(src + 2 * src_stride);
-    vftype r3 = vload(src + 3 * src_stride);
-    vftype r4 = vload(src + 4 * src_stride);
-    vftype r5 = vload(src + 5 * src_stride);
-    vftype r6 = vload(src + 6 * src_stride);
-    vftype r7 = vload(src + 7 * src_stride);
-    vtranspose(&r0, &r1, &r2, &r3, &r4, &r5, &r6, &r7);
-    vstore(dst + 0 * dst_stride, r0);
-    vstore(dst + 1 * dst_stride, r1);
-    vstore(dst + 2 * dst_stride, r2);
-    vstore(dst + 3 * dst_stride, r3);
-    vstore(dst + 4 * dst_stride, r4);
-    vstore(dst + 5 * dst_stride, r5);
-    vstore(dst + 6 * dst_stride, r6);
-    vstore(dst + 7 * dst_stride, r7);
-#else
-    vftype r0 = vload(src + 0 * src_stride);
-    vftype r1 = vload(src + 1 * src_stride);
-    vftype r2 = vload(src + 2 * src_stride);
-    vftype r3 = vload(src + 3 * src_stride);
-    vtranspose(&r0, &r1, &r2, &r3);
-    vstore(dst + 0 * dst_stride, r0);
-    vstore(dst + 1 * dst_stride, r1);
-    vstore(dst + 2 * dst_stride, r2);
-    vstore(dst + 3 * dst_stride, r3);
-#endif
-}
-
-static inline __attribute__((always_inline))
-void gauss_reduce_vstrip(const ftype *__restrict__ w,
-                         ftype *__restrict__ upper_prev,
-                         const ftype *__restrict__ f_x_src,
-                         const ftype *__restrict__ f_y_src,
-                         const ftype *__restrict__ f_z_src,
-                         ftype *__restrict__ f_x_dst,
-                         ftype *__restrict__ f_y_dst,
-                         ftype *__restrict__ f_z_dst)
+void gauss_reduce_vstrip(const ftype *restrict w,
+                         ftype *restrict upper_prev,
+                         const ftype *restrict f_x_src,
+                         const ftype *restrict f_y_src,
+                         const ftype *restrict f_z_src,
+                         ftype *restrict f_x_dst,
+                         ftype *restrict f_y_dst,
+                         ftype *restrict f_z_dst)
 {
     vftype ws = vload(w);
     vftype upper_prevs = vload(upper_prev);
@@ -453,16 +403,16 @@ void gauss_reduce_vstrip(const ftype *__restrict__ w,
 }
 
 static inline __attribute__((always_inline))
-void backward_sub_vstrip(const ftype *__restrict__ f_x,
-                         const ftype *__restrict__ f_y,
-                         const ftype *__restrict__ f_z,
-                         const ftype *__restrict__ upper,
-                         vftype *__restrict__ u_x_prevs,
-                         vftype *__restrict__ u_y_prevs,
-                         vftype *__restrict__ u_z_prevs,
-                         ftype *__restrict__ u_x,
-                         ftype *__restrict__ u_y,
-                         ftype *__restrict__ u_z)
+void backward_sub_vstrip(const ftype *restrict f_x,
+                         const ftype *restrict f_y,
+                         const ftype *restrict f_z,
+                         const ftype *restrict upper,
+                         vftype *restrict u_x_prevs,
+                         vftype *restrict u_y_prevs,
+                         vftype *restrict u_z_prevs,
+                         ftype *restrict u_x,
+                         ftype *restrict u_y,
+                         ftype *restrict u_z)
 {
     vftype fs_x = vload(f_x);
     vftype fs_y = vload(f_y);
@@ -479,18 +429,18 @@ void backward_sub_vstrip(const ftype *__restrict__ f_x,
 #endif
 
 /* Solves the block diagonal system (I - w∂xx)u = f. */
-static void solve_momentum_Dxx(const ftype *__restrict__ w,
-                              uint32_t depth,
-                              uint32_t height,
-                              uint32_t width,
-                              /* tmp buffer of size 4 * (VLEN * width) */
-                              ftype *__restrict__ tmp,
-                              ftype *__restrict__ f_x,
-                              ftype *__restrict__ f_y,
-                              ftype *__restrict__ f_z,
-                              ftype *__restrict__ u_x,
-                              ftype *__restrict__ u_y,
-                              ftype *__restrict__ u_z)
+static void solve_Dxx_blocks(const ftype *restrict w,
+                             uint32_t depth,
+                             uint32_t height,
+                             uint32_t width,
+                             /* tmp buffer of size 4 * (VLEN * width) */
+                             ftype *restrict tmp,
+                             ftype *restrict f_x,
+                             ftype *restrict f_y,
+                             ftype *restrict f_z,
+                             ftype *restrict u_x,
+                             ftype *restrict u_y,
+                             ftype *restrict u_z)
 {
 #ifdef AUTO_VEC
     /* Solving for each row of the domain, one at a time. */
@@ -508,11 +458,11 @@ static void solve_momentum_Dxx(const ftype *__restrict__ w,
     ONES = vbroadcast(1.0);
     SIGN_MASK = vbroadcast(-0.0f);
 
-    ftype *__restrict__ tmp_upp = tmp;
+    ftype *restrict tmp_upp = tmp;
     /* WARNING: Cache aliasing? */
-    ftype *__restrict__ tmp_f_x = tmp + 1 * width * VLEN;
-    ftype *__restrict__ tmp_f_y = tmp + 2 * width * VLEN;
-    ftype *__restrict__ tmp_f_z = tmp + 3 * width * VLEN;
+    ftype *restrict tmp_f_x = tmp + 1 * width * VLEN;
+    ftype *restrict tmp_f_y = tmp + 2 * width * VLEN;
+    ftype *restrict tmp_f_z = tmp + 3 * width * VLEN;
 
     /* TODO: Why don't you write the solution directly to f?
      * You can reduce the number of cache misses. */
@@ -650,13 +600,13 @@ static void solve_momentum_Dxx(const ftype *__restrict__ w,
 }
 
 static inline __attribute__((always_inline))
-void gauss_reduce_row(const ftype *__restrict__ w,
+void gauss_reduce_row(const ftype *restrict w,
                       uint32_t width,
                       uint32_t row_stride,
-                      ftype *__restrict__ upper,
-                      ftype *__restrict__ f_x,
-                      ftype *__restrict__ f_y,
-                      ftype *__restrict__ f_z)
+                      ftype *restrict upper,
+                      ftype *restrict f_x,
+                      ftype *restrict f_y,
+                      ftype *restrict f_z)
 {
     for (uint32_t i = 0; i < width; i += VLEN) {
         vftype ws = vload(w + i);
@@ -676,15 +626,15 @@ void gauss_reduce_row(const ftype *__restrict__ w,
 }
 
 static inline __attribute__((always_inline))
-void backward_sub_row(const ftype *__restrict__ f_x,
-                      const ftype *__restrict__ f_y,
-                      const ftype *__restrict__ f_z,
-                      const ftype *__restrict__ upper,
+void backward_sub_row(const ftype *restrict f_x,
+                      const ftype *restrict f_y,
+                      const ftype *restrict f_z,
+                      const ftype *restrict upper,
                       uint32_t width,
                       uint32_t row_stride,
-                      ftype *__restrict__ u_x,
-                      ftype *__restrict__ u_y,
-                      ftype *__restrict__ u_z)
+                      ftype *restrict u_x,
+                      ftype *restrict u_y,
+                      ftype *restrict u_z)
 {
     for (int k = 0; k < width; k += VLEN) {
         vftype fs_x = vload(f_x + k);
@@ -704,10 +654,10 @@ static inline __attribute__((always_inline))
 void apply_top_bc(uint32_t x,
                   uint32_t y,
                   uint32_t z,
-                  ftype *__restrict__ upper,
-                  ftype *__restrict__ f_x,
-                  ftype *__restrict__ f_y,
-                  ftype *__restrict__ f_z)
+                  ftype *restrict upper,
+                  ftype *restrict f_x,
+                  ftype *restrict f_y,
+                  ftype *restrict f_z)
 {
     vftype u0_x, u0_y, u0_z;
     _get_top_bc_u(x, y, z, &u0_x, &u0_y, &u0_z);
@@ -716,18 +666,18 @@ void apply_top_bc(uint32_t x,
 }
 
 static inline __attribute__((always_inline))
-void apply_bottom_bc(const ftype *__restrict__ w,
-                     const ftype *__restrict__ upper_prev,
-                     const ftype *__restrict__ f_x_prev,
-                     const ftype *__restrict__ f_z_prev,
-                     const ftype *__restrict__ f_x,
-                     const ftype *__restrict__ f_z,
+void apply_bottom_bc(const ftype *restrict w,
+                     const ftype *restrict upper_prev,
+                     const ftype *restrict f_x_prev,
+                     const ftype *restrict f_z_prev,
+                     const ftype *restrict f_x,
+                     const ftype *restrict f_z,
                      uint32_t x,
                      uint32_t y,
                      uint32_t z,
-                     ftype *__restrict__ u_x,
-                     ftype *__restrict__ u_y,
-                     ftype *__restrict__ u_z)
+                     ftype *restrict u_x,
+                     ftype *restrict u_y,
+                     ftype *restrict u_z)
 {
     vftype un_x, un_y, un_z;
     _get_bottom_bc_u(x, y, z, &un_x, &un_y, &un_z);
@@ -742,17 +692,17 @@ void apply_bottom_bc(const ftype *__restrict__ w,
 }
 
 /* Solves the block diagonal system (I - w∂yy)u = f. */
-static void solve_momentum_Dyy(const ftype *__restrict__ w,
-                               uint32_t depth,
-                               uint32_t height,
-                               uint32_t width,
-                               ftype *__restrict__ tmp,
-                               ftype *__restrict__ f_x,
-                               ftype *__restrict__ f_y,
-                               ftype *__restrict__ f_z,
-                               ftype *__restrict__ u_x,
-                               ftype *__restrict__ u_y,
-                               ftype *__restrict__ u_z)
+static void solve_Dyy_blocks(const ftype *restrict w,
+                             uint32_t depth,
+                             uint32_t height,
+                             uint32_t width,
+                             ftype *restrict tmp,
+                             ftype *restrict f_x,
+                             ftype *restrict f_y,
+                             ftype *restrict f_z,
+                             ftype *restrict u_x,
+                             ftype *restrict u_y,
+                             ftype *restrict u_z)
 {
     ZEROS = vbroadcast(0.0);
     ONES = vbroadcast(1.0);
@@ -815,10 +765,10 @@ static inline __attribute__((always_inline))
 void apply_front_bc(uint32_t x,
                     uint32_t y,
                     uint32_t z,
-                    ftype *__restrict__ upper,
-                    ftype *__restrict__ f_x,
-                    ftype *__restrict__ f_y,
-                    ftype *__restrict__ f_z)
+                    ftype *restrict upper,
+                    ftype *restrict f_x,
+                    ftype *restrict f_y,
+                    ftype *restrict f_z)
 {
     vftype u0_x, u0_y, u0_z;
     _get_front_bc_u(x, y, z, &u0_x, &u0_y, &u0_z);
@@ -827,18 +777,18 @@ void apply_front_bc(uint32_t x,
 }
 
 static inline __attribute__((always_inline))
-void apply_back_bc(const ftype *__restrict__ w,
-                   const ftype *__restrict__ upper_prev,
-                   const ftype *__restrict__ f_x_prev,
-                   const ftype *__restrict__ f_y_prev,
-                   const ftype *__restrict__ f_x,
-                   const ftype *__restrict__ f_y,
+void apply_back_bc(const ftype *restrict w,
+                   const ftype *restrict upper_prev,
+                   const ftype *restrict f_x_prev,
+                   const ftype *restrict f_y_prev,
+                   const ftype *restrict f_x,
+                   const ftype *restrict f_y,
                    uint32_t x,
                    uint32_t y,
                    uint32_t z,
-                   ftype *__restrict__ u_x,
-                   ftype *__restrict__ u_y,
-                   ftype *__restrict__ u_z)
+                   ftype *restrict u_x,
+                   ftype *restrict u_y,
+                   ftype *restrict u_z)
 {
     vftype un_x, un_y, un_z;
     _get_back_bc_u(x, y, z, &un_x, &un_y, &un_z);
@@ -853,17 +803,17 @@ void apply_back_bc(const ftype *__restrict__ w,
 }
 
 /* Solves the block diagonal system (I - w∂zz)u = f. */
-static void solve_momentum_Dzz(const ftype *__restrict__ w,
-                               uint32_t depth,
-                               uint32_t height,
-                               uint32_t width,
-                               ftype *__restrict__ tmp,
-                               ftype *__restrict__ f_x,
-                               ftype *__restrict__ f_y,
-                               ftype *__restrict__ f_z,
-                               ftype *__restrict__ u_x,
-                               ftype *__restrict__ u_y,
-                               ftype *__restrict__ u_z)
+static void solve_Dzz_blocks(const ftype *restrict w,
+                             uint32_t depth,
+                             uint32_t height,
+                             uint32_t width,
+                             ftype *restrict tmp,
+                             ftype *restrict f_x,
+                             ftype *restrict f_y,
+                             ftype *restrict f_z,
+                             ftype *restrict u_x,
+                             ftype *restrict u_y,
+                             ftype *restrict u_z)
 {
     ZEROS = vbroadcast(0.0);
     ONES = vbroadcast(1.0);
@@ -930,13 +880,35 @@ static void solve_momentum_Dzz(const ftype *__restrict__ w,
 }
 
 
-void momentum_init(field_size size, field3 field);
+static void compute_next_rhs(const_field velocity_delta_x,
+                             const_field velocity_delta_y,
+                             const_field velocity_delta_z,
+                             const_field next_velocity_x,
+                             const_field next_velocity_y,
+                             const_field next_velocity_z,
+                             field_size size,
+                             field velocity_x,
+                             field velocity_y,
+                             field velocity_z,
+                             field next_rhs_x,
+                             field next_rhs_y,
+                             field next_rhs_z)
 {
-    uint64_t size = size.depth * size.height * size.width * sizeof(ftype);
+    uint64_t num_points = field_num_points(size);
+    for (uint64_t i = 0; i < num_points; ++i) {
+        velocity_x[i] += velocity_delta_x[i];
+        velocity_y[i] += velocity_delta_y[i];
+        velocity_z[i] += velocity_delta_z[i];
 
-    memset(field.x, 0, size);
-    memset(field.y, 0, size);
-    memset(field.z, 0, size);
+        next_rhs_x[i] = velocity_x[i] - next_velocity_x[i];
+        next_rhs_y[i] = velocity_y[i] - next_velocity_y[i];
+        next_rhs_z[i] = velocity_z[i] - next_velocity_z[i];
+    }
+}
+
+void momentum_init(field_size size, field3 field)
+{
+    field3_fill(size, 0.0, field);
 
     /* Initialize front face. */
     for (uint32_t j = 0; j < size.height; ++j) {
@@ -944,10 +916,11 @@ void momentum_init(field_size size, field3 field);
             vftype u_x, u_y, u_z;
             _get_front_bc_u(k, j, 0, &u_x, &u_y, &u_z);
 
-            uint64_t idx = width * j + k;
+            uint64_t idx = size.width * j + k;
             vstore(field.x + idx, u_x);
             vstore(field.y + idx, u_y);
             vstore(field.z + idx, u_z);
+        }
     }
 
     for (uint32_t i = 1; i < size.depth - 1; ++i) {
@@ -972,7 +945,7 @@ void momentum_init(field_size size, field3 field);
             _get_bottom_bc_u(k, size.height - 1, i, &u_x, &u_y, &u_z);
 
             uint64_t idx = size.height * size.width * i +
-                           (size.height - 1) * j + k;
+                           size.width * (size.height - 1) + k;
             vstore(field.x + idx, u_x);
             vstore(field.y + idx, u_y);
             vstore(field.z + idx, u_z);
@@ -986,14 +959,75 @@ void momentum_init(field_size size, field3 field);
             _get_back_bc_u(k, j, 0, &u_x, &u_y, &u_z);
 
             uint64_t idx = size.height * size.width *
-                           (depth - 1) + size.width * j + k;
+                           (size.depth - 1) + size.width * j + k;
             vstore(field.x + idx, u_x);
             vstore(field.y + idx, u_y);
             vstore(field.z + idx, u_z);
+        }
     }
 }
 
-void momentum_solve()
+void momentum_solve(const_field porosity,
+                    const_field gamma,
+                    const_field pressure,
+                    const_field pressure_delta,
+                    field_size size,
+                    field3 velocity_Dxx,
+                    field3 velocity_Dyy,
+                    field3 velocity_Dzz,
+                    ArenaAllocator *arena)
 {
-    return;
+    arena_enter(arena);
+
+    field tmp = field_alloc(size, arena);
+    field3 rhs = field3_alloc(size, arena);
+    field3 delta = field3_alloc(size, arena);
+
+    /* WARNING: I should pass velocity_D**.x + face_size. */
+
+    compute_Dxx_rhs(porosity, pressure, pressure_delta, velocity_Dxx.x,
+                    velocity_Dxx.y, velocity_Dxx.z, velocity_Dyy.x,
+                    velocity_Dyy.y, velocity_Dyy.z, velocity_Dzz.x,
+                    velocity_Dzz.y, velocity_Dzz.z, size.depth, size.height,
+                    size.width, 0.0, 0.0, 0.0, rhs.x, rhs.y, rhs.z);
+
+    solve_Dxx_blocks(gamma, size.depth, size.height, size.width, tmp,
+                     rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z);
+
+    /* TODO: Fuse this with solve_Dxx_blocks() */
+
+    /* Updates velocity_Dxx and computes next rhs. */
+    compute_next_rhs(delta.x, delta.y, delta.z, velocity_Dyy.x,
+                     velocity_Dyy.y, velocity_Dyy.z, size, velocity_Dxx.x,
+                     velocity_Dxx.y, velocity_Dxx.z, rhs.x, rhs.y, rhs.z);
+
+    solve_Dyy_blocks(gamma, size.depth, size.height, size.width, tmp,
+                     rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z);
+
+    /* Updates velocity_Dyy and computes next rhs. */
+    compute_next_rhs(delta.x, delta.y, delta.z, velocity_Dzz.x,
+                     velocity_Dzz.y, velocity_Dzz.z, size, velocity_Dyy.x,
+                     velocity_Dyy.y, velocity_Dyy.z, rhs.x, rhs.y, rhs.z);
+
+    solve_Dzz_blocks(gamma, size.depth, size.height, size.width, tmp,
+                     rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z);
+
+    /* Updates velocity_Dzz. */
+
+    /* WARNING: Enforce restrict, consider using -fno-alias */
+    const_field velocity_delta_x = velocity_Dzz.x;
+    const_field velocity_delta_y = velocity_Dzz.y;
+    const_field velocity_delta_z = velocity_Dzz.z;
+    field velocity_x = velocity_Dzz.x;
+    field velocity_y = velocity_Dzz.y;
+    field velocity_z = velocity_Dzz.z;
+
+    uint64_t num_points = field_num_points(size);
+    for (uint64_t i = 0; i < num_points; ++i) {
+        velocity_x[i] += velocity_delta_x[i];
+        velocity_y[i] += velocity_delta_y[i];
+        velocity_z[i] += velocity_delta_z[i];
+    }
+
+    arena_exit(arena);
 }
