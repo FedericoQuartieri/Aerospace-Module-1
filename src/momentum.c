@@ -936,7 +936,28 @@ void momentum_init(field_size size, field3 field)
         }
 
         for (uint32_t j = 1; j < size.height - 1; ++j) {
-            /* TODO: I need a scalar bc getter. */
+            uint64_t idx = size.height * size.width * i + size.width * j;
+
+            /* TODO: I need a scalar bc getter, for now
+             * extract the first element of the vector. */
+            ftype __attribute__((aligned(32))) tmp[VLEN];
+            vftype u_x, u_y, u_z;
+
+            _get_left_bc_u(0, j, i, &u_x, &u_y, &u_z);
+            vstore(tmp, u_x);
+            field.x[idx] = tmp[0];
+            vstore(tmp, u_y);
+            field.y[idx] = tmp[0];
+            vstore(tmp, u_z);
+            field.z[idx] = tmp[0];
+
+            _get_right_bc_u(size.width - 1, j, i, &u_x, &u_y, &u_z);
+            vstore(tmp, u_x);
+            field.x[idx + size.width - 1] = tmp[0];
+            vstore(tmp, u_y);
+            field.y[idx + size.width - 1] = tmp[0];
+            vstore(tmp, u_z);
+            field.z[idx + size.width - 1] = tmp[0];
         }
 
         /* Initialize bottom face. */
@@ -956,7 +977,7 @@ void momentum_init(field_size size, field3 field)
     for (uint32_t j = 0; j < size.height; ++j) {
         for (uint32_t k = 0; k < size.width; k += VLEN) {
             vftype u_x, u_y, u_z;
-            _get_back_bc_u(k, j, 0, &u_x, &u_y, &u_z);
+            _get_back_bc_u(k, j, size.depth - 1, &u_x, &u_y, &u_z);
 
             uint64_t idx = size.height * size.width *
                            (size.depth - 1) + size.width * j + k;
@@ -982,8 +1003,6 @@ void momentum_solve(const_field porosity,
     field tmp = field_alloc(size, arena);
     field3 rhs = field3_alloc(size, arena);
     field3 delta = field3_alloc(size, arena);
-
-    /* WARNING: I should pass velocity_D**.x + face_size. */
 
     compute_Dxx_rhs(porosity, pressure, pressure_delta, velocity_Dxx.x,
                     velocity_Dxx.y, velocity_Dxx.z, velocity_Dyy.x,

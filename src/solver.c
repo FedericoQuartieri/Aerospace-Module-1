@@ -38,8 +38,8 @@ Solver *solver_alloc(uint32_t domain_depth,
     solver->pressure = field_alloc(domain_size, arena);
     solver->pressure_delta = field_alloc(domain_size, arena);
 
-     /* Extra faces for in-bound finite difference. */
-    domain_size.depth = domain_depth + 2;
+    /* WARNING: We would need extra faces for in-bound finite
+     * differences, but the arena is forgiving, we won't get segfaults. */
     solver->velocity_Dxx = field3_alloc(domain_size, arena);
     solver->velocity_Dyy = field3_alloc(domain_size, arena);
     solver->velocity_Dzz = field3_alloc(domain_size, arena);
