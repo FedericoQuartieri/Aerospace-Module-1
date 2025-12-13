@@ -98,9 +98,30 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
 
     /* We can avoid computing rhs at i = 0, j = 0, k = 0,
      * i = depth - 1 (for z), j = height - 1 (for y)
-     * and k = width - 1 (for x). */
+     * and k = width - 1 (for x). We set rhs to 0 there
+     * at the moment. */
+
+    /* Fill with zeros first row, since solution is enforced by BCs
+    * there (only valid for constant BCs, right?) */
+    for (uint32_t j = 0; j < height; ++j) {
+        for (uint32_t l = 0; l < width; l += VLEN) {
+            uint64_t idx = width * j + l;
+            vstore(rhs_x + idx, vbroadcast(0));
+            vstore(rhs_y + idx, vbroadcast(0));
+            vstore(rhs_z + idx, vbroadcast(0));
+        }
+    }
 
     for (uint32_t i = 1; i < depth; ++i) {
+        /* Fill with zeros first row, since solution is enforced by BCs
+         * there (only valid for constant BCs, right?) */
+        for (uint32_t l = 0; l < width; l += VLEN) {
+            uint64_t idx = height * width * i + l;
+            vstore(rhs_x + idx, vbroadcast(0));
+            vstore(rhs_y + idx, vbroadcast(0));
+            vstore(rhs_z + idx, vbroadcast(0));
+        }
+
         for (uint32_t j = 1; j < height; j++) {
             for (uint32_t l = 0; l < width; l += VLEN) {
                 uint64_t idx = height * width * i + width * j + l;
@@ -144,6 +165,8 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
                           _NU / (2 * _DX * _DX);
             rhs_y[idx] -= coeff * (eta_y[idx + 1] + eta_y[idx] - 2 * u_ex_y);
             rhs_z[idx] -= coeff * (eta_z[idx + 1] + eta_z[idx] - 2 * u_ex_z);
+            /* No need to set to 0 for start of the row, since we enforce
+             * BCs in the solve_Dxx_blocks there. */
         }
 
         /* TODO: Temporary patch, perform loop peeling instead. */
@@ -275,7 +298,6 @@ void apply_end_bc(const ftype *restrict w,
     *u_z = compute_end_bc_tang_u(ws, ws2, fs_z_prevs,
                                  fs_z, un_z, norm_coeffs);
 }
-
 
 static inline __attribute__((always_inline))
 void apply_left_bc(uint32_t x,
@@ -1034,9 +1056,9 @@ void momentum_solve(const_field porosity,
     /* Updates velocity_Dzz. */
 
     /* WARNING: Enforce restrict, consider using -fno-alias */
-    const_field velocity_delta_x = velocity_Dzz.x;
-    const_field velocity_delta_y = velocity_Dzz.y;
-    const_field velocity_delta_z = velocity_Dzz.z;
+    const_field velocity_delta_x = delta.x;
+    const_field velocity_delta_y = delta.y;
+    const_field velocity_delta_z = delta.z;
     field velocity_x = velocity_Dzz.x;
     field velocity_y = velocity_Dzz.y;
     field velocity_z = velocity_Dzz.z;

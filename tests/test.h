@@ -81,6 +81,6 @@ do {                                                        \
 } while (0)
 
 #define SUCCEED_TEST() return;
-#define FAIL_TEST() do { *_test_status = FAILURE; return; }
+#define FAIL_TEST() do { *_test_status = FAILURE; return; } while (0)
 
 #endif

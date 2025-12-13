@@ -114,6 +114,7 @@ void vtranspose(__m256d *r0, __m256d *r1, __m256d *r2, __m256d *r3)
 }
 #endif
 
+#ifndef AUTO_VEC
 static inline __attribute__((always_inline))
 void transpose_vtile(const ftype *restrict src,
                      uint32_t src_stride,
@@ -151,6 +152,7 @@ void transpose_vtile(const ftype *restrict src,
     vstore(dst + 3 * dst_stride, r3);
 #endif
 }
+#endif
 
 #endif
 

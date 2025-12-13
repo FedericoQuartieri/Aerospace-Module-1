@@ -4,13 +4,17 @@
 #include "ftype.h"
 #include "field.h"
 
-extern const ftype _NU;
-extern const ftype _DT;
-extern const ftype _DX;
+extern ftype _NU;
+extern ftype _DT;
+extern ftype _DX;
 
-#define DEFINE_NU(x) const ftype _NU = x;
-#define DEFINE_DT(x) const ftype _DT = x;
-#define DEFINE_DX(x) const ftype _DX = x;
+#define DEFINE_NU(x) ftype _NU = x;
+#define DEFINE_DT(x) ftype _DT = x;
+#define DEFINE_DX(x) ftype _DX = x;
+
+#define SET_NU(x) _NU = x
+#define SET_DT(x) _DT = x
+#define SET_DX(x) _DX = x
 
 /* TODO: vector getters? */
 

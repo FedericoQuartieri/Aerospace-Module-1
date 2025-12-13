@@ -54,12 +54,12 @@ void _get_##boundary##_bc_u(uint32_t __attribute__((unused)) x,  \
     func(x, y, z, dx, u_x, u_y, u_z);                            \
 }
 
-#define DEFINE_HOMOGENEOUS_BC_U()            \
+#define DEFINE_HOMOGENEOUS_BCS_U()           \
     DEFINE_CONSTANT_BC_U(0, 0, 0, BC_LEFT)   \
     DEFINE_CONSTANT_BC_U(0, 0, 0, BC_RIGHT)  \
     DEFINE_CONSTANT_BC_U(0, 0, 0, BC_TOP)    \
     DEFINE_CONSTANT_BC_U(0, 0, 0, BC_BOTTOM) \
     DEFINE_CONSTANT_BC_U(0, 0, 0, BC_FRONT)  \
-    DEFINE_CONSTANT_BC_U(0, 0, 0, BC_BACK)   \
+    DEFINE_CONSTANT_BC_U(0, 0, 0, BC_BACK)
 
 #endif

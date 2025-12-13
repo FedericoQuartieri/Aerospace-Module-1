@@ -40,7 +40,6 @@ DEF_TEST(test_vtranspose)
     _mm256_store_ps(t + 48, r6);
     _mm256_store_ps(t + 56, r7);
 
-    int status = SUCCESS;
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
             EXPECT_EQUAL(m[i * 8 + j], t[j * 8 + i]);
@@ -114,7 +113,7 @@ int main(void)
     RUN_TEST(test_momentum_Dxx_rhs, &arena, 32, 64, 128);
     RUN_TEST(test_momentum_Dxx_rhs, &arena, 128, 128, 64);
 
-    RUN_TEST(test_momentum_Dxx_solver, &arena, 1, 16, 16);
+    RUN_TEST(test_momentum_Dxx_solver, &arena, 16, 16, 16);
     RUN_TEST(test_momentum_Dxx_solver, &arena, 128, 128, 64);
     RUN_TEST(test_momentum_Dxx_solver, &arena, 512, 32, 256);
 

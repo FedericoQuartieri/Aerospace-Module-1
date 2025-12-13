@@ -74,7 +74,7 @@ void solver_set_porosity(Solver *solver, const ftype *src)
     compute_gamma(src, solver->domain_size, solver->porosity);
 }
 
-void solver_step(Solver *solver, uint64_t timestep)
+void solver_step(Solver *solver, uint32_t timestep)
 {
     momentum_solve(solver->porosity,
                    solver->gamma,
@@ -91,4 +91,14 @@ void solver_step(Solver *solver, uint64_t timestep)
                    solver->pressure,
                    solver->pressure_delta,
                    solver->arena);
+}
+
+const_field3 solver_get_velocity(Solver *solver)
+{
+    return to_const_field3(solver->velocity_Dzz);
+}
+
+const_field solver_get_pressure(Solver *solver)
+{
+    return solver->pressure;
 }

@@ -2,6 +2,7 @@
 #define SOLVER_H
 
 #include "ftype.h"
+#include "field.h"
 #include "alloc.h"
 
 struct Solver;
@@ -17,6 +18,10 @@ void solver_init(Solver *solver);
 
 void solver_set_porosity(Solver *solver, const ftype *src);
 
-void solver_step(Solver *solver, uint64_t timestep);
+void solver_step(Solver *solver, uint32_t timestep);
+
+const_field3 solver_get_velocity(Solver *solver);
+
+const_field solver_get_pressure(Solver *solver);
 
 #endif

@@ -6,24 +6,29 @@ INC_DIR = include
 BUILD_DIR = build
 
 FTYPE ?= DOUBLE
+VEC ?= EXPL
 
-DEFINE = -D$(FTYPE)
+DEFINE = -D$(FTYPE) -D$(VEC)
 INCLUDE = -I$(INC_DIR) -I$(SRC_DIR)
 
-SOLVER_OBJS = main.o solver.o momentum.o pressure.o
-TESTS_OBJS = tests.o momentum-test.o pressure-test.o
+SOLVER_OBJS = solver.o momentum.o pressure.o
+UNIT_TEST_OBJS = unit-test.o momentum-test.o pressure-test.o
+CONVERGENCE_TEST_OBJS = $(SOLVER_OBJS) convergence-test.o
 
 solver: mkdir-build $(BUILD_DIR)/solver
-tests: mkdir-build $(BUILD_DIR)/tests
+tests: mkdir-build $(BUILD_DIR)/unit-test $(BUILD_DIR)/convergence-test
 
 mkdir-build:
 	mkdir -p $(BUILD_DIR)/objs
 
-$(BUILD_DIR)/solver: $(addprefix $(BUILD_DIR)/objs/, $(SOLVER_OBJS))
+$(BUILD_DIR)/solver: $(addprefix $(BUILD_DIR)/objs/, $(SOLVER_OBJS) main.o)
 	$(CC) $^ -o $@
 
-$(BUILD_DIR)/tests: $(addprefix $(BUILD_DIR)/objs/, $(TESTS_OBJS))
+$(BUILD_DIR)/unit-test: $(addprefix $(BUILD_DIR)/objs/, $(UNIT_TEST_OBJS))
 	$(CC) $^ -o $@
+
+$(BUILD_DIR)/convergence-test: $(addprefix $(BUILD_DIR)/objs/, $(CONVERGENCE_TEST_OBJS))
+	$(CC) $^ -lm -o $@
 
 $(BUILD_DIR)/objs/%.o: $(SRC_DIR)/%.c
 	$(CC) -c $^ $(CFLAGS) $(INCLUDE) $(DEFINE) -o $@

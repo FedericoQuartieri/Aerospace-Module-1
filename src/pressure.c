@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "pressure.h"
 
 #include "ftype.h"
@@ -68,6 +70,10 @@ vftype compute_div_vtile(const ftype *restrict src_x,
                          uint32_t dst_stride,
                          ftype *restrict dst)
 {
+#ifdef AUTO_VEC
+    printf("WARNING: compute_div_tile not implemented for AUTO_VEC\n");
+    return vbroadcast(0);
+#else
     /* WARNING: Scale by -1/dxdt */
 
 #ifndef FLOAT
@@ -180,6 +186,8 @@ vftype compute_div_vtile(const ftype *restrict src_x,
 
     return rx8;
 #endif
+
+#endif
 }
 
 static inline __attribute__((always_inline))
@@ -222,6 +230,9 @@ void solve_vtiles_row(const ftype *restrict u_x,
                       ftype *restrict tmp,
                       ftype *restrict p)
 {
+#ifdef AUTO_VEC
+    printf("WARNING: solve_vtiles_row not implemented for AUTO_VEC\n");
+#else
     ftype *restrict tmp_upp = tmp;
     /* WARNING: I should skip max(width, height, depth)
      * elements when using this function with the fused version,
@@ -275,6 +286,7 @@ void solve_vtiles_row(const ftype *restrict u_x,
         }
         transpose_vtile(p_t, VLEN, width, p + width - VLEN - tk);
     }
+#endif
 }
 
 static void solve_Dxx_blocks(const ftype *restrict u_x,
@@ -286,6 +298,9 @@ static void solve_Dxx_blocks(const ftype *restrict u_x,
                              ftype *restrict tmp,
                              ftype *restrict p)
 {
+#ifdef AUTO_VEC
+    printf("WARNING: solve_Dxx_blocks for AUTO_VEC not implemented\n");
+#else
     ftype upp = -2.0 / 3; /* Left BC. */
     tmp[0] = upp;
     /* We can reduce once, each row of the first face
@@ -327,6 +342,7 @@ static void solve_Dxx_blocks(const ftype *restrict u_x,
                              p + offset);
         }
     }
+#endif
 }
 
 static inline __attribute__((always_inline))
@@ -478,6 +494,7 @@ void solve_Dzz_blocks(uint32_t depth,
 
 #define max(x, y) ((x) > (y) ? (x) : (y))
 
+#ifdef FUSED
 void solve_pressure_fused(uint32_t depth,
                           uint32_t height,
                           uint32_t width,
@@ -680,6 +697,7 @@ void solve_pressure_fused(uint32_t depth,
         }
     }
 }
+#endif
 
 void pressure_init(field_size size, field field)
 {
@@ -716,3 +734,4 @@ void pressure_solve(const_field3 velocity,
 
     arena_exit(arena);
 }
+
