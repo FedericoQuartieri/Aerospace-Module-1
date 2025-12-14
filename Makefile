@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O3 -Wall -mavx2 -mfma -flto -g
+CFLAGS = -O3 -Wall -mavx2 -mfma -flto -g -fno-inline
 
 SRC_DIR = src
 INC_DIR = include
@@ -10,6 +10,7 @@ VEC ?= EXPL
 
 DEFINE = -D$(FTYPE) -D$(VEC)
 INCLUDE = -I$(INC_DIR) -I$(SRC_DIR)
+LIBS = -lm
 
 SOLVER_OBJS = solver.o momentum.o pressure.o
 UNIT_TEST_OBJS = unit-test.o momentum-test.o pressure-test.o
@@ -22,13 +23,13 @@ mkdir-build:
 	mkdir -p $(BUILD_DIR)/objs
 
 $(BUILD_DIR)/solver: $(addprefix $(BUILD_DIR)/objs/, $(SOLVER_OBJS) main.o)
-	$(CC) $^ -o $@
+	$(CC) $^ $(LIBS) -o $@
 
 $(BUILD_DIR)/unit-test: $(addprefix $(BUILD_DIR)/objs/, $(UNIT_TEST_OBJS))
-	$(CC) $^ -o $@
+	$(CC) $^ $(LIBS) -o $@
 
 $(BUILD_DIR)/convergence-test: $(addprefix $(BUILD_DIR)/objs/, $(CONVERGENCE_TEST_OBJS))
-	$(CC) $^ -lm -o $@
+	$(CC) $^ $(LIBS) -o $@
 
 $(BUILD_DIR)/objs/%.o: $(SRC_DIR)/%.c
 	$(CC) -c $^ $(CFLAGS) $(INCLUDE) $(DEFINE) -o $@

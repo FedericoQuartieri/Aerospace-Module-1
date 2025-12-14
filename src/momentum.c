@@ -1,3 +1,5 @@
+#include <math.h>
+
 #include "momentum.h"
 
 #include "ftype.h"
@@ -26,7 +28,8 @@ vftype compute_g_comp_at(const ftype *restrict eta,
     vftype Dyy_zeta = compute_Dyy_at(zeta, idx, width, zeta_);
     vftype Dzz_u = compute_Dzz_at(u, idx, height * width, u_);
 
-    /* WARNING: Null volume force. */
+    /* WARNING: Null volume force, currently adding it from
+     * the caller function. */
     vftype f_ = vbroadcast(0.0);
     vftype nu_half = vbroadcast(_NU / 2);
     vftype inv_dx = vbroadcast(1 / _DX);
@@ -48,6 +51,7 @@ static inline __attribute__((always_inline))
 vftype compute_Dxx_rhs_comp_at(const ftype *restrict eta,
                                const ftype *restrict zeta,
                                const ftype *restrict u,
+                               const ftype *restrict f,
                                uint64_t idx,
                                uint32_t height,
                                uint32_t width,
@@ -58,10 +62,13 @@ vftype compute_Dxx_rhs_comp_at(const ftype *restrict eta,
     vftype eta_ = vload(eta + idx);
     vftype zeta_ = vload(zeta + idx);
     vftype u_ = vload(u + idx);
+    vftype f_ = vload(f + idx);
     vftype g = compute_g_comp_at(eta, zeta, u,
                                  idx, height, width,
                                  k, eta_, zeta_, u_, D_pp);
-    return vsub(vfmadd(dt_beta, g, u_), eta_);
+
+    return vsub(vfmadd(dt_beta, vadd(g, f_), u_), eta_);
+
 }
 
 void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
@@ -81,6 +88,10 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
                      const ftype *restrict u_x,
                      const ftype *restrict u_y,
                      const ftype *restrict u_z,
+                     /* Forcing term for current step. */
+                     const ftype *restrict f_x,
+                     const ftype *restrict f_y,
+                     const ftype *restrict f_z,
                      uint32_t depth,
                      uint32_t height,
                      uint32_t width,
@@ -92,6 +103,7 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
                      ftype *restrict rhs_z)
 {
     /* TODO: Consider on the fly rhs evaluation while solving. */
+
 
     vftype vdt = vbroadcast(_DT);
     vftype vdt_nu = vbroadcast(_DT * _NU);
@@ -111,6 +123,7 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vstore(rhs_z + idx, vbroadcast(0));
         }
     }
+
 
     for (uint32_t i = 1; i < depth; ++i) {
         /* Fill with zeros first row, since solution is enforced by BCs
@@ -146,15 +159,15 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
                 /* NT stores make no difference here,
                  * loads are bottlenecking. */
                 vstore(rhs_x + idx,
-                       compute_Dxx_rhs_comp_at(eta_x, zeta_x, u_x,
+                       compute_Dxx_rhs_comp_at(eta_x, zeta_x, u_x, f_x,
                                                idx, height, width,
                                                k_, Dx_pp, dt_beta));
                 vstore(rhs_y + idx,
-                       compute_Dxx_rhs_comp_at(eta_y, zeta_y, u_y,
+                       compute_Dxx_rhs_comp_at(eta_y, zeta_y, u_y, f_y,
                                                idx, height, width,
-                                                k_, Dy_pp, dt_beta));
+                                               k_, Dy_pp, dt_beta));
                 vstore(rhs_z + idx,
-                       compute_Dxx_rhs_comp_at(eta_z, zeta_z, u_z,
+                       compute_Dxx_rhs_comp_at(eta_z, zeta_z, u_z, f_z,
                                                idx, height, width,
                                                k_, Dz_pp, dt_beta));
             }
@@ -185,6 +198,9 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vstore(rhs_z + idx, vload(rhs_z + idx) -
                                 coeff * (vload(zeta_z + idx + width) +
                                          vload(zeta_z + idx) - 2 * u_ex_z));
+
+            /* Set rhs=0 here, since solution is enforced on the wall. */
+            vstore(rhs_y + idx, vbroadcast(0));
         }
     }
 
@@ -205,6 +221,10 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vstore(rhs_y + idx, vload(rhs_y + idx) -
                                 coeff * (vload(u_y + idx + height * width) +
                                          vload(u_y + idx) - 2 * u_ex_y));
+
+            /* WARNING: Setting rhs=0 here, since solution
+             * is enforced on the wall. */
+            vstore(rhs_z + idx, vbroadcast(0));
         }
     }
 }
@@ -1010,6 +1030,8 @@ void momentum_init(field_size size, field3 field)
     }
 }
 
+#include <stdio.h>
+
 void momentum_solve(const_field porosity,
                     const_field gamma,
                     const_field pressure,
@@ -1018,6 +1040,7 @@ void momentum_solve(const_field porosity,
                     field3 velocity_Dxx,
                     field3 velocity_Dyy,
                     field3 velocity_Dzz,
+                    uint32_t timestep,
                     ArenaAllocator *arena)
 {
     arena_enter(arena);
@@ -1026,11 +1049,69 @@ void momentum_solve(const_field porosity,
     field3 rhs = field3_alloc(size, arena);
     field3 delta = field3_alloc(size, arena);
 
+    field3 forcing = field3_alloc(size, arena);
+
+    /* TODO: Compute on the fly. */
+
+    for (uint32_t i = 0; i < size.depth; ++i) {
+        for (uint32_t j = 0; j < size.height; ++j) {
+            for (uint32_t k = 0; k < size.width; ++k) {
+                uint64_t idx = size.height * size.width * i +
+                               size.width * j + k;
+
+                ftype time = _DT * timestep;
+                ftype coeff = cos(time) + sin(time) * _NU; // unit porosity
+
+                forcing.x[idx] = coeff * sin(k * _DX + _DX / 2)
+                                       * sin(j * _DX)
+                                       * sin(i * _DX)
+                                       + 3.0 * _NU * sin(time)
+                                                   * sin(k * _DX + _DX / 2)
+                                                   * sin(j * _DX)
+                                                   * (2 * sin(i * _DX) -
+                                                      cos(i * _DX));
+
+                forcing.y[idx] = coeff * cos(k * _DX)
+                                       * cos(j * _DX + _DX / 2)
+                                       * cos(i * _DX)
+                                       + 3.0 * _NU * sin(time)
+                                                   * cos(k * _DX)
+                                                   * cos(j * _DX + _DX / 2)
+                                                   * (2 * cos(i * _DX) -
+                                                      sin(i * _DX));
+
+                forcing.z[idx] = coeff * cos(k * _DX)
+                                       * sin(j * _DX)
+                                       * (sin(i * _DX + _DX / 2) +
+                                          cos(i * _DX + _DX / 2));
+            }
+        }
+    }
+
+    /*
+    printf("forcing:");
+    for (uint64_t i = 0; i < field_num_points(size); ++i) {
+        if (i % size.width == 0) printf("\n");
+        if (i % (size.height * size.width) == 0) printf("\n");
+        printf("%f ", forcing.z[i]);
+    }
+    */
+
     compute_Dxx_rhs(porosity, pressure, pressure_delta, velocity_Dxx.x,
                     velocity_Dxx.y, velocity_Dxx.z, velocity_Dyy.x,
                     velocity_Dyy.y, velocity_Dyy.z, velocity_Dzz.x,
-                    velocity_Dzz.y, velocity_Dzz.z, size.depth, size.height,
+                    velocity_Dzz.y, velocity_Dzz.z, forcing.x,
+                    forcing.y, forcing.z, size.depth, size.height,
                     size.width, 0.0, 0.0, 0.0, rhs.x, rhs.y, rhs.z);
+
+    /*
+    printf("\n\nrhs:");
+    for (uint64_t i = 0; i < field_num_points(size); ++i) {
+        if (i % size.width == 0) printf("\n");
+        if (i % (size.height * size.width) == 0) printf("\n");
+        printf("%f ", rhs.z[i]);
+    }
+    */
 
     solve_Dxx_blocks(gamma, size.depth, size.height, size.width, tmp,
                      rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z);

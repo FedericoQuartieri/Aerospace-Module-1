@@ -3,9 +3,9 @@
 #include "consts.h"
 #include "solver.h"
 
-#define DEPTH 128
-#define HEIGHT 128
-#define WIDTH 128
+#define DEPTH 32
+#define HEIGHT 32
+#define WIDTH 32
 
 #define NUM_TIMESTEPS 10
 
@@ -30,7 +30,7 @@ int main(void)
     Solver *solver = solver_alloc(DEPTH, HEIGHT, WIDTH, &arena);
     solver_init(solver);
 
-    for (int t = 0; t < NUM_TIMESTEPS; ++t) {
+    for (int t = 1; t < NUM_TIMESTEPS; ++t) {
         solver_step(solver, t);
     }
 

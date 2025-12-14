@@ -50,7 +50,7 @@ static inline void arena_pop_to(ArenaAllocator *arena, uint64_t pos)
 }
 
 #define arena_push_count(arena, type, count) \
-    arena_push((arena), (count) * sizeof(type))
+    (type *) arena_push((arena), (count) * sizeof(type))
 
 #define arena_enter(arena) uint64_t __arena_pos = arena_pos((arena))
 
