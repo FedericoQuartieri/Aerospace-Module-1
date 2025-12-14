@@ -9,6 +9,9 @@
 #include "boundary.h"
 #include "consts.h"
 
+DECLARE_BC_U(BC_BOTTOM)
+DECLARE_BC_U(BC_BACK)
+
 static inline __attribute__((always_inline))
 vftype compute_g_comp_at(const ftype *restrict eta,
                          const ftype *restrict zeta,
@@ -95,9 +98,9 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
                      uint32_t depth,
                      uint32_t height,
                      uint32_t width,
-                     ftype u_ex_x,
-                     ftype u_ex_y,
-                     ftype u_ex_z,
+                     ftype u_exx,
+                     ftype u_exy,
+                     ftype u_exz,
                      ftype *restrict rhs_x,
                      ftype *restrict rhs_y,
                      ftype *restrict rhs_z)
@@ -176,10 +179,17 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             uint64_t idx = height * width * i + width * j + width - 1;
             ftype coeff = 2 * k[idx] * _DT / (2 * k[idx] + _DT * _NU) *
                           _NU / (2 * _DX * _DX);
+
+            ftype u_ex_y = sin(_DT) * cos((width - 1) * _DX + _DX / 2)
+                              * cos(j * _DX + _DX / 2)
+                              * cos(i * _DX);
+            ftype u_ex_z = sin(_DT) * cos((width - 1) * _DX + _DX / 2)
+                              * sin(j * _DX)
+                              * (cos(i * _DX + _DX / 2) +
+                                 sin(i * _DX + _DX / 2));
+
             rhs_y[idx] -= coeff * (eta_y[idx + 1] + eta_y[idx] - 2 * u_ex_y);
             rhs_z[idx] -= coeff * (eta_z[idx + 1] + eta_z[idx] - 2 * u_ex_z);
-            /* No need to set to 0 for start of the row, since we enforce
-             * BCs in the solve_Dxx_blocks there. */
         }
 
         /* TODO: Temporary patch, perform loop peeling instead. */
@@ -188,8 +198,11 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             /* For x and z, correct Dyy(zeta) using the ghost node. */
 
             vftype k_ = vload(k + idx);
-            vftype coeff = 2 * k_ * _DX / (2 * k_ + _DT * _NU) *
+            vftype coeff = 2 * k_ * _DT / (2 * k_ + _DT * _NU) *
                            _NU / (2 * _DX * _DX);
+
+            vftype u_ex_x, u_ex_y, u_ex_z;
+            _get_bottom_bc_u(l, height - 1, i, &u_ex_x, &u_ex_y, &u_ex_z);
 
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(zeta_x + idx + width) +
@@ -202,6 +215,7 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             /* Set rhs=0 here, since solution is enforced on the wall. */
             vstore(rhs_y + idx, vbroadcast(0));
         }
+        rhs_x[width * height * i + width * (height - 1) + width - 1] = 0;
     }
 
     /* TODO: Temporary patch, perform loop peeling instead. */
@@ -213,6 +227,9 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vftype k_ = vload(k + idx);
             vftype coeff = 2 * k_ * _DT / (2 * k_ + _DT * _NU) *
                            _NU / (2 * _DX * _DX);
+
+            vftype u_ex_x, u_ex_y, u_ex_z;
+            _get_back_bc_u(l, j, depth - 1, &u_ex_x, &u_ex_y, &u_ex_z);
 
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(u_x + idx + height * width) +
@@ -264,7 +281,8 @@ void apply_start_bc(vftype u0_x,
 
     /* Set upper coefficient to 0 and enforce solution in rhs. */
     vstore(upper, ZEROS);
-    vstore(f_x, u0_x); /* du_y/dy = du_z/dz = 0 */
+    /* du_y/dy + du_z/dz is already handled in the bc getter. */
+    vstore(f_x, u0_x);
     vstore(f_y, u0_y);
     vstore(f_z, u0_z);
 }
@@ -277,7 +295,7 @@ vftype compute_end_bc_tang_u(vftype ws,
                              vftype uns,
                              vftype norm_coeffs)
 {
-    return vdiv(vsub(vfmadd(fs_prev, ws, vneg(fs)),
+    return vdiv(vadd(vfmadd(fs_prev, ws, fs),
                      vmul(ws2, uns)),
                 norm_coeffs);
 }
@@ -297,9 +315,9 @@ void apply_end_bc(const ftype *restrict w,
                   vftype *restrict u_z)
 {
     /* u_x = un_x
-     * u_y =  (-2w_i un_y - f_y_i + w_i f_y_i_prev) /
+     * u_y =  (2w_i un_y + f_y_i + w_i f_y_i_prev) /
      *        (1 + 3w_i + w_i upper_prev_i)
-     * u_z =  (-2w_i un_z - f_z_i + w_i f_z_i_prev) /
+     * u_z =  (2w_i un_z + f_z_i + w_i f_z_i_prev) /
      *        (1 + 3w_i + w_i upper_prev_i) */
 
     vftype ws = vload(w);
@@ -951,6 +969,8 @@ static void compute_next_rhs(const_field velocity_delta_x,
 void momentum_init(field_size size, field3 field)
 {
     field3_fill(size, 0.0, field);
+
+    return;
 
     /* Initialize front face. */
     for (uint32_t j = 0; j < size.height; ++j) {

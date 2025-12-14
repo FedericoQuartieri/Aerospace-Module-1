@@ -25,17 +25,17 @@
 void _get_##boundary##_bc_u(uint32_t __attribute__((unused)) x,  \
                             uint32_t __attribute__((unused)) y,  \
                             uint32_t __attribute__((unused)) z,  \
-                            vftype *__restrict__ u_x,            \
-                            vftype *__restrict__ u_y,            \
-                            vftype *__restrict__ u_z);
+                            vftype *restrict u_x,                \
+                            vftype *restrict u_y,                \
+                            vftype *restrict u_z);
 
 #define _DEFINE_CONSTANT_BC_U(ux, uy, uz, boundary)              \
 void _get_##boundary##_bc_u(uint32_t __attribute__((unused)) x,  \
                             uint32_t __attribute__((unused)) y,  \
                             uint32_t __attribute__((unused)) z,  \
-                            vftype *__restrict__ u_x,            \
-                            vftype *__restrict__ u_y,            \
-                            vftype *__restrict__ u_z)            \
+                            vftype *restrict u_x,                \
+                            vftype *restrict u_y,                \
+                            vftype *restrict u_z)                \
 {                                                                \
     *u_x = vbroadcast(ux);                                       \
     *u_y = vbroadcast(uy);                                       \
@@ -46,12 +46,11 @@ void _get_##boundary##_bc_u(uint32_t __attribute__((unused)) x,  \
 void _get_##boundary##_bc_u(uint32_t __attribute__((unused)) x,  \
                             uint32_t __attribute__((unused)) y,  \
                             uint32_t __attribute__((unused)) z,  \
-                            ftype dx,                            \
-                            vftype *__restrict__ u_x,            \
-                            vftype *__restrict__ u_y,            \
-                            vftype *__restrict__ u_z)            \
+                            vftype *restrict u_x,                \
+                            vftype *restrict u_y,                \
+                            vftype *restrict u_z)                \
 {                                                                \
-    func(x, y, z, dx, u_x, u_y, u_z);                            \
+    func(x, y, z, u_x, u_y, u_z);                                \
 }
 
 #define DEFINE_HOMOGENEOUS_BCS_U()           \

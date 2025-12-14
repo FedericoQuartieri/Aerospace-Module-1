@@ -54,7 +54,7 @@ static DEF_TEST(test_wD_solution,
                 if (is_comp_normal) {
                     ASSERT_EQUALF(un, u[idx + stride_k * (width - 1)], TOL);
                 } else {
-                    ASSERT_EQUALF(-2 * w_i * un - f_i,
+                    ASSERT_EQUALF(2 * w_i * un + f_i,
                                   (-w_i * u[idx + stride_k * (width - 2)] +
                                   (1 + 3 * w_i) *
                                   u[idx + stride_k * (width - 1)]),

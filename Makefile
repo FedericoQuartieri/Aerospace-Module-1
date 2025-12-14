@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O3 -Wall -mavx2 -mfma -flto -g -fno-inline
+CFLAGS = -O3 -Wall -mavx2 -mfma -flto -g
 
 SRC_DIR = src
 INC_DIR = include

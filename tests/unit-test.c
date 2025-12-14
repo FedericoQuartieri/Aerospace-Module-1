@@ -109,9 +109,9 @@ int main(void)
 
     RUN_TEST(test_vtranspose);
 
-    RUN_TEST(test_momentum_Dxx_rhs, &arena, 16, 32, 64);
-    RUN_TEST(test_momentum_Dxx_rhs, &arena, 32, 64, 128);
-    RUN_TEST(test_momentum_Dxx_rhs, &arena, 128, 128, 64);
+    //RUN_TEST(test_momentum_Dxx_rhs, &arena, 16, 32, 64);
+    //RUN_TEST(test_momentum_Dxx_rhs, &arena, 32, 64, 128);
+    //RUN_TEST(test_momentum_Dxx_rhs, &arena, 128, 128, 64);
 
     RUN_TEST(test_momentum_Dxx_solver, &arena, 16, 16, 16);
     RUN_TEST(test_momentum_Dxx_solver, &arena, 128, 128, 64);

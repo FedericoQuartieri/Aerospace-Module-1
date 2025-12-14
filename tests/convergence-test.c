@@ -15,8 +15,208 @@ DEFINE_NU(1.0)
 DEFINE_DX(1.0)
 DEFINE_DT(1.0)
 
-DEFINE_HOMOGENEOUS_BCS_U()
+static inline ftype get_man_u_x(ftype x, ftype y, ftype z, ftype time)
+{
+    return sin(time) * sin(x) * sin(y) * sin(z);
+}
 
+static inline ftype get_man_u_y(ftype x, ftype y, ftype z, ftype time)
+{
+    return sin(time) * cos(x) * cos(y) * cos(z);
+}
+
+static inline ftype get_man_u_z(ftype x, ftype y, ftype z, ftype time)
+{
+    return sin(time) * cos(x) * sin(y) * (cos(z) + sin(z));
+}
+
+static inline void left_bc_manufactured(uint32_t x,
+                                        uint32_t y,
+                                        uint32_t z,
+                                        vftype *restrict u_x,
+                                        vftype *restrict u_y,
+                                        vftype *restrict u_z)
+{
+    /* On the left boundary, we are vectorizing across rows. */
+
+    /* At the moment, work in serial fashion, consider wrapping
+     * this behaviour in the macro definition. */
+    ftype __attribute__((aligned(32))) tmp_x[VLEN];
+    ftype __attribute__((aligned(32))) tmp_y[VLEN];
+    ftype __attribute__((aligned(32))) tmp_z[VLEN];
+
+    /* WARNING: What happens when y+i-1 < 0 ? Solution should be
+     * enforced there, since we are sitting on the top wall. */
+    for (int i = 0; i < VLEN; ++i) {
+        /* y and z are on the wall */
+        tmp_y[i] = get_man_u_y(0, (y + i) * _DX + _DX / 2, z * _DX, _DT);
+        tmp_z[i] = get_man_u_z(0, (y + i) * _DX, z * _DX + _DX / 2, _DT);
+
+        /* u_1/2 = u0 + dux/dx DX/2 = u0 - (duy/dy + duz/dz) DX/2 */
+
+        ftype duy_dy =
+            get_man_u_y(0, (y + i) * _DX + _DX / 2, z * _DX, _DT) -
+            get_man_u_y(0, (y + i) * _DX - _DX / 2, z * _DX, _DT);
+
+        ftype duz_dz =
+            get_man_u_z(0, (y + i) * _DX, z * _DX + _DX / 2, _DT) -
+            get_man_u_z(0, (y + i) * _DX, z * _DX - _DX / 2, _DT);
+
+        tmp_x[i] = get_man_u_x(0, (y + i) * _DX, z * _DX, _DT) -
+                   (duy_dy + duz_dz) / 2; /* Already multiplied by _DX */
+    }
+
+    *u_x = vload(tmp_x);
+    *u_y = vload(tmp_y);
+    *u_z = vload(tmp_z);
+}
+
+static inline void top_bc_manufactured(uint32_t x,
+                                       uint32_t y,
+                                       uint32_t z,
+                                       vftype *restrict u_x,
+                                       vftype *restrict u_y,
+                                       vftype *restrict u_z)
+{
+    /* On the top boundary, we are vectorizing across columns. */
+
+    ftype __attribute__((aligned(32))) tmp_x[VLEN];
+    ftype __attribute__((aligned(32))) tmp_y[VLEN];
+    ftype __attribute__((aligned(32))) tmp_z[VLEN];
+
+    for (int i = 0; i < VLEN; ++i) {
+        tmp_x[i] = get_man_u_x((x + i) * _DX + _DX / 2, 0, z * _DX, _DT);
+        tmp_z[i] = get_man_u_z((x + i) * _DX, 0, z * _DX + _DX / 2, _DT);
+
+        ftype dux_dx =
+            (get_man_u_x((x + i) * _DX + _DX / 2, 0, z * _DX, _DT) -
+             get_man_u_x((x + i) * _DX - _DX / 2, 0, z * _DX, _DT));
+
+        ftype duz_dz =
+            (get_man_u_z((x + i) * _DX, 0, z * _DX + _DX / 2, _DT) -
+             get_man_u_z((x + i) * _DX, 0, z * _DX - _DX / 2, _DT));
+
+        tmp_y[i] = get_man_u_y((x + i) * _DX, 0, z * _DX, _DT) -
+                   (dux_dx + duz_dz) / 2;
+    }
+
+    *u_x = vload(tmp_x);
+    *u_y = vload(tmp_y);
+    *u_z = vload(tmp_z);
+}
+
+static inline void front_bc_manufactured(uint32_t x,
+                                         uint32_t y,
+                                         uint32_t z,
+                                         vftype *restrict u_x,
+                                         vftype *restrict u_y,
+                                         vftype *restrict u_z)
+{
+    /* On the front boundary, we are vectorizing across columns. */
+
+    ftype __attribute__((aligned(32))) tmp_x[VLEN];
+    ftype __attribute__((aligned(32))) tmp_y[VLEN];
+    ftype __attribute__((aligned(32))) tmp_z[VLEN];
+
+    for (int i = 0; i < VLEN; ++i) {
+        tmp_x[i] = get_man_u_x((x + i) * _DX + _DX / 2, y * _DX, 0, _DT);
+        tmp_y[i] = get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, 0, _DT);
+
+        ftype dux_dx =
+            (get_man_u_x((x + i) * _DX + _DX / 2, y * _DX, 0, _DT) -
+             get_man_u_x((x + i) * _DX - _DX / 2, y * _DX, 0, _DT));
+
+        ftype duy_dy =
+            (get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, 0, _DT) -
+             get_man_u_y((x + i) * _DX, y * _DX - _DX / 2, 0, _DT));
+
+        tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX, 0, _DT) -
+                   (dux_dx + duy_dy) / 2; /* Already multiplied by _DX */
+    }
+
+    *u_x = vload(tmp_x);
+    *u_y = vload(tmp_y);
+    *u_z = vload(tmp_z);
+}
+
+static inline void right_bc_manufactured(uint32_t x,
+                                         uint32_t y,
+                                         uint32_t z,
+                                         vftype *restrict u_x,
+                                         vftype *restrict u_y,
+                                         vftype *restrict u_z)
+{
+    /* On the front boundary, we are vectorizing across columns. */
+
+    ftype __attribute__((aligned(32))) tmp_x[VLEN];
+    ftype __attribute__((aligned(32))) tmp_y[VLEN];
+    ftype __attribute__((aligned(32))) tmp_z[VLEN];
+
+    for (int i = 0; i < VLEN; ++i) {
+        tmp_x[i] = get_man_u_x(x * _DX + _DX / 2, (y + i) * _DX, z * _DX, _DT);
+        tmp_y[i] = get_man_u_y(x * _DX + _DX / 2, (y + i) * _DX + _DX / 2, z * _DX, _DT);
+        tmp_z[i] = get_man_u_z(x * _DX + _DX / 2, (y + i) * _DX, z * _DX + _DX / 2, _DT);
+    }
+
+    *u_x = vload(tmp_x);
+    *u_y = vload(tmp_y);
+    *u_z = vload(tmp_z);
+}
+
+static inline void bottom_bc_manufactured(uint32_t x,
+                                          uint32_t y,
+                                          uint32_t z,
+                                          vftype *restrict u_x,
+                                          vftype *restrict u_y,
+                                          vftype *restrict u_z)
+{
+    /* On the front boundary, we are vectorizing across columns. */
+
+    ftype __attribute__((aligned(32))) tmp_x[VLEN];
+    ftype __attribute__((aligned(32))) tmp_y[VLEN];
+    ftype __attribute__((aligned(32))) tmp_z[VLEN];
+
+    for (int i = 0; i < VLEN; ++i) {
+        tmp_x[i] = get_man_u_x((x + i) * _DX + _DX / 2, y * _DX + _DX / 2, z * _DX, _DT);
+        tmp_y[i] = get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, z * _DX, _DT);
+        tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX + _DX / 2, z * _DX + _DX / 2, _DT);
+    }
+
+    *u_x = vload(tmp_x);
+    *u_y = vload(tmp_y);
+    *u_z = vload(tmp_z);
+}
+
+static inline void back_bc_manufactured(uint32_t x,
+                                        uint32_t y,
+                                        uint32_t z,
+                                        vftype *restrict u_x,
+                                        vftype *restrict u_y,
+                                        vftype *restrict u_z)
+{
+    /* On the front boundary, we are vectorizing across columns. */
+
+    ftype __attribute__((aligned(32))) tmp_x[VLEN];
+    ftype __attribute__((aligned(32))) tmp_y[VLEN];
+    ftype __attribute__((aligned(32))) tmp_z[VLEN];
+
+    for (int i = 0; i < VLEN; ++i) {
+        tmp_x[i] = get_man_u_x((x + i) * _DX + _DX / 2, y * _DX, z * _DX + _DX / 2, _DT);
+        tmp_y[i] = get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, z * _DX + _DX / 2, _DT);
+        tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX + _DX / 2, z * _DX, _DT);
+    }
+
+    *u_x = vload(tmp_x);
+    *u_y = vload(tmp_y);
+    *u_z = vload(tmp_z);
+}
+
+DEFINE_FUNCTION_BC_U(left_bc_manufactured, BC_LEFT)
+DEFINE_FUNCTION_BC_U(top_bc_manufactured, BC_TOP)
+DEFINE_FUNCTION_BC_U(front_bc_manufactured, BC_FRONT)
+DEFINE_FUNCTION_BC_U(right_bc_manufactured, BC_RIGHT)
+DEFINE_FUNCTION_BC_U(bottom_bc_manufactured, BC_BOTTOM)
+DEFINE_FUNCTION_BC_U(back_bc_manufactured, BC_BACK)
 
 static double field_l2_dist(field_size size, const_field f1, const_field f2)
 {
@@ -46,7 +246,7 @@ static double field3_l2_dist(field_size size, const_field3 f1, const_field3 f2)
                 uint64_t idx = size.height * size.width * i +
                                size.width * j + k;
 
-                printf("%f ", f1.z[idx]);
+                printf("%g ", f1.z[idx]);
             }
         }
     }
@@ -62,7 +262,7 @@ static double field3_l2_dist(field_size size, const_field3 f1, const_field3 f2)
                 uint64_t idx = size.height * size.width * i +
                                size.width * j + k;
 
-                printf("%f ", f2.z[idx]);
+                printf("%g ", f2.z[idx]);
             }
         }
     }
@@ -70,7 +270,7 @@ static double field3_l2_dist(field_size size, const_field3 f1, const_field3 f2)
 
     //printf("\n\nsolution error:");
 
-    for (uint32_t i = 0; i < size.depth;  ++i) {
+    for (uint32_t i = 0; i < size.depth; ++i) {
         //printf("\n");
         for (uint32_t j = 0; j < size.height; ++j) {
             //printf("\n");
@@ -82,19 +282,18 @@ static double field3_l2_dist(field_size size, const_field3 f1, const_field3 f2)
                 /* WARNING: You need to multiply by dx^3!
                  * You're computing a norm! */
 
-                double err = (POW2(f1.x[idx] - f2.x[idx]) +
-                              0 * POW2(f1.y[idx] - f2.y[idx]) +
-                              0 * POW2(f1.z[idx] - f2.z[idx])) *
-                             (_DX * _DX * _DX);
+                double err = POW2(f1.x[idx] - f2.x[idx]) +
+                             POW2(f1.y[idx] - f2.y[idx]) +
+                             POW2(f1.z[idx] - f2.z[idx]);
 
-                //printf("%f ", f1.z[idx] - f2.z[idx]);
+                //printf("%g ", f1.x[idx] - f2.x[idx]);
 
                 dist += err;
             }
         }
     }
 
-    return sqrt(dist);
+    return sqrt(dist * _DX * _DX * _DX);
 }
 
 static void compute_manufactured_velocity(field_size size,
@@ -121,7 +320,7 @@ static void compute_manufactured_velocity(field_size size,
                                        * sin(j * _DX)
                                        * (cos(i * _DX + _DX / 2) +
                                           sin(i * _DX + _DX / 2));
-            }
+           }
         }
     }
 }
@@ -167,7 +366,7 @@ DEF_TEST(test_manufactured_convergence_space,
                             max_height >> i,
                             max_depth >> i };
 
-        SET_DX(1.0 / size.depth);
+        SET_DX(M_PI / size.depth);
 
         Solver *solver = solver_alloc(size.depth, size.height,
                                       size.width, arena);
@@ -208,7 +407,7 @@ int main(void)
     ArenaAllocator arena;
     arena_init(&arena, 1ul << 32);
 
-    RUN_TEST(test_manufactured_convergence_space, &arena, 256, 256, 256, 5);
+    RUN_TEST(test_manufactured_convergence_space, &arena, 128, 128, 128, 4);
 
     arena_destroy(&arena);
 
