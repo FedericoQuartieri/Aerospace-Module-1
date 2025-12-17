@@ -38,8 +38,7 @@ vftype compute_g_comp_at(const ftype *restrict eta,
     vftype inv_dx = vbroadcast(1 / _DX);
     vftype inv_dxdx = vbroadcast(1 / (_DX * _DX));
 
-    /* yes, it's ugly :/ */
-    return vadd(f_,
+    /* yes, it's ugly :/ */ return vadd(f_,
                 vsub(vmul(nu_half,
                           vsub(vmul(vadd(Dxx_eta,
                                          vadd(Dyy_zeta,
@@ -204,9 +203,13 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vftype u_ex_x, u_ex_y, u_ex_z;
             _get_bottom_bc_u(l, height - 1, i, &u_ex_x, &u_ex_y, &u_ex_z);
 
+        /*
+         * WARNING: This apparently increases the error at the right boundary.
+         *
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(zeta_x + idx + width) +
                                          vload(zeta_x + idx) - 2 * u_ex_x));
+        */
 
             vstore(rhs_z + idx, vload(rhs_z + idx) -
                                 coeff * (vload(zeta_z + idx + width) +
@@ -215,7 +218,7 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             /* Set rhs=0 here, since solution is enforced on the wall. */
             vstore(rhs_y + idx, vbroadcast(0));
         }
-        rhs_x[width * height * i + width * (height - 1) + width - 1] = 0;
+        //rhs_x[width * height * i + width * (height - 1) + width - 1] = 0;
     }
 
     /* TODO: Temporary patch, perform loop peeling instead. */
@@ -970,6 +973,9 @@ void momentum_init(field_size size, field3 field)
 {
     field3_fill(size, 0.0, field);
 
+    /* WARNING: Currently initializing
+     * to zero due to time dependent BCs. */
+
     return;
 
     /* Initialize front face. */
@@ -1136,6 +1142,47 @@ void momentum_solve(const_field porosity,
     solve_Dxx_blocks(gamma, size.depth, size.height, size.width, tmp,
                      rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z);
 
+    /* WARNING: Temporarily enforcing time dependent BCs here,
+     * but you better do it while solving. */
+
+    /*
+     *  +--------+
+     *  |        |
+     *  |        |
+     *  |        |
+     *  |        |
+     *  +--------+
+     *
+     *  After solve_Dxx() the values on
+     *  the left and right boundaries are correct,
+     *  the values on the top and bottom boundaries
+     *  will be enforced in solve_Dyy(), but
+     *  we don't want it to solve on the left
+     *  and right boundaries!
+     *  This means that, since we're solving for delta,
+     *  we can set the rhs to 0 for the points that
+     *  need not to be solved.
+     *
+     *  solve_Dxx() -> I care only about enforcing left/right BCs
+     *  I update eta = eta + delta_eta, now zeta - eta will
+     *  become the rhs of solve_Dyy(), which enforces the BCs
+     *  on the top/bottom boundaries, but must not change the
+     *  solution on the left/right boundaries. This means that
+     *  zeta - eta = 0 on the left/right boundaries. How do I achieve
+     *  this? Well, for the moment I can set the rhs of solve_Dyy()
+     *  to zero for those boundaries while computing the next rhs.
+     *
+     *  For solve_Dzz() the same reasoning applies,
+     *  we don't care about solving the first face immediately at this
+     *  point, like we don't care about solving the first and last row
+     *  of each face in solve_Dyy(), since the solution will be enforced
+     *  there. So we can simply skip them, then, solve_Dxx() applies
+     *  left/right BCs, solve_Dyy() must not change the solution there
+     *  and enforces top/right BCs, and solve_Dzz() must not change the
+     *  solution on the left/right BCs and top/bottom BCs.
+     *
+     */
+
     /* TODO: Fuse this with solve_Dxx_blocks() */
 
     /* Updates velocity_Dxx and computes next rhs. */
@@ -1169,6 +1216,28 @@ void momentum_solve(const_field porosity,
         velocity_x[i] += velocity_delta_x[i];
         velocity_y[i] += velocity_delta_y[i];
         velocity_z[i] += velocity_delta_z[i];
+    }
+
+    /* Now enforce BCs on the final solution. */
+    for (uint32_t i = 1; i < size.depth - 1; ++i) {
+        for (uint32_t k = 0; k < size.width; ++k) {
+            uint64_t idx = size.height * size.width * i + k;
+            velocity_x[idx] = velocity_Dyy.x[idx];
+            velocity_y[idx] = velocity_Dyy.y[idx];
+            velocity_z[idx] = velocity_Dyy.z[idx];
+
+            idx += size.width * (size.height - 1);
+            velocity_y[idx] = velocity_Dyy.y[idx];
+        }
+
+        for (uint32_t j = 0; j < size.height; ++j) {
+            uint64_t idx = size.height * size.width * i + size.width * j;
+            velocity_x[idx] = velocity_Dxx.x[idx];
+            velocity_y[idx] = velocity_Dxx.y[idx];
+            velocity_z[idx] = velocity_Dxx.z[idx];
+            velocity_x[idx + size.width - 1] =
+                velocity_Dxx.x[idx + size.width - 1];
+        }
     }
 
     arena_exit(arena);
