@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "tinyexpr.h"
-#include "forcing_parser.h"
+#include "function.h"
 
 /* Context that holds compiled expressions and variable storage */
 typedef struct {
@@ -80,7 +80,7 @@ static double forcing_impl(double x, double y, double z, double t, int component
  *   - Lines starting with '#' or empty lines are ignored.
  *   - Missing components are set to "0".
  */
-forcing_function_t parse_forcing_function(const char *filename)
+function parse_function(const char *filename)
 {
     FILE *f;
     char expr_buf[3][256];
@@ -174,7 +174,7 @@ forcing_function_t parse_forcing_function(const char *filename)
 }
 
 /* Free TinyExpr expressions when done */
-void destroy_forcing_function(void)
+void destroy_function(void)
 {
     free_forcing_context();
 }

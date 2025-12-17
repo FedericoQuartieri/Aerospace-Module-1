@@ -25,10 +25,20 @@ int main(){
     VelocityField Eta;
     VelocityField Zeta;
     VelocityField U;
-    initialize_velocity_field(&Eta);
-    initialize_velocity_field(&Zeta);
-    initialize_velocity_field(&U);
 
+    function v_boundary = parse_function("../v_boundary.txt");
+
+    function forcing = parse_function("../forcing.txt");
+
+    if (!forcing) {
+        /* Error already printed to stderr */
+        return 1;
+    }
+
+
+    initialize_velocity_field(&Eta, v_boundary);
+    initialize_velocity_field(&Zeta, v_boundary);
+    initialize_velocity_field(&U, v_boundary);
     // Set K 
     DTYPE *K = (DTYPE *) malloc(GRID_SIZE);
     rand_fill(K);
@@ -46,15 +56,8 @@ int main(){
     }
 
     
-    forcing_function_t forcing;
     double x, y, z, t;
     double fx, fy, fz;
-
-    forcing = parse_forcing_function("../forcing.txt");
-    if (!forcing) {
-        /* Error already printed to stderr */
-        return 1;
-    }
 
 
 
@@ -69,12 +72,8 @@ int main(){
      *                 [dz]    f_z   - Grad_z(P) - c * U_z + c[ Grad_xx(N_z) + Grad_yy(Z_z) + Grad_zz(U_z)] 
      * */     
 
-    DTYPE *u_BC_current_direction = malloc(GRID_SIZE);
-    DTYPE *u_BC_derivative_second_direction = malloc(GRID_SIZE);
-    DTYPE *u_BC_derivative_third_direction = malloc(GRID_SIZE);
 
-    solve(g_field, forcing, pressure, K, Eta, Zeta, U, Beta, Gamma, 
-        u_BC_current_direction, u_BC_derivative_second_direction, u_BC_derivative_third_direction, 
+    solve(g_field, forcing, pressure, K, Eta, Zeta, U, Beta, Gamma, v_boundary, 
         WRITE_FREQUENCY, false,  NULL, NULL);
   
     printf("momentum\n");

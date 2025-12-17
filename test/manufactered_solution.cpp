@@ -23,8 +23,8 @@ extern "C"
 static const double Re       = 100.0;  /* Reynolds number */
 static const double k_over_nu = 0.0;   /* k/nu term in the PDE, set if needed */
 
-/* ----- Forcing function compatible with forcing_function_t ----- */
-/* forcing_function_t: double (*)(double x, double y, double z, double t, int component) */
+/* ----- Forcing function compatible with function ----- */
+/* function: double (*)(double x, double y, double z, double t, int component) */
 
 static double manufactured_forcing(double x, double y, double z, double t, int component)
 {

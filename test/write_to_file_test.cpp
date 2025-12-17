@@ -26,7 +26,7 @@ TEST(ManufacturedSolution, FileMemoryConsistency)
     std::cout << "  File vs Memory Consistency Test      " << std::endl;
     std::cout << "========================================\n" << std::endl;
 
-    forcing_function_t forcing;
+    function forcing;
     double x, y, z, t;
     double fx, fy, fz;
 

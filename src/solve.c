@@ -25,10 +25,10 @@ static void swap_pressure(Pressure *pressure, Pressure *pressure_next) {
     tmp = pressure->p; pressure->p = pressure_next->p; pressure_next->p = tmp;
 } 
 
-void solve (GField g_field, forcing_function_t forcing, Pressure pressure, DTYPE* K, 
+void solve (GField g_field, function forcing, Pressure pressure, DTYPE* K, 
             VelocityField Eta, VelocityField Zeta, VelocityField U, 
             DTYPE* Beta, DTYPE* Gamma, 
-            DTYPE *u_BC_current_direction, DTYPE *u_BC_derivative_second_direction, DTYPE *u_BC_derivative_third_direction, 
+            function v_boundary, 
             int write_frequency, bool full_output, VelocityField** U_record, Pressure** P_record) {
     
     /* 
@@ -56,10 +56,10 @@ void solve (GField g_field, forcing_function_t forcing, Pressure pressure, DTYPE
     VelocityField Zeta_next;
     VelocityField U_next;
     VelocityField Xi;
-    initialize_velocity_field(&Xi);
-    initialize_velocity_field(&Eta_next);
-    initialize_velocity_field(&Zeta_next);
-    initialize_velocity_field(&U_next);
+    initialize_velocity_field(&Xi, v_boundary);
+    initialize_velocity_field(&Eta_next, v_boundary);
+    initialize_velocity_field(&Zeta_next, v_boundary);
+    initialize_velocity_field(&U_next, v_boundary);
 
     //Pressure pressure_next;
     //initialize_pressure(&pressure_next);
@@ -67,9 +67,9 @@ void solve (GField g_field, forcing_function_t forcing, Pressure pressure, DTYPE
     for (int t = 0; t < STEPS; t++) {
 
         // Update G field
-        compute_g(&g_field, forcing, &pressure, K, &Eta, &Zeta, &U, t);        
+        compute_g(&g_field, forcing, &pressure, K, &Eta, &Zeta, &U, t, v_boundary);        
 
-        solve_momentum_system(U, Eta, Zeta, Xi, g_field, U_next, Eta_next, Zeta_next, Beta, Gamma, u_BC_current_direction, u_BC_derivative_second_direction, u_BC_derivative_third_direction);
+        solve_momentum_system(U, Eta, Zeta, Xi, g_field, U_next, Eta_next, Zeta_next, Beta, Gamma, v_boundary);
 
         // not implemented yet
         solve_pressure_system(U_next, &pressure);

@@ -5,6 +5,7 @@
 #include "utils.h"
 #include "velocity_field.h"
 #include "force_field.h"
+#include <stdbool.h>
 
 /**
  * @brief Solves the tridiagonal system Au = f, using the Thomas algorithm. 
@@ -31,15 +32,23 @@
  *                    the computation and will not retain its original values.
  * @param[out] u   Solution vector of size n.
  */
-void Thomas(const DTYPE *__restrict__ w, 
+
+void Thomas_Same_Direction(const DTYPE *__restrict__ w, 
                                unsigned int n,
                                DTYPE *__restrict__ tmp,
-                               DTYPE *__restrict__ f,
-                               DTYPE *__restrict__ u, 
-                               DTYPE *__restrict__ u_BC_current_direction,
-                               DTYPE *__restrict__ u_BC_derivative_second_direction,
-                               DTYPE *__restrict__ u_BC_derivative_third_direction,
-                               DTYPE delta_space );
+                               DTYPE *__restrict__ rhs,
+                               DTYPE *__restrict__ u,
+                               DTYPE delta_space 
+                            ) ;
+
+void Thomas_Different_Direction(const DTYPE *__restrict__ w, 
+                               unsigned int n,
+                               DTYPE *__restrict__ tmp,
+                               DTYPE *__restrict__ rhs,
+                               DTYPE *__restrict__ u,
+                               VelocityField u_BC,
+                               DTYPE delta_space 
+                            ) ;
                                
 void Thomas_Pressure(const DTYPE *__restrict__ w, 
                                unsigned int n,
@@ -49,20 +58,11 @@ void Thomas_Pressure(const DTYPE *__restrict__ w,
                             );
 
 /* Solves the block diagonal system (I - ∂xx)u = f. */
-void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_component, DTYPE *Gamma, 
-                            DTYPE *__restrict__ u_BC_current_direction,
-                            DTYPE *__restrict__ u_BC_derivative_second_direction,
-                            DTYPE *__restrict__ u_BC_derivative_third_direction);
+void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_component, DTYPE *Gamma, function v_boundary, bool same_direction);
 
 /* Solves the block diagonal system (I - ∂yy)u = f. */
-void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next_component, DTYPE *f_field_component, DTYPE *Gamma, 
-                            DTYPE *__restrict__ u_BC_current_direction,
-                            DTYPE *__restrict__ u_BC_derivative_second_direction,
-                            DTYPE *__restrict__ u_BC_derivative_third_direction);
+void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next_component, DTYPE *f_field_component, DTYPE *Gamma, function v_boundary, bool same_direction);
 
 /* Solves the block diagonal system (I - ∂zz)u = f. */
-void solve_Dzz_tridiag_blocks(DTYPE *U_next_component, DTYPE *f_field_component, DTYPE *Gamma,
-                            DTYPE *__restrict__ u_BC_current_direction,
-                            DTYPE *__restrict__ u_BC_derivative_second_direction,
-                            DTYPE *__restrict__ u_BC_derivative_third_direction);
+void solve_Dzz_tridiag_blocks(DTYPE *U_next_component, DTYPE *f_field_component, DTYPE *Gamma, function v_boundary, bool same_direction);
 #endif

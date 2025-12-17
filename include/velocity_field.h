@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include "../include/constants.h"
 #include "utils.h"
+#include "function.h"
 
 typedef struct {
     DTYPE *v_x;
@@ -11,7 +12,7 @@ typedef struct {
     DTYPE *v_z;
 } VelocityField;
 
-void initialize_velocity_field(VelocityField *v_field);
+void initialize_velocity_field(VelocityField *v_field, function v_boundary);
 void free_velocity_field(VelocityField *v_field);
 void rand_fill_velocity_field(VelocityField *v_field);
 DTYPE compute_velocity_x_grad(DTYPE *v_component, size_t i, size_t j, size_t k);
