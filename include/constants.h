@@ -6,14 +6,14 @@
 #define HEIGHT 3
 #define DEPTH 7
 
+
+
 // Grid spatial dimension
 #define GRID_ELEMENTS WIDTH * HEIGHT * DEPTH
 
-// Ghost cells (boundaries)
-#define GHOST_CELLS 1
 
 // Total field size in byte
-#define GRID_SIZE ( (WIDTH + GHOST_CELLS) * (HEIGHT + GHOST_CELLS) * (DEPTH + GHOST_CELLS) * sizeof(DTYPE) )
+#define GRID_SIZE  WIDTH * HEIGHT * DEPTH * sizeof(DTYPE)
 
 // Data type
 #define DTYPE double

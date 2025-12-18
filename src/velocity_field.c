@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-void initialize_velocity_field(VelocityField *v_field) {
+// da capire come dare in input una funzione per il boundary
+void initialize_velocity_field(VelocityField *v_field, VelocityInitFunc vx_boundary, VelocityInitFunc vy_boundary, VelocityInitFunc vz_boundary) {
     v_field->v_x = (DTYPE*) malloc(GRID_SIZE);
     v_field->v_y = (DTYPE*) malloc(GRID_SIZE);
     v_field->v_z = (DTYPE*) malloc(GRID_SIZE);
@@ -10,9 +11,71 @@ void initialize_velocity_field(VelocityField *v_field) {
     rand_fill(v_field->v_x);
     rand_fill(v_field->v_y);
     rand_fill(v_field->v_z);
+
+    size_t idx;
+
+    // (i,j,k) = (0,j,k)
+    for(int k = 1; k < DEPTH; k++){
+        for(int j = 1; j < HEIGHT; j++){
+            idx = rowmaj_idx(0,j,k);
+            v_field->v_x[idx] = vx_boundary(0,j,k) - ((vy_boundary(0,j,k) - vy_boundary(0,j-1,k)) * DY_INVERSE) - ((vz_boundary(0,j,k) - vz_boundary(0,j,k-1)) * DZ_INVERSE);
+            v_field->v_y[idx] = vy_boundary(0,j,k);
+            v_field->v_z[idx] = vz_boundary(0,j,k);
+        }
+    }
+
+    // (i,j,k) = (i,0,k)
+    for(int k = 1; k < DEPTH; k++){
+        for(int i = 1; i < WIDTH; i++){
+            idx = rowmaj_idx(i,0,k);
+            v_field->v_x[idx] = vx_boundary(i,0,k);
+            v_field->v_y[idx] = vy_boundary(i,0,k) - ((vx_boundary(i,0,k) - vx_boundary(i-1,0,k)) * DX_INVERSE) - ((vz_boundary(i,0,k) - vz_boundary(i,0,k-1)) * DZ_INVERSE);
+            v_field->v_z[idx] = vz_boundary(i,0,k);
+        }
+    }
+
+    // (i,j,k) = (i,j,0)
+    for(int j = 1; j < HEIGHT; j++){
+        for(int i = 1; i < WIDTH; i++){
+            idx = rowmaj_idx(i,j,0);
+            v_field->v_x[idx] = vx_boundary(i,j,0);
+            v_field->v_y[idx] = vy_boundary(i,j,0);
+            v_field->v_z[idx] = vz_boundary(i,j,0) - ((vx_boundary(i,j,0) - vx_boundary(i-1,j,0)) * DX_INVERSE) - ((vy_boundary(i,j,0) - vy_boundary(i,j-1,0)) * DY_INVERSE); 
+        }
+    }
+
+    // (i,j,k) = (0,0,k)
+    for(int k = 1; k < DEPTH; k++){
+        idx = rowmaj_idx(0,0,k);
+        v_field->v_x[idx] = vx_boundary(0,0,k) - ((vy_boundary(0,0,k) - vy_boundary(0,0,k)) * DY_INVERSE) - ((vz_boundary(0,0,k) - vz_boundary(0,0,k-1)) * DZ_INVERSE);
+        v_field->v_y[idx] = vy_boundary(0,0,k) - ((vx_boundary(0,0,k) - vx_boundary(0,0,k)) * DX_INVERSE) - ((vz_boundary(0,0,k) - vz_boundary(0,0,k-1)) * DZ_INVERSE);
+        v_field->v_z[idx] = vz_boundary(0,0,k);
+    }
+
+    // (i,j,k) = (0,j,0)
+    for(int j = 1; j < HEIGHT; j++){
+        idx = rowmaj_idx(0,j,0);
+        v_field->v_x[idx] = vx_boundary(0,j,0) - ((vy_boundary(0,j,0) - vy_boundary(0,j-1,0)) * DY_INVERSE) - ((vz_boundary(0,j,0) - vz_boundary(0,j,0)) * DZ_INVERSE);
+        v_field->v_y[idx] = vy_boundary(0,j,0);
+        v_field->v_z[idx] = vz_boundary(0,j,0) - ((vx_boundary(0,j,0) - vx_boundary(0,j,0)) * DX_INVERSE) - ((vy_boundary(0,j,0) - vy_boundary(0,j-1,0)) * DY_INVERSE);
+    }
+
+    // (i,j,k) = (i,0,0)
+    for(int i = 1; i < WIDTH; i++){
+        idx = rowmaj_idx(i,0,0);
+        v_field->v_x[idx] = vx_boundary(i,0,0);
+        v_field->v_y[idx] = vy_boundary(i,0,0) - ((vx_boundary(i,0,0) - vx_boundary(i-1,0,0)) * DX_INVERSE) - ((vz_boundary(i,0,0) - vz_boundary(i,0,0)) * DZ_INVERSE);
+        v_field->v_z[idx] = vz_boundary(i,0,0) - ((vx_boundary(i,0,0) - vx_boundary(i-1,0,0)) * DX_INVERSE) - ((vy_boundary(i,0,0) - vy_boundary(i,0,0)) * DY_INVERSE);
+    }
+
+    // (i,j,k) = (0,0,0)
+    idx = rowmaj_idx(0,0,0);
+    v_field->v_x[idx] = vx_boundary(0,0,0);
+    v_field->v_y[idx] = vy_boundary(0,0,0);
+    v_field->v_z[idx] = vz_boundary(0,0,0);
 }
 
-// TODO handle boundaries conditions
+
 
 DTYPE compute_velocity_x_grad(DTYPE *v_component, size_t i, size_t j, size_t k){
     // Gradient is done along the x-direction -> (i-1,i+1)

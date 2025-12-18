@@ -232,7 +232,10 @@ TEST(VelocitySecondDerivativeTest, DirectionX){
     DTYPE analytical_resultzz;
 
     VelocityField U;
-    initialize_velocity_field(&U);
+    DTYPE boundary_value_x = 1.0;
+    DTYPE boundary_value_y = 1.0;   
+    DTYPE boundary_value_z = 1.0;
+    initialize_velocity_field(&U, boundary_value_x, boundary_value_y, boundary_value_z);
 
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -425,7 +428,10 @@ TEST(VelocitySecondDerivativeTestAllPoints, DirectionX){
     DTYPE analytical_resultzz;
 
     VelocityField U;
-    initialize_velocity_field(&U);
+    DTYPE boundary_value_x = 1.0;
+    DTYPE boundary_value_y = 1.0;   
+    DTYPE boundary_value_z = 1.0;
+    initialize_velocity_field(&U, boundary_value_x, boundary_value_y, boundary_value_z);
 
     DTYPE tol = 1e-5;
     DTYPE max_errxx = 0.0;

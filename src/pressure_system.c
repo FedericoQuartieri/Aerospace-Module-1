@@ -24,7 +24,7 @@ static void compute_Psi(VelocityField U_next, Pressure *psi){
     Pressure rhs;
     initialize_pressure(&rhs);
      for(int k = 0; k < DEPTH; k++){
-        for(int j = 0; j < HEIGHT; j++){
+        for(int j = 0; j < HEIGHT; j++){\
             for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
 

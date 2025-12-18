@@ -1,4 +1,3 @@
-/*
 #include <stdio.h>
 #include <stdlib.h>
 #include "../include/constants.h"
@@ -11,8 +10,8 @@
 #include "pressure_system.h"
 
 /* Solver for the Navier-Stokes-Brinkman equation */
-/*
-int main(){
+
+TEST(Main_test, main){
 
     // Initialize Force field
     ForceField f_field;
@@ -24,10 +23,14 @@ int main(){
     initialize_pressure(&pressure);
     rand_fill(pressure.p);
 
-
+    //presupponiamo valore velocità ai bordi uguale in tutte le direzioni
     DTYPE boundary_value_x = 1.0;
     DTYPE boundary_value_y = 1.0;   
     DTYPE boundary_value_z = 1.0;
+
+    DTYPE boundary_value_sx = 1.0;
+    DTYPE boundary_value_dx = 1.0;
+
     // Inizialize the 3 velocity field
     VelocityField Eta;
     VelocityField Zeta;
@@ -62,7 +65,7 @@ int main(){
      *            G:   [dy] =  f_y   - Grad_y(P) - c * U_y + c[ Grad_xx(N_y) + Grad_yy(Z_y) + Grad_zz(U_y)]
      *                 [dz]    f_z   - Grad_z(P) - c * U_z + c[ Grad_xx(N_z) + Grad_yy(Z_z) + Grad_zz(U_z)] 
      * */     
-    /*compute_g(&g_field, &f_field, &pressure, K, &Eta, &Zeta, &U);
+    compute_g(&g_field, &f_field, &pressure, K, &Eta, &Zeta, &U);
     
 
 
@@ -80,10 +83,17 @@ int main(){
         DTYPE *u_BC_derivative_third_direction = malloc(sizeof(DTYPE) * GRID_SIZE);
 
 
+        memset(u_BC_derivative_second_direction, 0, GRID_SIZE);
+        memset(u_BC_derivative_third_direction, 0, GRID_SIZE);
+
+
         solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
         u_BC_derivative_second_direction,
-        u_BC_derivative_third_direction);
+        u_BC_derivative_third_direction,
+        boundary_value_sx,
+        boundary_value_dx);
 
+    /*
         Pressure psi;
         Pressure phi_lower;
         Pressure phi_higher;
@@ -91,6 +101,7 @@ int main(){
         initialize_pressure(&phi_lower);
         initialize_pressure(&phi_higher);
         solve_pressure_system(U_next, &psi, &phi_lower, &phi_higher, &pressure);
+    */
 
     printf("momentum\n");
 
@@ -113,4 +124,3 @@ int main(){
 
     return 0;
 }
-*/

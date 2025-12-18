@@ -141,7 +141,7 @@ TEST(Momentum_linear_solver_test, Xi_computation) {
     DTYPE* K;
     VelocityField Eta, Zeta, U;
     VelocityField Eta_next, Zeta_next, U_next, Xi;
-    DTYPE *u_BC_current_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
+    //DTYPE *u_BC_current_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     DTYPE *u_BC_derivative_second_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     DTYPE *u_BC_derivative_third_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     
@@ -168,7 +168,6 @@ TEST(Momentum_linear_solver_test, Xi_computation) {
     }
 
     solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
-        u_BC_current_direction,
         u_BC_derivative_second_direction,
         u_BC_derivative_third_direction);
 
@@ -192,7 +191,7 @@ TEST(Momentum_linear_solver_test, Eta_next_computation) {
     DTYPE* K;
     VelocityField Eta, Zeta, U;
     VelocityField Eta_next, Zeta_next, U_next, Xi;
-    DTYPE *u_BC_current_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
+    //DTYPE *u_BC_current_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     DTYPE *u_BC_derivative_second_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     DTYPE *u_BC_derivative_third_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     
@@ -219,7 +218,6 @@ TEST(Momentum_linear_solver_test, Eta_next_computation) {
     }
 
     solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
-        u_BC_current_direction,
         u_BC_derivative_second_direction,
         u_BC_derivative_third_direction);
 
@@ -370,7 +368,7 @@ TEST(Momentum_linear_solver_test, Zeta_next_computation) {
     DTYPE* K;
     VelocityField Eta, Zeta, U;
     VelocityField Eta_next, Zeta_next, U_next, Xi;
-    DTYPE *u_BC_current_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
+    //DTYPE *u_BC_current_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     DTYPE *u_BC_derivative_second_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     DTYPE *u_BC_derivative_third_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     
@@ -397,7 +395,6 @@ TEST(Momentum_linear_solver_test, Zeta_next_computation) {
     }
 
     solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
-        u_BC_current_direction,
         u_BC_derivative_second_direction,
         u_BC_derivative_third_direction);
 
@@ -538,7 +535,7 @@ TEST(Momentum_linear_solver_test, U_next_computation) {
     DTYPE* K;
     VelocityField Eta, Zeta, U;
     VelocityField Eta_next, Zeta_next, U_next, Xi;
-    DTYPE *u_BC_current_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
+    //DTYPE *u_BC_current_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     DTYPE *u_BC_derivative_second_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     DTYPE *u_BC_derivative_third_direction = (DTYPE*) malloc(sizeof(DTYPE) * GRID_SIZE);
     
@@ -565,7 +562,6 @@ TEST(Momentum_linear_solver_test, U_next_computation) {
     }
 
     solve_momentum_system(U, Eta, Zeta, Xi, g_field, K, U_next, Eta_next, Zeta_next, Beta, Gamma,
-        u_BC_current_direction,
         u_BC_derivative_second_direction,
         u_BC_derivative_third_direction);
 
