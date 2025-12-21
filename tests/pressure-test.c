@@ -34,9 +34,9 @@ static void compute_div(const ftype *src_x,
             dst[face_offset + width * j] = 0;
             for (uint32_t k = 1; k < width; ++k) {
                 uint64_t idx = face_offset + width * j + k;
-                dst[idx] = (src_x[idx] - src_x[idx - 1]) +
-                           (src_y[idx] - src_y[idx - width]) +
-                           (src_z[idx] - src_z[idx - height * width]);
+                dst[idx] = ((src_x[idx] - src_x[idx - 1]) +
+                            (src_y[idx] - src_y[idx - width]) +
+                            (src_z[idx] - src_z[idx - height * width])) / (-_DX * _DT);
             }
         }
     }
@@ -57,7 +57,7 @@ DEF_TEST(test_pressure_Dxx_solver,
     field tmp = field_alloc(size, arena);
     field3 velocity = field3_alloc(size, arena);
 
-    field_fill(size, 1.0, gamma);
+    field_fill(size, 1.0 / (_DX * _DX), gamma);
     field3_rand_fill(size, velocity);
 
     compute_div(velocity.x, velocity.y, velocity.z,
@@ -89,7 +89,7 @@ DEF_TEST(test_pressure_D##axes##_solver,                                   \
     /* WARNING: Only max(d, h, w) tmp space would be required. */          \
     field tmp = field_alloc(size, arena);                                  \
                                                                            \
-    field_fill(size, 1.0, gamma);                                          \
+    field_fill(size, 1.0 / (_DX * _DX), gamma);                            \
     field_rand_fill(size, rhs);                                            \
     field_copy(size, rhs, rhs_ref);                                        \
                                                                            \

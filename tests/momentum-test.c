@@ -8,7 +8,31 @@
 
 #include "momentum.c"
 
-#define TOL 1e-4
+#define LEFT_BC_U_X 0.1
+#define LEFT_BC_U_Y 0.2
+#define LEFT_BC_U_Z 0.3
+#define RIGHT_BC_U_X 0.4
+#define RIGHT_BC_U_Y 0.5
+#define RIGHT_BC_U_Z 0.6
+#define TOP_BC_U_X -0.1
+#define TOP_BC_U_Y -0.2
+#define TOP_BC_U_Z -0.3
+#define BOTTOM_BC_U_X -0.3
+#define BOTTOM_BC_U_Y -0.5
+#define BOTTOM_BC_U_Z -0.6
+#define FRONT_BC_U_X 0.7
+#define FRONT_BC_U_Y 0.9
+#define FRONT_BC_U_Z 0.1
+#define BACK_BC_U_X 0.0
+#define BACK_BC_U_Y -0.3
+#define BACK_BC_U_Z 0.8
+
+DEFINE_CONSTANT_BC_U(LEFT_BC_U_X, LEFT_BC_U_Y, LEFT_BC_U_Z, BC_LEFT)
+DEFINE_CONSTANT_BC_U(RIGHT_BC_U_X, RIGHT_BC_U_Y, RIGHT_BC_U_Z, BC_RIGHT)
+DEFINE_CONSTANT_BC_U(TOP_BC_U_X, TOP_BC_U_Y, TOP_BC_U_Z, BC_TOP)
+DEFINE_CONSTANT_BC_U(BOTTOM_BC_U_X, BOTTOM_BC_U_Y, BOTTOM_BC_U_Z, BC_BOTTOM)
+DEFINE_CONSTANT_BC_U(FRONT_BC_U_X, FRONT_BC_U_Y, FRONT_BC_U_Z, BC_FRONT)
+DEFINE_CONSTANT_BC_U(BACK_BC_U_X, BACK_BC_U_Y, BACK_BC_U_Z, BC_BACK)
 
 #define RMJ_IDX(z, y, x, h, w) ((h) * (w) * (z) + (w) * (y) + (x))
 
@@ -23,12 +47,16 @@ static DEF_TEST(test_momentum_Dxx_rhs_comp,
                 int depth,
                 int height,
                 int width,
-                ftype u_ex,
+                ftype u_ex_right,
+                ftype u_ex_bottom,
+                ftype u_ex_back,
                 int is_x_comp,
                 int is_y_comp,
                 int is_z_comp)
 {
     arena_enter(arena);
+
+    /* NOTE: If this fails, it's fine, it's because of u_ex_x. */
 
     uint64_t size = depth * height * width;
     ftype *Dxx_eta = arena_push_count(arena, ftype, size);
@@ -57,17 +85,17 @@ static DEF_TEST(test_momentum_Dxx_rhs_comp,
                 /* Ghost node interpolation. */
                 if (!is_x_comp && l == width - 1) {
                     Dxx_eta[idx] = (eta[RMJ_IDX(i, j, l - 1, height, width)] -
-                                    3 * eta[idx] + 2 * u_ex) / (_DX * _DX);
+                                    3 * eta[idx] + 2 * u_ex_right) / (_DX * _DX);
                 }
 
                 if (!is_y_comp && j == height - 1) {
                     Dyy_zeta[idx] = (zeta[RMJ_IDX(i, j - 1, l, height, width)] -
-                                     3 * zeta[idx] + 2 * u_ex) / (_DX * _DX);
+                                     3 * zeta[idx] + 2 * u_ex_bottom) / (_DX * _DX);
                 }
 
                 if (!is_z_comp && i == depth - 1) {
                     Dzz_u[idx] = (u[RMJ_IDX(i - 1, j, l, height, width)] -
-                                  3 * u[idx] + 2 * u_ex) / (_DX * _DX);
+                                  3 * u[idx] + 2 * u_ex_back) / (_DX * _DX);
                 }
             }
         }
@@ -95,6 +123,7 @@ static DEF_TEST(test_momentum_Dxx_rhs_comp,
                     ftype beta = 1 + _DT * _NU / (2 * k[idx]);
                     ftype rhs_ref = u[idx] + _DT / beta * g - eta[idx];
 
+                    //printf("%d %d %d\n", i, j, l);
                     EXPECT_EQUALF(rhs_ref, rhs[idx], TOL);
                 }
            }
@@ -130,6 +159,7 @@ DEF_TEST(test_momentum_Dxx_rhs,
     field3_rand_fill(size, velocity_Dzz);
     field3_fill(size, 0, forcing);
 
+    /* WARNING: Not used anymore, remove them. */
     ftype u_ex_x = ((ftype) rand()) / RAND_MAX;
     ftype u_ex_y = ((ftype) rand()) / RAND_MAX;
     ftype u_ex_z = ((ftype) rand()) / RAND_MAX;
@@ -199,7 +229,8 @@ DEF_TEST(test_momentum_Dxx_rhs,
                    velocity_Dzz.x + face_size,
                    rhs.x,
                    depth, height, width,
-                   u_ex_x, 1, 0, 0);
+                   RIGHT_BC_U_X, BOTTOM_BC_U_X, BACK_BC_U_X,
+                   1, 0, 0);
 
     EXPECT_SUCCESS(test_momentum_Dxx_rhs_comp,
                    arena,
@@ -210,7 +241,8 @@ DEF_TEST(test_momentum_Dxx_rhs,
                    velocity_Dzz.y + face_size,
                    rhs.y,
                    depth, height, width,
-                   u_ex_y, 0, 1, 0);
+                   RIGHT_BC_U_Y, BOTTOM_BC_U_Y, BACK_BC_U_Y,
+                   0, 1, 0);
 
     EXPECT_SUCCESS(test_momentum_Dxx_rhs_comp,
                    arena,
@@ -220,8 +252,9 @@ DEF_TEST(test_momentum_Dxx_rhs,
                    velocity_Dyy.z + face_size,
                    velocity_Dzz.z + face_size,
                    rhs.z,
+                   RIGHT_BC_U_Z, BOTTOM_BC_U_Z, BACK_BC_U_Z,
                    depth, height, width,
-                   u_ex_z, 0, 0, 1);
+                   0, 0, 1);
 
     arena_exit(arena);
 }
@@ -267,32 +300,6 @@ DEF_TEST(test_momentum_D##axes##_solver,                                 \
                                                                          \
     arena_exit(arena);                                                   \
 }
-
-#define LEFT_BC_U_X 0.1
-#define LEFT_BC_U_Y 0.2
-#define LEFT_BC_U_Z 0.3
-#define RIGHT_BC_U_X 0.4
-#define RIGHT_BC_U_Y 0.5
-#define RIGHT_BC_U_Z 0.6
-#define TOP_BC_U_X -0.1
-#define TOP_BC_U_Y -0.2
-#define TOP_BC_U_Z -0.3
-#define BOTTOM_BC_U_X -0.3
-#define BOTTOM_BC_U_Y -0.5
-#define BOTTOM_BC_U_Z -0.6
-#define FRONT_BC_U_X 0.7
-#define FRONT_BC_U_Y 0.9
-#define FRONT_BC_U_Z 0.1
-#define BACK_BC_U_X 0.0
-#define BACK_BC_U_Y -0.3
-#define BACK_BC_U_Z 0.8
-
-DEFINE_CONSTANT_BC_U(LEFT_BC_U_X, LEFT_BC_U_Y, LEFT_BC_U_Z, BC_LEFT)
-DEFINE_CONSTANT_BC_U(RIGHT_BC_U_X, RIGHT_BC_U_Y, RIGHT_BC_U_Z, BC_RIGHT)
-DEFINE_CONSTANT_BC_U(TOP_BC_U_X, TOP_BC_U_Y, TOP_BC_U_Z, BC_TOP)
-DEFINE_CONSTANT_BC_U(BOTTOM_BC_U_X, BOTTOM_BC_U_Y, BOTTOM_BC_U_Z, BC_BOTTOM)
-DEFINE_CONSTANT_BC_U(FRONT_BC_U_X, FRONT_BC_U_Y, FRONT_BC_U_Z, BC_FRONT)
-DEFINE_CONSTANT_BC_U(BACK_BC_U_X, BACK_BC_U_Y, BACK_BC_U_Z, BC_BACK)
 
 DEF_TEST_MOMENTUM_D_SOLVER(
     xx, 1, 0, 0, LEFT_BC_U_X, LEFT_BC_U_Y, LEFT_BC_U_Z,

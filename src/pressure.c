@@ -4,6 +4,7 @@
 
 #include "ftype.h"
 #include "field.h"
+#include "consts.h"
 
 #ifndef FLOAT
 
@@ -120,10 +121,10 @@ vftype compute_div_vtile(const ftype *restrict src_x,
 
     fin_diff(rx0, rx1, rx2, rx3, rx4);
 
-    vstore(dst + 0 * dst_stride, div0 + rx0);
-    vstore(dst + 1 * dst_stride, div1 + rx1);
-    vstore(dst + 2 * dst_stride, div2 + rx2);
-    vstore(dst + 3 * dst_stride, div3 + rx3);
+    vstore(dst + 0 * dst_stride, (div0 + rx0) / (-_DX * _DT));
+    vstore(dst + 1 * dst_stride, (div1 + rx1) / (-_DX * _DT));
+    vstore(dst + 2 * dst_stride, (div2 + rx2) / (-_DX * _DT));
+    vstore(dst + 3 * dst_stride, (div3 + rx3) / (-_DX * _DT));
 
     return rx4;
 
@@ -175,14 +176,14 @@ vftype compute_div_vtile(const ftype *restrict src_x,
 
     fin_diff(rx0, rx1, rx2, rx3, rx4, rx5, rx6, rx7, rx8);
 
-    vstore(dst + 0 * dst_stride, div0 + rx0);
-    vstore(dst + 1 * dst_stride, div1 + rx1);
-    vstore(dst + 2 * dst_stride, div2 + rx2);
-    vstore(dst + 3 * dst_stride, div3 + rx3);
-    vstore(dst + 4 * dst_stride, div4 + rx4);
-    vstore(dst + 5 * dst_stride, div5 + rx5);
-    vstore(dst + 6 * dst_stride, div6 + rx6);
-    vstore(dst + 7 * dst_stride, div7 + rx7);
+    vstore(dst + 0 * dst_stride, (div0 + rx0) / (-_DX * _DT));
+    vstore(dst + 1 * dst_stride, (div1 + rx1) / (-_DX * _DT));
+    vstore(dst + 2 * dst_stride, (div2 + rx2) / (-_DX * _DT));
+    vstore(dst + 3 * dst_stride, (div3 + rx3) / (-_DX * _DT));
+    vstore(dst + 4 * dst_stride, (div4 + rx4) / (-_DX * _DT));
+    vstore(dst + 5 * dst_stride, (div5 + rx5) / (-_DX * _DT));
+    vstore(dst + 6 * dst_stride, (div6 + rx6) / (-_DX * _DT));
+    vstore(dst + 7 * dst_stride, (div7 + rx7) / (-_DX * _DT));
 
     return rx8;
 #endif
@@ -202,7 +203,7 @@ void gauss_reduce_vcol(const ftype *restrict f_src,
 
     //*upper_prev = 1 / norm_coeff;
     //*f_prev = (f + *f_prev) / norm_coeff;
-    *f_prev = (f + *f_prev) * norm_coeff_inv;
+    *f_prev = (f * _DX * _DX + *f_prev) * norm_coeff_inv;
 
     //vstore(upper, *upper_prev);
     vstore(f_dst, *f_prev);
@@ -249,7 +250,7 @@ void solve_vtiles_row(const ftype *restrict u_x,
                           1, is_first_row,
                           VLEN, div_u_t);
 
-    vftype f_prev = vload(div_u_t) / 3.0; /* Left BCs applied. */
+    vftype f_prev = vload(div_u_t) / (1.0 + 2.0 / (_DX * _DX)); /* Left BCs applied. */
     vstore(tmp_f, f_prev);
 
     for (int k = 1; k < VLEN; ++k) {
@@ -301,17 +302,17 @@ static void solve_Dxx_blocks(const ftype *restrict u_x,
 #ifdef AUTO_VEC
     printf("WARNING: solve_Dxx_blocks for AUTO_VEC not implemented\n");
 #else
-    ftype upp = -2.0 / 3; /* Left BC. */
+    ftype upp = -2.0 / (2.0 + _DX * _DX); /* Left BC. */
     tmp[0] = upp;
     /* We can reduce once, each row of the first face
      * is the same system. */
     for (uint32_t k = 1; k < width - 1; ++k) {
         /* Gauss reduce tile column, rhs = 0 here. */
-        upp = -1.0 / (3.0 + upp);
+        upp = -1.0 / (_DX * _DX + 2.0 + upp);
         /* Store only once, then broadcast later. */
         tmp[k] = upp;
     }
-    tmp[width - 1] = -1.0 / (2 + tmp[width - 2]); /* Right BC. */
+    tmp[width - 1] = -1.0 / (_DX * _DX + 1.0 + tmp[width - 2]); /* Right BC. */
 
     /* Solve the first face, where div(u) = 0. */
     /* WARNING: There's no need to solve the first face again,
@@ -355,7 +356,7 @@ void gauss_reduce_scalar(uint32_t row_stride,
     //vftype norm_coeff = 3 + upp_prev;
 
     //vstore(upper, -1.0f / norm_coeff);
-    vstore(f, (vload(f) + f_prev) * norm_coeff_inv);
+    vstore(f, (vload(f) * _DX * _DX + f_prev) * norm_coeff_inv);
 }
 
 static inline __attribute__((always_inline))
@@ -387,20 +388,21 @@ static void solve_Dyy_blocks(uint32_t depth,
                              ftype *restrict f,
                              ftype *restrict p)
 {
-    ftype upp = -2.0 / 3; /* Left BC. */
+    ftype upp = -2.0 / (2.0 + _DX * _DX); /* Left BC. */
     tmp[0] = upp;
     for (uint32_t j = 1; j < height - 1; ++j) {
-        upp = -1.0 / (3.0 + upp);
+        upp = -1.0 / (_DX * _DX + 2.0 + upp);
         tmp[j] = upp;
     }
-    tmp[height - 1] = -1.0 / (2 + tmp[height - 2]); /* Right BC. */
+    tmp[height - 1] = -1.0 / (_DX * _DX + 1.0 + tmp[height - 2]); /* Right BC. */
 
     for (uint32_t i = 0; i < depth; ++i) {
         uint64_t face_offset = height * width * i;
 
         /* Neumann BCs for the first row. */
         for (uint32_t k = 0; k < width; k += VLEN) {
-            vstore(f + face_offset + k, vload(f + face_offset + k) / 3.0);
+            vstore(f + face_offset + k,
+                   vload(f + face_offset + k) / (1.0 + 2.0 / (_DX * _DX)));
         }
 
         for (uint32_t j = 1; j < height; ++j) {
@@ -440,19 +442,20 @@ void solve_Dzz_blocks(uint32_t depth,
                       ftype *restrict f,
                       ftype *restrict p)
 {
-    ftype upp = -2.0 / 3; /* Left BC. */
+    ftype upp = -2.0 / (2.0 + _DX * _DX); /* Left BC. */
     tmp[0] = upp;
     for (uint32_t i = 1; i < depth - 1; ++i) {
-        upp = -1.0 / (3.0 + upp);
+        upp = -1.0 / (_DX * _DX + 2.0 + upp);
         /* Store only once, then broadcast later. */
         tmp[i] = upp;
     }
-    tmp[depth - 1] = -1.0 / (2 + tmp[depth - 2]); /* Right BC. */
+    tmp[depth - 1] = -1.0 / (_DX * _DX + 1.0 + tmp[depth - 2]); /* Right BC. */
 
     /* Apply BCs to first face. */
     for (uint32_t j = 0; j < height; ++j) {
         for (uint32_t k = 0; k < width; k += VLEN) {
-            vstore(f + width * j + k, vload(f + width * j + k) / 3.0);
+            vstore(f + width * j + k,
+                   vload(f + width * j + k) / (1.0 + 2.0 / (_DX * _DX)));
         }
     }
 
@@ -701,8 +704,7 @@ void solve_pressure_fused(uint32_t depth,
 
 void pressure_init(field_size size, field field)
 {
-    uint64_t num_points = size.depth * size.height *size.width;
-    memset(field, 0, num_points * sizeof(ftype));
+    memset(field, 0, field_num_points(size) * sizeof(ftype));
 }
 
 void pressure_solve(const_field3 velocity,
@@ -720,11 +722,11 @@ void pressure_solve(const_field3 velocity,
                      size.depth, size.height, size.width,
                      tmp, pressure_delta);
 
-    solve_Dyy_blocks(size.depth, size.height, size.width, tmp,
-                     pressure_delta, sol);
+    solve_Dyy_blocks(size.depth, size.height, size.width,
+                     tmp, pressure_delta, sol);
 
-    solve_Dzz_blocks(size.depth, size.height, size.width, tmp,
-                     sol, pressure_delta);
+    solve_Dzz_blocks(size.depth, size.height, size.width,
+                     tmp, sol, pressure_delta);
 
     /* Update pressure. */
     uint64_t num_points = field_num_points(size);

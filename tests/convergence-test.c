@@ -222,12 +222,59 @@ static double field_l2_dist(field_size size, const_field f1, const_field f2)
 {
     double dist = 0;
 
-    uint64_t num_points = field_num_points(size);
-    for (uint64_t i = 0; i < num_points; ++i) {
-        dist += POW2(f1[i] - f2[i]);
+    /*
+    printf("\n\nreference:");
+
+    for (uint32_t i = 0; i < size.depth;  ++i) {
+        printf("\n");
+        for (uint32_t j = 0; j < size.height; ++j) {
+            printf("\n");
+            for (uint32_t k = 0; k < size.width; ++k) {
+
+                uint64_t idx = size.height * size.width * i +
+                               size.width * j + k;
+
+                printf("%g ", f1[idx]);
+            }
+        }
     }
 
-    return sqrt(dist);
+    printf("\n\nsolution:");
+
+    for (uint32_t i = 0; i < size.depth;  ++i) {
+        printf("\n");
+        for (uint32_t j = 0; j < size.height; ++j) {
+            printf("\n");
+            for (uint32_t k = 0; k < size.width; ++k) {
+
+                uint64_t idx = size.height * size.width * i +
+                               size.width * j + k;
+
+                printf("%g ", f2[idx]);
+            }
+        }
+    }
+
+    printf("\n\nsolution error:");
+    */
+
+    for (uint32_t i = 0; i < size.depth; ++i) {
+        //printf("\n");
+        for (uint32_t j = 0; j < size.height; ++j) {
+            //printf("\n");
+            for (uint32_t k = 0; k < size.width; ++k) {
+                uint64_t idx = size.height * size.width * i +
+                               size.width * j + k;
+
+                double err = POW2(f1[idx] - f2[idx]);
+                dist += err;
+
+                //printf("%g ", err);
+            }
+        }
+    }
+
+    return sqrt(dist * _DX * _DX * _DX);
 }
 
 static double field3_l2_dist(field_size size, const_field3 f1, const_field3 f2)
@@ -246,7 +293,7 @@ static double field3_l2_dist(field_size size, const_field3 f1, const_field3 f2)
                 uint64_t idx = size.height * size.width * i +
                                size.width * j + k;
 
-                printf("%g ", f1.z[idx]);
+                printf("%g ", f1.x[idx]);
             }
         }
     }
@@ -262,13 +309,13 @@ static double field3_l2_dist(field_size size, const_field3 f1, const_field3 f2)
                 uint64_t idx = size.height * size.width * i +
                                size.width * j + k;
 
-                printf("%g ", f2.z[idx]);
+                printf("%g ", f2.x[idx]);
             }
         }
     }
-    */
 
-    //printf("\n\nsolution error:");
+    printf("\n\nsolution error:");
+    */
 
     for (uint32_t i = 0; i < size.depth; ++i) {
         //printf("\n");
@@ -286,7 +333,7 @@ static double field3_l2_dist(field_size size, const_field3 f1, const_field3 f2)
                              POW2(f1.y[idx] - f2.y[idx]) +
                              POW2(f1.z[idx] - f2.z[idx]);
 
-                //printf("%g ", f1.x[idx] - f2.x[idx]);
+                //printf("%g ", fabs(((f1.x[idx] - f2.x[idx]) / fmax(f1.x[idx], 1e-12))));
 
                 dist += err;
             }
@@ -337,9 +384,9 @@ static void compute_manufactured_pressure(field_size size,
                 uint64_t idx = size.height * size.width * i +
                                size.width * j + k;
 
-                dst[idx] = -3.0 * _NU * sin(time) * cos(k * _DX)
-                                      * sin(j * _DX)
-                                      * (sin(i * _DX) - cos(i * _DX));
+                dst[idx] = 0.0;//-3.0 * _NU * sin(time) * cos(k * _DX)
+                               //       * sin(j * _DX)
+                               //       * (sin(i * _DX) - cos(i * _DX));
             }
         }
     }
@@ -357,7 +404,7 @@ DEF_TEST(test_manufactured_convergence_space,
     double *velocity_errors = arena_push_count(arena, double, num_samples);
     double *pressure_errors = arena_push_count(arena, double, num_samples);
 
-    SET_DT(0.0001);
+    SET_DT(0.000001);
 
     for (int i = 0; i < num_samples; ++i) {
         arena_enter(arena);
@@ -366,7 +413,7 @@ DEF_TEST(test_manufactured_convergence_space,
                             max_height >> i,
                             max_depth >> i };
 
-        SET_DX(M_PI / size.depth);
+        SET_DX(1.0 / size.width);
 
         Solver *solver = solver_alloc(size.depth, size.height,
                                       size.width, arena);
@@ -393,7 +440,7 @@ DEF_TEST(test_manufactured_convergence_space,
     }
 
     for (int i = 0; i < num_samples; ++i) {
-        printf("%3d u=%g p=%g\n", max_depth >> i,
+        printf("%3d u=%g p=%g\n", max_width >> i,
                velocity_errors[i], pressure_errors[i]);
     }
 
@@ -407,7 +454,7 @@ int main(void)
     ArenaAllocator arena;
     arena_init(&arena, 1ul << 32);
 
-    RUN_TEST(test_manufactured_convergence_space, &arena, 128, 128, 128, 4);
+    RUN_TEST(test_manufactured_convergence_space, &arena, 256, 256, 256, 4);
 
     arena_destroy(&arena);
 

@@ -47,7 +47,7 @@ static inline field3 field3_alloc_pad(field_size size,
                                       ArenaAllocator *arena)
 {
     uint32_t face_size = size.height * size.width;
-    uint64_t num_points = field_num_points(size) + face_size;
+    uint64_t num_points = field_num_points(size) + face_size * 2;
 
     field3 field = {
         arena_push_count(arena, ftype, num_points) + face_size,

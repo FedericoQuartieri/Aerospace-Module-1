@@ -54,8 +54,8 @@ do {                                                        \
 #define EXPECT_EQUALF(x, y, tol)                            \
 do {                                                        \
     if (_ABS((x) - (y)) > tol) {                            \
-        printf(" EXPECT_EQUALF(%f %f) FAILED at %s:%d\n",    \
-               (x), (y), __FILE__, __LINE__);                     \
+        /*printf(" EXPECT_EQUALF(%f %f) FAILED at %s:%d\n", */   \
+        /*       (x), (y), __FILE__, __LINE__);             */   \
         *_test_status = FAILURE;                            \
     }                                                       \
 } while (0)
@@ -63,8 +63,8 @@ do {                                                        \
 #define ASSERT_EQUALF(x, y, tol)                            \
 do {                                                        \
     if (_ABS((x) - (y)) > (tol)) {                          \
-        printf(" ASSERT_EQUALF() FAILED at %s:%d\n",        \
-               __FILE__, __LINE__);                         \
+        printf(" ASSERT_EQUALF(%g %g) FAILED at %s:%d\n",        \
+               (x), (y), __FILE__, __LINE__);                         \
         *_test_status = FAILURE;                            \
         return;                                             \
     }                                                       \

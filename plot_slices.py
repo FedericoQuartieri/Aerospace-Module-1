@@ -48,46 +48,6 @@ def parse_log_file(filename):
     
     return data
 
-def compute_ratios(data):
-    if 'reference' not in data or 'solution' not in data:
-        return
-
-    ref_slices = data['reference']
-    sol_slices = data['solution']
-    
-    # Only process up to the minimum count
-    n = min(len(ref_slices), len(sol_slices))
-    
-    data['ratio'] = []
-    
-    all_ratios = []
-
-    for i in range(n):
-        ref = ref_slices[i]
-        sol = sol_slices[i]
-        
-        if ref.shape != sol.shape:
-            continue
-
-        # Compute ratio (Ref / Sol)
-        # Handle division by zero safely
-        with np.errstate(divide='ignore', invalid='ignore'):
-            ratio = np.divide(ref, sol)
-        
-        data['ratio'].append(ratio)
-
-        # Collect statistics on finite values for info
-        mask = np.isfinite(ratio)
-        if np.any(mask):
-            all_ratios.extend(ratio[mask])
-
-    if all_ratios:
-        median_ratio = np.median(all_ratios)
-        mean_ratio = np.mean(all_ratios)
-        print(f"Stats for Ratio (Ref/Sol): Median={median_ratio:.4f}, Mean={mean_ratio:.4f}")
-    else:
-        print("Could not compute ratio stats (insufficient valid data).")
-
 def plot_slices(data):
     categories = ['reference', 'solution', 'error', 'ratio']
     # Filter categories that actually have data
@@ -115,7 +75,7 @@ def plot_slices(data):
             if j < len(slices):
                 slice_data = slices[j]
                 if slice_data.ndim == 2:
-                    im = ax.imshow(slice_data, cmap='viridis', interpolation='nearest')
+                    im = ax.imshow(slice_data, cmap='gray', interpolation='nearest')
                     ax.set_xticks([])
                     ax.set_yticks([])
                     
@@ -137,7 +97,6 @@ if __name__ == "__main__":
     print(f"Reading from {log_file}...")
     data = parse_log_file(log_file)
     if any(data.values()):
-        compute_ratios(data)
         plot_slices(data)
     else:
         print("No valid slices found.")

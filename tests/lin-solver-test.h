@@ -1,7 +1,7 @@
 #ifndef LIN_SOLVER_TEST_H
 #define LIN_SOLVER_TEST_H
 
-#define TOL 1e-4
+#define TOL 1e-6
 
 static DEF_TEST(test_wD_solution,
                 const ftype *__restrict__ w,
@@ -30,7 +30,8 @@ static DEF_TEST(test_wD_solution,
             } else {
                 /* Homogeneous Neumann boundary condition! */
                 ASSERT_EQUALF(f_i /* -2 dx u0 */,
-                              3 * u[idx] - 2 * u[idx + stride_k],
+                              (1 + 2 * w_i) * u[idx] -
+                              2 * w_i * u[idx + stride_k],
                               TOL);
             }
             //printf("%2d %2d  %f - f=%f\n", i, j, error, f_i);
@@ -54,16 +55,21 @@ static DEF_TEST(test_wD_solution,
                 if (is_comp_normal) {
                     ASSERT_EQUALF(un, u[idx + stride_k * (width - 1)], TOL);
                 } else {
-                    ASSERT_EQUALF(2 * w_i * un + f_i,
+                    ASSERT_EQUALF(//w_i * 8.0 / 3.0 * un + f_i,
+                                  2 * w_i * un + f_i,
                                   (-w_i * u[idx + stride_k * (width - 2)] +
                                   (1 + 3 * w_i) *
                                   u[idx + stride_k * (width - 1)]),
+                                  /*
+                                  -w_i * 4.0 / 3.0 * u[idx + stride_k * (width - 2)] +
+                                  (1 + 4 * w_i) * u[idx + stride_k * (width - 1)],
+                                  */
                                   TOL);
                 }
             } else {
                 ASSERT_EQUALF(f_i /* + dx un */,
-                              -1 * u[idx + stride_k * (width - 2)] +
-                              2 * u[idx + stride_k * (width - 1)],
+                              -1 * w_i * u[idx + stride_k * (width - 2)] +
+                              (1 + 2 * w_i - w_i) * u[idx + stride_k * (width - 1)],
                               TOL);
             }
             //printf("%2d %2d %f\n", i, j, error);

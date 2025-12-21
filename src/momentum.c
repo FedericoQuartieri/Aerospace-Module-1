@@ -9,6 +9,7 @@
 #include "boundary.h"
 #include "consts.h"
 
+DECLARE_BC_U(BC_RIGHT)
 DECLARE_BC_U(BC_BOTTOM)
 DECLARE_BC_U(BC_BACK)
 
@@ -38,7 +39,8 @@ vftype compute_g_comp_at(const ftype *restrict eta,
     vftype inv_dx = vbroadcast(1 / _DX);
     vftype inv_dxdx = vbroadcast(1 / (_DX * _DX));
 
-    /* yes, it's ugly :/ */ return vadd(f_,
+    /* yes, it's ugly :/ */
+    return vadd(f_,
                 vsub(vmul(nu_half,
                           vsub(vmul(vadd(Dxx_eta,
                                          vadd(Dyy_zeta,
@@ -176,19 +178,33 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
 
             /* For y and z, correct Dxx(eta) using the ghost node. */
             uint64_t idx = height * width * i + width * j + width - 1;
-            ftype coeff = 2 * k[idx] * _DT / (2 * k[idx] + _DT * _NU) *
-                          _NU / (2 * _DX * _DX);
+            //ftype coeff = 2 * k[idx] * _DT / (2 * k[idx] + _DT * _NU) *
+            //              _NU / (2 * _DX * _DX);
+            ftype coeff =  (_DT * _NU * k[idx]) / (2 * k[idx] + _DT * _NU) / (_DX * _DX);
 
-            ftype u_ex_y = sin(_DT) * cos((width - 1) * _DX + _DX / 2)
-                              * cos(j * _DX + _DX / 2)
-                              * cos(i * _DX);
-            ftype u_ex_z = sin(_DT) * cos((width - 1) * _DX + _DX / 2)
-                              * sin(j * _DX)
-                              * (cos(i * _DX + _DX / 2) +
-                                 sin(i * _DX + _DX / 2));
 
-            rhs_y[idx] -= coeff * (eta_y[idx + 1] + eta_y[idx] - 2 * u_ex_y);
-            rhs_z[idx] -= coeff * (eta_z[idx + 1] + eta_z[idx] - 2 * u_ex_z);
+            vftype u_ex_x, u_ex_y, u_ex_z;
+            _get_right_bc_u(width - 1, j, i, &u_ex_x, &u_ex_y, &u_ex_z);
+
+            u_ex_x = vbroadcast(0);
+            u_ex_y = vbroadcast(0);
+            u_ex_z = vbroadcast(0);
+
+            ftype tmp[VLEN];
+            tmp[0] = 0.0; //vstore(tmp, u_ex_y);
+            rhs_y[idx] -= coeff * (eta_y[idx + 1] + eta_y[idx] - 2 * tmp[0]);
+            //vstore(tmp, u_ex_z);
+            rhs_z[idx] -= coeff * (eta_z[idx + 1] + eta_z[idx] - 2 * tmp[0]);
+
+            /*
+            rhs_y[idx] -= coeff * (eta_y[idx + 1] - 1.0 / 3 * eta_y[idx - 1]
+                                                  + 2 * eta_y[idx]
+                                                  - 8.0 / 3 * tmp[0]);
+
+            rhs_z[idx] -= coeff * (eta_z[idx + 1] - 1.0 / 3 * eta_z[idx - 1]
+                                                  + 2 * eta_z[idx]
+                                                  - 8.0 / 3 * tmp[0]);
+            */
         }
 
         /* TODO: Temporary patch, perform loop peeling instead. */
@@ -197,23 +213,39 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             /* For x and z, correct Dyy(zeta) using the ghost node. */
 
             vftype k_ = vload(k + idx);
-            vftype coeff = 2 * k_ * _DT / (2 * k_ + _DT * _NU) *
-                           _NU / (2 * _DX * _DX);
+            vftype coeff = (_DT * _NU * k_) / (2 * k_ + _DT * _NU) / (_DX * _DX);
+                        //2 * k_ * _DT / (2 * k_ + _DT * _NU) *
+                           //_NU / (2 * _DX * _DX);
 
             vftype u_ex_x, u_ex_y, u_ex_z;
+            /* WARNING:: We need previous timestep u_ex values here!! */
             _get_bottom_bc_u(l, height - 1, i, &u_ex_x, &u_ex_y, &u_ex_z);
 
-        /*
-         * WARNING: This apparently increases the error at the right boundary.
-         *
+            u_ex_x = vbroadcast(0);
+            u_ex_y = vbroadcast(0);
+            u_ex_z = vbroadcast(0);
+
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(zeta_x + idx + width) +
                                          vload(zeta_x + idx) - 2 * u_ex_x));
-        */
 
             vstore(rhs_z + idx, vload(rhs_z + idx) -
                                 coeff * (vload(zeta_z + idx + width) +
                                          vload(zeta_z + idx) - 2 * u_ex_z));
+
+            /*
+            vstore(rhs_x + idx, vload(rhs_x + idx) -
+                                coeff * (vload(zeta_x + idx + width)
+                                         - 1.0 / 3 * vload(zeta_x + idx - width)
+                                         + 2 * vload(zeta_x + idx)
+                                         - 8.0 / 3.0 * u_ex_x));
+
+            vstore(rhs_z + idx, vload(rhs_z + idx) -
+                                coeff * (vload(zeta_z + idx + width)
+                                         - 1.0 / 3 * vload(zeta_z + idx - width)
+                                         + 2 * vload(zeta_z + idx)
+                                         - 8.0 / 3.0 * u_ex_z));
+            */
 
             /* Set rhs=0 here, since solution is enforced on the wall. */
             vstore(rhs_y + idx, vbroadcast(0));
@@ -234,6 +266,10 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vftype u_ex_x, u_ex_y, u_ex_z;
             _get_back_bc_u(l, j, depth - 1, &u_ex_x, &u_ex_y, &u_ex_z);
 
+            u_ex_x = vbroadcast(0);
+            u_ex_y = vbroadcast(0);
+            u_ex_z = vbroadcast(0);
+
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(u_x + idx + height * width) +
                                          vload(u_x + idx) - 2 * u_ex_x));
@@ -241,6 +277,20 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vstore(rhs_y + idx, vload(rhs_y + idx) -
                                 coeff * (vload(u_y + idx + height * width) +
                                          vload(u_y + idx) - 2 * u_ex_y));
+
+            /*
+            vstore(rhs_x + idx, vload(rhs_x + idx) -
+                                coeff * (vload(u_x + idx + height * width)
+                                         - 1.0 / 3 * vload(u_x + idx - height * width)
+                                         + 2 * vload(u_x + idx)
+                                         - 8.0 / 3.0 * u_ex_x));
+
+            vstore(rhs_y + idx, vload(rhs_y + idx) -
+                                coeff * (vload(u_y + idx + height * width)
+                                         - 1.0 / 3 * vload(u_y + idx - height * width)
+                                         + 2 * vload(u_y + idx)
+                                         - 8.0 / 3.0 * u_ex_y));
+            */
 
             /* WARNING: Setting rhs=0 here, since solution
              * is enforced on the wall. */
@@ -301,6 +351,8 @@ vftype compute_end_bc_tang_u(vftype ws,
     return vdiv(vadd(vfmadd(fs_prev, ws, fs),
                      vmul(ws2, uns)),
                 norm_coeffs);
+
+    //return (ws * 8.0 / 3.0 * uns + fs + 4.0 / 3.0 * ws * fs_prev) / norm_coeffs;
 }
 
 static inline __attribute__((always_inline))
@@ -332,6 +384,8 @@ void apply_end_bc(const ftype *restrict w,
     vftype ws2 = vadd(ws, ws);
     vftype norm_coeffs = vfmadd(upper_prevs, ws,
                                 vadd(ONES, vadd(ws2, ws)));
+    //vftype norm_coeffs = 1 + 4 * ws + 4.0 / 3.0 * ws * upper_prevs;
+
 
     *u_x = un_x;
     *u_y = compute_end_bc_tang_u(ws, ws2, fs_y_prevs,
@@ -1056,8 +1110,6 @@ void momentum_init(field_size size, field3 field)
     }
 }
 
-#include <stdio.h>
-
 void momentum_solve(const_field porosity,
                     const_field gamma,
                     const_field pressure,
@@ -1079,13 +1131,16 @@ void momentum_solve(const_field porosity,
 
     /* TODO: Compute on the fly. */
 
+
     for (uint32_t i = 0; i < size.depth; ++i) {
         for (uint32_t j = 0; j < size.height; ++j) {
             for (uint32_t k = 0; k < size.width; ++k) {
                 uint64_t idx = size.height * size.width * i +
                                size.width * j + k;
 
-                ftype time = _DT * timestep;
+                /* WARNING: f is computed at t + dt/2 !! */
+                ftype time = _DT / 2 * timestep;
+                /*
                 ftype coeff = cos(time) + sin(time) * _NU; // unit porosity
 
                 forcing.x[idx] = coeff * sin(k * _DX + _DX / 2)
@@ -1110,6 +1165,13 @@ void momentum_solve(const_field porosity,
                                        * sin(j * _DX)
                                        * (sin(i * _DX + _DX / 2) +
                                           cos(i * _DX + _DX / 2));
+                */
+
+                ftype coeff = cos(time) + _NU * (3.0 + 1.0 / porosity[idx]) * sin(time);
+                forcing.x[idx] = coeff * sin(k * _DX + _DX / 2) * sin(j * _DX) * sin(i * _DX);
+                forcing.y[idx] = coeff * cos(k * _DX) * cos(j * _DX + _DX / 2) * cos(i * _DX);
+                forcing.z[idx] = coeff * cos(k * _DX) * sin(j * _DX) * (cos(i * _DX + _DX / 2) +
+                                                                        sin(i * _DX + _DX / 2));
             }
         }
     }
@@ -1220,6 +1282,15 @@ void momentum_solve(const_field porosity,
 
     /* Now enforce BCs on the final solution. */
     for (uint32_t i = 1; i < size.depth - 1; ++i) {
+        for (uint32_t j = 0; j < size.height; ++j) {
+            uint64_t idx = size.height * size.width * i + size.width * j;
+            velocity_x[idx] = velocity_Dxx.x[idx];
+            velocity_y[idx] = velocity_Dxx.y[idx];
+            velocity_z[idx] = velocity_Dxx.z[idx];
+            velocity_x[idx + size.width - 1] =
+                velocity_Dxx.x[idx + size.width - 1];
+        }
+
         for (uint32_t k = 0; k < size.width; ++k) {
             uint64_t idx = size.height * size.width * i + k;
             velocity_x[idx] = velocity_Dyy.x[idx];
@@ -1228,15 +1299,6 @@ void momentum_solve(const_field porosity,
 
             idx += size.width * (size.height - 1);
             velocity_y[idx] = velocity_Dyy.y[idx];
-        }
-
-        for (uint32_t j = 0; j < size.height; ++j) {
-            uint64_t idx = size.height * size.width * i + size.width * j;
-            velocity_x[idx] = velocity_Dxx.x[idx];
-            velocity_y[idx] = velocity_Dxx.y[idx];
-            velocity_z[idx] = velocity_Dxx.z[idx];
-            velocity_x[idx + size.width - 1] =
-                velocity_Dxx.x[idx + size.width - 1];
         }
     }
 
