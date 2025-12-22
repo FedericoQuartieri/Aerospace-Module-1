@@ -9,7 +9,7 @@ FTYPE ?= DOUBLE
 VEC ?= EXPL
 
 DEFINE = -D$(FTYPE) -D$(VEC)
-INCLUDE = -I$(INC_DIR) -I$(SRC_DIR)
+INCLUDE = -I$(INC_DIR) -I$(SRC_DIR) -Ibenchmarks
 LIBS = -lm
 
 SOLVER_OBJS = solver.o momentum.o pressure.o
@@ -17,7 +17,7 @@ UNIT_TEST_OBJS = unit-test.o momentum-test.o pressure-test.o
 CONVERGENCE_TEST_OBJS = $(SOLVER_OBJS) convergence-test.o
 
 solver: mkdir-build $(BUILD_DIR)/solver
-tests: mkdir-build $(BUILD_DIR)/unit-test $(BUILD_DIR)/convergence-test
+tests: mkdir-build $(BUILD_DIR)/unit-test $(BUILD_DIR)/convergence-test $(BUILD_DIR)/convergence-1d-test
 
 mkdir-build:
 	mkdir -p $(BUILD_DIR)/objs
@@ -29,6 +29,9 @@ $(BUILD_DIR)/unit-test: $(addprefix $(BUILD_DIR)/objs/, $(UNIT_TEST_OBJS))
 	$(CC) $^ $(LIBS) -o $@
 
 $(BUILD_DIR)/convergence-test: $(addprefix $(BUILD_DIR)/objs/, $(CONVERGENCE_TEST_OBJS))
+	$(CC) $^ $(LIBS) -o $@
+
+$(BUILD_DIR)/convergence-1d-test: $(addprefix $(BUILD_DIR)/objs/, convergence-1d-test.o)
 	$(CC) $^ $(LIBS) -o $@
 
 $(BUILD_DIR)/objs/%.o: $(SRC_DIR)/%.c

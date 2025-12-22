@@ -209,7 +209,7 @@ static inline void back_bc_manufactured(uint32_t x,
     for (int i = 0; i < VLEN; ++i) {
         tmp_x[i] = get_man_u_x((x + i) * _DX + _DX / 2, y * _DX, z * _DX + _DX / 2, t * _DT);
         tmp_y[i] = get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, z * _DX + _DX / 2, t * _DT);
-        tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX + _DX / 2, z * _DX, t * _DT);
+        tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX, z * _DX + _DX / 2, t * _DT);
     }
 
     *u_x = vload(tmp_x);
@@ -443,9 +443,9 @@ static double field3_l2_dist(field_size size, const_field3 f1, const_field3 f2)
                 /* WARNING: You need to multiply by dx^3!
                  * You're computing a norm! */
 
-                double err = POW2(f1.x[idx] - f2.x[idx]) +
-                             POW2(f1.y[idx] - f2.y[idx]) +
-                             POW2(f1.z[idx] - f2.z[idx]);
+                double err = (POW2(f1.x[idx] - f2.x[idx]) +
+                              POW2(f1.y[idx] - f2.y[idx]) +
+                              POW2(f1.z[idx] - f2.z[idx])) * _DX * _DX * _DX;
 
                 //printf("%g ", fabs(((f1.x[idx] - f2.x[idx]) / fmax(f1.x[idx], 1e-12))));
 
@@ -454,7 +454,7 @@ static double field3_l2_dist(field_size size, const_field3 f1, const_field3 f2)
         }
     }
 
-    return sqrt(dist * _DX * _DX * _DX);
+    return sqrt(dist);
 }
 
 static void compute_manufactured_velocity(field_size size,
@@ -517,7 +517,7 @@ DEF_TEST(test_manufactured_convergence_space,
     double *velocity_errors = arena_push_count(arena, double, num_samples);
     double *pressure_errors = arena_push_count(arena, double, num_samples);
 
-    SET_DT(0.000001);
+    SET_DT(0.0000001);
 
     for (int i = 0; i < num_samples; ++i) {
         arena_enter(arena);
@@ -569,7 +569,7 @@ int main(void)
     ArenaAllocator arena;
     arena_init(&arena, 1ul << 32);
 
-    RUN_TEST(test_manufactured_convergence_space, &arena, 256, 256, 256, 5, 4);
+    RUN_TEST(test_manufactured_convergence_space, &arena, 256, 256, 256, 5, 5);
 
     arena_destroy(&arena);
 

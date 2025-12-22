@@ -2,12 +2,13 @@
 #include "boundary.h"
 #include "consts.h"
 #include "solver.h"
+#include "timeit.h"
 
-#define DEPTH 32
-#define HEIGHT 32
-#define WIDTH 32
+#define DEPTH 256
+#define HEIGHT 256
+#define WIDTH 256
 
-#define NUM_TIMESTEPS 10
+#define NUM_TIMESTEPS 5
 
 DEFINE_NU(1.00)
 DEFINE_DT(0.01)
@@ -30,9 +31,12 @@ int main(void)
     Solver *solver = solver_alloc(DEPTH, HEIGHT, WIDTH, &arena);
     solver_init(solver);
 
-    for (int t = 1; t < NUM_TIMESTEPS; ++t) {
-        solver_step(solver, t);
+    for (int t = 1; t < NUM_TIMESTEPS + 1; ++t) {
+        TIMEIT(solver_step(solver, t));
     }
+
+    printf("%f %f\n", solver_get_velocity(solver).x[0],
+                      solver_get_pressure(solver)[0]);
 
     arena_destroy(&arena);
 

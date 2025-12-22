@@ -2,6 +2,7 @@
 #define FIELD_H
 
 #include <string.h>
+#include <math.h>
 
 #include "alloc.h"
 #include "ftype.h"
@@ -103,6 +104,31 @@ static inline void field3_copy(field_size size, const_field3 src, field3 dst)
     field_copy(size, src.x, dst.x);
     field_copy(size, src.y, dst.y);
     field_copy(size, src.z, dst.z);
+}
+
+#define POW2(x) ((x) * (x))
+
+static inline double field3_l2_norm_diff(field_size size,
+                                         ftype dx,
+                                         const_field3 field1,
+                                         const_field3 field2)
+{
+    double norm = 0;
+
+    for (uint32_t i = 0; i < size.depth; ++i) {
+        for (uint32_t j = 0; j < size.height; ++j) {
+            for (uint32_t k = 0; k < size.width; ++k) {
+                uint64_t idx = size.height * size.width * i +
+                               size.width * j + k;
+
+                norm += POW2(field1.x[idx] - field2.x[idx]) +
+                        POW2(field1.y[idx] - field2.y[idx]) +
+                        POW2(field1.z[idx] - field2.z[idx]);
+            }
+        }
+    }
+
+    return sqrt(norm * dx * dx * dx);
 }
 
 #endif

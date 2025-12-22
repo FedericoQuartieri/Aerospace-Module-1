@@ -190,10 +190,12 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             rhs_z[idx] -= coeff * (eta_z[idx + 1] + eta_z[idx] - 2 * tmp[0]);
 
             /*
+            vstore(tmp, u_ex_y);
             rhs_y[idx] -= coeff * (eta_y[idx + 1] - 1.0 / 3 * eta_y[idx - 1]
                                                   + 2 * eta_y[idx]
                                                   - 8.0 / 3 * tmp[0]);
 
+            vstore(tmp, u_ex_z);
             rhs_z[idx] -= coeff * (eta_z[idx + 1] - 1.0 / 3 * eta_z[idx - 1]
                                                   + 2 * eta_z[idx]
                                                   - 8.0 / 3 * tmp[0]);
