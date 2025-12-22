@@ -33,6 +33,7 @@ static inline ftype get_man_u_z(ftype x, ftype y, ftype z, ftype time)
 static inline void left_bc_manufactured(uint32_t x,
                                         uint32_t y,
                                         uint32_t z,
+                                        uint32_t t,
                                         vftype *restrict u_x,
                                         vftype *restrict u_y,
                                         vftype *restrict u_z)
@@ -49,20 +50,20 @@ static inline void left_bc_manufactured(uint32_t x,
      * enforced there, since we are sitting on the top wall. */
     for (int i = 0; i < VLEN; ++i) {
         /* y and z are on the wall */
-        tmp_y[i] = get_man_u_y(0, (y + i) * _DX + _DX / 2, z * _DX, _DT);
-        tmp_z[i] = get_man_u_z(0, (y + i) * _DX, z * _DX + _DX / 2, _DT);
+        tmp_y[i] = get_man_u_y(0, (y + i) * _DX + _DX / 2, z * _DX, t * _DT);
+        tmp_z[i] = get_man_u_z(0, (y + i) * _DX, z * _DX + _DX / 2, t * _DT);
 
         /* u_1/2 = u0 + dux/dx DX/2 = u0 - (duy/dy + duz/dz) DX/2 */
 
         ftype duy_dy =
-            get_man_u_y(0, (y + i) * _DX + _DX / 2, z * _DX, _DT) -
-            get_man_u_y(0, (y + i) * _DX - _DX / 2, z * _DX, _DT);
+            get_man_u_y(0, (y + i) * _DX + _DX / 2, z * _DX, t * _DT) -
+            get_man_u_y(0, (y + i) * _DX - _DX / 2, z * _DX, t * _DT);
 
         ftype duz_dz =
-            get_man_u_z(0, (y + i) * _DX, z * _DX + _DX / 2, _DT) -
-            get_man_u_z(0, (y + i) * _DX, z * _DX - _DX / 2, _DT);
+            get_man_u_z(0, (y + i) * _DX, z * _DX + _DX / 2, t * _DT) -
+            get_man_u_z(0, (y + i) * _DX, z * _DX - _DX / 2, t * _DT);
 
-        tmp_x[i] = get_man_u_x(0, (y + i) * _DX, z * _DX, _DT) -
+        tmp_x[i] = get_man_u_x(0, (y + i) * _DX, z * _DX, t * _DT) -
                    (duy_dy + duz_dz) / 2; /* Already multiplied by _DX */
     }
 
@@ -74,6 +75,7 @@ static inline void left_bc_manufactured(uint32_t x,
 static inline void top_bc_manufactured(uint32_t x,
                                        uint32_t y,
                                        uint32_t z,
+                                       uint32_t t,
                                        vftype *restrict u_x,
                                        vftype *restrict u_y,
                                        vftype *restrict u_z)
@@ -85,18 +87,18 @@ static inline void top_bc_manufactured(uint32_t x,
     ftype __attribute__((aligned(32))) tmp_z[VLEN];
 
     for (int i = 0; i < VLEN; ++i) {
-        tmp_x[i] = get_man_u_x((x + i) * _DX + _DX / 2, 0, z * _DX, _DT);
-        tmp_z[i] = get_man_u_z((x + i) * _DX, 0, z * _DX + _DX / 2, _DT);
+        tmp_x[i] = get_man_u_x((x + i) * _DX + _DX / 2, 0, z * _DX, t * _DT);
+        tmp_z[i] = get_man_u_z((x + i) * _DX, 0, z * _DX + _DX / 2, t * _DT);
 
         ftype dux_dx =
-            (get_man_u_x((x + i) * _DX + _DX / 2, 0, z * _DX, _DT) -
-             get_man_u_x((x + i) * _DX - _DX / 2, 0, z * _DX, _DT));
+            (get_man_u_x((x + i) * _DX + _DX / 2, 0, z * _DX, t * _DT) -
+             get_man_u_x((x + i) * _DX - _DX / 2, 0, z * _DX, t * _DT));
 
         ftype duz_dz =
-            (get_man_u_z((x + i) * _DX, 0, z * _DX + _DX / 2, _DT) -
-             get_man_u_z((x + i) * _DX, 0, z * _DX - _DX / 2, _DT));
+            (get_man_u_z((x + i) * _DX, 0, z * _DX + _DX / 2, t * _DT) -
+             get_man_u_z((x + i) * _DX, 0, z * _DX - _DX / 2, t * _DT));
 
-        tmp_y[i] = get_man_u_y((x + i) * _DX, 0, z * _DX, _DT) -
+        tmp_y[i] = get_man_u_y((x + i) * _DX, 0, z * _DX, t * _DT) -
                    (dux_dx + duz_dz) / 2;
     }
 
@@ -108,6 +110,7 @@ static inline void top_bc_manufactured(uint32_t x,
 static inline void front_bc_manufactured(uint32_t x,
                                          uint32_t y,
                                          uint32_t z,
+                                         uint32_t t,
                                          vftype *restrict u_x,
                                          vftype *restrict u_y,
                                          vftype *restrict u_z)
@@ -119,18 +122,18 @@ static inline void front_bc_manufactured(uint32_t x,
     ftype __attribute__((aligned(32))) tmp_z[VLEN];
 
     for (int i = 0; i < VLEN; ++i) {
-        tmp_x[i] = get_man_u_x((x + i) * _DX + _DX / 2, y * _DX, 0, _DT);
-        tmp_y[i] = get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, 0, _DT);
+        tmp_x[i] = get_man_u_x((x + i) * _DX + _DX / 2, y * _DX, 0, t * _DT);
+        tmp_y[i] = get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, 0, t * _DT);
 
         ftype dux_dx =
-            (get_man_u_x((x + i) * _DX + _DX / 2, y * _DX, 0, _DT) -
-             get_man_u_x((x + i) * _DX - _DX / 2, y * _DX, 0, _DT));
+            (get_man_u_x((x + i) * _DX + _DX / 2, y * _DX, 0, t * _DT) -
+             get_man_u_x((x + i) * _DX - _DX / 2, y * _DX, 0, t * _DT));
 
         ftype duy_dy =
-            (get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, 0, _DT) -
-             get_man_u_y((x + i) * _DX, y * _DX - _DX / 2, 0, _DT));
+            (get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, 0, t * _DT) -
+             get_man_u_y((x + i) * _DX, y * _DX - _DX / 2, 0, t * _DT));
 
-        tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX, 0, _DT) -
+        tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX, 0, t * _DT) -
                    (dux_dx + duy_dy) / 2; /* Already multiplied by _DX */
     }
 
@@ -142,6 +145,7 @@ static inline void front_bc_manufactured(uint32_t x,
 static inline void right_bc_manufactured(uint32_t x,
                                          uint32_t y,
                                          uint32_t z,
+                                         uint32_t t,
                                          vftype *restrict u_x,
                                          vftype *restrict u_y,
                                          vftype *restrict u_z)
@@ -153,9 +157,9 @@ static inline void right_bc_manufactured(uint32_t x,
     ftype __attribute__((aligned(32))) tmp_z[VLEN];
 
     for (int i = 0; i < VLEN; ++i) {
-        tmp_x[i] = get_man_u_x(x * _DX + _DX / 2, (y + i) * _DX, z * _DX, _DT);
-        tmp_y[i] = get_man_u_y(x * _DX + _DX / 2, (y + i) * _DX + _DX / 2, z * _DX, _DT);
-        tmp_z[i] = get_man_u_z(x * _DX + _DX / 2, (y + i) * _DX, z * _DX + _DX / 2, _DT);
+        tmp_x[i] = get_man_u_x(x * _DX + _DX / 2, (y + i) * _DX, z * _DX, t * _DT);
+        tmp_y[i] = get_man_u_y(x * _DX + _DX / 2, (y + i) * _DX + _DX / 2, z * _DX, t * _DT);
+        tmp_z[i] = get_man_u_z(x * _DX + _DX / 2, (y + i) * _DX, z * _DX + _DX / 2, t * _DT);
     }
 
     *u_x = vload(tmp_x);
@@ -166,6 +170,7 @@ static inline void right_bc_manufactured(uint32_t x,
 static inline void bottom_bc_manufactured(uint32_t x,
                                           uint32_t y,
                                           uint32_t z,
+                                          uint32_t t,
                                           vftype *restrict u_x,
                                           vftype *restrict u_y,
                                           vftype *restrict u_z)
@@ -177,9 +182,9 @@ static inline void bottom_bc_manufactured(uint32_t x,
     ftype __attribute__((aligned(32))) tmp_z[VLEN];
 
     for (int i = 0; i < VLEN; ++i) {
-        tmp_x[i] = get_man_u_x((x + i) * _DX + _DX / 2, y * _DX + _DX / 2, z * _DX, _DT);
-        tmp_y[i] = get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, z * _DX, _DT);
-        tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX + _DX / 2, z * _DX + _DX / 2, _DT);
+        tmp_x[i] = get_man_u_x((x + i) * _DX + _DX / 2, y * _DX + _DX / 2, z * _DX, t * _DT);
+        tmp_y[i] = get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, z * _DX, t * _DT);
+        tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX + _DX / 2, z * _DX + _DX / 2, t * _DT);
     }
 
     *u_x = vload(tmp_x);
@@ -190,6 +195,7 @@ static inline void bottom_bc_manufactured(uint32_t x,
 static inline void back_bc_manufactured(uint32_t x,
                                         uint32_t y,
                                         uint32_t z,
+                                        uint32_t t,
                                         vftype *restrict u_x,
                                         vftype *restrict u_y,
                                         vftype *restrict u_z)
@@ -201,9 +207,9 @@ static inline void back_bc_manufactured(uint32_t x,
     ftype __attribute__((aligned(32))) tmp_z[VLEN];
 
     for (int i = 0; i < VLEN; ++i) {
-        tmp_x[i] = get_man_u_x((x + i) * _DX + _DX / 2, y * _DX, z * _DX + _DX / 2, _DT);
-        tmp_y[i] = get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, z * _DX + _DX / 2, _DT);
-        tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX + _DX / 2, z * _DX, _DT);
+        tmp_x[i] = get_man_u_x((x + i) * _DX + _DX / 2, y * _DX, z * _DX + _DX / 2, t * _DT);
+        tmp_y[i] = get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, z * _DX + _DX / 2, t * _DT);
+        tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX + _DX / 2, z * _DX, t * _DT);
     }
 
     *u_x = vload(tmp_x);
@@ -211,12 +217,120 @@ static inline void back_bc_manufactured(uint32_t x,
     *u_z = vload(tmp_z);
 }
 
-DEFINE_FUNCTION_BC_U(left_bc_manufactured, BC_LEFT)
-DEFINE_FUNCTION_BC_U(top_bc_manufactured, BC_TOP)
-DEFINE_FUNCTION_BC_U(front_bc_manufactured, BC_FRONT)
-DEFINE_FUNCTION_BC_U(right_bc_manufactured, BC_RIGHT)
-DEFINE_FUNCTION_BC_U(bottom_bc_manufactured, BC_BOTTOM)
-DEFINE_FUNCTION_BC_U(back_bc_manufactured, BC_BACK)
+static inline void left_bc_manufactured_delta(uint32_t x,
+                                              uint32_t y,
+                                              uint32_t z,
+                                              uint32_t t,
+                                              vftype *restrict u_x,
+                                              vftype *restrict u_y,
+                                              vftype *restrict u_z)
+{
+    vftype u_x_prev, u_y_prev, u_z_prev;
+    left_bc_manufactured(x, y, z, t - 1, &u_x_prev, &u_y_prev, &u_z_prev);
+
+    left_bc_manufactured(x, y, z, t, u_x, u_y, u_z);
+
+    *u_x = *u_x - u_x_prev;
+    *u_y = *u_y - u_y_prev;
+    *u_z = *u_z - u_z_prev;
+}
+
+static inline void right_bc_manufactured_delta(uint32_t x,
+                                               uint32_t y,
+                                               uint32_t z,
+                                               uint32_t t,
+                                               vftype *restrict u_x,
+                                               vftype *restrict u_y,
+                                               vftype *restrict u_z)
+{
+    vftype u_x_prev, u_y_prev, u_z_prev;
+    right_bc_manufactured(x, y, z, t - 1, &u_x_prev, &u_y_prev, &u_z_prev);
+
+    right_bc_manufactured(x, y, z, t, u_x, u_y, u_z);
+
+    *u_x = *u_x - u_x_prev;
+    *u_y = *u_y - u_y_prev;
+    *u_z = *u_z - u_z_prev;
+}
+
+static inline void top_bc_manufactured_delta(uint32_t x,
+                                             uint32_t y,
+                                             uint32_t z,
+                                             uint32_t t,
+                                             vftype *restrict u_x,
+                                             vftype *restrict u_y,
+                                             vftype *restrict u_z)
+{
+    vftype u_x_prev, u_y_prev, u_z_prev;
+    top_bc_manufactured(x, y, z, t - 1, &u_x_prev, &u_y_prev, &u_z_prev);
+
+    top_bc_manufactured(x, y, z, t, u_x, u_y, u_z);
+
+    *u_x = *u_x - u_x_prev;
+    *u_y = *u_y - u_y_prev;
+    *u_z = *u_z - u_z_prev;
+}
+
+static inline void bottom_bc_manufactured_delta(uint32_t x,
+                                                uint32_t y,
+                                                uint32_t z,
+                                                uint32_t t,
+                                                vftype *restrict u_x,
+                                                vftype *restrict u_y,
+                                                vftype *restrict u_z)
+{
+    vftype u_x_prev, u_y_prev, u_z_prev;
+    bottom_bc_manufactured(x, y, z, t - 1, &u_x_prev, &u_y_prev, &u_z_prev);
+
+    bottom_bc_manufactured(x, y, z, t, u_x, u_y, u_z);
+
+    *u_x = *u_x - u_x_prev;
+    *u_y = *u_y - u_y_prev;
+    *u_z = *u_z - u_z_prev;
+}
+
+static inline void front_bc_manufactured_delta(uint32_t x,
+                                               uint32_t y,
+                                               uint32_t z,
+                                               uint32_t t,
+                                               vftype *restrict u_x,
+                                               vftype *restrict u_y,
+                                               vftype *restrict u_z)
+{
+    vftype u_x_prev, u_y_prev, u_z_prev;
+    front_bc_manufactured(x, y, z, t - 1, &u_x_prev, &u_y_prev, &u_z_prev);
+
+    front_bc_manufactured(x, y, z, t, u_x, u_y, u_z);
+
+    *u_x = *u_x - u_x_prev;
+    *u_y = *u_y - u_y_prev;
+    *u_z = *u_z - u_z_prev;
+}
+
+static inline void back_bc_manufactured_delta(uint32_t x,
+                                              uint32_t y,
+                                              uint32_t z,
+                                              uint32_t t,
+                                              vftype *restrict u_x,
+                                              vftype *restrict u_y,
+                                              vftype *restrict u_z)
+{
+    vftype u_x_prev, u_y_prev, u_z_prev;
+    back_bc_manufactured(x, y, z, t - 1, &u_x_prev, &u_y_prev, &u_z_prev);
+
+    back_bc_manufactured(x, y, z, t, u_x, u_y, u_z);
+
+    *u_x = *u_x - u_x_prev;
+    *u_y = *u_y - u_y_prev;
+    *u_z = *u_z - u_z_prev;
+}
+
+DEFINE_FUNCTION_BC_U(left_bc_manufactured, left_bc_manufactured_delta, BC_LEFT)
+DEFINE_FUNCTION_BC_U(top_bc_manufactured, top_bc_manufactured_delta, BC_TOP)
+DEFINE_FUNCTION_BC_U(front_bc_manufactured, front_bc_manufactured_delta, BC_FRONT)
+DEFINE_FUNCTION_BC_U(right_bc_manufactured, right_bc_manufactured_delta, BC_RIGHT)
+DEFINE_FUNCTION_BC_U(bottom_bc_manufactured, bottom_bc_manufactured_delta, BC_BOTTOM)
+DEFINE_FUNCTION_BC_U(back_bc_manufactured, back_bc_manufactured_delta, BC_BACK)
 
 static double field_l2_dist(field_size size, const_field f1, const_field f2)
 {
@@ -376,8 +490,6 @@ static void compute_manufactured_pressure(field_size size,
                                           uint32_t timestep,
                                           field dst)
 {
-    double time = _DT * timestep;
-
     for (uint32_t i = 0; i < size.depth; ++i) {
         for (uint32_t j = 0; j < size.height; ++j) {
             for (uint32_t k = 0; k < size.width; ++k) {
@@ -397,6 +509,7 @@ DEF_TEST(test_manufactured_convergence_space,
          uint32_t max_depth,
          uint32_t max_height,
          uint32_t max_width,
+         int num_timesteps,
          int num_samples)
 {
     arena_enter(arena);
@@ -421,12 +534,14 @@ DEF_TEST(test_manufactured_convergence_space,
 
         /* TODO: Set porosity. */
 
-        solver_step(solver, 1);
+        for (uint32_t t = 1; t < num_timesteps + 1; ++t) {
+            solver_step(solver, t);
+        }
 
         field3 ref_velocity = field3_alloc(size, arena);
         field ref_pressure = field_alloc(size, arena);
-        compute_manufactured_velocity(size, 1, ref_velocity);
-        compute_manufactured_pressure(size, 1, ref_pressure);
+        compute_manufactured_velocity(size, num_timesteps, ref_velocity);
+        compute_manufactured_pressure(size, num_timesteps, ref_pressure);
 
         velocity_errors[i] = field3_l2_dist(size,
                                             to_const_field3(ref_velocity),
@@ -454,7 +569,7 @@ int main(void)
     ArenaAllocator arena;
     arena_init(&arena, 1ul << 32);
 
-    RUN_TEST(test_manufactured_convergence_space, &arena, 256, 256, 256, 4);
+    RUN_TEST(test_manufactured_convergence_space, &arena, 256, 256, 256, 5, 4);
 
     arena_destroy(&arena);
 

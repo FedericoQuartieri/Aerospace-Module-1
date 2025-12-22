@@ -75,7 +75,6 @@ vftype compute_div_vtile(const ftype *restrict src_x,
     printf("WARNING: compute_div_tile not implemented for AUTO_VEC\n");
     return vbroadcast(0);
 #else
-    /* WARNING: Scale by -1/dxdt */
 
 #ifndef FLOAT
     /* Loads u_y tile and computes du_y/dy. */

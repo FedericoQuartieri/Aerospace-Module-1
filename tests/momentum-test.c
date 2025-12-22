@@ -159,11 +159,6 @@ DEF_TEST(test_momentum_Dxx_rhs,
     field3_rand_fill(size, velocity_Dzz);
     field3_fill(size, 0, forcing);
 
-    /* WARNING: Not used anymore, remove them. */
-    ftype u_ex_x = ((ftype) rand()) / RAND_MAX;
-    ftype u_ex_y = ((ftype) rand()) / RAND_MAX;
-    ftype u_ex_z = ((ftype) rand()) / RAND_MAX;
-
     uint64_t face_size = height * width;
     compute_Dxx_rhs(porosity,
                     pressure, pressure_delta,
@@ -178,7 +173,8 @@ DEF_TEST(test_momentum_Dxx_rhs,
                     velocity_Dzz.z + face_size,
                     forcing.x, forcing.y, forcing.z,
                     depth, height, width,
-                    u_ex_x, u_ex_y, u_ex_z,
+                    /* WARNING: currently passing 0 as timestep */
+                    0,
                     rhs.x, rhs.y, rhs.z);
 
     /* Pressure predictor. */
@@ -282,7 +278,8 @@ DEF_TEST(test_momentum_D##axes##_solver,                                 \
     field3_rand_fill(size, rhs);                                         \
     field3_copy(size, to_const_field3(rhs), rhs_ref);                    \
                                                                          \
-    solve_D##axes##_blocks(gamma, depth, height, width,                  \
+    /* WARNING: currently passing 0 as timestep. */                      \
+    solve_D##axes##_blocks(gamma, depth, height, width, 0,               \
                            tmp, rhs.x, rhs.y, rhs.z,                     \
                            sol.x, sol.y, sol.z);                         \
                                                                          \
