@@ -108,6 +108,27 @@ static inline void field3_copy(field_size size, const_field3 src, field3 dst)
 
 #define POW2(x) ((x) * (x))
 
+static inline double field_l2_norm_diff(field_size size,
+                                        ftype dx,
+                                        const_field field1,
+                                        const_field field2)
+{
+    double norm = 0;
+
+    for (uint32_t i = 0; i < size.depth; ++i) {
+        for (uint32_t j = 0; j < size.height; ++j) {
+            for (uint32_t k = 0; k < size.width; ++k) {
+                uint64_t idx = size.height * size.width * i +
+                               size.width * j + k;
+
+                norm += POW2(field1[idx] - field2[idx]);
+            }
+        }
+    }
+
+    return sqrt(norm * dx * dx * dx);
+}
+
 static inline double field3_l2_norm_diff(field_size size,
                                          ftype dx,
                                          const_field3 field1,

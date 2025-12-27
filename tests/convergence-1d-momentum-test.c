@@ -5,6 +5,7 @@
 #include "alloc.h"
 #include "field.h"
 #include "consts.h"
+#include "convergence-test.h"
 
 #include "momentum.c"
 
@@ -291,15 +292,14 @@ DEF_TEST(test_convergence_momentum_solver_D##axis,                           \
         arena_exit(arena);                                                   \
     }                                                                        \
                                                                              \
-    /* Estimate the convergence order. */                                    \
-    printf("solve_D" #axis "_blocks()\n");                                   \
-    printf("%3d  %g   --\n", min_width, errors[0]);                          \
-    for (int i = 1; i < num_samples; ++i) {                                  \
-        double order = log(errors[i - 1] / errors[i]) /                      \
-                       log(dxs[i - 1] / dxs[i]);                             \
+    double *orders = arena_push_count(arena, double, num_samples);           \
+    estimate_convergence_order(errors, dxs, num_samples, orders);            \
                                                                              \
-        printf("%3d  %g %5.2f\n", min_width << i, errors[i], order);         \
-        EXPECT_EQUALF(order, 2.0, 0.05);                                     \
+    printf("solve_D" #axis "_blocks()\n");                                   \
+    print_convergence_table(errors, dxs, orders, num_samples);               \
+                                                                             \
+    for (int i = 1; i < num_samples; ++i) {                                  \
+        EXPECT_EQUALF(orders[i], 2.0, 0.05);                                 \
     }                                                                        \
                                                                              \
     arena_exit(arena);                                                       \
