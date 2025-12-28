@@ -72,7 +72,6 @@ vftype compute_Dxx_rhs_comp_at(const ftype *restrict eta,
                                  k, eta_, zeta_, u_, D_pp);
 
     return vsub(vfmadd(dt_beta, vadd(g, f_), u_), eta_);
-
 }
 
 void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
@@ -184,12 +183,13 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             _get_right_bc_u_t(width - 1, j, i, timestep - 1, &u_ex_x, &u_ex_y, &u_ex_z);
 
             ftype tmp[VLEN];
+            /*
             vstore(tmp, u_ex_y);
             rhs_y[idx] -= coeff * (eta_y[idx + 1] + eta_y[idx] - 2 * tmp[0]);
             vstore(tmp, u_ex_z);
             rhs_z[idx] -= coeff * (eta_z[idx + 1] + eta_z[idx] - 2 * tmp[0]);
+            */
 
-            /*
             vstore(tmp, u_ex_y);
             rhs_y[idx] -= coeff * (eta_y[idx + 1] - 1.0 / 3 * eta_y[idx - 1]
                                                   + 2 * eta_y[idx]
@@ -199,7 +199,6 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             rhs_z[idx] -= coeff * (eta_z[idx + 1] - 1.0 / 3 * eta_z[idx - 1]
                                                   + 2 * eta_z[idx]
                                                   - 8.0 / 3 * tmp[0]);
-            */
         }
 
         /* TODO: Temporary patch, perform loop peeling instead. */
@@ -216,6 +215,7 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             /* WARNING:: We need previous timestep u_ex values here!! */
             _get_bottom_bc_u_t(l, height - 1, i, timestep - 1, &u_ex_x, &u_ex_y, &u_ex_z);
 
+            /*
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(zeta_x + idx + width) +
                                          vload(zeta_x + idx) - 2 * u_ex_x));
@@ -223,8 +223,8 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vstore(rhs_z + idx, vload(rhs_z + idx) -
                                 coeff * (vload(zeta_z + idx + width) +
                                          vload(zeta_z + idx) - 2 * u_ex_z));
+            */
 
-            /*
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(zeta_x + idx + width)
                                          - 1.0 / 3 * vload(zeta_x + idx - width)
@@ -236,7 +236,6 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
                                          - 1.0 / 3 * vload(zeta_z + idx - width)
                                          + 2 * vload(zeta_z + idx)
                                          - 8.0 / 3.0 * u_ex_z));
-            */
 
             /* Set rhs=0 here, since solution is enforced on the wall. */
             vstore(rhs_y + idx, vbroadcast(0));
@@ -257,6 +256,7 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vftype u_ex_x, u_ex_y, u_ex_z;
             _get_back_bc_u_t(l, j, depth - 1, timestep - 1, &u_ex_x, &u_ex_y, &u_ex_z);
 
+            /*
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(u_x + idx + height * width) +
                                          vload(u_x + idx) - 2 * u_ex_x));
@@ -264,8 +264,8 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vstore(rhs_y + idx, vload(rhs_y + idx) -
                                 coeff * (vload(u_y + idx + height * width) +
                                          vload(u_y + idx) - 2 * u_ex_y));
+            */
 
-            /*
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(u_x + idx + height * width)
                                          - 1.0 / 3 * vload(u_x + idx - height * width)
@@ -277,7 +277,6 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
                                          - 1.0 / 3 * vload(u_y + idx - height * width)
                                          + 2 * vload(u_y + idx)
                                          - 8.0 / 3.0 * u_ex_y));
-            */
 
             /* WARNING: Setting rhs=0 here, since solution
              * is enforced on the wall. */
@@ -335,11 +334,13 @@ vftype compute_end_bc_tang_u(vftype ws,
                              vftype uns,
                              vftype norm_coeffs)
 {
+    /*
     return vdiv(vadd(vfmadd(fs_prev, ws, fs),
                      vmul(ws2, uns)),
                 norm_coeffs);
+    */
 
-    //return (ws * 8.0 / 3.0 * uns + fs + 4.0 / 3.0 * ws * fs_prev) / norm_coeffs;
+    return (ws * 8.0 / 3.0 * uns + fs + 4.0 / 3.0 * ws * fs_prev) / norm_coeffs;
 }
 
 static inline __attribute__((always_inline))
@@ -369,9 +370,11 @@ void apply_end_bc(const ftype *restrict w,
     vftype fs_y = vload(f_y);
     vftype fs_z = vload(f_z);
     vftype ws2 = vadd(ws, ws);
+    /*
     vftype norm_coeffs = vfmadd(upper_prevs, ws,
                                 vadd(ONES, vadd(ws2, ws)));
-    //vftype norm_coeffs = 1 + 4 * ws + 4.0 / 3.0 * ws * upper_prevs;
+    */
+    vftype norm_coeffs = 1 + 4 * ws + 4.0 / 3.0 * ws * upper_prevs;
 
 
     *u_x = un_x;
@@ -1138,11 +1141,24 @@ void momentum_solve(const_field porosity,
 
                 /* WARNING: f is computed at t + dt/2 !! */
                 ftype time = _DT * (timestep - 1) + _DT / 2;
-                ftype coeff = cos(time) + _NU * (3.0 + 1.0 / porosity[idx]) * sin(time);
-                forcing.x[idx] = coeff * sin(k * _DX + _DX / 2) * sin(j * _DX) * sin(i * _DX);
-                forcing.y[idx] = coeff * cos(k * _DX) * cos(j * _DX + _DX / 2) * cos(i * _DX);
-                forcing.z[idx] = coeff * cos(k * _DX) * sin(j * _DX) * (cos(i * _DX + _DX / 2) +
-                                                                        sin(i * _DX + _DX / 2));
+
+                ftype coeff = cos(time) + _NU * (3.0 + 1.0 / porosity[idx])
+                                              * sin(time);
+                forcing.x[idx] = coeff * sin(k * _DX + _DX / 2)
+                                       * sin(j * _DX) * sin(i * _DX) +
+                                 0 * sin(time) * cos(k * _DX + _DX / 2) * sin(j * _DX)
+                                                        * sin(i * _DX);
+                forcing.y[idx] = coeff * cos(k * _DX)
+                                       * cos(j * _DX + _DX / 2) * cos(i * _DX) +
+                                 0 * sin(time) * sin(k * _DX) * cos(j * _DX + _DX / 2)
+                                              * sin(i * _DX);
+
+                forcing.z[idx] = coeff * cos(k * _DX)
+                                       * sin(j * _DX) * (cos(i * _DX + _DX / 2) +
+                                                         sin(i * _DX + _DX / 2)) +
+                                 0 * sin(time) * sin(k * _DX) * sin(j * _DX)
+                                              * cos(i * _DX + _DX / 2);
+
             }
         }
     }
@@ -1233,7 +1249,8 @@ void momentum_solve(const_field porosity,
         velocity_z[i] += velocity_delta_z[i];
     }
 
-    /* Now enforce BCs on the final solution. */
+    /* Now enforce BCs on the final solution.
+     * WARNING: doesn't seem to affect convergence. */
     for (uint32_t i = 1; i < size.depth - 1; ++i) {
         for (uint32_t j = 0; j < size.height; ++j) {
             uint64_t idx = size.height * size.width * i + size.width * j;
