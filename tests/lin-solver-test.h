@@ -26,7 +26,14 @@ static DEF_TEST(test_wD_solution,
             ftype f_i = f[idx];
             if (is_bc_dirichlet) {
                 /* Dirichlet boundary condition! */
-                ASSERT_EQUALF(u0, u[idx], TOL);
+                if (is_comp_normal) {
+                    ASSERT_EQUALF(f_i + 8.0 / 3 * w_i * u0,
+                                  (1 + 4 * w_i) * u[idx] -
+                                  4.0 / 3 * w_i * u[idx + stride_k],
+                                  TOL);
+                } else {
+                    ASSERT_EQUALF(u0, u[idx], TOL);
+                }
             } else {
                 /* Homogeneous Neumann boundary condition! */
                 ASSERT_EQUALF(f_i /* -2 dx u0 */,
@@ -55,15 +62,15 @@ static DEF_TEST(test_wD_solution,
                 if (is_comp_normal) {
                     ASSERT_EQUALF(un, u[idx + stride_k * (width - 1)], TOL);
                 } else {
-                    ASSERT_EQUALF(//w_i * 8.0 / 3.0 * un + f_i,
+                    ASSERT_EQUALF(w_i * 8.0 / 3.0 * un + f_i,
+                                  /*
                                   2 * w_i * un + f_i,
                                   (-w_i * u[idx + stride_k * (width - 2)] +
                                   (1 + 3 * w_i) *
                                   u[idx + stride_k * (width - 1)]),
-                                  /*
+                                  */
                                   -w_i * 4.0 / 3.0 * u[idx + stride_k * (width - 2)] +
                                   (1 + 4 * w_i) * u[idx + stride_k * (width - 1)],
-                                  */
                                   TOL);
                 }
             } else {
