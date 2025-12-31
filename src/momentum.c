@@ -186,13 +186,12 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             _get_right_bc_u_t(width - 1, j, i, timestep - 1, &u_ex_x, &u_ex_y, &u_ex_z);
 
             ftype tmp[VLEN];
-            /*
             vstore(tmp, u_ex_y);
             rhs_y[idx] -= coeff * (eta_y[idx + 1] + eta_y[idx] - 2 * tmp[0]);
             vstore(tmp, u_ex_z);
             rhs_z[idx] -= coeff * (eta_z[idx + 1] + eta_z[idx] - 2 * tmp[0]);
-            */
 
+            /*
             vstore(tmp, u_ex_y);
             rhs_y[idx] -= coeff * (eta_y[idx + 1] - 1.0 / 3 * eta_y[idx - 1]
                                                   + 2 * eta_y[idx]
@@ -202,6 +201,7 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             rhs_z[idx] -= coeff * (eta_z[idx + 1] - 1.0 / 3 * eta_z[idx - 1]
                                                   + 2 * eta_z[idx]
                                                   - 8.0 / 3 * tmp[0]);
+            */
         }
 
         /* TODO: Temporary patch, perform loop peeling instead. */
@@ -218,7 +218,6 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             /* WARNING:: We need previous timestep u_ex values here!! */
             _get_bottom_bc_u_t(l, height - 1, i, timestep - 1, &u_ex_x, &u_ex_y, &u_ex_z);
 
-            /*
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(zeta_x + idx + width) +
                                          vload(zeta_x + idx) - 2 * u_ex_x));
@@ -226,8 +225,8 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vstore(rhs_z + idx, vload(rhs_z + idx) -
                                 coeff * (vload(zeta_z + idx + width) +
                                          vload(zeta_z + idx) - 2 * u_ex_z));
-            */
 
+            /*
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(zeta_x + idx + width)
                                          - 1.0 / 3 * vload(zeta_x + idx - width)
@@ -239,6 +238,7 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
                                          - 1.0 / 3 * vload(zeta_z + idx - width)
                                          + 2 * vload(zeta_z + idx)
                                          - 8.0 / 3.0 * u_ex_z));
+            */
 
             /* Set rhs=0 here, since solution is enforced on the wall. */
             vstore(rhs_y + idx, vbroadcast(0));
@@ -259,7 +259,6 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vftype u_ex_x, u_ex_y, u_ex_z;
             _get_back_bc_u_t(l, j, depth - 1, timestep - 1, &u_ex_x, &u_ex_y, &u_ex_z);
 
-            /*
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(u_x + idx + height * width) +
                                          vload(u_x + idx) - 2 * u_ex_x));
@@ -267,8 +266,8 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vstore(rhs_y + idx, vload(rhs_y + idx) -
                                 coeff * (vload(u_y + idx + height * width) +
                                          vload(u_y + idx) - 2 * u_ex_y));
-            */
 
+            /*
             vstore(rhs_x + idx, vload(rhs_x + idx) -
                                 coeff * (vload(u_x + idx + height * width)
                                          - 1.0 / 3 * vload(u_x + idx - height * width)
@@ -280,6 +279,7 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
                                          - 1.0 / 3 * vload(u_y + idx - height * width)
                                          + 2 * vload(u_y + idx)
                                          - 8.0 / 3.0 * u_ex_y));
+            */
 
             /* WARNING: Setting rhs=0 here, since solution
              * is enforced on the wall. */
@@ -330,13 +330,11 @@ vftype compute_end_bc_tang_u(vftype ws,
                              vftype uns,
                              vftype norm_coeffs)
 {
-    /*
     return vdiv(vadd(vfmadd(fs_prev, ws, fs),
                      vmul(ws2, uns)),
                 norm_coeffs);
-    */
 
-    return (ws * 8.0 / 3.0 * uns + fs + 4.0 / 3.0 * ws * fs_prev) / norm_coeffs;
+    //return (ws * 8.0 / 3.0 * uns + fs + 4.0 / 3.0 * ws * fs_prev) / norm_coeffs;
 }
 
 static inline __attribute__((always_inline))
@@ -366,11 +364,9 @@ void apply_end_bc(const ftype *restrict w,
     vftype fs_y = vload(f_y);
     vftype fs_z = vload(f_z);
     vftype ws2 = vadd(ws, ws);
-    /*
     vftype norm_coeffs = vfmadd(upper_prevs, ws,
                                 vadd(ONES, vadd(ws2, ws)));
-    */
-    vftype norm_coeffs = 1 + 4 * ws + 4.0 / 3.0 * ws * upper_prevs;
+    //vftype norm_coeffs = 1 + 4 * ws + 4.0 / 3.0 * ws * upper_prevs;
 
 
     *u_x = un_x;
@@ -385,10 +381,7 @@ void apply_left_bc(uint32_t x,
                    uint32_t y,
                    uint32_t z,
                    uint32_t t,
-                   const ftype *restrict w,
-                   const ftype *restrict f_x_src,
                    ftype *restrict upper,
-                   ftype *restrict upper_x,
                    ftype *restrict f_x,
                    ftype *restrict f_y,
                    ftype *restrict f_z)
@@ -396,16 +389,7 @@ void apply_left_bc(uint32_t x,
     vftype u0_x, u0_y, u0_z;
     _get_left_bc_u(x, y, z, t, &u0_x, &u0_y, &u0_z);
 
-    /* apply_start_bc(u0_x, u0_y, u0_z, upper, f_x, f_y, f_z); */
-
-    vftype ws = vload(w);
-    vftype norm_coeffs = 1 + 4 * ws;
-
-    vstore(upper, ZEROS);
-    vstore(upper_x, (-4.0 / 3 * ws) / norm_coeffs);
-    vstore(f_x, (vload(f_x_src) + 8.0 / 3 * ws * u0_x) / norm_coeffs);
-    vstore(f_y, u0_y);
-    vstore(f_z, u0_z);
+    apply_start_bc(u0_x, u0_y, u0_z, upper, f_x, f_y, f_z);
 }
 
 static inline __attribute__((always_inline))
@@ -498,7 +482,6 @@ static void solve_wDxx_tridiag(const ftype *restrict w,
 static inline __attribute__((always_inline))
 void gauss_reduce_vstrip(const ftype *restrict w,
                          ftype *restrict upper_prev,
-                         ftype *restrict upper_x_prev,
                          const ftype *restrict f_x_src,
                          const ftype *restrict f_y_src,
                          const ftype *restrict f_z_src,
@@ -508,7 +491,6 @@ void gauss_reduce_vstrip(const ftype *restrict w,
 {
     vftype ws = vload(w);
     vftype upper_prevs = vload(upper_prev);
-    vftype upper_x_prevs = vload(upper_x_prev);
     vftype f_x_prevs = vload(f_x_dst - VLEN);
     vftype f_y_prevs = vload(f_y_dst - VLEN);
     vftype f_z_prevs = vload(f_z_dst - VLEN);
@@ -516,10 +498,8 @@ void gauss_reduce_vstrip(const ftype *restrict w,
     vftype fs_y = vload(f_y_src);
     vftype fs_z = vload(f_z_src);
     vftype norm_coefs = vfmadd(ws, upper_prevs, vadd(ONES, vadd(ws, ws)));
-    vftype norm_coefs_x = vfmadd(ws, upper_x_prevs, vadd(ONES, vadd(ws, ws)));
     vstore(upper_prev + VLEN, vdiv(vneg(ws), norm_coefs));
-    vstore(upper_x_prev + VLEN, vdiv(vneg(ws), norm_coefs_x));
-    vstore(f_x_dst, vdiv(vfmadd(ws, f_x_prevs, fs_x), norm_coefs_x));
+    vstore(f_x_dst, vdiv(vfmadd(ws, f_x_prevs, fs_x), norm_coefs));
     vstore(f_y_dst, vdiv(vfmadd(ws, f_y_prevs, fs_y), norm_coefs));
     vstore(f_z_dst, vdiv(vfmadd(ws, f_z_prevs, fs_z), norm_coefs));
 }
@@ -529,7 +509,6 @@ void backward_sub_vstrip(const ftype *restrict f_x,
                          const ftype *restrict f_y,
                          const ftype *restrict f_z,
                          const ftype *restrict upper,
-                         const ftype *restrict upper_x,
                          vftype *restrict u_x_prevs,
                          vftype *restrict u_y_prevs,
                          vftype *restrict u_z_prevs,
@@ -541,8 +520,7 @@ void backward_sub_vstrip(const ftype *restrict f_x,
     vftype fs_y = vload(f_y);
     vftype fs_z = vload(f_z);
     vftype uppers = vload(upper);
-    vftype uppers_x = vload(upper_x);
-    *u_x_prevs = vfmadd(vneg(uppers_x), *u_x_prevs, fs_x);
+    *u_x_prevs = vfmadd(vneg(uppers), *u_x_prevs, fs_x);
     vstore(u_x, *u_x_prevs);
     *u_y_prevs = vfmadd(vneg(uppers), *u_y_prevs, fs_y);
     vstore(u_y, *u_y_prevs);
@@ -589,8 +567,6 @@ static void solve_Dxx_blocks(const ftype *restrict w,
     ftype *restrict tmp_f_y = tmp + 2 * width * VLEN;
     ftype *restrict tmp_f_z = tmp + 3 * width * VLEN;
 
-    ftype *restrict tmp_upp_x = tmp + 4 * width * VLEN;
-
     /* TODO: Why don't you write the solution directly to f?
      * You can reduce the number of cache misses. */
 
@@ -610,13 +586,12 @@ static void solve_Dxx_blocks(const ftype *restrict w,
             transpose_vtile(w + offset, width, VLEN, w_t); 
 
             /* Apply BCs on the first column of the tile. */
-            apply_left_bc(0, j, i, timestep, w_t, f_x_t,
-                          tmp_upp, tmp_upp_x, tmp_f_x, tmp_f_y, tmp_f_z);
+            apply_left_bc(0, j, i, timestep,
+                          tmp_upp, tmp_f_x, tmp_f_y, tmp_f_z);
             /* Reduce remaining columns of the tile. */
             for (int k = 1; k < VLEN; ++k) {
                 gauss_reduce_vstrip(w_t + VLEN * k,
                                     tmp_upp + VLEN * (k - 1),
-                                    tmp_upp_x + VLEN * (k - 1),
                                     f_x_t + VLEN * k,
                                     f_y_t + VLEN * k,
                                     f_z_t + VLEN * k,
@@ -636,7 +611,6 @@ static void solve_Dxx_blocks(const ftype *restrict w,
                     /* TODO: use previous vec f instead of loading again. */
                     gauss_reduce_vstrip(w_t + VLEN * k,
                                         tmp_upp + VLEN * (tk + k - 1),
-                                        tmp_upp_x + VLEN * (tk + k - 1),
                                         f_x_t + VLEN * k,
                                         f_y_t + VLEN * k,
                                         f_z_t + VLEN * k,
@@ -654,7 +628,6 @@ static void solve_Dxx_blocks(const ftype *restrict w,
             for (int k = 0; k < VLEN - 1; ++k) {
                 gauss_reduce_vstrip(w_t + VLEN * k,
                                     tmp_upp + VLEN * (width - VLEN + k - 1),
-                                    tmp_upp_x + VLEN * (width - VLEN + k - 1),
                                     f_x_t + VLEN * k,
                                     f_y_t + VLEN * k,
                                     f_z_t + VLEN * k,
@@ -692,7 +665,6 @@ static void solve_Dxx_blocks(const ftype *restrict w,
                     tmp_f_y + VLEN * (width - 1 - k),
                     tmp_f_z + VLEN * (width - 1 - k),
                     tmp_upp + VLEN * (width - 1 - k),
-                    tmp_upp_x + VLEN * (width - 1 - k),
                     &u_x_prev,
                     &u_y_prev,
                     &u_z_prev,
@@ -712,7 +684,6 @@ static void solve_Dxx_blocks(const ftype *restrict w,
                         tmp_f_y + VLEN * (width - 1 - (tk + k)),
                         tmp_f_z + VLEN * (width - 1 - (tk + k)),
                         tmp_upp + VLEN * (width - 1 - (tk + k)),
-                        tmp_upp_x + VLEN * (width - 1 - (tk + k)),
                         &u_x_prev,
                         &u_y_prev,
                         &u_z_prev,
@@ -1161,24 +1132,30 @@ void momentum_solve(const_field porosity,
                                size.width * j + k;
 
                 /* WARNING: f is computed at t + dt/2 !! */
-                ftype time = _DT * (timestep - 1) + _DT / 2;
+                //ftype time1 = _DT * (timestep - 1) + _DT / 2;
 
-                ftype coeff = cos(time) + _NU * (3.0 + 1.0 / porosity[idx])
-                                              * sin(time);
+                ftype t1 = _DT * (timestep - 1);
+                ftype t2 = _DT * timestep;
+
+                ftype coeff = 0.5 * (cos(t1) + _NU * (3.0 + 1.0 / porosity[idx])
+                                     * sin(t1)) +
+                              0.5 * (cos(t2) + _NU * (3.0 + 1.0 / porosity[idx])
+                                     * sin(t2));
+
                 forcing.x[idx] = coeff * sin(k * _DX + _DX / 2)
-                                       * sin(j * _DX) * sin(i * _DX) +
-                                 0 * sin(time) * cos(k * _DX + _DX / 2) * sin(j * _DX)
-                                                        * sin(i * _DX);
+                                       * sin(j * _DX) * sin(i * _DX);
+                                 //0 * sin(time) * cos(k * _DX + _DX / 2) * sin(j * _DX)
+                                //                      * sin(i * _DX);
                 forcing.y[idx] = coeff * cos(k * _DX)
-                                       * cos(j * _DX + _DX / 2) * cos(i * _DX) +
-                                 0 * sin(time) * sin(k * _DX) * cos(j * _DX + _DX / 2)
-                                              * sin(i * _DX);
+                                       * cos(j * _DX + _DX / 2) * cos(i * _DX);
+                                 //0 * sin(time) * sin(k * _DX) * cos(j * _DX + _DX / 2)
+                                 //             * sin(i * _DX);
 
                 forcing.z[idx] = coeff * cos(k * _DX)
                                        * sin(j * _DX) * (cos(i * _DX + _DX / 2) +
-                                                         sin(i * _DX + _DX / 2)) +
-                                 0 * sin(time) * sin(k * _DX) * sin(j * _DX)
-                                              * cos(i * _DX + _DX / 2);
+                                                         sin(i * _DX + _DX / 2));
+                                 //0 * sin(time) * sin(k * _DX) * sin(j * _DX)
+                                 //             * cos(i * _DX + _DX / 2);
 
             }
         }

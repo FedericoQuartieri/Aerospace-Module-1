@@ -59,12 +59,10 @@ static inline void left_bc_manufactured(uint32_t x,
         /* Enforcing correct value */
         //tmp_x[i] = get_man_u_x(_DX / 2, (y + i) * _DX, z * _DX, t * _DT);
 
-        /*
         tmp_x[i] = get_man_u_x(0, (y + i) * _DX, z * _DX, t * _DT) -
                    (duy_dy + duz_dz) / 2; // Already multiplied by _DX
-        */
 
-        tmp_x[i] = get_man_u_x(0, (y + i) * _DX, z * _DX, t * _DT);
+        //tmp_x[i] = get_man_u_x(0, (y + i) * _DX, z * _DX, t * _DT);
     }
 
     *u_x = vload(tmp_x);
@@ -135,10 +133,10 @@ static inline void front_bc_manufactured(uint32_t x,
             (get_man_u_y((x + i) * _DX, y * _DX + _DX / 2, 0, t * _DT) -
              get_man_u_y((x + i) * _DX, y * _DX - _DX / 2, 0, t * _DT));
 
-        //tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX, 0, t * _DT) -
-        //           (dux_dx + duy_dy) / 2; /* Already multiplied by _DX */
+        tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX, 0, t * _DT) -
+                   (dux_dx + duy_dy) / 2; /* Already multiplied by _DX */
 
-       tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX, _DX / 2, t * _DT);
+       //tmp_z[i] = get_man_u_z((x + i) * _DX, y * _DX, _DX / 2, t * _DT);
     }
 
     *u_x = vload(tmp_x);
@@ -473,15 +471,14 @@ DEF_TEST(test_convergence_time_momentum_solver_Dxx,
     double *errors = arena_push_count(arena, double, num_samples);
     double *dts = arena_push_count(arena, double, num_samples);
 
-    field_size size = { 64, 64, 64 };
-    SET_DX(1e-5);
-
     double T = 1.0;
     double dt = 0.5;
 
+    field_size size = { 256, 256, 256 };
+    SET_DX(1.0 / size.width);
+
     for (int i = 0; i < num_samples; ++i) {
         arena_enter(arena);
-
         SET_DT(dt);
 
         field gamma = field_alloc(size, arena);
@@ -520,17 +517,23 @@ DEF_TEST(test_convergence_time_momentum_solver_Dxx,
                                      2 * solution.z[idx] +
                                      solution.z[idx + 1]) / (_DX * _DX);
 
-                        } else if (k == 0) {
-
-                            Dxx_x = (4.0 / 3.0 * solution.x[idx + 1] -
-                                     4 * solution.x[idx] +
-                                     8.0 / 3.0 * get_man_u_x(0,
-                                                             j * _DX,
-                                                             i * _DX, (t - 1) * _DT)) /
-                                                             (_DX * _DX);
-
                         } else if (k == size.width - 1) {
 
+                            Dxx_y = (solution.y[idx - 1] -
+                                     3 * solution.y[idx] +
+                                     2 * get_man_u_y(k * _DX + _DX / 2,
+                                                     j * _DX + _DX / 2,
+                                                     i * _DX, (t - 1) * _DT)) /
+                                                     (_DX * _DX);
+
+                            Dxx_z = (solution.z[idx - 1] -
+                                     3 * solution.z[idx] +
+                                     2 * get_man_u_z(k * _DX + _DX / 2,
+                                                     j * _DX,
+                                                     i * _DX + _DX / 2, (t - 1) * _DT))
+                                                     / (_DX * _DX);
+
+                            /*
                             Dxx_y = (4.0 / 3.0 * solution.y[idx - 1] -
                                      4 * solution.y[idx] +
                                      8.0 / 3.0 * get_man_u_y(k * _DX + _DX / 2,
@@ -544,6 +547,7 @@ DEF_TEST(test_convergence_time_momentum_solver_Dxx,
                                                              j * _DX,
                                                              i * _DX + _DX / 2, (t - 1) * _DT))
                                                              / (_DX * _DX);
+                            */
                         }
 
                         forcing.x[idx] = _DT * (forcing.x[idx] + Dxx_x);
@@ -609,11 +613,11 @@ DEF_TEST(test_convergence_time_momentum_solver_Dyy,
     double *errors = arena_push_count(arena, double, num_samples);
     double *dts = arena_push_count(arena, double, num_samples);
 
-    field_size size = { 64, 64, 64 };
-    SET_DX(1e-4);
-
     double T = 1.0;
     double dt = 0.5;
+
+    field_size size = { 256, 256, 256 };
+    SET_DX(1.0 / size.width);
 
     for (int i = 0; i < num_samples; ++i) {
         arena_enter(arena);
@@ -657,6 +661,7 @@ DEF_TEST(test_convergence_time_momentum_solver_Dyy,
                                      solution.z[idx + size.width]) / (_DX * _DX);
                         } else if (j == size.height - 1) {
 
+                            /*
                             Dyy_x = (4.0 / 3.0 * solution.x[idx - size.width] -
                                      4 * solution.x[idx] +
                                      8.0 / 3.0 * get_man_u_x(k * _DX + _DX / 2,
@@ -670,6 +675,21 @@ DEF_TEST(test_convergence_time_momentum_solver_Dyy,
                                                              j * _DX + _DX / 2,
                                                              i * _DX + _DX / 2, (t - 1) * _DT))
                                                              / (_DX * _DX);
+                            */
+                            Dyy_x = (solution.x[idx - size.width] -
+                                     3 * solution.x[idx] +
+                                     2 * get_man_u_x(k * _DX + _DX / 2,
+                                                     j * _DX + _DX / 2,
+                                                     i * _DX, (t - 1) * _DT)) /
+                                                     (_DX * _DX);
+
+                            Dyy_z = (solution.z[idx - size.width] -
+                                     3 * solution.z[idx] +
+                                     2 * get_man_u_z(k * _DX,
+                                                     j * _DX + _DX / 2,
+                                                     i * _DX + _DX / 2, (t - 1) * _DT))
+                                                     / (_DX * _DX);
+
                         }
 
                         forcing.x[idx] = _DT * (forcing.x[idx] + Dyy_x);
@@ -736,8 +756,8 @@ int main(void)
     RUN_TEST(test_convergence_space_momentum_solver_Dyy, &arena, 16, 16, 16, 5);
     RUN_TEST(test_convergence_space_momentum_solver_Dzz, &arena, 16, 16, 16, 5);
 
-    RUN_TEST(test_convergence_time_momentum_solver_Dxx, &arena, 6);
-    RUN_TEST(test_convergence_time_momentum_solver_Dyy, &arena, 6);
+    RUN_TEST(test_convergence_time_momentum_solver_Dxx, &arena, 5);
+    RUN_TEST(test_convergence_time_momentum_solver_Dyy, &arena, 5);
 
     arena_destroy(&arena);
 }
