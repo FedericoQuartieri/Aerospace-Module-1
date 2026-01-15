@@ -330,11 +330,11 @@ vftype compute_end_bc_tang_u(vftype ws,
                              vftype uns,
                              vftype norm_coeffs)
 {
-    return vdiv(vadd(vfmadd(fs_prev, ws, fs),
-                     vmul(ws2, uns)),
-                norm_coeffs);
+    //return vdiv(vadd(vfmadd(fs_prev, ws, fs),
+    //                 vmul(ws2, uns)),
+    //            norm_coeffs);
 
-    //return (ws * 8.0 / 3.0 * uns + fs + 4.0 / 3.0 * ws * fs_prev) / norm_coeffs;
+    return (ws * 8.0 / 3.0 * uns + fs + 4.0 / 3.0 * ws * fs_prev) / norm_coeffs;
 }
 
 static inline __attribute__((always_inline))
@@ -364,10 +364,11 @@ void apply_end_bc(const ftype *restrict w,
     vftype fs_y = vload(f_y);
     vftype fs_z = vload(f_z);
     vftype ws2 = vadd(ws, ws);
+    /*
     vftype norm_coeffs = vfmadd(upper_prevs, ws,
                                 vadd(ONES, vadd(ws2, ws)));
-    //vftype norm_coeffs = 1 + 4 * ws + 4.0 / 3.0 * ws * upper_prevs;
-
+    */
+    vftype norm_coeffs = 1 + 4 * ws + 4.0 / 3.0 * ws * upper_prevs;
 
     *u_x = un_x;
     *u_y = compute_end_bc_tang_u(ws, ws2, fs_y_prevs,
