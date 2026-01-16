@@ -26,9 +26,9 @@ int main(){
     VelocityField Zeta;
     VelocityField U;
 
-    function v_boundary = parse_function("../v_boundary.txt");
+    function_handle v_boundary = parse_function("../v_boundary.txt");
 
-    function forcing = parse_function("../forcing.txt");
+    function_handle forcing = parse_function("../forcing.txt");
 
     if (!forcing) {
         /* Error already printed to stderr */
@@ -78,7 +78,8 @@ int main(){
   
     printf("momentum\n");
 
-    //destroy_forcing_function();
+    destroy_function(v_boundary);
+    destroy_function(forcing);
 
 
     free(K);

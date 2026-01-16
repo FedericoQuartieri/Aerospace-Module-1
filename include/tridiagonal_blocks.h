@@ -59,11 +59,11 @@ void Thomas_Pressure(const DTYPE *__restrict__ w,
                             );
 
 /* Solves the block diagonal system (I - ∂xx)u = f. */
-void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_component, DTYPE *Gamma, function v_boundary, bool same_direction);
+void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_component, DTYPE *Gamma, function_handle v_boundary, bool same_direction);
 
 /* Solves the block diagonal system (I - ∂yy)u = f. */
-void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next_component, DTYPE *f_field_component, DTYPE *Gamma, function v_boundary, bool same_direction);
+void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next_component, DTYPE *f_field_component, DTYPE *Gamma, function_handle v_boundary, bool same_direction);
 
 /* Solves the block diagonal system (I - ∂zz)u = f. */
-void solve_Dzz_tridiag_blocks(DTYPE *U_next_component, DTYPE *f_field_component, DTYPE *Gamma, function v_boundary, bool same_direction);
+void solve_Dzz_tridiag_blocks(DTYPE *U_next_component, DTYPE *f_field_component, DTYPE *Gamma, function_handle v_boundary, bool same_direction);
 #endif

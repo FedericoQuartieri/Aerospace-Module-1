@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-void initialize_velocity_field(VelocityField *v_field, function v_boundary) {
+void initialize_velocity_field(VelocityField *v_field, function_handle v_boundary) {
     v_field->v_x = (DTYPE*) malloc(GRID_SIZE);
     v_field->v_y = (DTYPE*) malloc(GRID_SIZE);
     v_field->v_z = (DTYPE*) malloc(GRID_SIZE);
@@ -76,16 +76,16 @@ void free_velocity_field(VelocityField *v_field) {
     free(v_field->v_z);
 }
 
-void update_velocity_boundary(VelocityField *v_field,function v_boundary, int time_step){
+void update_velocity_boundary(VelocityField *v_field,function_handle v_boundary, int time_step){
     size_t idx;
 
     // (i,j,k) = (0,j,k)
     for(int k = 1; k < DEPTH; k++){
         for(int j = 1; j < HEIGHT; j++){
             idx = rowmaj_idx(0,j,k);
-            v_field->v_x[idx] = v_boundary(0,j,k,time_step,0) - ((v_boundary(0,j,k,time_step,1) - v_boundary(0,j-1,k,time_step,1)) * DY_INVERSE) - ((v_boundary(0,j,k,time_step,2) - v_boundary(0,j,k-1,time_step,2)) * DZ_INVERSE);
-            v_field->v_y[idx] = v_boundary(0,j,k,time_step,1);
-            v_field->v_z[idx] = v_boundary(0,j,k,time_step,2);
+            v_field->v_x[idx] = eval_function(v_boundary, 0,j,k,time_step,0) - ((eval_function(v_boundary, 0,j,k,time_step,1) - eval_function(v_boundary, 0,j-1,k,time_step,1)) * DY_INVERSE) - ((eval_function(v_boundary, 0,j,k,time_step,2) - eval_function(v_boundary, 0,j,k-1,time_step,2)) * DZ_INVERSE);
+            v_field->v_y[idx] = eval_function(v_boundary, 0,j,k,time_step,1);
+            v_field->v_z[idx] = eval_function(v_boundary, 0,j,k,time_step,2);
         }
     }
 
@@ -93,9 +93,9 @@ void update_velocity_boundary(VelocityField *v_field,function v_boundary, int ti
     for(int k = 1; k < DEPTH; k++){
         for(int i = 1; i < WIDTH; i++){
             idx = rowmaj_idx(i,0,k);
-            v_field->v_x[idx] = v_boundary(i,0,k,time_step,0);
-            v_field->v_y[idx] = v_boundary(i,0,k,time_step,1) - ((v_boundary(i,0,k,time_step,0) - v_boundary(i-1,0,k,time_step,0)) * DX_INVERSE) - ((v_boundary(i,0,k,time_step,2) - v_boundary(i,0,k-1,time_step,2)) * DZ_INVERSE);
-            v_field->v_z[idx] = v_boundary(i,0,k,time_step,2);
+            v_field->v_x[idx] = eval_function(v_boundary, i,0,k,time_step,0);
+            v_field->v_y[idx] = eval_function(v_boundary, i,0,k,time_step,1) - ((eval_function(v_boundary, i,0,k,time_step,0) - eval_function(v_boundary, i-1,0,k,time_step,0)) * DX_INVERSE) - ((eval_function(v_boundary, i,0,k,time_step,2) - eval_function(v_boundary, i,0,k-1,time_step,2)) * DZ_INVERSE);
+            v_field->v_z[idx] = eval_function(v_boundary, i,0,k,time_step,2);
         }
     }
 
@@ -103,41 +103,41 @@ void update_velocity_boundary(VelocityField *v_field,function v_boundary, int ti
     for(int j = 1; j < HEIGHT; j++){
         for(int i = 1; i < WIDTH; i++){
             idx = rowmaj_idx(i,j,0);
-            v_field->v_x[idx] = v_boundary(i,j,0,time_step,0);
-            v_field->v_y[idx] = v_boundary(i,j,0,time_step,1);
-            v_field->v_z[idx] = v_boundary(i,j,0,time_step,2) - ((v_boundary(i,j,0,time_step,0) - v_boundary(i-1,j,0,time_step,0)) * DX_INVERSE) - ((v_boundary(i,j,0,time_step,1) - v_boundary(i,j-1,0,time_step,1)) * DY_INVERSE); 
+            v_field->v_x[idx] = eval_function(v_boundary, i,j,0,time_step,0);
+            v_field->v_y[idx] = eval_function(v_boundary, i,j,0,time_step,1);
+            v_field->v_z[idx] = eval_function(v_boundary, i,j,0,time_step,2) - ((eval_function(v_boundary, i,j,0,time_step,0) - eval_function(v_boundary, i-1,j,0,time_step,0)) * DX_INVERSE) - ((eval_function(v_boundary, i,j,0,time_step,1) - eval_function(v_boundary, i,j-1,0,time_step,1)) * DY_INVERSE); 
         }
     }
     
     // (i,j,k) = (0,0,k)
     for(int k = 1; k < DEPTH; k++){
         idx = rowmaj_idx(0,0,k);
-        v_field->v_x[idx] = v_boundary(0,0,k,time_step,0);
-        v_field->v_y[idx] = v_boundary(0,0,k,time_step,1); 
-        v_field->v_z[idx] = v_boundary(0,0,k,time_step,2);
+        v_field->v_x[idx] = eval_function(v_boundary, 0,0,k,time_step,0);
+        v_field->v_y[idx] = eval_function(v_boundary, 0,0,k,time_step,1); 
+        v_field->v_z[idx] = eval_function(v_boundary, 0,0,k,time_step,2);
     }
 
     // (i,j,k) = (0,j,0)
     for(int j = 1; j < HEIGHT; j++){
         idx = rowmaj_idx(0,j,0);
-        v_field->v_x[idx] = v_boundary(0,j,0,time_step,0); 
-        v_field->v_y[idx] = v_boundary(0,j,0,time_step,1);
-        v_field->v_z[idx] = v_boundary(0,j,0,time_step,2); 
+        v_field->v_x[idx] = eval_function(v_boundary, 0,j,0,time_step,0); 
+        v_field->v_y[idx] = eval_function(v_boundary, 0,j,0,time_step,1);
+        v_field->v_z[idx] = eval_function(v_boundary, 0,j,0,time_step,2); 
     }
 
     // (i,j,k) = (i,0,0)
     for(int i = 1; i < WIDTH; i++){
         idx = rowmaj_idx(i,0,0);
-        v_field->v_x[idx] = v_boundary(i,0,0,time_step,0);
-        v_field->v_y[idx] = v_boundary(i,0,0,time_step,1);
-        v_field->v_z[idx] = v_boundary(i,0,0,time_step,2);
+        v_field->v_x[idx] = eval_function(v_boundary, i,0,0,time_step,0);
+        v_field->v_y[idx] = eval_function(v_boundary, i,0,0,time_step,1);
+        v_field->v_z[idx] = eval_function(v_boundary, i,0,0,time_step,2);
     }
 
     // (i,j,k) = (0,0,0)
     idx = rowmaj_idx(0,0,0);
-    v_field->v_x[idx] = v_boundary(0,0,0,time_step,0);
-    v_field->v_y[idx] = v_boundary(0,0,0,time_step,1);
-    v_field->v_z[idx] = v_boundary(0,0,0,time_step,2);
+    v_field->v_x[idx] = eval_function(v_boundary, 0,0,0,time_step,0);
+    v_field->v_y[idx] = eval_function(v_boundary, 0,0,0,time_step,1);
+    v_field->v_z[idx] = eval_function(v_boundary, 0,0,0,time_step,2);
     
 
 }

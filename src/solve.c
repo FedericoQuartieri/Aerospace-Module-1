@@ -25,10 +25,10 @@ static void swap_pressure(Pressure *pressure, Pressure *pressure_next) {
     tmp = pressure->p; pressure->p = pressure_next->p; pressure_next->p = tmp;
 } 
 
-void solve (GField g_field, function forcing, Pressure pressure, DTYPE* K, 
+void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K, 
             VelocityField Eta, VelocityField Zeta, VelocityField U, 
             DTYPE* Beta, DTYPE* Gamma, 
-            function v_boundary, 
+            function_handle v_boundary, 
             int write_frequency, bool full_output, VelocityField** U_record, Pressure** P_record) {
     
     /* 

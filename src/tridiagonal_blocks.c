@@ -168,7 +168,7 @@ void Thomas_Pressure(const DTYPE *restrict w,
 }
 
 
-void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamma, function v_boundary, bool same_direction){
+void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamma, function_handle v_boundary, bool same_direction){
 
     // Initialize temporary arrays 
     DTYPE *w = (DTYPE *) malloc(GRID_SIZE * sizeof(DTYPE));
@@ -195,7 +195,7 @@ void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamm
                 /* Here we solve for a single block. */
                 size_t off = k * (HEIGHT * WIDTH) + j * WIDTH; //non conta i ghost node
                 Thomas_Same_Direction(w + off, WIDTH, tmp + off, rhs + off, Eta_next_component + off,
-                                    v_boundary(0, j, k, 0, 0),
+                                    eval_function(v_boundary, 0, j, k, 0, 0),
                                     DX);
                 //Eta_next_component[0]= dirichlet_left(w + off, rhs + off, Eta_next_component + off)
             }
@@ -207,7 +207,7 @@ void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamm
                 /* Here we solve for a single block. */
                 size_t off = k * (HEIGHT * WIDTH) + j * WIDTH; //non conta i ghost node
                 Thomas_Different_Direction(w + off, WIDTH, tmp + off, rhs + off, Eta_next_component + off,
-                                    v_boundary(0, j, k, 0, 0),
+                                    eval_function(v_boundary, 0, j, k, 0, 0),
                                     DX);
                 //Eta_next_component[0]= dirichlet_left(w + off, f_field_component + off, Eta_next_component + off)
             }
@@ -222,7 +222,7 @@ void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamm
     free(tmp);
 }
 
-void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, function v_boundary, bool same_direction){
+void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, function_handle v_boundary, bool same_direction){
     // Buffer riutilizzati per ogni colonna (i,k)
     DTYPE *f_block   = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
     DTYPE *u_block   = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
@@ -250,7 +250,7 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, functi
 
                 // Risolve A_y u = f con algoritmo di Thomas
                 Thomas_Same_Direction(w_block, HEIGHT, tmp_block, rhs_block, u_block,
-                                    v_boundary(i, 0, k, 0, 1),
+                                    eval_function(v_boundary, i, 0, k, 0, 1),
                                     DY);
 
                 // scatter risultato
@@ -274,7 +274,7 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, functi
 
                 // Risolve A_y u = f con algoritmo di Thomas
                 Thomas_Different_Direction(w_block, HEIGHT, tmp_block, rhs_block, u_block,
-                                    v_boundary(i, 0, k, 0, 1),
+                                    eval_function(v_boundary, i, 0, k, 0, 1),
                                     DY);
 
                 // scatter risultato
@@ -294,7 +294,7 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, functi
     free(rhs_block);
 }
 
-void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function v_boundary, bool same_direction){
+void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function_handle v_boundary, bool same_direction){
     // Buffer riutilizzati per ogni colonna (i,k)
     DTYPE *f_block   = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
     DTYPE *u_block   = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
@@ -321,7 +321,7 @@ void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function 
 
                 // Risolve A_z u = f con algoritmo di Thomas
                 Thomas_Same_Direction(w_block, DEPTH, tmp_block, rhs_block, u_block,
-                                    v_boundary(i, j, 0, 0, 2),
+                                    eval_function(v_boundary, i, j, 0, 0, 2),
                                     DZ);
 
                 // scatter risultato
@@ -345,7 +345,7 @@ void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function 
 
                 // Risolve A_z u = f con algoritmo di Thomas
                 Thomas_Different_Direction(w_block, DEPTH, tmp_block, rhs_block, u_block,
-                                    v_boundary(i, j, 0, 0, 2),
+                                    eval_function(v_boundary, i, j, 0, 0, 2),
                                     DZ);
 
                 // scatter risultato

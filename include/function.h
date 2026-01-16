@@ -1,20 +1,17 @@
-/* forcing_parser.h */
-#ifndef FORCING_PARSER_H
-#define FORCING_PARSER_H
+/* function.h */
+#ifndef FUNCTION_H
+#define FUNCTION_H
 
-typedef double (*function)(double x,
-                           double y,
-                           double z,
-                           double t,
-                           int component); /* 0 -> fx, 1 -> fy, 2 -> fz */
+/* Opaque handle for a parsed function */
+typedef struct FunctionContext *function_handle;
 
+/* Parse function from file; returns NULL on error (prints to stderr). */
+function_handle parse_function(const char *filename);
 
-                           
-/* Parse forcing from file; returns NULL on error (prints to stderr). */
-function parse_function(const char *filename);
+/* Evaluate the function for the given component (0 -> x, 1 -> y, 2 -> z) */
+double eval_function(function_handle handle, double x, double y, double z, double t, int component);
 
-/* Free TinyExpr expressions when no longer needed. */
-void destroy_function(void);
+/* Free resources associated with a function handle */
+void destroy_function(function_handle handle);
 
-
-#endif /* FORCING_PARSER_H */
+#endif /* FUNCTION_H */

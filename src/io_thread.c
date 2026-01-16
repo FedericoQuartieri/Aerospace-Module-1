@@ -1,6 +1,6 @@
 #include "io_thread.h"
 
-void io_queue_init(IOQueue *q, function v_boundary)
+void io_queue_init(IOQueue *q, function_handle v_boundary)
 {
     q->head  = 0;
     q->tail  = 0;

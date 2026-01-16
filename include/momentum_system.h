@@ -21,17 +21,17 @@ void solve_momentum_system(VelocityField U,
                            VelocityField Zeta_next,
                            DTYPE *Beta,
                            DTYPE *Gamma,
-                           function v_boundary
+                           function_handle v_boundary
                         );
 
 static void compute_eta_next(VelocityField Eta, VelocityField Eta_next, VelocityField Xi, DTYPE *Gamma,
-                            function v_boundary);
+                            function_handle v_boundary);
 
 static void compute_zeta_next(VelocityField Zeta, VelocityField Zeta_next, VelocityField Eta_next, DTYPE *Gamma,
-                            function v_boundary);
+                            function_handle v_boundary);
 
 static void compute_u_next(VelocityField U, VelocityField U_next, VelocityField Zeta_next, DTYPE *Gamma,
-                            function v_boundary);
+                            function_handle v_boundary);
 
 static void compute_xi(GField g_field, VelocityField U, VelocityField Xi, DTYPE *Beta);
 #endif

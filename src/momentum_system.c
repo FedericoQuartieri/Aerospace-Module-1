@@ -10,7 +10,7 @@ void solve_momentum_system(VelocityField U,
                            VelocityField Zeta_next,
                            DTYPE *Beta,
                            DTYPE *Gamma,
-                           function v_boundary
+                           function_handle v_boundary
                         )
 {
     compute_xi(g_field, U, Xi, Beta);
@@ -21,7 +21,7 @@ void solve_momentum_system(VelocityField U,
 }
 
 /* (I - ∂xx) (Eta_next - Eta) = Xi - Eta */
-static void compute_eta_next(VelocityField Eta, VelocityField Eta_next, VelocityField Xi, DTYPE *Gamma, function v_boundary){
+static void compute_eta_next(VelocityField Eta, VelocityField Eta_next, VelocityField Xi, DTYPE *Gamma, function_handle v_boundary){
     // Right-hand side for the tridiagonal system
     ForceField f_field;
     initialize_force_field(&f_field);
@@ -71,7 +71,7 @@ static void compute_eta_next(VelocityField Eta, VelocityField Eta_next, Velocity
 }
 
 /* (I - ∂yy) (Zeta_next - Zeta) = Eta_next - Zeta */
-static void compute_zeta_next(VelocityField Zeta, VelocityField Zeta_next, VelocityField Eta_next, DTYPE *Gamma, function v_boundary){
+static void compute_zeta_next(VelocityField Zeta, VelocityField Zeta_next, VelocityField Eta_next, DTYPE *Gamma, function_handle v_boundary){
     // Right-hand side for the tridiagonal system
     ForceField f_field;
     initialize_force_field(&f_field);
@@ -116,7 +116,7 @@ static void compute_zeta_next(VelocityField Zeta, VelocityField Zeta_next, Veloc
 }
 
 /* (I - ∂zz) (U_next - U) = Zeta_next - U */
-static void compute_u_next(VelocityField U, VelocityField U_next, VelocityField Zeta_next, DTYPE *Gamma, function v_boundary){
+static void compute_u_next(VelocityField U, VelocityField U_next, VelocityField Zeta_next, DTYPE *Gamma, function_handle v_boundary){
     // Right-hand side for the tridiagonal system
     ForceField f_field;
     initialize_force_field(&f_field);

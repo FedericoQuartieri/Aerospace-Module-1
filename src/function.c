@@ -1,4 +1,4 @@
-/* forcing_parser.c */
+/* function.c */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,18 +8,12 @@
 #include "function.h"
 
 /* Context that holds compiled expressions and variable storage */
-typedef struct {
+struct FunctionContext {
     te_expr *expr[3];   /* expr[0] -> fx, expr[1] -> fy, expr[2] -> fz */
     double x;
     double y;
     double z;
     double t;
-} ForcingContext;
-
-/* Single global context for simplicity */
-static ForcingContext g_forcing_ctx = {
-    { NULL, NULL, NULL },
-    0.0, 0.0, 0.0, 0.0
 };
 
 /* Remove final newline/carriage return characters from a string, if present */
@@ -37,67 +31,68 @@ static void trim_newline(char *s)
     }
 }
 
-/* Free all compiled expressions in the global context */
-static void free_forcing_context(void)
+/* Free all compiled expressions in the context */
+static void free_context(function_handle ctx)
 {
     int i;
+    if (!ctx) return;
     for (i = 0; i < 3; ++i) {
-        if (g_forcing_ctx.expr[i]) {
-            te_free(g_forcing_ctx.expr[i]);
-            g_forcing_ctx.expr[i] = NULL;
+        if (ctx->expr[i]) {
+            te_free(ctx->expr[i]);
+            ctx->expr[i] = NULL;
         }
     }
 }
 
-/* This is the actual function that will be returned as a function pointer.
- * It uses the global context and evaluates the correct component.
- */
-static double forcing_impl(double x, double y, double z, double t, int component)
+/* Evaluate the function for the given component */
+double eval_function(function_handle handle, double x, double y, double z, double t, int component)
 {
-    if (component < 0 || component > 2) {
-        /* Out-of-range component: return 0.0 as a safe default */
+    if (!handle || component < 0 || component > 2) {
+        /* Invalid handle or out-of-range component: return 0.0 as a safe default */
         return 0.0;
     }
 
-    if (!g_forcing_ctx.expr[component]) {
+    if (!handle->expr[component]) {
         /* No expression compiled for this component: treat as zero */
         return 0.0;
     }
 
     /* Update variables in the context */
-    g_forcing_ctx.x = x;
-    g_forcing_ctx.y = y;
-    g_forcing_ctx.z = z;
-    g_forcing_ctx.t = t;
+    handle->x = x;
+    handle->y = y;
+    handle->z = z;
+    handle->t = t;
 
     /* Evaluate TinyExpr expression for the requested component */
-    return te_eval(g_forcing_ctx.expr[component]);
+    return te_eval(handle->expr[component]);
 }
 
-/* Parse the forcing file and return a function pointer.
+/* Parse function from file and return a handle.
  * File format:
  *   - Up to 3 non-empty, non-comment lines (in order): fx, fy, fz
  *   - Lines starting with '#' or empty lines are ignored.
  *   - Missing components are set to "0".
  */
-function parse_function(const char *filename)
+function_handle parse_function(const char *filename)
 {
     FILE *f;
     char expr_buf[3][256];
     int have_expr[3] = {0, 0, 0};
     int count = 0;
     char line[256];
+    function_handle ctx;
 
     int c, k;
     int err;
     te_expr *expr;
 
-    /* Free any previous expressions in the global context */
-    free_forcing_context();
+    /* Allocate a new context */
+    ctx = (function_handle)calloc(1, sizeof(struct FunctionContext));
 
     f = fopen(filename, "r");
     if (!f) {
-        fprintf(stderr, "Cannot open forcing file: %s\n", filename);
+        fprintf(stderr, "Cannot open function file: %s\n", filename);
+        free(ctx);
         return NULL;
     }
 
@@ -134,15 +129,15 @@ function parse_function(const char *filename)
         }
     }
 
-    /* Bind TinyExpr variables to the fields of the global context.
+    /* Bind TinyExpr variables to the fields of the context.
      * Using an initializer ensures all other struct fields are zeroed
      * (important for newer versions of TinyExpr with extra fields).
      */
     te_variable vars[] = {
-        { "x", &g_forcing_ctx.x },
-        { "y", &g_forcing_ctx.y },
-        { "z", &g_forcing_ctx.z },
-        { "t", &g_forcing_ctx.t }
+        { "x", &ctx->x },
+        { "y", &ctx->y },
+        { "z", &ctx->z },
+        { "t", &ctx->t }
     };
     const int nvars = (int)(sizeof(vars) / sizeof(vars[0]));
 
@@ -154,27 +149,30 @@ function parse_function(const char *filename)
         if (!expr) {
             /* Cleanup partially compiled expressions */
             for (k = 0; k < c; ++k) {
-                if (g_forcing_ctx.expr[k]) {
-                    te_free(g_forcing_ctx.expr[k]);
-                    g_forcing_ctx.expr[k] = NULL;
+                if (ctx->expr[k]) {
+                    te_free(ctx->expr[k]);
+                    ctx->expr[k] = NULL;
                 }
             }
+            free(ctx);
 
             fprintf(stderr,
-                    "Parse error in forcing component %d at position %d in expression: %s\n",
+                    "Parse error in function component %d at position %d in expression: %s\n",
                     c, err, expr_buf[c]);
             return NULL;
         }
 
-        g_forcing_ctx.expr[c] = expr;
+        ctx->expr[c] = expr;
     }
 
-    /* Return pointer to the implementation function */
-    return &forcing_impl;
+    /* Return the context handle */
+    return ctx;
 }
 
-/* Free TinyExpr expressions when done */
-void destroy_function(void)
+/* Free resources associated with a function handle */
+void destroy_function(function_handle handle)
 {
-    free_forcing_context();
+    if (!handle) return;
+    free_context(handle);
+    free(handle);
 }
