@@ -6,6 +6,7 @@ void Thomas_Same_Direction(const DTYPE *__restrict__ w,
                                DTYPE *__restrict__ tmp,
                                DTYPE *__restrict__ rhs,
                                DTYPE *__restrict__ u,
+                               double v_boundary,
                                DTYPE delta_space 
                             ) 
 {
@@ -48,7 +49,7 @@ void Thomas_Different_Direction(const DTYPE *__restrict__ w,
                                DTYPE *__restrict__ tmp,
                                DTYPE *__restrict__ rhs,
                                DTYPE *__restrict__ u,
-                               VelocityField u_BC,
+                               double v_boundary,
                                DTYPE delta_space 
 
                             ) 
@@ -78,7 +79,7 @@ void Thomas_Different_Direction(const DTYPE *__restrict__ w,
         rhs[i] = (rhs[i] - w[i]*rhs[i - 1]) * norm_coeff;
     }
     norm_coeff = 1.0 / ((1.0 - 3.0 * w[n-1]) - w[n-1] * tmp[n - 2]);
-    rhs[n-1] = (rhs[n-1] - w[n-1]*rhs[n-2]) * norm_coeff
+    rhs[n-1] = (rhs[n-1] - w[n-1]*rhs[n-2]) * norm_coeff;
     //rhs[n-1] = u_BC_current_direction[n-1] - 0.5 * delta_space * (u_BC_derivative_second_direction[n-1] + u_BC_derivative_third_direction[n-1]);
     // Backward substitution
     u[n - 1] = rhs[n - 1];
@@ -89,7 +90,7 @@ void Thomas_Different_Direction(const DTYPE *__restrict__ w,
 
 
 
-void Thomas_Pressure(const DTYPE *__restrict__ w, 
+/*void Thomas_Pressure(const DTYPE *__restrict__ w, 
                                          unsigned int n,
                                          DTYPE *__restrict__ tmp,
                                          DTYPE *__restrict__ f,
@@ -120,7 +121,52 @@ void Thomas_Pressure(const DTYPE *__restrict__ w,
     for(int i = 1; i < n; i++){
         u[n - 1 - i] = f[n - 1 - i] - tmp[n - 1 - i] * u[n - i];
     }
+}*/
+
+
+void Thomas_Pressure(const DTYPE *restrict w, 
+                                         unsigned int n,
+                                         DTYPE *restrict tmp,
+                                         DTYPE *restrict rhs,
+                                         DTYPE *restrict u
+                                     ) 
+{
+
+    {
+    // Check input 
+        if (!w || !tmp || !rhs || !u || n == 0) {
+            return; 
+        }
+
+        // Thomas algorithm for symmetric tridiagonal matrix:
+        // Diagonal: (1 - 2*w), Off-diagonals: w (both sub and super)
+        // This matches the discretization: (1 + 2γΔx⁻²) with off-diagonals -γΔx⁻²
+        // where w = -γΔx⁻²
+
+        //first equation is: (1-2w_0)p0 + (w_-1 + w1)p1 = f0
+
+        
+        // Forward elimination step
+        DTYPE norm_coeff = 1.0 / (1.0 - 2.0 * w[0]);                           
+        tmp[0] = (2.0 * w[0]) * norm_coeff;  // Super-diagonal coefficient
+        rhs[0] = rhs[0] * norm_coeff;
+        for(int i = 1; i < n - 1; i++){
+            norm_coeff = 1.0 / ((1.0 - 2.0 * w[i]) - w[i] * tmp[i - 1]); 
+            tmp[i] = w[i] * norm_coeff;  // Super-diagonal coefficient
+            rhs[i] = (rhs[i] - w[i]*rhs[i - 1]) * norm_coeff;  // Sub-diagonal is also w
+        }
+
+        norm_coeff = 1.0/((1.0 - 1.0 * w[n-1]) - w[n-1] * tmp[n - 2]);
+        rhs[n-1] = (rhs[n-1] - w[n-1]*rhs[n-2]) * norm_coeff;
+
+        // Backward substitution
+        u[n - 1] = rhs[n - 1];
+        for(int i = 1; i < n; i++){
+            u[n - 1 - i] = rhs[n - 1 - i] - tmp[n - 1 - i] * u[n - i];
+        }
+    }
 }
+
 
 void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamma, function v_boundary, bool same_direction){
 
@@ -142,10 +188,9 @@ void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamm
         }
     }
 
-
+    int i = 0;
     if(same_direction){
         /* Solving for each row of the domain, one at a time. */
-        int i = 0;
         for (int k = 1; k < DEPTH; k++) {
             for (int j = 1; j < HEIGHT; j++) { //j=1
                 /* Here we solve for a single block. */
@@ -184,9 +229,10 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, functi
     DTYPE *u_block   = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
     DTYPE *w_block   = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
     DTYPE *tmp_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
+    DTYPE *rhs_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
 
-    if (!f_block || !u_block || !w_block || !tmp_block) {
-        free(f_block); free(u_block); free(w_block); free(tmp_block);
+    if (!f_block || !u_block || !w_block || !tmp_block|| !rhs_block) {
+        free(f_block); free(u_block); free(w_block); free(tmp_block); free(rhs_block);
         return;
     }
 
@@ -230,6 +276,7 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, functi
 
                 // Risolve A_y u = f con algoritmo di Thomas
                 Thomas_Different_Direction(w_block, HEIGHT, tmp_block, rhs_block, u_block,
+                                    v_boundary(i, HEIGHT, k, 0, 1),
                                     DY);
 
                 // scatter risultato
@@ -246,6 +293,7 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, functi
     free(w_block);
     free(u_block);
     free(f_block);
+    free(rhs_block);
 }
 
 void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function v_boundary, bool same_direction){
@@ -254,9 +302,10 @@ void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function 
     DTYPE *u_block   = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
     DTYPE *w_block   = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
     DTYPE *tmp_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
+    DTYPE *rhs_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
 
-    if (!f_block || !u_block || !w_block || !tmp_block) {
-        free(f_block); free(u_block); free(w_block); free(tmp_block);
+    if (!f_block || !u_block || !w_block || !tmp_block || !rhs_block) {
+        free(f_block); free(u_block); free(w_block); free(tmp_block); free(rhs_block);
         return;
     }
 
@@ -274,7 +323,8 @@ void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function 
 
                 // Risolve A_z u = f con algoritmo di Thomas
                 Thomas_Same_Direction(w_block, DEPTH, tmp_block, rhs_block, u_block,
-                                    u_BC, DZ);
+                                    v_boundary(i, j, DEPTH, 0, 2),
+                                    DZ);
 
                 // scatter risultato
                 for (int k = 0; k < DEPTH; ++k){
@@ -297,7 +347,8 @@ void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function 
 
                 // Risolve A_z u = f con algoritmo di Thomas
                 Thomas_Different_Direction(w_block, DEPTH, tmp_block, rhs_block, u_block,
-                                    u_BC, DZ);
+                                    v_boundary(i, j, DEPTH, 0, 2),
+                                    DZ);
 
                 // scatter risultato
                 for (int k = 0; k < DEPTH; ++k){
@@ -312,4 +363,5 @@ void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function 
     free(w_block);
     free(u_block);
     free(f_block);
+    free(rhs_block);
 }

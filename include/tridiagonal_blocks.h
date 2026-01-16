@@ -38,6 +38,7 @@ void Thomas_Same_Direction(const DTYPE *__restrict__ w,
                                DTYPE *__restrict__ tmp,
                                DTYPE *__restrict__ rhs,
                                DTYPE *__restrict__ u,
+                               double v_boundary,
                                DTYPE delta_space 
                             ) ;
 
@@ -46,7 +47,7 @@ void Thomas_Different_Direction(const DTYPE *__restrict__ w,
                                DTYPE *__restrict__ tmp,
                                DTYPE *__restrict__ rhs,
                                DTYPE *__restrict__ u,
-                               VelocityField u_BC,
+                               double v_boundary,
                                DTYPE delta_space 
                             ) ;
                                

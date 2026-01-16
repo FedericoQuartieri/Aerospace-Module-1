@@ -7,7 +7,7 @@ extern "C" {
 #include "g_field.h"
 #include "velocity_field.h"
 #include "pressure.h"
-#include "forcing_parser.h"
+#include "function.h"
 }
 
 /**

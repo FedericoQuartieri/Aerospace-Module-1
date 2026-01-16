@@ -41,7 +41,7 @@ void solve (GField g_field, function forcing, Pressure pressure, DTYPE* K,
     */
 
     IOQueue io_queue;
-    io_queue_init(&io_queue);
+    io_queue_init(&io_queue, v_boundary);
     pthread_t io_thread;
 
     /* Create the IO thread */
@@ -108,7 +108,7 @@ void solve (GField g_field, function forcing, Pressure pressure, DTYPE* K,
             /* Store current solution in the record vectors */
             VelocityField U_copy;
             Pressure P_copy;
-            initialize_velocity_field(&U_copy);
+            initialize_velocity_field(&U_copy, v_boundary);
             initialize_pressure(&P_copy);
 
             memcpy(U_copy.v_x, U_next.v_x, GRID_SIZE);

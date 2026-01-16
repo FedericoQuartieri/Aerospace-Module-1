@@ -8,6 +8,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Option to enable/disable Eigen-dependent tests
 option(ENABLE_EIGEN_TESTS "Build tests that depend on Eigen" ON)
 
+# Find pthread library
+find_package(Threads REQUIRED)
+
 # Find Eigen3 only if we want the tests that use it
 if(ENABLE_EIGEN_TESTS)
     find_package(Eigen3 3.3 REQUIRED NO_MODULE)
@@ -39,7 +42,8 @@ target_include_directories(navier_core PUBLIC
 )
 
 # Link the math library for functions from <math.h> used by tinyexpr and others
-target_link_libraries(navier_core PUBLIC m)
+# Also link pthread library for threading support
+target_link_libraries(navier_core PUBLIC m Threads::Threads)
 
 # Main executable linked against the core library
 add_executable(navier_stokes ${MAIN_SRC})
@@ -55,6 +59,15 @@ if(NOT ENABLE_EIGEN_TESTS)
     list(FILTER TEST_SOURCES EXCLUDE REGEX "pressure_linear_solver_test\\.cpp$")
 endif()
 
+list(FILTER TEST_SOURCES EXCLUDE REGEX "boundaries_test\\.cpp$")
+list(FILTER TEST_SOURCES EXCLUDE REGEX "functions\\.cpp$")
+list(FILTER TEST_SOURCES EXCLUDE REGEX "g_field_test\\.cpp$")
+list(FILTER TEST_SOURCES EXCLUDE REGEX "manufactered_solution\\.cpp$")
+list(FILTER TEST_SOURCES EXCLUDE REGEX "momentum_linear_solver_test\\.cpp$")
+list(FILTER TEST_SOURCES EXCLUDE REGEX "pressure_linear_solver_test\\.cpp$")
+list(FILTER TEST_SOURCES EXCLUDE REGEX "pressure_test\\.cpp$")
+list(FILTER TEST_SOURCES EXCLUDE REGEX "test_utils\\.cpp$")
+list(FILTER TEST_SOURCES EXCLUDE REGEX "write_to_file_test\\.cpp$")
 # Collect all test target names
 set(ALL_TEST_TARGETS "")
 

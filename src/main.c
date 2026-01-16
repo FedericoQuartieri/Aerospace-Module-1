@@ -8,7 +8,7 @@
 #include "utils.h"
 #include "momentum_system.h"
 #include "pressure_system.h"
-#include "forcing_parser.h"
+#include "function.h"
 #include "solve.h"
 
 /* Solver for the Navier-Stokes-Brinkman equation */
@@ -78,7 +78,7 @@ int main(){
   
     printf("momentum\n");
 
-    destroy_forcing_function();
+    //destroy_forcing_function();
 
 
     free(K);
@@ -89,10 +89,6 @@ int main(){
     free_velocity_field(&Zeta);
     free_velocity_field(&U);
     free_g_field(&g_field);
-
-    free(u_BC_current_direction);
-    free(u_BC_derivative_second_direction);
-    free(u_BC_derivative_third_direction);
 
 
     return 0;
