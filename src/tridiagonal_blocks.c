@@ -188,7 +188,6 @@ void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamm
         }
     }
 
-    int i = 0;
     if(same_direction){
         /* Solving for each row of the domain, one at a time. */
         for (int k = 1; k < DEPTH; k++) {
@@ -196,7 +195,7 @@ void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamm
                 /* Here we solve for a single block. */
                 size_t off = k * (HEIGHT * WIDTH) + j * WIDTH; //non conta i ghost node
                 Thomas_Same_Direction(w + off, WIDTH, tmp + off, rhs + off, Eta_next_component + off,
-                                    v_boundary(i, j, k, 0, 0),
+                                    v_boundary(0, j, k, 0, 0),
                                     DX);
                 //Eta_next_component[0]= dirichlet_left(w + off, rhs + off, Eta_next_component + off)
             }
@@ -208,7 +207,7 @@ void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamm
                 /* Here we solve for a single block. */
                 size_t off = k * (HEIGHT * WIDTH) + j * WIDTH; //non conta i ghost node
                 Thomas_Different_Direction(w + off, WIDTH, tmp + off, rhs + off, Eta_next_component + off,
-                                    v_boundary(i, j, k, 0, 0),
+                                    v_boundary(0, j, k, 0, 0),
                                     DX);
                 //Eta_next_component[0]= dirichlet_left(w + off, f_field_component + off, Eta_next_component + off)
             }
@@ -237,7 +236,6 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, functi
     }
 
 
-
     if(same_direction){
         for (int k = 1; k < DEPTH; ++k) {
             for (int i = 1; i < WIDTH; ++i) {
@@ -252,7 +250,7 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, functi
 
                 // Risolve A_y u = f con algoritmo di Thomas
                 Thomas_Same_Direction(w_block, HEIGHT, tmp_block, rhs_block, u_block,
-                                    v_boundary(i, HEIGHT, k, 0, 1),
+                                    v_boundary(i, 0, k, 0, 1),
                                     DY);
 
                 // scatter risultato
@@ -276,7 +274,7 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, functi
 
                 // Risolve A_y u = f con algoritmo di Thomas
                 Thomas_Different_Direction(w_block, HEIGHT, tmp_block, rhs_block, u_block,
-                                    v_boundary(i, HEIGHT, k, 0, 1),
+                                    v_boundary(i, 0, k, 0, 1),
                                     DY);
 
                 // scatter risultato
@@ -323,7 +321,7 @@ void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function 
 
                 // Risolve A_z u = f con algoritmo di Thomas
                 Thomas_Same_Direction(w_block, DEPTH, tmp_block, rhs_block, u_block,
-                                    v_boundary(i, j, DEPTH, 0, 2),
+                                    v_boundary(i, j, 0, 0, 2),
                                     DZ);
 
                 // scatter risultato
@@ -347,7 +345,7 @@ void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function 
 
                 // Risolve A_z u = f con algoritmo di Thomas
                 Thomas_Different_Direction(w_block, DEPTH, tmp_block, rhs_block, u_block,
-                                    v_boundary(i, j, DEPTH, 0, 2),
+                                    v_boundary(i, j, 0, 0, 2),
                                     DZ);
 
                 // scatter risultato
