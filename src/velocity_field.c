@@ -9,8 +9,6 @@ void initialize_velocity_field(VelocityField *v_field, function_handle v_boundar
 
 
     update_velocity_boundary(v_field, v_boundary, 0);
-    
-
 }
 
 void rand_fill_velocity_field(VelocityField *v_field) {
@@ -19,7 +17,6 @@ void rand_fill_velocity_field(VelocityField *v_field) {
     rand_fill(v_field->v_z);
 }
 
-// TODO handle boundaries conditions
 
 DTYPE compute_velocity_x_grad(DTYPE *v_component, size_t i, size_t j, size_t k){
     // Gradient is done along the x-direction -> (i-1,i+1)
@@ -76,6 +73,7 @@ void free_velocity_field(VelocityField *v_field) {
     free(v_field->v_z);
 }
 
+// Warning: this function is called at each timestep and it performs a lot of stride access 
 void update_velocity_boundary(VelocityField *v_field,function_handle v_boundary, int time_step){
     size_t idx;
 
@@ -83,7 +81,7 @@ void update_velocity_boundary(VelocityField *v_field,function_handle v_boundary,
     for(int k = 1; k < DEPTH; k++){
         for(int j = 1; j < HEIGHT; j++){
             idx = rowmaj_idx(0,j,k);
-            v_field->v_x[idx] = eval_function(v_boundary, 0,j,k,time_step,0) - ((eval_function(v_boundary, 0,j,k,time_step,1) - eval_function(v_boundary, 0,j-1,k,time_step,1)) * DY_INVERSE) - ((eval_function(v_boundary, 0,j,k,time_step,2) - eval_function(v_boundary, 0,j,k-1,time_step,2)) * DZ_INVERSE);
+            v_field->v_x[idx] = eval_function(v_boundary, 0,j,k,time_step,0) + DX/2 * ( - ((eval_function(v_boundary, 0,j,k,time_step,1) - eval_function(v_boundary, 0,j-1,k,time_step,1)) * DY_INVERSE) - ((eval_function(v_boundary, 0,j,k,time_step,2) - eval_function(v_boundary, 0,j,k-1,time_step,2)) * DZ_INVERSE));
             v_field->v_y[idx] = eval_function(v_boundary, 0,j,k,time_step,1);
             v_field->v_z[idx] = eval_function(v_boundary, 0,j,k,time_step,2);
         }
@@ -94,7 +92,7 @@ void update_velocity_boundary(VelocityField *v_field,function_handle v_boundary,
         for(int i = 1; i < WIDTH; i++){
             idx = rowmaj_idx(i,0,k);
             v_field->v_x[idx] = eval_function(v_boundary, i,0,k,time_step,0);
-            v_field->v_y[idx] = eval_function(v_boundary, i,0,k,time_step,1) - ((eval_function(v_boundary, i,0,k,time_step,0) - eval_function(v_boundary, i-1,0,k,time_step,0)) * DX_INVERSE) - ((eval_function(v_boundary, i,0,k,time_step,2) - eval_function(v_boundary, i,0,k-1,time_step,2)) * DZ_INVERSE);
+            v_field->v_y[idx] = eval_function(v_boundary, i,0,k,time_step,1) + DY/2 * ( - ((eval_function(v_boundary, i,0,k,time_step,0) - eval_function(v_boundary, i-1,0,k,time_step,0)) * DX_INVERSE) - ((eval_function(v_boundary, i,0,k,time_step,2) - eval_function(v_boundary, i,0,k-1,time_step,2)) * DZ_INVERSE));
             v_field->v_z[idx] = eval_function(v_boundary, i,0,k,time_step,2);
         }
     }
@@ -105,7 +103,7 @@ void update_velocity_boundary(VelocityField *v_field,function_handle v_boundary,
             idx = rowmaj_idx(i,j,0);
             v_field->v_x[idx] = eval_function(v_boundary, i,j,0,time_step,0);
             v_field->v_y[idx] = eval_function(v_boundary, i,j,0,time_step,1);
-            v_field->v_z[idx] = eval_function(v_boundary, i,j,0,time_step,2) - ((eval_function(v_boundary, i,j,0,time_step,0) - eval_function(v_boundary, i-1,j,0,time_step,0)) * DX_INVERSE) - ((eval_function(v_boundary, i,j,0,time_step,1) - eval_function(v_boundary, i,j-1,0,time_step,1)) * DY_INVERSE); 
+            v_field->v_z[idx] = eval_function(v_boundary, i,j,0,time_step,2) + DZ/2 * ( - ((eval_function(v_boundary, i,j,0,time_step,0) - eval_function(v_boundary, i-1,j,0,time_step,0)) * DX_INVERSE) - ((eval_function(v_boundary, i,j,0,time_step,1) - eval_function(v_boundary, i,j-1,0,time_step,1)) * DY_INVERSE)); 
         }
     }
     
@@ -139,5 +137,4 @@ void update_velocity_boundary(VelocityField *v_field,function_handle v_boundary,
     v_field->v_y[idx] = eval_function(v_boundary, 0,0,0,time_step,1);
     v_field->v_z[idx] = eval_function(v_boundary, 0,0,0,time_step,2);
     
-
 }

@@ -26,8 +26,4 @@ static inline int is_boundary(size_t i, size_t j, size_t k) {
             k == 0 || k == DEPTH  - 1);
 }
 
-
-
-
-
 #endif // UTILS_H

@@ -2,29 +2,6 @@
 #include "io_thread.h"
 
 
-/* 
-    Get the pointers to the Velocity struct and swap each pointers inside them
-*/
-static void swap_velocity(VelocityField *U, VelocityField *U_next) {
-    
-    DTYPE *tmp;
-    /* v_x */
-    tmp = U->v_x; U->v_x = U_next->v_x; U_next->v_x = tmp;
-    /* v_y */
-    tmp = U->v_y; U->v_y = U_next->v_y; U_next->v_y = tmp;
-    /* v_z */
-    tmp = U->v_z; U->v_z = U_next->v_z; U_next->v_z = tmp;
-} 
-
-/* 
-    Get the pointers to the Pressure struct and swap the pointers inside
-*/
-static void swap_pressure(Pressure *pressure, Pressure *pressure_next) {
-    
-    DTYPE *tmp;
-    tmp = pressure->p; pressure->p = pressure_next->p; pressure_next->p = tmp;
-} 
-
 void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K, 
             VelocityField Eta, VelocityField Zeta, VelocityField U, 
             DTYPE* Beta, DTYPE* Gamma, 
@@ -51,28 +28,24 @@ void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K
         return;
     }
     mkdir("output", 0755);   /* create output/ directory if doesn't exists */
+;
 
-    VelocityField Eta_next;
-    VelocityField Zeta_next;
-    VelocityField U_next;
+    // Initialize the necessary velocity and force fields
     VelocityField Xi;
+    VelocityField Delta;
+    ForceField rhs;
+    
     initialize_velocity_field(&Xi, v_boundary);
-    initialize_velocity_field(&Eta_next, v_boundary);
-    initialize_velocity_field(&Zeta_next, v_boundary);
-    initialize_velocity_field(&U_next, v_boundary);
-
-    //Pressure pressure_next;
-    //initialize_pressure(&pressure_next);
+    initialize_velocity_field(&Delta, v_boundary);
+    initialize_force_field(&rhs);
 
     for (int t = 0; t < STEPS; t++) {
 
-        // Update G field
         compute_g(&g_field, forcing, &pressure, K, &Eta, &Zeta, &U, t, v_boundary);        
 
-        solve_momentum_system(U, Eta, Zeta, Xi, g_field, U_next, Eta_next, Zeta_next, Beta, Gamma, v_boundary);
+        solve_momentum_system(U, Eta, Zeta, Xi, g_field, Delta, rhs, Beta, Gamma, v_boundary, t);
 
-        // not implemented yet
-        solve_pressure_system(U_next, &pressure);
+        solve_pressure_system(U, &pressure);
 
         if (t % write_frequency == 0) {
 
@@ -92,9 +65,9 @@ void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K
             io_queue.timestep[idx] = t;
             /* Here IO thread can continue to work, doesn't wait for memcpy */
             /* Copy data into buffers at position [head] */
-            memcpy(io_queue.U_buf[idx].v_x, U_next.v_x, GRID_SIZE);
-            memcpy(io_queue.U_buf[idx].v_y, U_next.v_y, GRID_SIZE);
-            memcpy(io_queue.U_buf[idx].v_z, U_next.v_z, GRID_SIZE);
+            memcpy(io_queue.U_buf[idx].v_x, U.v_x, GRID_SIZE);
+            memcpy(io_queue.U_buf[idx].v_y, U.v_y, GRID_SIZE);
+            memcpy(io_queue.U_buf[idx].v_z, U.v_z, GRID_SIZE);
             memcpy(io_queue.P_buf[idx].p,  pressure.p, GRID_SIZE);
 
             /* Signal that the next buffer is ready, so update .count */
@@ -105,34 +78,25 @@ void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K
         }
 
         if (full_output) {
-            /* Store current solution in the record vectors */
+            // Store current solution in record vectors
             VelocityField U_copy;
             Pressure P_copy;
             initialize_velocity_field(&U_copy, v_boundary);
             initialize_pressure(&P_copy);
 
-            memcpy(U_copy.v_x, U_next.v_x, GRID_SIZE);
-            memcpy(U_copy.v_y, U_next.v_y, GRID_SIZE);
-            memcpy(U_copy.v_z, U_next.v_z, GRID_SIZE);
-            memcpy(P_copy.p,  pressure.p, GRID_SIZE);
+            memcpy(U_copy.v_x, U.v_x, GRID_SIZE);
+            memcpy(U_copy.v_y, U.v_y, GRID_SIZE);
+            memcpy(U_copy.v_z, U.v_z, GRID_SIZE);
+            memcpy(P_copy.p, pressure.p, GRID_SIZE);
 
             (*U_record)[t] = U_copy;
             (*P_record)[t] = P_copy;
         }
-
-        swap_velocity(&U, &U_next);
-        swap_velocity(&Eta, &Eta_next);
-        swap_velocity(&Zeta, &Zeta_next);
-        //swap_pressure(&pressure, &pressure_next);
-
-        
-
     }
 
     free_velocity_field(&Xi);
-    free_velocity_field(&Eta_next);
-    free_velocity_field(&Zeta_next);
-    free_velocity_field(&U_next);
+    free_velocity_field(&Delta);
+    free_force_field(&rhs);
 
     pthread_mutex_lock(&io_queue.mutex);
     io_queue.stop = 1;
@@ -141,6 +105,5 @@ void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K
 
     pthread_join(io_thread, NULL);
     io_queue_destroy(&io_queue);
-
 
 }
