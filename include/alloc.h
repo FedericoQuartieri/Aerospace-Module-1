@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ALIGN_TO 64u
+#define ALIGN_TO 64ul
 
 struct ArenaAllocator {
     void *start_;
@@ -39,7 +39,14 @@ static inline uint64_t arena_pos(ArenaAllocator *arena)
 
 static inline void *arena_push(ArenaAllocator *arena, uint64_t size)
 {
-    uint64_t pos = (arena->pos_ + ALIGN_TO) & ~(ALIGN_TO - 1u);
+    uint64_t pos = (arena->pos_ + ALIGN_TO) & ~(ALIGN_TO - 1ul);
+    arena->pos_ = pos + size;
+    return ((char *) arena->start_) + pos;
+}
+
+static inline void *arena_push_noalign(ArenaAllocator *arena, uint64_t size)
+{
+    uint64_t pos = arena->pos_;
     arena->pos_ = pos + size;
     return ((char *) arena->start_) + pos;
 }

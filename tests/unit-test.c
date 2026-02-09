@@ -105,17 +105,18 @@ DEF_TEST(test_pressure_Dzz_solver,
 int main(void)
 {
     ArenaAllocator arena;
-    arena_init(&arena, 1u << 30);
+    arena_init(&arena, 1ul << 32);
 
-    RUN_TEST(test_vtranspose);
+    //RUN_TEST(test_vtranspose);
 
-    RUN_TEST(test_momentum_Dxx_rhs, &arena, 16, 32, 64);
+    //RUN_TEST(test_momentum_Dxx_rhs, &arena, 16, 32, 64);
     //RUN_TEST(test_momentum_Dxx_rhs, &arena, 32, 64, 128);
     //RUN_TEST(test_momentum_Dxx_rhs, &arena, 128, 128, 64);
 
     RUN_TEST(test_momentum_Dxx_solver, &arena, 16, 16, 16);
     RUN_TEST(test_momentum_Dxx_solver, &arena, 128, 128, 64);
     RUN_TEST(test_momentum_Dxx_solver, &arena, 512, 32, 256);
+    RUN_TEST(test_momentum_Dxx_solver, &arena, 256, 256, 256);
 
     RUN_TEST(test_momentum_Dyy_solver, &arena, 32, 64, 64);
     RUN_TEST(test_momentum_Dyy_solver, &arena, 128, 128, 64);
@@ -124,10 +125,12 @@ int main(void)
     RUN_TEST(test_momentum_Dzz_solver, &arena, 32, 64, 64);
     RUN_TEST(test_momentum_Dzz_solver, &arena, 128, 128, 64);
     RUN_TEST(test_momentum_Dzz_solver, &arena, 32, 32, 256);
+    RUN_TEST(test_momentum_Dzz_solver, &arena, 256, 256, 256);
 
     RUN_TEST(test_pressure_Dxx_solver, &arena, 1, 32, 32);
     RUN_TEST(test_pressure_Dxx_solver, &arena, 32, 64, 128);
     RUN_TEST(test_pressure_Dxx_solver, &arena, 128, 64, 512);
+    RUN_TEST(test_pressure_Dxx_solver, &arena, 256, 256, 256);
 
     RUN_TEST(test_pressure_Dyy_solver, &arena, 1, 32, 32);
     RUN_TEST(test_pressure_Dyy_solver, &arena, 32, 64, 128);

@@ -13,4 +13,11 @@ void pressure_solve(const_field3 velocity,
                     uint32_t timestep,
                     ArenaAllocator *arena);
 
+void pressure_correct_rot(const_field3 velocity,
+                          const_field3 velocity_old,
+                          field_size size,
+                          field pressure,
+                          ftype chi,
+                          uint32_t timestep);
+
 #endif

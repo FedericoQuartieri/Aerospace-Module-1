@@ -9,17 +9,17 @@
 
 static ftype get_man_u_x(ftype x, ftype y, ftype z, ftype t)
 {
-    return sin(t) * sin(x) * sin(y) * sin(z);
+    return sin(x) * cos(y + t) * sin(z);
 }
 
 static ftype get_man_u_y(ftype x, ftype y, ftype z, ftype t)
 {
-    return sin(t) * cos(x) * cos(y) * cos(z);
+    return cos(x) * sin(y + t) * sin(z);
 }
 
 static ftype get_man_u_z(ftype x, ftype y, ftype z, ftype t)
 {
-    return sin(t) * cos(x) * sin(y) * (cos(z) + sin(z));
+    return 2 * cos(x) * cos(y + t) * cos(z);
 }
 
 #ifndef FLOAT
@@ -265,7 +265,7 @@ void solve_vtiles_row(const ftype *restrict u_x,
                           1, is_first_row,
                           VLEN, div_u_t);
 
-    vftype f_prev = vload(div_u_t) / (1.0 + 2.0 / (_DX * _DX)); /* Left BCs applied. */
+    vftype f_prev = vload(div_u_t) / (ftype) (1.0 + 2.0 / (_DX * _DX)); /* Left BCs applied. */
     vstore(tmp_f, f_prev);
 
     for (int k = 1; k < VLEN; ++k) {
@@ -454,7 +454,8 @@ static void solve_Dyy_blocks(uint32_t depth,
         /* Neumann BCs for the first row. */
         for (uint32_t k = 0; k < width; k += VLEN) {
             vstore(f + face_offset + k,
-                   vload(f + face_offset + k) / (1.0 + 2.0 / (_DX * _DX)));
+                   vload(f + face_offset + k) /
+                   (ftype) (1.0 + 2.0 / (_DX * _DX)));
         }
 
         for (uint32_t j = 1; j < height; ++j) {
@@ -507,7 +508,8 @@ void solve_Dzz_blocks(uint32_t depth,
     for (uint32_t j = 0; j < height; ++j) {
         for (uint32_t k = 0; k < width; k += VLEN) {
             vstore(f + width * j + k,
-                   vload(f + width * j + k) / (1.0 + 2.0 / (_DX * _DX)));
+                   vload(f + width * j + k) /
+                   (ftype) (1.0 + 2.0 / (_DX * _DX)));
         }
     }
 
@@ -756,7 +758,7 @@ void solve_pressure_fused(uint32_t depth,
 
 void pressure_init(field_size size, field field)
 {
-    memset(field, 0, field_num_points(size) * sizeof(ftype));
+    field_fill(size, 0, field);
 }
 
 void pressure_solve(const_field3 velocity,
@@ -774,6 +776,7 @@ void pressure_solve(const_field3 velocity,
 
     ftype t = timestep * _DT;
 
+    /*
     for (uint32_t i = 0; i < size.depth; ++i) {
         for (uint32_t j = 0; j < size.height; ++j) {
             for (uint32_t k = 0; k < size.width; ++k) {
@@ -786,24 +789,33 @@ void pressure_solve(const_field3 velocity,
                     diff_x = velocity.x[idx] -
                              velocity.x[idx - 1];
                 } else {
-                    diff_x = 2 * (velocity.x[idx] -
-                                  get_man_u_x(0, j * _DX, i * _DX, t));
+                    //diff_x = 2 * (velocity.x[idx] -
+                    //              get_man_u_x(0, j * _DX, i * _DX, t));
+                    diff_x = -1.0 / 3.0 * velocity.x[idx + 1] +
+                             3.0 * velocity.x[idx] +
+                             -8.0 / 3.0 * get_man_u_x(0, j * _DX, i * _DX, t);
                 }
 
                 if (j > 0) {
                     diff_y = velocity.y[idx] -
                              velocity.y[idx - size.width];
                 } else {
-                    diff_y = 2 * (velocity.y[idx] -
-                                  get_man_u_y(k * _DX, 0, i * _DX, t));
+                    //diff_y = 2 * (velocity.y[idx] -
+                    //              get_man_u_y(k * _DX, 0, i * _DX, t));
+                    diff_y = -1.0 / 3.0 * velocity.y[idx + size.width] +
+                             3.0 * velocity.y[idx] +
+                             -8.0 / 3.0 * get_man_u_y(k * _DX, 0, i * _DX, t);
                 }
 
                 if (i > 0) {
                     diff_z = velocity.z[idx] -
                              velocity.z[idx - size.height * size.width];
                 } else {
-                    diff_z = 2 * (velocity.z[idx] -
-                                  get_man_u_z(k * _DX, j * _DX, 0, t));
+                    //diff_z = 2 * (velocity.z[idx] -
+                    //             get_man_u_z(k * _DX, j * _DX, 0, t));
+                    diff_z = -1.0 / 3.0 * velocity.z[idx + size.height * size.width] +
+                             3.0 * velocity.z[idx] +
+                             -8.0 / 3.0 * get_man_u_z(k * _DX, j * _DX, 0, t);
                 }
 
                 div[idx] = (diff_x + diff_y + diff_z) / (-_DT * _DX);
@@ -814,10 +826,11 @@ void pressure_solve(const_field3 velocity,
     solve_Dxx_blocks_pressure(
         size.depth, size.height, size.width,
         tmp, div, pressure_delta);
+    */
 
-    //solve_Dxx_blocks(velocity.x, velocity.y, velocity.z,
-    //                 size.depth, size.height, size.width,
-    //                 tmp, pressure_delta);
+    solve_Dxx_blocks(velocity.x, velocity.y, velocity.z,
+                     size.depth, size.height, size.width,
+                     tmp, pressure_delta);
 
     solve_Dyy_blocks(size.depth, size.height, size.width,
                      tmp, pressure_delta, sol);
@@ -825,18 +838,73 @@ void pressure_solve(const_field3 velocity,
     solve_Dzz_blocks(size.depth, size.height, size.width,
                      tmp, sol, pressure_delta);
 
-    ftype mean_delta = 0;
-    for (uint64_t i = 0; i < field_num_points(size); ++i) {
-        mean_delta += pressure_delta[i];
-    }
-    mean_delta /= field_num_points(size);
-
     /* Update pressure. */
     uint64_t num_points = field_num_points(size);
     for (uint64_t i = 0; i < num_points; ++i) {
-        pressure[i] += (pressure_delta[i] - mean_delta);
+        pressure[i] += pressure_delta[i];
     }
 
     arena_exit(arena);
 }
+
+void pressure_correct_rot(const_field3 velocity,
+                          const_field3 velocity_old,
+                          field_size size,
+                          field pressure,
+                          ftype chi,
+                          uint32_t timestep)
+{
+    /* Subtract 1/2 xhi nu div(u_n+1 + u_n) from pressure. */
+
+    ftype t = timestep * _DT;
+
+    for (uint32_t i = 0; i < size.depth; ++i) {
+        for (uint32_t j = 0; j < size.height; ++j) {
+            for (uint32_t k = 0; k < size.width; ++k) {
+                uint64_t idx = size.height * size.width * i +
+                               size.width * j + k;
+
+                ftype diff_x, diff_y, diff_z;
+
+                if (k > 0) {
+                    diff_x = velocity.x[idx] + velocity_old.x[idx] -
+                             velocity.x[idx - 1] - velocity_old.x[idx - 1];
+                } else {
+                    diff_x = -1.0 / 3.0 * (velocity.x[idx + 1] + velocity_old.x[idx + 1]) +
+                             3.0 * (velocity.x[idx] + velocity_old.x[idx])
+                             -8.0 / 3.0 * (get_man_u_x(0, j * _DX, i * _DX, t) +
+                                           get_man_u_x(0, j * _DX, i * _DX, t - _DT));
+                }
+
+                if (j > 0) {
+                    diff_y = velocity.y[idx] + velocity_old.y[idx] -
+                             velocity.y[idx - size.width] -
+                             velocity_old.y[idx - size.width];
+                } else {
+                    diff_y = -1.0 / 3.0 * (velocity.y[idx + size.width] +
+                                           velocity_old.y[idx + size.width]) +
+                             3.0 * (velocity.y[idx] + velocity_old.y[idx]) +
+                             -8.0 / 3.0 * (get_man_u_y(k * _DX, 0, i * _DX, t) +
+                                           get_man_u_y(k * _DX, 0, i * _DX, t - _DT));
+                }
+
+                if (i > 0) {
+                    diff_z = velocity.z[idx] + velocity_old.z[idx] -
+                             velocity.z[idx - size.height * size.width] -
+                             velocity_old.z[idx - size.height * size.width];
+                } else {
+                    diff_z = -1.0 / 3.0 * (velocity.z[idx + size.height * size.width] +
+                                           velocity_old.z[idx + size.height * size.width]) +
+                             3.0 * (velocity.z[idx] + velocity_old.z[idx]) +
+                             -8.0 / 3.0 * (get_man_u_z(k * _DX, j * _DX, 0, t) +
+                                           get_man_u_z(k * _DX, j * _DX, 0, t - _DT));
+                }
+
+                 pressure[idx] -= 0.5 * _NU * chi *
+                                  (diff_x + diff_y + diff_z) / _DX;
+            }
+        }
+    }
+}
+
 

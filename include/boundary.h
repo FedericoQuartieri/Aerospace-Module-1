@@ -1,5 +1,5 @@
-#ifndef BCS_H
-#define BCS_H
+#ifndef BOUNDARY_H
+#define BOUNDARY_H
 
 #include "ftype.h"
 
@@ -10,8 +10,6 @@
 #define BC_FRONT front
 #define BC_BACK back
 
-/* TODO: Define delta_u getters. */
-
 #define DECLARE_BC_U(boundary) \
         _DECLARE_BC_U(boundary)
 
@@ -21,71 +19,71 @@
 #define DEFINE_FUNCTION_BC_U(func, func_delta, boundary) \
         _DEFINE_FUNCTION_BC_U(func, func_delta, boundary)
 
-#define _DECLARE_BC_U(boundary)                                  \
-void _get_##boundary##_bc_u(uint32_t __attribute__((unused)) x,  \
-                            uint32_t __attribute__((unused)) y,  \
-                            uint32_t __attribute__((unused)) z,  \
-                            uint32_t __attribute__((unused)) t,  \
-                            vftype *restrict u_x,                \
-                            vftype *restrict u_y,                \
-                            vftype *restrict u_z);               \
-                                                                 \
-void _get_##boundary##_bc_u_t(uint32_t __attribute__((unused)) x,  \
-                              uint32_t __attribute__((unused)) y,  \
-                              uint32_t __attribute__((unused)) z,  \
-                              uint32_t __attribute__((unused)) t,  \
-                              vftype *restrict u_x,                \
-                              vftype *restrict u_y,                \
-                              vftype *restrict u_z);
+#define _DECLARE_BC_U(boundary)                                        \
+void _get_##boundary##_bc_u(uint32_t __attribute__((unused)) x,        \
+                            uint32_t __attribute__((unused)) y,        \
+                            uint32_t __attribute__((unused)) z,        \
+                            uint32_t __attribute__((unused)) t,        \
+                            vftype *restrict u_x,                      \
+                            vftype *restrict u_y,                      \
+                            vftype *restrict u_z);                     \
+                                                                       \
+void _get_##boundary##_bc_u_delta(uint32_t __attribute__((unused)) x,  \
+                                  uint32_t __attribute__((unused)) y,  \
+                                  uint32_t __attribute__((unused)) z,  \
+                                  uint32_t __attribute__((unused)) t,  \
+                                  vftype *restrict u_x,                \
+                                  vftype *restrict u_y,                \
+                                  vftype *restrict u_z);
 
-#define _DEFINE_CONSTANT_BC_U(ux, uy, uz, boundary)              \
-void _get_##boundary##_bc_u(uint32_t __attribute__((unused)) x,  \
-                            uint32_t __attribute__((unused)) y,  \
-                            uint32_t __attribute__((unused)) z,  \
-                            uint32_t __attribute__((unused)) t,  \
-                            vftype *restrict u_x,                \
-                            vftype *restrict u_y,                \
-                            vftype *restrict u_z)                \
-{                                                                \
-    *u_x = vbroadcast(ux);                                       \
-    *u_y = vbroadcast(uy);                                       \
-    *u_z = vbroadcast(uz);                                       \
-}                                                                \
-                                                                 \
-void _get_##boundary##_bc_u_t(uint32_t __attribute__((unused)) x,  \
-                              uint32_t __attribute__((unused)) y,  \
-                              uint32_t __attribute__((unused)) z,  \
-                              uint32_t __attribute__((unused)) t,  \
-                              vftype *restrict u_x,                \
-                              vftype *restrict u_y,                \
-                              vftype *restrict u_z)                \
-{                                                                \
-    *u_x = vbroadcast(ux);                                       \
-    *u_y = vbroadcast(uy);                                       \
-    *u_z = vbroadcast(uz);                                       \
+#define _DEFINE_CONSTANT_BC_U(ux, uy, uz, boundary)                    \
+void _get_##boundary##_bc_u(uint32_t __attribute__((unused)) x,        \
+                            uint32_t __attribute__((unused)) y,        \
+                            uint32_t __attribute__((unused)) z,        \
+                            uint32_t __attribute__((unused)) t,        \
+                            vftype *restrict u_x,                      \
+                            vftype *restrict u_y,                      \
+                            vftype *restrict u_z)                      \
+{                                                                      \
+    *u_x = vbroadcast(ux);                                             \
+    *u_y = vbroadcast(uy);                                             \
+    *u_z = vbroadcast(uz);                                             \
+}                                                                      \
+                                                                       \
+void _get_##boundary##_bc_u_delta(uint32_t __attribute__((unused)) x,  \
+                                  uint32_t __attribute__((unused)) y,  \
+                                  uint32_t __attribute__((unused)) z,  \
+                                  uint32_t __attribute__((unused)) t,  \
+                                  vftype *restrict u_x,                \
+                                  vftype *restrict u_y,                \
+                                  vftype *restrict u_z)                \
+{                                                                      \
+    *u_x = vbroadcast(0);                                              \
+    *u_y = vbroadcast(0);                                              \
+    *u_z = vbroadcast(0);                                              \
 }
 
-#define _DEFINE_FUNCTION_BC_U(func, func_delta, boundary)        \
-void _get_##boundary##_bc_u(uint32_t __attribute__((unused)) x,  \
-                            uint32_t __attribute__((unused)) y,  \
-                            uint32_t __attribute__((unused)) z,  \
-                            uint32_t __attribute__((unused)) t,  \
-                            vftype *restrict u_x,                \
-                            vftype *restrict u_y,                \
-                            vftype *restrict u_z)                \
-{                                                                \
-    func_delta(x, y, z, t, u_x, u_y, u_z);                       \
-}                                                                \
-                                                                 \
-void _get_##boundary##_bc_u_t(uint32_t __attribute__((unused)) x,  \
-                              uint32_t __attribute__((unused)) y,  \
-                              uint32_t __attribute__((unused)) z,  \
-                              uint32_t __attribute__((unused)) t,  \
-                              vftype *restrict u_x,                \
-                              vftype *restrict u_y,                \
-                              vftype *restrict u_z)                \
-{                                                                \
-    func(x, y, z, t, u_x, u_y, u_z);                             \
+#define _DEFINE_FUNCTION_BC_U(func, func_delta, boundary)              \
+void _get_##boundary##_bc_u(uint32_t __attribute__((unused)) x,        \
+                            uint32_t __attribute__((unused)) y,        \
+                            uint32_t __attribute__((unused)) z,        \
+                            uint32_t __attribute__((unused)) t,        \
+                            vftype *restrict u_x,                      \
+                            vftype *restrict u_y,                      \
+                            vftype *restrict u_z)                      \
+{                                                                      \
+    func(x, y, z, t, u_x, u_y, u_z);                                   \
+}                                                                      \
+                                                                       \
+void _get_##boundary##_bc_u_delta(uint32_t __attribute__((unused)) x,  \
+                                  uint32_t __attribute__((unused)) y,  \
+                                  uint32_t __attribute__((unused)) z,  \
+                                  uint32_t __attribute__((unused)) t,  \
+                                  vftype *restrict u_x,                \
+                                  vftype *restrict u_y,                \
+                                  vftype *restrict u_z)                \
+{                                                                      \
+    func_delta(x, y, z, t, u_x, u_y, u_z);                             \
 }
 
 #define DEFINE_HOMOGENEOUS_BCS_U()           \

@@ -27,6 +27,14 @@ static inline uint64_t field_num_points(field_size size)
     return size.depth * size.height * size.width;
 }
 
+static inline uint64_t field_idx(field_size size,
+                                 uint32_t x,
+                                 uint32_t y,
+                                 uint32_t z)
+{
+    return size.height * size.width * z + size.width * y + x;
+}
+
 static inline field field_alloc(field_size size, ArenaAllocator *arena)
 {
     return arena_push_count(arena, ftype, field_num_points(size));
@@ -115,9 +123,9 @@ static inline double field_l2_norm_diff(field_size size,
 {
     double norm = 0;
 
-    for (uint32_t i = 0; i < size.depth; ++i) {
-        for (uint32_t j = 0; j < size.height; ++j) {
-            for (uint32_t k = 0; k < size.width; ++k) {
+    for (uint32_t i = 1; i < size.depth; ++i) {
+        for (uint32_t j = 1; j < size.height; ++j) {
+            for (uint32_t k = 1; k < size.width; ++k) {
                 uint64_t idx = size.height * size.width * i +
                                size.width * j + k;
 
@@ -126,7 +134,39 @@ static inline double field_l2_norm_diff(field_size size,
         }
     }
 
-    return sqrt(norm * dx * dx * dx);
+    norm *= dx * dx * dx;
+
+    norm += POW2(field1[0] - field2[0]) * (dx/2 * dx/2 * dx/2);
+    for (uint32_t k = 1; k < size.width; ++k) {
+        norm += POW2(field1[k] - field2[k]) * (dx/2 * dx/2 * dx);
+    }
+
+    for (uint32_t j = 1; j < size.height; ++j) {
+        uint64_t idx = size.width * j;
+        norm += POW2(field1[idx] - field2[idx]) * (dx/2 * dx/2 * dx);
+
+        for (uint32_t k = 1; k < size.width; ++k) {
+            norm += POW2(field1[idx + k] - field2[idx + k]) * (dx/2 * dx * dx);
+        }
+    }
+
+    for (uint32_t i = 1; i < size.depth; ++i) {
+
+        uint64_t idx = size.height * size.width * i;
+        norm += POW2(field1[idx] - field2[idx]) * (dx/2 * dx/2 * dx);
+
+        for (uint32_t k = 1; k < size.width; ++k) {
+            uint64_t idx = size.height * size.width * i + k;
+            norm += POW2(field1[idx] - field2[idx]) * (dx/2 * dx * dx);
+        }
+
+        for (uint32_t j = 1; j < size.height; ++j) {
+            uint64_t idx = size.height * size.width * i + size.width * j;
+            norm += POW2(field1[idx] - field2[idx]) * (dx/2 * dx * dx);
+        }
+    }
+
+    return sqrt(norm);
 }
 
 static inline double field3_l2_norm_diff(field_size size,
@@ -136,9 +176,9 @@ static inline double field3_l2_norm_diff(field_size size,
 {
     double norm = 0;
 
-    for (uint32_t i = 0; i < size.depth; ++i) {
-        for (uint32_t j = 0; j < size.height; ++j) {
-            for (uint32_t k = 0; k < size.width; ++k) {
+    for (uint32_t i = 1; i < size.depth - 1; ++i) {
+        for (uint32_t j = 1; j < size.height - 1; ++j) {
+            for (uint32_t k = 1; k < size.width - 1; ++k) {
                 uint64_t idx = size.height * size.width * i +
                                size.width * j + k;
 

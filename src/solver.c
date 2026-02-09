@@ -89,12 +89,8 @@ void solver_step(Solver *solver, uint32_t timestep)
                    solver->domain_size,
                    solver->pressure,
                    solver->pressure_delta,
+                   timestep,
                    solver->arena);
-
-    /* WARNING: Enforcing pressure to correct solution (0) */
-
-    //field_fill(solver->domain_size, 0, solver->pressure);
-    //field_fill(solver->domain_size, 0, solver->pressure_delta);
 }
 
 const_field3 solver_get_velocity(Solver *solver)
