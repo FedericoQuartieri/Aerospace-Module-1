@@ -8,6 +8,7 @@
 #include "finite-diff.h"
 #include "boundary.h"
 #include "consts.h"
+#include "timeit.h"
 
 DECLARE_BC_U(BC_LEFT)
 DECLARE_BC_U(BC_TOP)
@@ -1049,14 +1050,14 @@ void momentum_solve(const_field porosity,
     field3 rhs = field3_alloc(size, arena);
     field3 delta = field3_alloc(size, arena);
 
-    compute_Dxx_rhs(porosity, pressure, pressure_delta, velocity_Dxx.x,
+    TIMEITN(compute_Dxx_rhs(porosity, pressure, pressure_delta, velocity_Dxx.x,
                     velocity_Dxx.y, velocity_Dxx.z, velocity_Dyy.x,
                     velocity_Dyy.y, velocity_Dyy.z, velocity_Dzz.x,
                     velocity_Dzz.y, velocity_Dzz.z, size.depth, size.height,
-                    size.width, timestep, rhs.x, rhs.y, rhs.z);
+                    size.width, timestep, rhs.x, rhs.y, rhs.z), 1);
 
-    solve_Dxx_blocks(gamma, size.depth, size.height, size.width, timestep,
-                     tmp, rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z);
+    TIMEITN(solve_Dxx_blocks(gamma, size.depth, size.height, size.width, timestep,
+                     tmp, rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z), 1);
 
     /*
      *  +--------+
@@ -1096,23 +1097,24 @@ void momentum_solve(const_field porosity,
      *
      */
 
-    /* TODO: Fuse this with solve_Dxx_blocks() */
+    /* TODO: Fuse this with solve_Dxx_blocks(), this takes approx the same
+     * as solve_Dxx_blocks()!*/
 
     /* Updates velocity_Dxx and computes next rhs. */
-    compute_next_rhs(delta.x, delta.y, delta.z, velocity_Dyy.x,
+    TIMEITN(compute_next_rhs(delta.x, delta.y, delta.z, velocity_Dyy.x,
                      velocity_Dyy.y, velocity_Dyy.z, size, velocity_Dxx.x,
-                     velocity_Dxx.y, velocity_Dxx.z, rhs.x, rhs.y, rhs.z);
+                     velocity_Dxx.y, velocity_Dxx.z, rhs.x, rhs.y, rhs.z), 1);
 
-    solve_Dyy_blocks(gamma, size.depth, size.height, size.width, timestep,
-                     tmp, rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z);
+    TIMEITN(solve_Dyy_blocks(gamma, size.depth, size.height, size.width, timestep,
+                     tmp, rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z), 1);
 
     /* Updates velocity_Dyy and computes next rhs. */
     compute_next_rhs(delta.x, delta.y, delta.z, velocity_Dzz.x,
                      velocity_Dzz.y, velocity_Dzz.z, size, velocity_Dyy.x,
                      velocity_Dyy.y, velocity_Dyy.z, rhs.x, rhs.y, rhs.z);
 
-    solve_Dzz_blocks(gamma, size.depth, size.height, size.width, timestep,
-                     tmp, rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z);
+    TIMEITN(solve_Dzz_blocks(gamma, size.depth, size.height, size.width, timestep,
+                     tmp, rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z), 1);
 
     /* Updates velocity_Dzz. */
 

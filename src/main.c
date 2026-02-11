@@ -49,7 +49,9 @@ int main(void)
 
         char output_file_name[32];
         sprintf(output_file_name, "solution-cavity-%d.vtk", t);
-        output_vtk_write(output, output_file_name);
+        TIMEITN(output_vtk_write(output, output_file_name), 1);
+
+        printf("\n");
     }
 
     arena_destroy(&arena);

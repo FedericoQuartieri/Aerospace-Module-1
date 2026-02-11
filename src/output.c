@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stddef.h>
 
 #include "alloc.h"
 #include "field.h"
@@ -67,59 +68,69 @@ void output_vtk_attach_field3(OutputVTK *output,
     output->nodes_list_head = node;
 }
 
+static inline void to_big_endian(const ftype *src, char *dst)
+{
+    for (int b = 0; b < sizeof(ftype); ++b) {
+        dst[b] = *((char *) (src + 1) - (b + 1));
+    }
+}
+
 void output_vtk_write(const OutputVTK *output, const char *output_file_name)
 {
-    FILE *output_file = fopen(output_file_name, "w");
+    FILE *output_file = fopen(output_file_name, "wb");
 
     fprintf(output_file,
             "# vtk DataFile Version 3.0\n" \
-            "stokes-brinkman\n"            \
-            "ASCII\n"                      \
-            "DATASET RECTILINEAR_GRID\n"   \
-            "DIMENSIONS %u %u %u\n",
+            "flow\n"                       \
+            "BINARY\n"                     \
+            "DATASET STRUCTURED_POINTS\n"  \
+            "DIMENSIONS %u %u %u\n"        \
+            "ORIGIN 0 0 0\n"               \
+            "SPACING %f %f %f\n"           \
+            "POINT_DATA %lu\n",
             output->grid_size.width,
             output->grid_size.height,
-            output->grid_size.depth);
-
-    const char *axes_label[] = { "X", "Y", "Z" };
-    const uint32_t axes_size[] = { output->grid_size.width,
-                                   output->grid_size.height,
-                                   output->grid_size.depth };
-
-    for (int axis = 0; axis < 3; ++axis) {
-        fprintf(output_file,
-                "%s_COORDINATES %u float\n",
-                axes_label[axis],
-                axes_size[axis]);
-
-        for (uint32_t i = 0; i < axes_size[axis]; ++i) {
-            fprintf(output_file, "%.4f ", i * output->grid_spacing);
-        }
-    }
-
-    fprintf(output_file,
-            "\nPOINT_DATA %lu\n",
+            output->grid_size.depth,
+            output->grid_spacing,
+            output->grid_spacing,
+            output->grid_spacing,
             field_num_points(output->grid_size));
+
+#ifdef FLOAT
+    static const char *ftype_str = "float";
+#else
+    static const char *ftype_str = "double";
+#endif
 
     struct OutputNode *curr = output->nodes_list_head;
     while (curr != NULL) {
 
         if (curr->type == OUTPUT_NODE_SCALAR) {
             fprintf(output_file,
-                    "\nSCALARS %s double 1\nLOOKUP_TABLE default\n",
-                    curr->name);
+                    "\nSCALARS %s %s 1\nLOOKUP_TABLE default\n",
+                    curr->name, ftype_str);
 
-            for (uint64_t i = 0; i < field_num_points(output->grid_size); ++i) {
-                fprintf(output_file, "%f ", curr->data[0][i]);
+            for (uint64_t i = 0;
+                          i < field_num_points(output->grid_size); ++i) {
+
+                char bytes[sizeof(ftype)];
+                to_big_endian(curr->data[0] + i, bytes);
+                fwrite(bytes, sizeof(ftype), 1, output_file);
             }
 
         } else if (curr->type == OUTPUT_NODE_VECTOR) {
-            fprintf(output_file, "\nVECTORS %s double\n", curr->name);
+            fprintf(output_file, "\nVECTORS %s %s\n", curr->name, ftype_str);
 
-            for (uint64_t i = 0; i < field_num_points(output->grid_size); ++i) {
-                fprintf(output_file, "%f %f %f ", curr->data[0][i],
-                                                  curr->data[1][i],
-                                                  curr->data[2][i]);
+            for (uint64_t i = 0;
+                          i < field_num_points(output->grid_size); ++i) {
+
+                char bytes[sizeof(ftype) * 3];
+                /* Compiler please fuse these. */
+                to_big_endian(curr->data[0] + i, bytes);
+                to_big_endian(curr->data[1] + i, bytes + sizeof(ftype) * 1);
+                to_big_endian(curr->data[2] + i, bytes + sizeof(ftype) * 2);
+
+                fwrite(bytes, sizeof(ftype), 3, output_file);
             }
         }
 

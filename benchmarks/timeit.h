@@ -7,7 +7,7 @@
 #define TIMEITN(func_call, avg_iter)                            \
 do {                                                            \
     long elapsed_ns_avg = 0;                                    \
-    func_call; /* Warmup run. */                                \
+    /* func_call;*/ /* Warmup run. */                           \
     struct timespec start, stop;                                \
     clock_gettime(CLOCK_MONOTONIC, &start);                     \
     for (int i = 0; i < avg_iter; ++i) {                        \

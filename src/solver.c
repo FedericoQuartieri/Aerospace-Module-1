@@ -4,6 +4,7 @@
 #include "ftype.h"
 #include "field.h"
 #include "consts.h"
+#include "timeit.h"
 
 struct Solver {
     ArenaAllocator *arena;
@@ -72,7 +73,7 @@ void solver_set_porosity(Solver *solver, const ftype *src)
     compute_gamma(src, solver->domain_size, solver->gamma);
 }
 
-void solver_step(Solver *solver, uint32_t timestep)
+void solver_step_momentum(Solver *solver, uint32_t timestep)
 {
     momentum_solve(solver->porosity,
                    solver->gamma,
@@ -84,13 +85,23 @@ void solver_step(Solver *solver, uint32_t timestep)
                    solver->velocity_Dzz,
                    timestep,
                    solver->arena);
+}
 
+void solver_step_pressure(Solver *solver, uint32_t timestep)
+{
     pressure_solve(to_const_field3(solver->velocity_Dzz),
                    solver->domain_size,
                    solver->pressure,
                    solver->pressure_delta,
                    timestep,
                    solver->arena);
+}
+
+void solver_step(Solver *solver, uint32_t timestep)
+{
+    TIMEITN(solver_step_momentum(solver, timestep), 1);
+
+    TIMEITN(solver_step_pressure(solver, timestep), 1);
 }
 
 const_field3 solver_get_velocity(Solver *solver)

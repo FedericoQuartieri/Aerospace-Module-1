@@ -148,7 +148,6 @@ DEF_TEST(test_momentum_Dxx_rhs,
     field3 velocity_Dxx = field3_alloc(size, arena);
     field3 velocity_Dyy = field3_alloc(size, arena);
     field3 velocity_Dzz = field3_alloc(size, arena);
-    field3 forcing = field3_alloc(size, arena);
     field3 rhs = field3_alloc(size, arena);
 
     field_rand_fill(size, porosity);
@@ -157,7 +156,6 @@ DEF_TEST(test_momentum_Dxx_rhs,
     field3_rand_fill(size, velocity_Dxx);
     field3_rand_fill(size, velocity_Dyy);
     field3_rand_fill(size, velocity_Dzz);
-    field3_fill(size, 0, forcing);
 
     uint64_t face_size = height * width;
     compute_Dxx_rhs(porosity,
@@ -171,7 +169,6 @@ DEF_TEST(test_momentum_Dxx_rhs,
                     velocity_Dzz.x + face_size,
                     velocity_Dzz.y + face_size,
                     velocity_Dzz.z + face_size,
-                    forcing.x, forcing.y, forcing.z,
                     depth, height, width,
                     /* WARNING: currently passing 0 as timestep */
                     0,
