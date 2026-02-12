@@ -53,6 +53,13 @@
 #endif
 #endif
 
+inline __attribute__((always_inline)) vftype vgather(const ftype *src,
+                                                     uint32_t stride)
+{
+    __m128i offset = _mm_set_epi32(stride * 3, stride * 2, stride * 1, 0);
+    return _mm256_i32gather_pd(src, offset, sizeof(ftype));
+}
+
 inline __attribute__((always_inline)) void vscatter(vftype src,
                                                     ftype *dst,
                                                     uint64_t stride)

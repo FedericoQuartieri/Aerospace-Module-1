@@ -533,7 +533,475 @@ void backward_sub_vstrip(const ftype *restrict f_x,
 
 #endif
 
-/* Solves the block diagonal system (I - w∂xx)u = f. */
+#define INNER_COL  0
+#define INNER_ROW  0
+#define INNER_FACE 0
+#define LAST_COL   1
+#define LAST_ROW   1
+#define LAST_FACE  1
+
+#define load_vtile(src, stride,      \
+                   r0, r1, r2, r3)   \
+do {                                 \
+    r0 = vload(src + 0 * stride);    \
+    r1 = vload(src + 1 * stride);    \
+    r2 = vload(src + 2 * stride);    \
+    r3 = vload(src + 3 * stride);    \
+} while (0)
+
+#define load_vtile_add(src, stride,      \
+                       r0, r1, r2, r3)   \
+do {                                     \
+    r0 += vload(src + 0 * stride);       \
+    r1 += vload(src + 1 * stride);       \
+    r2 += vload(src + 2 * stride);       \
+    r3 += vload(src + 3 * stride);       \
+} while (0)
+
+#define store_vtile(dst, stride,      \
+                    r0, r1, r2, r3)   \
+do {                                  \
+    vstore(dst + 0 * stride, r0);     \
+    vstore(dst + 1 * stride, r1);     \
+    vstore(dst + 2 * stride, r2);     \
+    vstore(dst + 3 * stride, r3);     \
+} while (0)
+
+
+static inline __attribute__((always_inline))
+void compute_Dxx_Dyy_Dzz(const ftype *restrict eta,
+                         const ftype *restrict zeta,
+                         const ftype *restrict vel,
+                         int is_last_face,
+                         int is_last_row,
+                         int is_last_col,
+                         uint32_t i,
+                         uint32_t j,
+                         uint32_t k,
+                         uint32_t depth,
+                         uint32_t height,
+                         uint32_t width,
+                         uint32_t timestep,
+                         ftype *restrict rhs_t)
+{
+    vftype dd0x, dd1x, dd2x, dd3x;
+    load_vtile(vel, width, dd0x, dd1x, dd2x, dd3x);
+
+    /* Compute Dzz vel_x */
+    if (is_last_face) {
+        vftype vx0, vx1, vx2, vx3;
+        load_vtile(vel - height * width, width, vx0, vx1, vx2, vx3);
+
+        dd0x = (ftype) 4.0 / 3 * vx0 - 4 * dd0x;
+        dd1x = (ftype) 4.0 / 3 * vx1 - 4 * dd1x;
+        dd2x = (ftype) 4.0 / 3 * vx2 - 4 * dd2x;
+        dd3x = (ftype) 4.0 / 3 * vx3 - 4 * dd3x;
+
+        /* NOTE: You have to obtain the correct component. */
+        vftype _y, _z;
+        _get_back_bc_u(k, j + 0, depth - 1, timestep - 1, &vx0, &_y, &_z);
+        _get_back_bc_u(k, j + 1, depth - 1, timestep - 1, &vx1, &_y, &_z);
+        _get_back_bc_u(k, j + 2, depth - 1, timestep - 1, &vx2, &_y, &_z);
+        _get_back_bc_u(k, j + 3, depth - 1, timestep - 1, &vx3, &_y, &_z);
+
+        dd0x += (ftype) 8.0 / 3 * vx0;
+        dd1x += (ftype) 8.0 / 3 * vx1;
+        dd2x += (ftype) 8.0 / 3 * vx2;
+        dd3x += (ftype) 8.0 / 3 * vx3;
+
+    } else {
+        dd0x *= -2; dd1x *= -2; dd2x *= -2; dd3x *= -2;
+        load_vtile_add(vel - height * width, width, dd0x, dd1x, dd2x, dd3x);
+        load_vtile_add(vel + height * width, width, dd0x, dd1x, dd2x, dd3x);
+    }
+
+    /* Compute Dyy zeta_x */
+    vftype zt0x, zt1x, zt2x, zt3x, zt4x, zt5x;
+    load_vtile(zeta, width, zt1x, zt2x, zt3x, zt4x);
+    /* WARNING: Safe but zeta must be padded. */
+    zt0x = vload(zeta - width);
+
+    dd0x += zt0x - 2 * zt1x + zt2x;
+    dd1x += zt1x - 2 * zt2x + zt3x;
+    dd2x += zt2x - 2 * zt3x + zt4x;
+
+    if (is_last_row) {
+        /* NOTE: You have to obtain the correct component. */
+        vftype _y, _z;
+        _get_bottom_bc_u(k, height - 1, i, timestep - 1, &zt5x, &_y, &_z);
+        dd3x += (ftype) 4.0 / 3 * zt3x - 4 * zt4x + (ftype) 8.0 / 3 * zt5x;
+    } else {
+        zt5x = vload(zeta + width * 4);
+        dd3x += zt3x - 2 * zt4x + zt5x;
+    }
+
+    /* Compute Dxx eta_x */
+    vftype et0x, et1x, et2x, et3x, et4x, et5x;
+    /* WARNING: Safe but eta must be padded. */
+    et0x = vgather(eta - 1, width);
+    load_vtile(eta, width, et1x, et2x, et3x, et4x);
+    vtranspose(&et1x, &et2x, &et3x, &et4x);
+
+    et0x = et0x - 2 * et1x + et2x;
+    et1x = et1x - 2 * et2x + et3x;
+    et2x = et2x - 2 * et3x + et4x;
+
+    if (is_last_col) {
+        /* Not strictly needed here, but let's keep it. */
+
+        /* NOTE: You have to obtain the correct component. */
+        vftype _y, _z;
+        _get_right_bc_u(width - 1, j, i, timestep - 1, &et5x, &_y, &_z);
+        et3x = (ftype) 4.0 / 3 * et3x - 4 * et4x + (ftype) 8.0 / 3 * et5x;
+    } else {
+        et5x = vgather(eta + 1, width);
+        et3x = et3x - 2 * et4x + et5x;
+    }
+
+    vtranspose(&et0x, &et1x, &et2x, &et3x);
+
+    dd0x = (dd0x + et0x) * _NU / (_DX * _DX);
+    dd1x = (dd1x + et1x) * _NU / (_DX * _DX);
+    dd2x = (dd2x + et2x) * _NU / (_DX * _DX);
+    dd3x = (dd3x + et3x) * _NU / (_DX * _DX);
+
+    load_vtile_add(rhs_t, VLEN, dd0x, dd1x, dd2x, dd3x);
+
+    vtranspose(&dd0x, &dd1x, &dd2x, &dd3x);
+    store_vtile(rhs_t, VLEN, dd0x, dd1x, dd2x, dd3x);
+}
+
+static inline __attribute__((always_inline))
+void compute_rhs_vtile(const ftype *restrict p,
+                       const ftype *restrict phi,
+                       const ftype *restrict eta_x,
+                       const ftype *restrict eta_y,
+                       const ftype *restrict eta_z,
+                       const ftype *restrict zeta_x,
+                       const ftype *restrict zeta_y,
+                       const ftype *restrict zeta_z,
+                       const ftype *restrict vel_x,
+                       const ftype *restrict vel_y,
+                       const ftype *restrict vel_z,
+                       int is_last_face,
+                       int is_last_row,
+                       int is_last_col,
+                       uint32_t i,
+                       uint32_t j,
+                       uint32_t k,
+                       uint32_t depth,
+                       uint32_t height,
+                       uint32_t width,
+                       uint32_t timestep,
+                       ftype *restrict rhs_x_t,
+                       ftype *restrict rhs_y_t,
+                       ftype *restrict rhs_z_t)
+{
+
+    /* NOTE: I could use more registers here. */
+
+    vftype pp0, pp1, pp2, pp3;
+    /* Computing pressure predictor for current tile. */
+    load_vtile(p, width, pp0, pp1, pp2, pp3);
+    load_vtile_add(phi, width, pp0, pp1, pp2, pp3);
+
+    if (!is_last_face) {
+        vftype pp0z, pp1z, pp2z, pp3z;
+        load_vtile(p + height * width, width, pp0z, pp1z, pp2z, pp3z);
+        load_vtile_add(phi + height * width, width, pp0z, pp1z, pp2z, pp3z);
+        store_vtile(rhs_z_t, VLEN,
+                    (pp0z - pp0) / -_DX,
+                    (pp1z - pp1) / -_DX,
+                    (pp2z - pp2) / -_DX,
+                    (pp3z - pp3) / -_DX);
+    }
+
+    /* Load additional row and compute dpp/dy. */
+    vftype pp4;
+    if (is_last_row) {
+        pp4 = pp3; /* Such that y derivative is zero. */
+    } else {
+        pp4 = vload(p + width * 4) + vload(phi + width * 4);
+    }
+    store_vtile(rhs_y_t, VLEN,
+                (pp1 - pp0) / -_DX,
+                (pp2 - pp1) / -_DX,
+                (pp3 - pp2) / -_DX,
+                (pp4 - pp3) / -_DX);
+
+    /* NOTE: Why not using vloadu? */
+
+    vtranspose(&pp0, &pp1, &pp2, &pp3);
+
+    /* Compute dpp/dx. */
+    if (is_last_col) {
+        pp4 = pp3; /* Such that x derivative is zero. */
+    } else {
+        pp4 = vgather(p + VLEN, width) + vgather(phi + VLEN, width);
+    }
+    pp0 = (pp1 - pp0) / -_DX;
+    pp1 = (pp2 - pp1) / -_DX;
+    pp2 = (pp3 - pp2) / -_DX;
+    pp3 = (pp4 - pp3) / -_DX;
+
+    vtranspose(&pp0, &pp1, &pp2, &pp3);
+    store_vtile(rhs_x_t, VLEN, pp0, pp1, pp2, pp3);
+
+    /* Computing Dxx eta + Dyy zeta + Dzz vel */
+
+    compute_Dxx_Dyy_Dzz(eta_x, zeta_x, vel_x,
+                        is_last_face, is_last_row, is_last_col,
+                        i, j, k, depth, height, width, timestep, rhs_x_t);
+    compute_Dxx_Dyy_Dzz(eta_y, zeta_y, vel_y,
+                        is_last_face, is_last_row, is_last_col,
+                        i, j, k, depth, height, width, timestep, rhs_y_t);
+    compute_Dxx_Dyy_Dzz(eta_z, zeta_z, vel_z,
+                        is_last_face, is_last_row, is_last_col,
+                        i, j, k, depth, height, width, timestep, rhs_z_t);
+}
+
+static inline __attribute__((always_inline))
+void solve_vtile_row(const ftype *restrict w,
+                     const ftype *restrict p,
+                     const ftype *restrict phi,
+                     const ftype *restrict eta_x,
+                     const ftype *restrict eta_y,
+                     const ftype *restrict eta_z,
+                     const ftype *restrict zeta_x,
+                     const ftype *restrict zeta_y,
+                     const ftype *restrict zeta_z,
+                     const ftype *restrict vel_x,
+                     const ftype *restrict vel_y,
+                     const ftype *restrict vel_z,
+                     uint32_t i,
+                     uint32_t j,
+                     uint32_t depth,
+                     uint32_t height,
+                     uint32_t width,
+                     uint32_t timestep,
+                     int is_last_face,
+                     int is_last_row,
+                     ftype *restrict tmp,
+                     ftype *restrict u_x,
+                     ftype *restrict u_y,
+                     ftype *restrict u_z)
+{
+    ftype *restrict tmp_upp = tmp;
+    /* WARNING: Cache aliasing? */
+    ftype *restrict tmp_f_x = tmp + 1 * width * VLEN;
+    ftype *restrict tmp_f_y = tmp + 2 * width * VLEN;
+    ftype *restrict tmp_f_z = tmp + 3 * width * VLEN;
+
+    ftype __attribute__((aligned(32))) f_x_t[VLEN * VLEN];
+    ftype __attribute__((aligned(32))) f_y_t[VLEN * VLEN];
+    ftype __attribute__((aligned(32))) f_z_t[VLEN * VLEN];
+    ftype __attribute__((aligned(32))) w_t[VLEN * VLEN];
+
+    transpose_vtile(w, width, VLEN, w_t);
+    compute_rhs_vtile(p, phi, eta_x, eta_y, eta_z,
+                      zeta_x, zeta_y, zeta_z, vel_x, vel_y, vel_z,
+                      is_last_face, is_last_row, INNER_COL,
+                      i, j, 0, depth, height, width, timestep,
+                      f_x_t, f_y_t, f_z_t);
+    /* Apply BCs on the first column of the tile. */
+    apply_left_bc(0, j, i, timestep,
+                  tmp_upp, tmp_f_x, tmp_f_y, tmp_f_z);
+    /* Reduce remaining columns of the tile. */
+    for (int k = 1; k < VLEN; ++k) {
+        gauss_reduce_vstrip(w_t + VLEN * k,
+                            tmp_upp + VLEN * (k - 1),
+                            f_x_t + VLEN * k,
+                            f_y_t + VLEN * k,
+                            f_z_t + VLEN * k,
+                            tmp_f_x + VLEN * k,
+                            tmp_f_y + VLEN * k,
+                            tmp_f_z + VLEN * k);
+    }
+
+    /* Reduce remaining tiles except the last one. */
+    for (uint32_t tk = VLEN; tk < width - VLEN; tk += VLEN) {
+        /* Load and transpose next tile. */
+        transpose_vtile(w + tk, width, VLEN, w_t);
+        compute_rhs_vtile(p + tk, phi + tk,
+                          eta_x + tk, eta_y + tk, eta_z + tk,
+                          zeta_x + tk, zeta_y + tk, zeta_z + tk,
+                          vel_x + tk, vel_y + tk, vel_z + tk,
+                          is_last_face, is_last_row, INNER_COL,
+                          i, j, tk, depth, height, width, timestep,
+                          f_x_t, f_y_t, f_z_t);
+
+        for (uint32_t k = 0; k < VLEN; ++k) {
+            /* TODO: use previous vec f instead of loading again. */
+            gauss_reduce_vstrip(w_t + VLEN * k,
+                                tmp_upp + VLEN * (tk + k - 1),
+                                f_x_t + VLEN * k,
+                                f_y_t + VLEN * k,
+                                f_z_t + VLEN * k,
+                                tmp_f_x + VLEN * (tk + k),
+                                tmp_f_y + VLEN * (tk + k),
+                                tmp_f_z + VLEN * (tk + k));
+        }
+    }
+
+    transpose_vtile(w + width - VLEN, width, VLEN, w_t);
+    compute_rhs_vtile(p + width - VLEN,
+                      phi + width - VLEN,
+                      eta_x + width - VLEN,
+                      eta_y + width - VLEN,
+                      eta_z + width - VLEN,
+                      zeta_x + width - VLEN,
+                      zeta_y + width - VLEN,
+                      zeta_z + width - VLEN,
+                      vel_x + width - VLEN,
+                      vel_y + width - VLEN,
+                      vel_z + width - VLEN,
+                      is_last_face, is_last_row, LAST_COL,
+                      i, j, width - VLEN, depth, height, width, timestep,
+                      f_x_t, f_y_t, f_z_t);
+    /* Reduce last tile except last column. */
+    for (int k = 0; k < VLEN - 1; ++k) {
+        gauss_reduce_vstrip(w_t + VLEN * k,
+                            tmp_upp + VLEN * (width - VLEN + k - 1),
+                            f_x_t + VLEN * k,
+                            f_y_t + VLEN * k,
+                            f_z_t + VLEN * k,
+                            tmp_f_x + VLEN * (width - VLEN + k),
+                            tmp_f_y + VLEN * (width - VLEN + k),
+                            tmp_f_z + VLEN * (width - VLEN + k));
+    }
+
+    vftype u_x_prev, u_y_prev, u_z_prev;
+    /* Apply BCs on the right column. */
+    apply_right_bc(w_t + VLEN * (VLEN - 1),
+                   tmp_upp + VLEN * (width - 2),
+                   tmp_f_y + VLEN * (width - 2),
+                   tmp_f_z + VLEN * (width - 2),
+                   width - 1, j, i,
+                   timestep,
+                   /* Write solutions into f_t buffers,
+                    * we will reuse them for u_t buffers */
+                   f_x_t + VLEN * (VLEN - 1),
+                   f_y_t + VLEN * (VLEN - 1),
+                   f_z_t + VLEN * (VLEN - 1),
+                   &u_x_prev,
+                   &u_y_prev,
+                   &u_z_prev);
+
+    /* Reuse local buffers. */
+    ftype __attribute__((aligned(32))) *u_x_t = f_x_t;
+    ftype __attribute__((aligned(32))) *u_y_t = f_y_t;
+    ftype __attribute__((aligned(32))) *u_z_t = f_z_t;
+
+    /* Backward substitute last tile (last col already solved). */
+    for (int k = 1; k < VLEN; ++k) {
+        backward_sub_vstrip(
+            tmp_f_x + VLEN * (width - 1 - k),
+            tmp_f_y + VLEN * (width - 1 - k),
+            tmp_f_z + VLEN * (width - 1 - k),
+            tmp_upp + VLEN * (width - 1 - k),
+            &u_x_prev,
+            &u_y_prev,
+            &u_z_prev,
+            u_x_t + VLEN * (VLEN - 1 - k),
+            u_y_t + VLEN * (VLEN - 1 - k),
+            u_z_t + VLEN * (VLEN - 1 - k));
+    }
+    transpose_vtile(u_x_t, VLEN, width, u_x + width - VLEN);
+    transpose_vtile(u_y_t, VLEN, width, u_y + width - VLEN);
+    transpose_vtile(u_z_t, VLEN, width, u_z + width - VLEN);
+
+    /* Backward substitute one tile at a time. */
+    for (uint32_t tk = VLEN; tk < width; tk += VLEN) {
+        for (int k = 0; k < VLEN; ++k) {
+            backward_sub_vstrip(
+                tmp_f_x + VLEN * (width - 1 - (tk + k)),
+                tmp_f_y + VLEN * (width - 1 - (tk + k)),
+                tmp_f_z + VLEN * (width - 1 - (tk + k)),
+                tmp_upp + VLEN * (width - 1 - (tk + k)),
+                &u_x_prev,
+                &u_y_prev,
+                &u_z_prev,
+                u_x_t + VLEN * (VLEN - 1 - k),
+                u_y_t + VLEN * (VLEN - 1 - k),
+                u_z_t + VLEN * (VLEN - 1 - k));
+        }
+         /* Transpose and store. */
+        transpose_vtile(u_x_t, VLEN, width, u_x + width - VLEN - tk);
+        transpose_vtile(u_y_t, VLEN, width, u_y + width - VLEN - tk);
+        transpose_vtile(u_z_t, VLEN, width, u_z + width - VLEN - tk);
+    }
+}
+
+static void solve_Dxx_blocks_fused_rhs(const ftype *restrict w,
+                                       const ftype *restrict p,
+                                       const ftype *restrict phi,
+                                       const ftype *restrict eta_x,
+                                       const ftype *restrict eta_y,
+                                       const ftype *restrict eta_z,
+                                       const ftype *restrict zeta_x,
+                                       const ftype *restrict zeta_y,
+                                       const ftype *restrict zeta_z,
+                                       const ftype *restrict vel_x,
+                                       const ftype *restrict vel_y,
+                                       const ftype *restrict vel_z,
+                                       uint32_t depth,
+                                       uint32_t height,
+                                       uint32_t width,
+                                       uint32_t timestep,
+                                       ftype *restrict tmp,
+                                       ftype *restrict f_x,
+                                       ftype *restrict f_y,
+                                       ftype *restrict f_z,
+                                       ftype *restrict u_x,
+                                       ftype *restrict u_y,
+                                       ftype *restrict u_z)
+{
+    /* Solving each face of the domain, except the last. */
+    for (uint32_t i = 0; i < depth - 1; ++i) {
+        for (uint32_t j = 0; j < height - VLEN; j += VLEN) {
+            /* Solving each row of tiles, except the last. */
+            uint64_t off = height * width * i + width * j;
+            solve_vtile_row(w + off, p + off, phi + off,
+                            eta_x + off, eta_y + off, eta_z + off,
+                            zeta_x + off, zeta_y + off, zeta_z + off,
+                            vel_x + off, vel_y + off, vel_z + off,
+                            i, j, depth, height, width, timestep,
+                            INNER_FACE, INNER_ROW, tmp,
+                            u_x + off, u_y + off, u_z + off);
+        }
+        /* Solving each tile of the last row. */
+        uint64_t off = height * width * i + width * (height - VLEN);
+        solve_vtile_row(w + off, p + off, phi + off, 
+                        eta_x + off, eta_y + off, eta_z + off,
+                        zeta_x + off, zeta_y + off, zeta_z + off,
+                        vel_x + off, vel_y + off, vel_z + off,
+                        i, height - VLEN, depth, height, width, timestep,
+                        INNER_FACE, LAST_ROW, tmp,
+                        u_x + off, u_y + off, u_z + off);
+    }
+
+    /* Solving the last face of the domain. */
+    for (uint32_t j = 0; j < height - VLEN; j += VLEN) {
+        uint64_t off = height * width * (depth - 1) + width * j;
+        solve_vtile_row(w + off, p + off, phi + off,
+                        eta_x + off, eta_y + off, eta_z + off,
+                        zeta_x + off, zeta_y + off, zeta_z + off,
+                        vel_x + off, vel_y + off, vel_z + off,
+                        depth - 1, j, depth, height, width, timestep,
+                        LAST_FACE, INNER_ROW, tmp,
+                        u_x + off, u_y + off, u_z + off);
+    }
+    uint64_t off = height * width * (depth - 1) + width * (height - VLEN);
+    solve_vtile_row(w + off, p + off, phi + off,
+                    eta_x + off, eta_y + off, eta_z + off,
+                    zeta_x + off, zeta_y + off, zeta_z + off,
+                    vel_x + off, vel_y + off, vel_z + off,
+                    depth - 1, height - VLEN, depth, height, width, timestep,
+                    LAST_FACE, LAST_ROW, tmp,
+                    u_x + off, u_y + off, u_z + off);
+}
+
+/* Solves the block diagonal system (I - wDxx)u = f. */
 static void solve_Dxx_blocks(const ftype *restrict w,
                              uint32_t depth,
                              uint32_t height,
@@ -573,6 +1041,8 @@ static void solve_Dxx_blocks(const ftype *restrict w,
     /* TODO: Why don't you write the solution directly to f?
      * You can reduce the number of cache misses. */
 
+    /* TODO: Consider threading to parallelize outer loops. */
+
     for (uint32_t i = 0; i < depth; ++i) {
         /* Solving in groups of VLEN rows. */
         for (uint32_t j = 0; j < height; j += VLEN) {
@@ -583,9 +1053,9 @@ static void solve_Dxx_blocks(const ftype *restrict w,
             ftype __attribute__((aligned(32))) f_z_t[VLEN * VLEN];
             ftype __attribute__((aligned(32))) w_t[VLEN * VLEN];
             /* Load and transpose first tile. */
-            transpose_vtile(f_x + offset, width, VLEN, f_x_t); 
-            transpose_vtile(f_y + offset, width, VLEN, f_y_t); 
-            transpose_vtile(f_z + offset, width, VLEN, f_z_t); 
+            transpose_vtile(f_x + offset, width, VLEN, f_x_t);
+            transpose_vtile(f_y + offset, width, VLEN, f_y_t);
+            transpose_vtile(f_z + offset, width, VLEN, f_z_t);
             transpose_vtile(w + offset, width, VLEN, w_t); 
 
             /* Apply BCs on the first column of the tile. */
@@ -1058,6 +1528,15 @@ void momentum_solve(const_field porosity,
 
     TIMEITN(solve_Dxx_blocks(gamma, size.depth, size.height, size.width, timestep,
                      tmp, rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z), 1);
+
+    TIMEITN(solve_Dxx_blocks_fused_rhs(
+        gamma, pressure, pressure_delta,
+        velocity_Dxx.x, velocity_Dxx.y, velocity_Dxx.z,
+        velocity_Dyy.x, velocity_Dyy.y, velocity_Dyy.z,
+        velocity_Dzz.x, velocity_Dzz.y, velocity_Dzz.z,
+        size.depth, size.height, size.width, timestep,
+        tmp, rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z), 1);
+
 
     /*
      *  +--------+

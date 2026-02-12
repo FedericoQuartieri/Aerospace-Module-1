@@ -27,16 +27,29 @@ void _get_forcing(uint32_t __attribute__((unused)) x,  \
                   vftype *restrict f_y,                \
                   vftype *restrict f_z);               \
 
-#define DEFINE_FORCING(func)                           \
-void _get_forcing(uint32_t __attribute__((unused)) x,  \
-                  uint32_t __attribute__((unused)) y,  \
-                  uint32_t __attribute__((unused)) z,  \
-                  uint32_t __attribute__((unused)) t,  \
-                  vftype *restrict f_x,                \
-                  vftype *restrict f_y,                \
-                  vftype *restrict f_z)                \
-{                                                      \
-    func(x, y, z, t, f_x, f_y, f_z);                   \
+#define DEFINE_FORCING(func_x, func_y, func_z)                               \
+void _get_forcing(uint32_t __attribute__((unused)) x,                        \
+                  uint32_t __attribute__((unused)) y,                        \
+                  uint32_t __attribute__((unused)) z,                        \
+                  uint32_t __attribute__((unused)) t,                        \
+                  vftype *restrict f_x,                                      \
+                  vftype *restrict f_y,                                      \
+                  vftype *restrict f_z)                                      \
+{                                                                            \
+                                                                             \
+    ftype __attribute__((aligned(32))) tmp_x[VLEN];                          \
+    ftype __attribute__((aligned(32))) tmp_y[VLEN];                          \
+    ftype __attribute__((aligned(32))) tmp_z[VLEN];                          \
+                                                                             \
+    for (int i = 0; i < VLEN; ++i) {                                         \
+        f_x[i] = func_x((x + i) * _DX + _DX / 2, y * _DX, z * _DX, t * _DT); \
+        f_y[i] = func_y((x + i) * _DX, y * _DX + _DX / 2, z * _DX, t * _DT); \
+        f_z[i] = func_z((x + i) * _DX, y * _DX, z * _DX + _DX / 2, t * _DT); \
+    }                                                                        \
+                                                                             \
+    *f_x = vload(tmp_x);                                                     \
+    *f_y = vload(tmp_y);                                                     \
+    *f_z = vload(tmp_z);                                                     \
 }
 
 #define DEFINE_CONSTANT_FORCING(fx, fy, fz)            \
