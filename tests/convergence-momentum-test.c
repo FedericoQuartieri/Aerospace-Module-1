@@ -368,9 +368,12 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
                 }
             }
 
-            field tmp = field_alloc(size, arena);
+            field_size tmp_size = { size.width,
+                                    size.height,
+                                    size.depth + 3 };
+
+            field tmp = field_alloc(tmp_size, arena);
             field3 rhs = field3_alloc(size, arena);
-            field3 delta = field3_alloc(size, arena);
 
             /* Solve for eta_n+1 */
 
@@ -389,20 +392,7 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
 
             solve_Dxx_blocks(gamma, size.depth, size.height, size.width,
                              t, tmp, rhs.x, rhs.y, rhs.z,
-                             delta.x, delta.y, delta.z);
-
-            for (uint32_t i = 0; i < size.depth; ++i) {
-                for (uint32_t j = 0; j < size.height; ++j) {
-                    for (uint32_t k = 0; k < size.width; ++k) {
-                        uint64_t idx = size.height * size.width * i +
-                                       size.width * j + k;
-
-                        eta.x[idx] += delta.x[idx];
-                        eta.y[idx] += delta.y[idx];
-                        eta.z[idx] += delta.z[idx];
-                    }
-                }
-            }
+                             eta.x, eta.y, eta.z);
 
             /* Solve for zeta_n+1 */
 
@@ -421,20 +411,7 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
 
             solve_Dyy_blocks(gamma, size.depth, size.height, size.width,
                              t, tmp, rhs.x, rhs.y, rhs.z,
-                             delta.x, delta.y, delta.z);
-
-            for (uint32_t i = 0; i < size.depth; ++i) {
-                for (uint32_t j = 0; j < size.height; ++j) {
-                    for (uint32_t k = 0; k < size.width; ++k) {
-                        uint64_t idx = size.height * size.width * i +
-                                       size.width * j + k;
-
-                        zeta.x[idx] += delta.x[idx];
-                        zeta.y[idx] += delta.y[idx];
-                        zeta.z[idx] += delta.z[idx];
-                    }
-                }
-            }
+                             zeta.x, zeta.y, zeta.z);
 
             /* Solve for zeta_n+1 */
 
@@ -453,10 +430,11 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
 
             solve_Dzz_blocks(gamma, size.depth, size.height, size.width,
                              t, tmp, rhs.x, rhs.y, rhs.z,
-                             delta.x, delta.y, delta.z);
+                             vel.x, vel.y, vel.z);
 
             field3 vel_old = field3_alloc(size, arena);
 
+            /*
             for (uint32_t i = 0; i < size.depth; ++i) {
                 for (uint32_t j = 0; j < size.height; ++j) {
                     for (uint32_t k = 0; k < size.width; ++k) {
@@ -467,12 +445,10 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
                         vel_old.y[idx] = vel.y[idx];
                         vel_old.z[idx] = vel.z[idx];
 
-                        vel.x[idx] += delta.x[idx];
-                        vel.y[idx] += delta.y[idx];
-                        vel.z[idx] += delta.z[idx];
                     }
                 }
             }
+            */
 
             arena_exit(arena);
 

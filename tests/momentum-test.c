@@ -8,24 +8,26 @@
 
 #include "momentum.c"
 
-#define LEFT_BC_U_X 0.1
-#define LEFT_BC_U_Y 0.2
-#define LEFT_BC_U_Z 0.3
-#define RIGHT_BC_U_X 0.4
-#define RIGHT_BC_U_Y 0.5
-#define RIGHT_BC_U_Z 0.6
-#define TOP_BC_U_X -0.1
-#define TOP_BC_U_Y -0.2
-#define TOP_BC_U_Z -0.3
-#define BOTTOM_BC_U_X -0.3
-#define BOTTOM_BC_U_Y -0.5
-#define BOTTOM_BC_U_Z -0.6
-#define FRONT_BC_U_X 0.7
-#define FRONT_BC_U_Y 0.9
-#define FRONT_BC_U_Z 0.1
-#define BACK_BC_U_X 0.0
-#define BACK_BC_U_Y -0.3
-#define BACK_BC_U_Z 0.8
+#define LEFT_BC_U_X 0
+#define LEFT_BC_U_Y 0
+#define LEFT_BC_U_Z 0
+#define RIGHT_BC_U_X 0
+#define RIGHT_BC_U_Y 0
+#define RIGHT_BC_U_Z 0
+#define TOP_BC_U_X 0
+#define TOP_BC_U_Y 0
+#define TOP_BC_U_Z 0
+#define BOTTOM_BC_U_X 0
+#define BOTTOM_BC_U_Y 0
+#define BOTTOM_BC_U_Z 0
+#define FRONT_BC_U_X 0
+#define FRONT_BC_U_Y 0
+#define FRONT_BC_U_Z 0
+#define BACK_BC_U_X 0
+#define BACK_BC_U_Y 0
+#define BACK_BC_U_Z 0
+
+/* TODO: Test using non constant bcs */
 
 DEFINE_CONSTANT_BC_U(LEFT_BC_U_X, LEFT_BC_U_Y, LEFT_BC_U_Z, BC_LEFT)
 DEFINE_CONSTANT_BC_U(RIGHT_BC_U_X, RIGHT_BC_U_Y, RIGHT_BC_U_Z, BC_RIGHT)

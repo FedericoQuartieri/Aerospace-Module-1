@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O3 -Wall -mavx2 -mfma -flto -g
+CFLAGS = -O3 -Wall -mavx2 -mfma -flto -g -Wno-stringop-truncation
 
 SRC_DIR = src
 INC_DIR = include

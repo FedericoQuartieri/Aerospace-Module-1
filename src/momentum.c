@@ -112,6 +112,8 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
      * at the moment. */
 
     /* Fill with zeros first row, since solution is enforced by BCs there (only valid for constant BCs, right?) */
+
+    /*
     for (uint32_t j = 0; j < height; ++j) {
         for (uint32_t l = 0; l < width; l += VLEN) {
             uint64_t idx = width * j + l;
@@ -120,17 +122,21 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vstore(rhs_z + idx, vbroadcast(0));
         }
     }
+    */
 
 
     for (uint32_t i = 1; i < depth; ++i) {
         /* Fill with zeros first row, since solution is enforced by BCs
          * there (only valid for constant BCs, right?) */
+
+        /*
         for (uint32_t l = 0; l < width; l += VLEN) {
             uint64_t idx = height * width * i + l;
             vstore(rhs_x + idx, vbroadcast(0));
             vstore(rhs_y + idx, vbroadcast(0));
             vstore(rhs_z + idx, vbroadcast(0));
         }
+        */
 
         for (uint32_t j = 1; j < height; j++) {
             for (uint32_t l = 0; l < width; l += VLEN) {
@@ -752,9 +758,11 @@ void compute_rhs_vtile(const ftype *restrict p,
     compute_Dxx_Dyy_Dzz(eta_x, zeta_x, vel_x,
                         is_last_face, is_last_row, is_last_col,
                         i, j, k, depth, height, width, timestep, rhs_x_t);
+
     compute_Dxx_Dyy_Dzz(eta_y, zeta_y, vel_y,
                         is_last_face, is_last_row, is_last_col,
                         i, j, k, depth, height, width, timestep, rhs_y_t);
+
     compute_Dxx_Dyy_Dzz(eta_z, zeta_z, vel_z,
                         is_last_face, is_last_row, is_last_col,
                         i, j, k, depth, height, width, timestep, rhs_z_t);
@@ -764,9 +772,9 @@ static inline __attribute__((always_inline))
 void solve_vtile_row(const ftype *restrict w,
                      const ftype *restrict p,
                      const ftype *restrict phi,
-                     const ftype *restrict eta_x,
-                     const ftype *restrict eta_y,
-                     const ftype *restrict eta_z,
+                     ftype *restrict eta_x,
+                     ftype *restrict eta_y,
+                     ftype *restrict eta_z,
                      const ftype *restrict zeta_x,
                      const ftype *restrict zeta_y,
                      const ftype *restrict zeta_z,
@@ -781,10 +789,7 @@ void solve_vtile_row(const ftype *restrict w,
                      uint32_t timestep,
                      int is_last_face,
                      int is_last_row,
-                     ftype *restrict tmp,
-                     ftype *restrict u_x,
-                     ftype *restrict u_y,
-                     ftype *restrict u_z)
+                     ftype *restrict tmp)
 {
     ftype *restrict tmp_upp = tmp;
     /* WARNING: Cache aliasing? */
@@ -831,7 +836,6 @@ void solve_vtile_row(const ftype *restrict w,
                           f_x_t, f_y_t, f_z_t);
 
         for (uint32_t k = 0; k < VLEN; ++k) {
-            /* TODO: use previous vec f instead of loading again. */
             gauss_reduce_vstrip(w_t + VLEN * k,
                                 tmp_upp + VLEN * (tk + k - 1),
                                 f_x_t + VLEN * k,
@@ -906,9 +910,9 @@ void solve_vtile_row(const ftype *restrict w,
             u_y_t + VLEN * (VLEN - 1 - k),
             u_z_t + VLEN * (VLEN - 1 - k));
     }
-    transpose_vtile(u_x_t, VLEN, width, u_x + width - VLEN);
-    transpose_vtile(u_y_t, VLEN, width, u_y + width - VLEN);
-    transpose_vtile(u_z_t, VLEN, width, u_z + width - VLEN);
+    transpose_vtile_add(u_x_t, VLEN, width, eta_x + width - VLEN);
+    transpose_vtile_add(u_y_t, VLEN, width, eta_y + width - VLEN);
+    transpose_vtile_add(u_z_t, VLEN, width, eta_z + width - VLEN);
 
     /* Backward substitute one tile at a time. */
     for (uint32_t tk = VLEN; tk < width; tk += VLEN) {
@@ -926,18 +930,18 @@ void solve_vtile_row(const ftype *restrict w,
                 u_z_t + VLEN * (VLEN - 1 - k));
         }
          /* Transpose and store. */
-        transpose_vtile(u_x_t, VLEN, width, u_x + width - VLEN - tk);
-        transpose_vtile(u_y_t, VLEN, width, u_y + width - VLEN - tk);
-        transpose_vtile(u_z_t, VLEN, width, u_z + width - VLEN - tk);
+        transpose_vtile_add(u_x_t, VLEN, width, eta_x + width - VLEN - tk);
+        transpose_vtile_add(u_y_t, VLEN, width, eta_y + width - VLEN - tk);
+        transpose_vtile_add(u_z_t, VLEN, width, eta_z + width - VLEN - tk);
     }
 }
 
 static void solve_Dxx_blocks_fused_rhs(const ftype *restrict w,
                                        const ftype *restrict p,
                                        const ftype *restrict phi,
-                                       const ftype *restrict eta_x,
-                                       const ftype *restrict eta_y,
-                                       const ftype *restrict eta_z,
+                                       ftype *restrict eta_x,
+                                       ftype *restrict eta_y,
+                                       ftype *restrict eta_z,
                                        const ftype *restrict zeta_x,
                                        const ftype *restrict zeta_y,
                                        const ftype *restrict zeta_z,
@@ -948,13 +952,7 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict w,
                                        uint32_t height,
                                        uint32_t width,
                                        uint32_t timestep,
-                                       ftype *restrict tmp,
-                                       ftype *restrict f_x,
-                                       ftype *restrict f_y,
-                                       ftype *restrict f_z,
-                                       ftype *restrict u_x,
-                                       ftype *restrict u_y,
-                                       ftype *restrict u_z)
+                                       ftype *restrict tmp)
 {
     /* Solving each face of the domain, except the last. */
     for (uint32_t i = 0; i < depth - 1; ++i) {
@@ -966,8 +964,7 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict w,
                             zeta_x + off, zeta_y + off, zeta_z + off,
                             vel_x + off, vel_y + off, vel_z + off,
                             i, j, depth, height, width, timestep,
-                            INNER_FACE, INNER_ROW, tmp,
-                            u_x + off, u_y + off, u_z + off);
+                            INNER_FACE, INNER_ROW, tmp);
         }
         /* Solving each tile of the last row. */
         uint64_t off = height * width * i + width * (height - VLEN);
@@ -976,8 +973,7 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict w,
                         zeta_x + off, zeta_y + off, zeta_z + off,
                         vel_x + off, vel_y + off, vel_z + off,
                         i, height - VLEN, depth, height, width, timestep,
-                        INNER_FACE, LAST_ROW, tmp,
-                        u_x + off, u_y + off, u_z + off);
+                        INNER_FACE, LAST_ROW, tmp);
     }
 
     /* Solving the last face of the domain. */
@@ -988,8 +984,7 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict w,
                         zeta_x + off, zeta_y + off, zeta_z + off,
                         vel_x + off, vel_y + off, vel_z + off,
                         depth - 1, j, depth, height, width, timestep,
-                        LAST_FACE, INNER_ROW, tmp,
-                        u_x + off, u_y + off, u_z + off);
+                        LAST_FACE, INNER_ROW, tmp);
     }
     uint64_t off = height * width * (depth - 1) + width * (height - VLEN);
     solve_vtile_row(w + off, p + off, phi + off,
@@ -997,8 +992,7 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict w,
                     zeta_x + off, zeta_y + off, zeta_z + off,
                     vel_x + off, vel_y + off, vel_z + off,
                     depth - 1, height - VLEN, depth, height, width, timestep,
-                    LAST_FACE, LAST_ROW, tmp,
-                    u_x + off, u_y + off, u_z + off);
+                    LAST_FACE, LAST_ROW, tmp);
 }
 
 /* Solves the block diagonal system (I - wDxx)u = f. */
@@ -1081,7 +1075,6 @@ static void solve_Dxx_blocks(const ftype *restrict w,
                 transpose_vtile(f_z + offset + tk, width, VLEN, f_z_t);
                 transpose_vtile(w + offset + tk, width, VLEN, w_t);
                 for (uint32_t k = 0; k < VLEN; ++k) {
-                    /* TODO: use previous vec f instead of loading again. */
                     gauss_reduce_vstrip(w_t + VLEN * k,
                                         tmp_upp + VLEN * (tk + k - 1),
                                         f_x_t + VLEN * k,
@@ -1145,9 +1138,9 @@ static void solve_Dxx_blocks(const ftype *restrict w,
                     u_y_t + VLEN * (VLEN - 1 - k),
                     u_z_t + VLEN * (VLEN - 1 - k));
             }
-            transpose_vtile(u_x_t, VLEN, width, u_x + offset + width - VLEN);
-            transpose_vtile(u_y_t, VLEN, width, u_y + offset + width - VLEN);
-            transpose_vtile(u_z_t, VLEN, width, u_z + offset + width - VLEN);
+            transpose_vtile_add(u_x_t, VLEN, width, u_x + offset + width - VLEN);
+            transpose_vtile_add(u_y_t, VLEN, width, u_y + offset + width - VLEN);
+            transpose_vtile_add(u_z_t, VLEN, width, u_z + offset + width - VLEN);
 
             /* Backward substitute one tile at a time. */
             for (uint32_t tk = VLEN; tk < width; tk += VLEN) {
@@ -1165,12 +1158,12 @@ static void solve_Dxx_blocks(const ftype *restrict w,
                         u_z_t + VLEN * (VLEN - 1 - k));
                 }
                  /* Transpose and store. */
-                transpose_vtile(u_x_t, VLEN, width,
-                                u_x + offset + width - VLEN - tk);
-                transpose_vtile(u_y_t, VLEN, width,
-                                u_y + offset + width - VLEN - tk);
-                transpose_vtile(u_z_t, VLEN, width,
-                                u_z + offset + width - VLEN - tk);
+                transpose_vtile_add(u_x_t, VLEN, width,
+                                    u_x + offset + width - VLEN - tk);
+                transpose_vtile_add(u_y_t, VLEN, width,
+                                    u_y + offset + width - VLEN - tk);
+                transpose_vtile_add(u_z_t, VLEN, width,
+                                    u_z + offset + width - VLEN - tk);
             }
         }
     }
@@ -1210,6 +1203,9 @@ void backward_sub_row(const ftype *restrict f_x,
                       const ftype *restrict upper,
                       uint32_t width,
                       uint32_t row_stride,
+                      ftype *restrict tmp_u_x,
+                      ftype *restrict tmp_u_y,
+                      ftype *restrict tmp_u_z,
                       ftype *restrict u_x,
                       ftype *restrict u_y,
                       ftype *restrict u_z)
@@ -1219,12 +1215,22 @@ void backward_sub_row(const ftype *restrict f_x,
         vftype fs_y = vload(f_y + k);
         vftype fs_z = vload(f_z + k);
         vftype uppers = vload(upper + k);
-        vftype u_x_prevs = vload(u_x + row_stride + k);
-        vftype u_y_prevs = vload(u_y + row_stride + k);
-        vftype u_z_prevs = vload(u_z + row_stride + k);
-        vstore(u_x + k, vfmadd(vneg(uppers), u_x_prevs, fs_x));
-        vstore(u_y + k, vfmadd(vneg(uppers), u_y_prevs, fs_y));
-        vstore(u_z + k, vfmadd(vneg(uppers), u_z_prevs, fs_z));
+
+        vftype u_x_prevs = vload(tmp_u_x + k);
+        vftype u_y_prevs = vload(tmp_u_y + k);
+        vftype u_z_prevs = vload(tmp_u_z + k);
+
+        vftype us_x = vfmadd(vneg(uppers), u_x_prevs, fs_x);
+        vftype us_y = vfmadd(vneg(uppers), u_y_prevs, fs_y);
+        vftype us_z = vfmadd(vneg(uppers), u_z_prevs, fs_z);
+
+        vstore(tmp_u_x + k, us_x);
+        vstore(tmp_u_y + k, us_y);
+        vstore(tmp_u_z + k, us_z);
+
+        vstore(u_x + k, vadd(vload(u_x + k), us_x));
+        vstore(u_y + k, vadd(vload(u_y + k), us_y));
+        vstore(u_z + k, vadd(vload(u_z + k), us_z));
     }
 }
 
@@ -1255,6 +1261,9 @@ void apply_bottom_bc(const ftype *restrict w,
                      uint32_t y,
                      uint32_t z,
                      uint32_t t,
+                     ftype *restrict tmp_u_x,
+                     ftype *restrict tmp_u_y,
+                     ftype *restrict tmp_u_z,
                      ftype *restrict u_x,
                      ftype *restrict u_y,
                      ftype *restrict u_z)
@@ -1266,9 +1275,13 @@ void apply_bottom_bc(const ftype *restrict w,
     apply_end_bc(w, upper_prev, f_x_prev, f_z_prev, f_x, f_z,
                  un_y, un_x, un_z, &_un_y, &_un_x, &_un_z);
 
-    vstore(u_x, _un_x);
-    vstore(u_y, _un_y);
-    vstore(u_z, _un_z);
+    vstore(tmp_u_x, _un_x);
+    vstore(tmp_u_y, _un_y);
+    vstore(tmp_u_z, _un_z);
+
+    vstore(u_x, vadd(vload(u_x), _un_x));
+    vstore(u_y, vadd(vload(u_y), _un_y));
+    vstore(u_z, vadd(vload(u_z), _un_z));
 }
 
 /* Solves the block diagonal system (I - w∂yy)u = f. */
@@ -1288,6 +1301,12 @@ static void solve_Dyy_blocks(const ftype *restrict w,
     ZEROS = vbroadcast(0.0);
     ONES = vbroadcast(1.0);
     SIGN_MASK = vbroadcast(-0.0f);
+
+    /* TODO: Can I prefetch something? */
+
+    ftype *restrict tmp_u_x = tmp + width * height;
+    ftype *restrict tmp_u_y = tmp + (width + 1) * height;
+    ftype *restrict tmp_u_z = tmp + (width + 2) * height;
 
     /* We solve for each face of the domain, one at a time. */
     for (int i = 0; i < depth; ++i) {
@@ -1321,6 +1340,9 @@ static void solve_Dyy_blocks(const ftype *restrict w,
                             f_x + face_offset + width * (height - 1) + k,
                             f_z + face_offset + width * (height - 1) + k,
                             k, height - 1, i, timestep,
+                            tmp_u_x + k,
+                            tmp_u_y + k,
+                            tmp_u_z + k,
                             u_x + face_offset + width * (height - 1) + k,
                             u_y + face_offset + width * (height - 1) + k,
                             u_z + face_offset + width * (height - 1) + k);
@@ -1335,6 +1357,9 @@ static void solve_Dyy_blocks(const ftype *restrict w,
                              tmp + row_offset - face_offset,
                              width,
                              width,
+                             tmp_u_x,
+                             tmp_u_y,
+                             tmp_u_z,
                              u_x + row_offset,
                              u_y + row_offset,
                              u_z + row_offset);
@@ -1369,6 +1394,9 @@ void apply_back_bc(const ftype *restrict w,
                    uint32_t y,
                    uint32_t z,
                    uint32_t t,
+                   ftype *restrict tmp_u_x,
+                   ftype *restrict tmp_u_y,
+                   ftype *restrict tmp_u_z,
                    ftype *restrict u_x,
                    ftype *restrict u_y,
                    ftype *restrict u_z)
@@ -1380,9 +1408,14 @@ void apply_back_bc(const ftype *restrict w,
     apply_end_bc(w, upper_prev, f_x_prev, f_y_prev, f_x, f_y,
                  un_z, un_x, un_y, &_un_z, &_un_x, &_un_y);
 
-    vstore(u_x, _un_x);
-    vstore(u_y, _un_y);
-    vstore(u_z, _un_z);
+    vstore(tmp_u_x, _un_x);
+    vstore(tmp_u_y, _un_y);
+    vstore(tmp_u_z, _un_z);
+
+    vstore(u_x, vadd(vload(u_x), _un_x));
+    vstore(u_y, vadd(vload(u_y), _un_y));
+    vstore(u_z, vadd(vload(u_z), _un_z));
+
 }
 
 /* Solves the block diagonal system (I - w∂zz)u = f. */
@@ -1402,6 +1435,10 @@ static void solve_Dzz_blocks(const ftype *restrict w,
     ZEROS = vbroadcast(0.0);
     ONES = vbroadcast(1.0);
     SIGN_MASK = vbroadcast(-0.0f);
+
+    ftype *restrict tmp_u_x = tmp + depth * height * width;
+    ftype *restrict tmp_u_y = tmp + (depth + 1) * height * width;
+    ftype *restrict tmp_u_z = tmp + (depth + 2) * height * width;
 
     /* Apply BCs to the first face. */
     for (uint32_t j = 0; j < height; ++j) {
@@ -1439,6 +1476,9 @@ static void solve_Dzz_blocks(const ftype *restrict w,
                           f_x + face_offset + width * j + k,
                           f_y + face_offset + width * j + k,
                           k, j, depth - 1, timestep,
+                          tmp_u_x + width * j + k,
+                          tmp_u_y + width * j + k,
+                          tmp_u_z + width * j + k,
                           u_x + face_offset + width * j + k,
                           u_y + face_offset + width * j + k,
                           u_z + face_offset + width * j + k);
@@ -1456,6 +1496,9 @@ static void solve_Dzz_blocks(const ftype *restrict w,
                              tmp + row_offset,
                              width,
                              height * width,
+                             tmp_u_x + width * j,
+                             tmp_u_y + width * j,
+                             tmp_u_z + width * j,
                              u_x + row_offset,
                              u_y + row_offset,
                              u_z + row_offset);
@@ -1463,10 +1506,7 @@ static void solve_Dzz_blocks(const ftype *restrict w,
     }
 }
 
-static void compute_next_rhs(const_field velocity_delta_x,
-                             const_field velocity_delta_y,
-                             const_field velocity_delta_z,
-                             const_field next_velocity_x,
+static void compute_next_rhs(const_field next_velocity_x,
                              const_field next_velocity_y,
                              const_field next_velocity_z,
                              field_size size,
@@ -1479,10 +1519,6 @@ static void compute_next_rhs(const_field velocity_delta_x,
 {
     uint64_t num_points = field_num_points(size);
     for (uint64_t i = 0; i < num_points; ++i) {
-        velocity_x[i] += velocity_delta_x[i];
-        velocity_y[i] += velocity_delta_y[i];
-        velocity_z[i] += velocity_delta_z[i];
-
         next_rhs_x[i] = velocity_x[i] - next_velocity_x[i];
         next_rhs_y[i] = velocity_y[i] - next_velocity_y[i];
         next_rhs_z[i] = velocity_z[i] - next_velocity_z[i];
@@ -1516,26 +1552,31 @@ void momentum_solve(const_field porosity,
 {
     arena_enter(arena);
 
-    field tmp = field_alloc(size, arena);
+    field_size tmp_size = { size.width, size.height, size.depth + 3 };
+    field tmp = field_alloc(tmp_size, arena);
     field3 rhs = field3_alloc(size, arena);
-    field3 delta = field3_alloc(size, arena);
 
-    TIMEITN(compute_Dxx_rhs(porosity, pressure, pressure_delta, velocity_Dxx.x,
-                    velocity_Dxx.y, velocity_Dxx.z, velocity_Dyy.x,
-                    velocity_Dyy.y, velocity_Dyy.z, velocity_Dzz.x,
-                    velocity_Dzz.y, velocity_Dzz.z, size.depth, size.height,
-                    size.width, timestep, rhs.x, rhs.y, rhs.z), 1);
+    /*
+    TIMEITN(compute_Dxx_rhs(
+        porosity, pressure, pressure_delta, velocity_Dxx.x,
+        velocity_Dxx.y, velocity_Dxx.z, velocity_Dyy.x,
+        velocity_Dyy.y, velocity_Dyy.z, velocity_Dzz.x,
+        velocity_Dzz.y, velocity_Dzz.z, size.depth, size.height,
+        size.width, timestep, rhs.x, rhs.y, rhs.z), 1);
 
-    TIMEITN(solve_Dxx_blocks(gamma, size.depth, size.height, size.width, timestep,
-                     tmp, rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z), 1);
+    TIMEITN(solve_Dxx_blocks(
+        gamma, size.depth, size.height, size.width, timestep,
+        tmp, rhs.x, rhs.y, rhs.z,  velocity_Dxx.x, velocity_Dxx.y,
+        velocity_Dxx.z), 1);
+
+    */
 
     TIMEITN(solve_Dxx_blocks_fused_rhs(
         gamma, pressure, pressure_delta,
         velocity_Dxx.x, velocity_Dxx.y, velocity_Dxx.z,
         velocity_Dyy.x, velocity_Dyy.y, velocity_Dyy.z,
         velocity_Dzz.x, velocity_Dzz.y, velocity_Dzz.z,
-        size.depth, size.height, size.width, timestep,
-        tmp, rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z), 1);
+        size.depth, size.height, size.width, timestep, tmp), 1);
 
 
     /*
@@ -1580,37 +1621,26 @@ void momentum_solve(const_field porosity,
      * as solve_Dxx_blocks()!*/
 
     /* Updates velocity_Dxx and computes next rhs. */
-    TIMEITN(compute_next_rhs(delta.x, delta.y, delta.z, velocity_Dyy.x,
-                     velocity_Dyy.y, velocity_Dyy.z, size, velocity_Dxx.x,
-                     velocity_Dxx.y, velocity_Dxx.z, rhs.x, rhs.y, rhs.z), 1);
+    TIMEITN(compute_next_rhs(
+        velocity_Dyy.x, velocity_Dyy.y, velocity_Dyy.z, size,
+        velocity_Dxx.x, velocity_Dxx.y, velocity_Dxx.z, rhs.x,
+        rhs.y, rhs.z), 1);
 
-    TIMEITN(solve_Dyy_blocks(gamma, size.depth, size.height, size.width, timestep,
-                     tmp, rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z), 1);
+    TIMEITN(solve_Dyy_blocks(
+        gamma, size.depth, size.height, size.width, timestep,
+        tmp, rhs.x, rhs.y, rhs.z, velocity_Dyy.x, velocity_Dyy.y,
+        velocity_Dzz.z), 1);
 
     /* Updates velocity_Dyy and computes next rhs. */
-    compute_next_rhs(delta.x, delta.y, delta.z, velocity_Dzz.x,
-                     velocity_Dzz.y, velocity_Dzz.z, size, velocity_Dyy.x,
-                     velocity_Dyy.y, velocity_Dyy.z, rhs.x, rhs.y, rhs.z);
+    TIMEITN(compute_next_rhs(
+        velocity_Dzz.x, velocity_Dzz.y, velocity_Dzz.z, size,
+        velocity_Dyy.x, velocity_Dyy.y, velocity_Dyy.z, rhs.x,
+        rhs.y, rhs.z), 1);
 
-    TIMEITN(solve_Dzz_blocks(gamma, size.depth, size.height, size.width, timestep,
-                     tmp, rhs.x, rhs.y, rhs.z, delta.x, delta.y, delta.z), 1);
-
-    /* Updates velocity_Dzz. */
-
-    /* WARNING: Enforce restrict, consider using -fno-alias */
-    const_field velocity_delta_x = delta.x;
-    const_field velocity_delta_y = delta.y;
-    const_field velocity_delta_z = delta.z;
-    field velocity_x = velocity_Dzz.x;
-    field velocity_y = velocity_Dzz.y;
-    field velocity_z = velocity_Dzz.z;
-
-    uint64_t num_points = field_num_points(size);
-    for (uint64_t i = 0; i < num_points; ++i) {
-        velocity_x[i] += velocity_delta_x[i];
-        velocity_y[i] += velocity_delta_y[i];
-        velocity_z[i] += velocity_delta_z[i];
-    }
+    TIMEITN(solve_Dzz_blocks(
+        gamma, size.depth, size.height, size.width, timestep,
+        tmp, rhs.x, rhs.y, rhs.z, velocity_Dzz.x, velocity_Dzz.y,
+        velocity_Dzz.z), 1);
 
     /* Now enforce BCs on the final solution.
      * WARNING: doesn't seem to affect convergence. */
