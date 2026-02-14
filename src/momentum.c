@@ -305,8 +305,6 @@ static vftype ZEROS;
 static vftype ONES;
 static vftype SIGN_MASK;
 
-/* WARNING: You must scale w by 1/dx^2!! */
-
 static inline __attribute__((always_inline))
 void apply_start_bc(vftype u0_x,
                     vftype u0_y,
@@ -351,12 +349,14 @@ void apply_end_bc(const ftype *restrict w,
                   const ftype *restrict f_z_prev,
                   const ftype *restrict f_y,
                   const ftype *restrict f_z,
+                  const ftype *restrict u_y,
+                  const ftype *restrict u_z,
                   vftype un_x,
                   vftype un_y,
                   vftype un_z,
-                  vftype *restrict u_x,
-                  vftype *restrict u_y,
-                  vftype *restrict u_z)
+                  vftype *restrict us_x,
+                  vftype *restrict us_y,
+                  vftype *restrict us_z)
 {
     /* u_x = un_x
      * u_y =  (2w_i un_y + f_y_i + w_i f_y_i_prev) /
@@ -368,8 +368,8 @@ void apply_end_bc(const ftype *restrict w,
     vftype upper_prevs = vload(upper_prev);
     vftype fs_y_prevs = vload(f_y_prev);
     vftype fs_z_prevs = vload(f_z_prev);
-    vftype fs_y = vload(f_y);
-    vftype fs_z = vload(f_z);
+    vftype fs_y = vsub(vload(f_y), vload(u_y));
+    vftype fs_z = vsub(vload(f_z), vload(u_z));
     vftype ws2 = vadd(ws, ws);
     /*
     vftype norm_coeffs = vfmadd(upper_prevs, ws,
@@ -378,11 +378,11 @@ void apply_end_bc(const ftype *restrict w,
     vftype norm_coeffs = 1 + 4 * ws + (ftype) (4.0 / 3.0) * ws * upper_prevs;
 
 
-    *u_x = un_x;
-    *u_y = compute_end_bc_tang_u(ws, ws2, fs_y_prevs,
-                                 fs_y, un_y, norm_coeffs);
-    *u_z = compute_end_bc_tang_u(ws, ws2, fs_z_prevs,
-                                 fs_z, un_z, norm_coeffs);
+    *us_x = un_x;
+    *us_y = compute_end_bc_tang_u(ws, ws2, fs_y_prevs,
+                                  fs_y, un_y, norm_coeffs);
+    *us_z = compute_end_bc_tang_u(ws, ws2, fs_z_prevs,
+                                  fs_z, un_z, norm_coeffs);
 }
 
 static inline __attribute__((always_inline))
@@ -420,8 +420,12 @@ void apply_right_bc(const ftype *restrict w,
     vftype un_x, un_y, un_z;
     _get_right_bc_u_delta(x, y, z, t, &un_x, &un_y, &un_z);
 
+    /* Quick hack :/ */
+    ftype __attribute__((aligned(32))) zeros[VLEN * 2] = {0};
+
     apply_end_bc(w, upper_prev, f_y_prev, f_z_prev,
-                 f_y, f_z, un_x, un_y, un_z, u_x, u_y, u_z);
+                 f_y, f_z, zeros, zeros + VLEN, un_x, un_y,
+                 un_z, u_x, u_y, u_z);
 
     vstore(f_x, *u_x);
     vstore(f_y, *u_y);
@@ -995,7 +999,7 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict w,
                     LAST_FACE, LAST_ROW, tmp);
 }
 
-/* Solves the block diagonal system (I - wDxx)u = f. */
+/* Solves the block diagonal system (I - wDxx)(u_n+1 - u_n) = f - u_n. */
 static void solve_Dxx_blocks(const ftype *restrict w,
                              uint32_t depth,
                              uint32_t height,
@@ -1033,7 +1037,8 @@ static void solve_Dxx_blocks(const ftype *restrict w,
     ftype *restrict tmp_f_z = tmp + 3 * width * VLEN;
 
     /* TODO: Why don't you write the solution directly to f?
-     * You can reduce the number of cache misses. */
+     * You can reduce the number of cache misses. ->
+     * No longer possible due to vel update fusion. */
 
     /* TODO: Consider threading to parallelize outer loops. */
 
@@ -1172,27 +1177,35 @@ static void solve_Dxx_blocks(const ftype *restrict w,
 
 static inline __attribute__((always_inline))
 void gauss_reduce_row(const ftype *restrict w,
+                      const ftype *restrict f_x,
+                      const ftype *restrict f_y,
+                      const ftype *restrict f_z,
+                      const ftype *restrict u_x,
+                      const ftype *restrict u_y,
+                      const ftype *restrict u_z,
                       uint32_t width,
                       uint32_t row_stride,
                       ftype *restrict upper,
-                      ftype *restrict f_x,
-                      ftype *restrict f_y,
-                      ftype *restrict f_z)
+                      ftype *restrict dst_f_x,
+                      ftype *restrict dst_f_y,
+                      ftype *restrict dst_f_z)
 {
     for (uint32_t i = 0; i < width; i += VLEN) {
         vftype ws = vload(w + i);
         vftype upper_prevs = vload(upper - row_stride + i);
-        vftype f_x_prevs = vload(f_x - row_stride + i);
-        vftype f_y_prevs = vload(f_y - row_stride + i);
-        vftype f_z_prevs = vload(f_z - row_stride + i);
-        vftype fs_x = vload(f_x + i);
-        vftype fs_y = vload(f_y + i);
-        vftype fs_z = vload(f_z + i);
+        vftype f_x_prevs = vload(dst_f_x - row_stride + i);
+        vftype f_y_prevs = vload(dst_f_y - row_stride + i);
+        vftype f_z_prevs = vload(dst_f_z - row_stride + i);
+
+        vftype fs_x = vsub(vload(f_x + i), vload(u_x + i));
+        vftype fs_y = vsub(vload(f_y + i), vload(u_y + i));
+        vftype fs_z = vsub(vload(f_z + i), vload(u_z + i));
+
         vftype norm_coefs = vfmadd(ws, upper_prevs, vadd(ONES, vadd(ws, ws)));
         vstore(upper + i, vdiv(vneg(ws), norm_coefs));
-        vstore(f_x + i, vdiv(vfmadd(ws, f_x_prevs, fs_x), norm_coefs));
-        vstore(f_y + i, vdiv(vfmadd(ws, f_y_prevs, fs_y), norm_coefs));
-        vstore(f_z + i, vdiv(vfmadd(ws, f_z_prevs, fs_z), norm_coefs));
+        vstore(dst_f_x + i, vdiv(vfmadd(ws, f_x_prevs, fs_x), norm_coefs));
+        vstore(dst_f_y + i, vdiv(vfmadd(ws, f_y_prevs, fs_y), norm_coefs));
+        vstore(dst_f_z + i, vdiv(vfmadd(ws, f_z_prevs, fs_z), norm_coefs));
     }
 }
 
@@ -1273,7 +1286,7 @@ void apply_bottom_bc(const ftype *restrict w,
 
     vftype _un_x, _un_y, _un_z;
     apply_end_bc(w, upper_prev, f_x_prev, f_z_prev, f_x, f_z,
-                 un_y, un_x, un_z, &_un_y, &_un_x, &_un_z);
+                 u_x, u_z, un_y, un_x, un_z, &_un_y, &_un_x, &_un_z);
 
     vstore(tmp_u_x, _un_x);
     vstore(tmp_u_y, _un_y);
@@ -1284,16 +1297,16 @@ void apply_bottom_bc(const ftype *restrict w,
     vstore(u_z, vadd(vload(u_z), _un_z));
 }
 
-/* Solves the block diagonal system (I - w∂yy)u = f. */
+/* Solves the block diagonal system (I - wDyy)(u_n+1 - u_n) = f - u_n. */
 static void solve_Dyy_blocks(const ftype *restrict w,
                              uint32_t depth,
                              uint32_t height,
                              uint32_t width,
                              uint32_t timestep,
                              ftype *restrict tmp,
-                             ftype *restrict f_x,
-                             ftype *restrict f_y,
-                             ftype *restrict f_z,
+                             const ftype *restrict f_x,
+                             const ftype *restrict f_y,
+                             const ftype *restrict f_z,
                              ftype *restrict u_x,
                              ftype *restrict u_y,
                              ftype *restrict u_z)
@@ -1304,9 +1317,19 @@ static void solve_Dyy_blocks(const ftype *restrict w,
 
     /* TODO: Can I prefetch something? */
 
-    ftype *restrict tmp_u_x = tmp + width * height;
-    ftype *restrict tmp_u_y = tmp + (width + 1) * height;
-    ftype *restrict tmp_u_z = tmp + (width + 2) * height;
+    /* TODO: Try to perform cache blocking, reducing only a column
+     * of tiles at a time, it should be better in terms of cache
+     * locality of the intermediate coefficients but worse in terms
+     * of TLB misses of the f and u. Additionally, it would reduce
+     * the tmp storage required. Same holds for Dzz solver. */
+
+    ftype *restrict tmp_f_x = tmp + width * height;
+    ftype *restrict tmp_f_y = tmp + width * height * 2;
+    ftype *restrict tmp_f_z = tmp + width * height * 3;
+
+    ftype *restrict tmp_u_x = tmp + width * height * 4;
+    ftype *restrict tmp_u_y = tmp + width * height * 4 + width;
+    ftype *restrict tmp_u_z = tmp + width * height * 5 + width * 2;
 
     /* We solve for each face of the domain, one at a time. */
     for (int i = 0; i < depth; ++i) {
@@ -1316,27 +1339,31 @@ static void solve_Dyy_blocks(const ftype *restrict w,
         /* Apply BCs on the first row of the domain. */
         for (uint32_t k = 0; k < width; k += VLEN) {
             apply_top_bc(k, 0, i, timestep, tmp + k,
-                         f_x + face_offset + k,
-                         f_y + face_offset + k,
-                         f_z + face_offset + k);
+                         tmp_f_x + k, tmp_f_y + k, tmp_f_z + k);
         }
         /* Gauss reduce the remaining face, one row at a time,
          * except the last one. */
         for (uint32_t j = 1; j < height - 1; ++j) {
             gauss_reduce_row(w + face_offset + width * j,
+                             f_x + face_offset + width * j,
+                             f_y + face_offset + width * j,
+                             f_z + face_offset + width * j,
+                             u_x + face_offset + width * j,
+                             u_y + face_offset + width * j,
+                             u_z + face_offset + width * j,
                              width,
                              width,
                              tmp + width * j,
-                             f_x + face_offset + width * j,
-                             f_y + face_offset + width * j,
-                             f_z + face_offset + width * j);
+                             tmp_f_x + width * j,
+                             tmp_f_y + width * j,
+                             tmp_f_z + width * j);
         }
         /* Apply BCs on the last row. */
         for (uint32_t k = 0; k < width; k += VLEN) {
             apply_bottom_bc(w + face_offset + width * (height - 1) + k,
                             tmp + width * (height - 2) + k,
-                            f_x + face_offset + width * (height - 2) + k,
-                            f_z + face_offset + width * (height - 2) + k,
+                            tmp_f_x + width * (height - 2) + k,
+                            tmp_f_z + width * (height - 2) + k,
                             f_x + face_offset + width * (height - 1) + k,
                             f_z + face_offset + width * (height - 1) + k,
                             k, height - 1, i, timestep,
@@ -1351,9 +1378,9 @@ static void solve_Dyy_blocks(const ftype *restrict w,
         /* Backward substitute the remaining face, one row at a time. */
         for (int j = 1; j < height; ++j) {
             uint64_t row_offset = face_offset + width * (height - j - 1);
-            backward_sub_row(f_x + row_offset,
-                             f_y + row_offset,
-                             f_z + row_offset,
+            backward_sub_row(tmp_f_x + width * (height - j - 1),
+                             tmp_f_y + width * (height - j - 1),
+                             tmp_f_z + width * (height - j - 1),
                              tmp + row_offset - face_offset,
                              width,
                              width,
@@ -1406,7 +1433,7 @@ void apply_back_bc(const ftype *restrict w,
 
     vftype _un_x, _un_y, _un_z;
     apply_end_bc(w, upper_prev, f_x_prev, f_y_prev, f_x, f_y,
-                 un_z, un_x, un_y, &_un_z, &_un_x, &_un_y);
+                 u_x, u_y, un_z, un_x, un_y, &_un_z, &_un_x, &_un_y);
 
     vstore(tmp_u_x, _un_x);
     vstore(tmp_u_y, _un_y);
@@ -1418,7 +1445,7 @@ void apply_back_bc(const ftype *restrict w,
 
 }
 
-/* Solves the block diagonal system (I - w∂zz)u = f. */
+/* Solves the block diagonal system (I - wDzz)(u_n+1 - u_n) = f - u_n. */
 static void solve_Dzz_blocks(const ftype *restrict w,
                              uint32_t depth,
                              uint32_t height,
@@ -1436,18 +1463,22 @@ static void solve_Dzz_blocks(const ftype *restrict w,
     ONES = vbroadcast(1.0);
     SIGN_MASK = vbroadcast(-0.0f);
 
-    ftype *restrict tmp_u_x = tmp + depth * height * width;
-    ftype *restrict tmp_u_y = tmp + (depth + 1) * height * width;
-    ftype *restrict tmp_u_z = tmp + (depth + 2) * height * width;
+    ftype *restrict tmp_f_x = tmp + depth * height * width;
+    ftype *restrict tmp_f_y = tmp + depth * height * width * 2;
+    ftype *restrict tmp_f_z = tmp + depth * height * width * 3;
+
+    ftype *restrict tmp_u_x = tmp + depth * height * width * 4;
+    ftype *restrict tmp_u_y = tmp + (depth + 1) * height * width * 4;
+    ftype *restrict tmp_u_z = tmp + (depth + 2) * height * width * 4;
 
     /* Apply BCs to the first face. */
     for (uint32_t j = 0; j < height; ++j) {
         for (uint32_t k = 0; k < width; k += VLEN) {
             apply_front_bc(k, j, 0, timestep,
                            tmp + width * j + k,
-                           f_x + width * j + k,
-                           f_y + width * j + k,
-                           f_z + width * j + k);
+                           tmp_f_x + width * j + k,
+                           tmp_f_y + width * j + k,
+                           tmp_f_z + width * j + k);
         }
     }
 
@@ -1457,12 +1488,18 @@ static void solve_Dzz_blocks(const ftype *restrict w,
         for (uint32_t j = 0; j < height; ++j) {
             uint64_t row_offset = height * width * i + width * j;
             gauss_reduce_row(w + row_offset,
+                             f_x + row_offset,
+                             f_y + row_offset,
+                             f_z + row_offset,
+                             u_x + row_offset,
+                             u_y + row_offset,
+                             u_z + row_offset,
                              width,
                              height * width,
                              tmp + row_offset,
-                             f_x + row_offset,
-                             f_y + row_offset,
-                             f_z + row_offset);
+                             tmp_f_x + row_offset,
+                             tmp_f_y + row_offset,
+                             tmp_f_z + row_offset);
         }
     }
     /* Apply BCs the last face, solving directly. */
@@ -1471,8 +1508,8 @@ static void solve_Dzz_blocks(const ftype *restrict w,
         for (uint32_t k = 0; k < width; k += VLEN) {
             apply_back_bc(w + face_offset + width * j + k,
                           tmp + height * width * (depth - 2) + width * j + k,
-                          f_x + height * width * (depth - 2) + width * j + k,
-                          f_y + height * width * (depth - 2) + width * j + k,
+                          tmp_f_x + height * width * (depth - 2) + width * j + k,
+                          tmp_f_y + height * width * (depth - 2) + width * j + k,
                           f_x + face_offset + width * j + k,
                           f_y + face_offset + width * j + k,
                           k, j, depth - 1, timestep,
@@ -1490,9 +1527,9 @@ static void solve_Dzz_blocks(const ftype *restrict w,
         for (uint32_t j = 0; j < height; ++j) {
             uint64_t row_offset =
                 height * width * (depth - i - 1) + width * j;
-            backward_sub_row(f_x + row_offset,
-                             f_y + row_offset,
-                             f_z + row_offset,
+            backward_sub_row(tmp_f_x + row_offset,
+                             tmp_f_y + row_offset,
+                             tmp_f_z + row_offset,
                              tmp + row_offset,
                              width,
                              height * width,
@@ -1503,25 +1540,6 @@ static void solve_Dzz_blocks(const ftype *restrict w,
                              u_y + row_offset,
                              u_z + row_offset);
         }
-    }
-}
-
-static void compute_next_rhs(const_field next_velocity_x,
-                             const_field next_velocity_y,
-                             const_field next_velocity_z,
-                             field_size size,
-                             field velocity_x,
-                             field velocity_y,
-                             field velocity_z,
-                             field next_rhs_x,
-                             field next_rhs_y,
-                             field next_rhs_z)
-{
-    uint64_t num_points = field_num_points(size);
-    for (uint64_t i = 0; i < num_points; ++i) {
-        next_rhs_x[i] = velocity_x[i] - next_velocity_x[i];
-        next_rhs_y[i] = velocity_y[i] - next_velocity_y[i];
-        next_rhs_z[i] = velocity_z[i] - next_velocity_z[i];
     }
 }
 
@@ -1552,9 +1570,8 @@ void momentum_solve(const_field porosity,
 {
     arena_enter(arena);
 
-    field_size tmp_size = { size.width, size.height, size.depth + 3 };
+    field_size tmp_size = { size.width, size.height, size.depth * 4 + 3 };
     field tmp = field_alloc(tmp_size, arena);
-    field3 rhs = field3_alloc(size, arena);
 
     /*
     TIMEITN(compute_Dxx_rhs(
@@ -1568,7 +1585,6 @@ void momentum_solve(const_field porosity,
         gamma, size.depth, size.height, size.width, timestep,
         tmp, rhs.x, rhs.y, rhs.z,  velocity_Dxx.x, velocity_Dxx.y,
         velocity_Dxx.z), 1);
-
     */
 
     TIMEITN(solve_Dxx_blocks_fused_rhs(
@@ -1578,69 +1594,15 @@ void momentum_solve(const_field porosity,
         velocity_Dzz.x, velocity_Dzz.y, velocity_Dzz.z,
         size.depth, size.height, size.width, timestep, tmp), 1);
 
-
-    /*
-     *  +--------+
-     *  |        |
-     *  |        |
-     *  |        |
-     *  |        |
-     *  +--------+
-     *
-     *  After solve_Dxx() the values on
-     *  the left and right boundaries are correct,
-     *  the values on the top and bottom boundaries
-     *  will be enforced in solve_Dyy(), but
-     *  we don't want it to solve on the left
-     *  and right boundaries!
-     *  This means that, since we're solving for delta,
-     *  we can set the rhs to 0 for the points that
-     *  need not to be solved.
-     *
-     *  solve_Dxx() -> I care only about enforcing left/right BCs
-     *  I update eta = eta + delta_eta, now zeta - eta will
-     *  become the rhs of solve_Dyy(), which enforces the BCs
-     *  on the top/bottom boundaries, but must not change the
-     *  solution on the left/right boundaries. This means that
-     *  zeta - eta = 0 on the left/right boundaries. How do I achieve
-     *  this? Well, for the moment I can set the rhs of solve_Dyy()
-     *  to zero for those boundaries while computing the next rhs.
-     *
-     *  For solve_Dzz() the same reasoning applies,
-     *  we don't care about solving the first face immediately at this
-     *  point, like we don't care about solving the first and last row
-     *  of each face in solve_Dyy(), since the solution will be enforced
-     *  there. So we can simply skip them, then, solve_Dxx() applies
-     *  left/right BCs, solve_Dyy() must not change the solution there
-     *  and enforces top/right BCs, and solve_Dzz() must not change the
-     *  solution on the left/right BCs and top/bottom BCs.
-     *
-     */
-
-    /* TODO: Fuse this with solve_Dxx_blocks(), this takes approx the same
-     * as solve_Dxx_blocks()!*/
-
-    /* Updates velocity_Dxx and computes next rhs. */
-    TIMEITN(compute_next_rhs(
-        velocity_Dyy.x, velocity_Dyy.y, velocity_Dyy.z, size,
-        velocity_Dxx.x, velocity_Dxx.y, velocity_Dxx.z, rhs.x,
-        rhs.y, rhs.z), 1);
-
     TIMEITN(solve_Dyy_blocks(
         gamma, size.depth, size.height, size.width, timestep,
-        tmp, rhs.x, rhs.y, rhs.z, velocity_Dyy.x, velocity_Dyy.y,
-        velocity_Dzz.z), 1);
-
-    /* Updates velocity_Dyy and computes next rhs. */
-    TIMEITN(compute_next_rhs(
-        velocity_Dzz.x, velocity_Dzz.y, velocity_Dzz.z, size,
-        velocity_Dyy.x, velocity_Dyy.y, velocity_Dyy.z, rhs.x,
-        rhs.y, rhs.z), 1);
+        tmp, velocity_Dxx.x, velocity_Dxx.y, velocity_Dxx.z,
+        velocity_Dyy.x, velocity_Dyy.y, velocity_Dzz.z), 1);
 
     TIMEITN(solve_Dzz_blocks(
         gamma, size.depth, size.height, size.width, timestep,
-        tmp, rhs.x, rhs.y, rhs.z, velocity_Dzz.x, velocity_Dzz.y,
-        velocity_Dzz.z), 1);
+        tmp, velocity_Dyy.x, velocity_Dyy.y, velocity_Dyy.z,
+        velocity_Dzz.x, velocity_Dzz.y, velocity_Dzz.z), 1);
 
     /* Now enforce BCs on the final solution.
      * WARNING: doesn't seem to affect convergence. */

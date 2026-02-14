@@ -370,7 +370,7 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
 
             field_size tmp_size = { size.width,
                                     size.height,
-                                    size.depth + 3 };
+                                    size.depth * 4 + 3 };
 
             field tmp = field_alloc(tmp_size, arena);
             field3 rhs = field3_alloc(size, arena);
@@ -396,6 +396,7 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
 
             /* Solve for zeta_n+1 */
 
+            /*
             for (uint32_t i = 0; i < size.depth; ++i) {
                 for (uint32_t j = 0; j < size.height; ++j) {
                     for (uint32_t k = 0; k < size.width; ++k) {
@@ -408,13 +409,15 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
                     }
                 }
             }
+            */
 
             solve_Dyy_blocks(gamma, size.depth, size.height, size.width,
-                             t, tmp, rhs.x, rhs.y, rhs.z,
+                             t, tmp, eta.x, eta.y, eta.z,
                              zeta.x, zeta.y, zeta.z);
 
             /* Solve for zeta_n+1 */
 
+            /*
             for (uint32_t i = 0; i < size.depth; ++i) {
                 for (uint32_t j = 0; j < size.height; ++j) {
                     for (uint32_t k = 0; k < size.width; ++k) {
@@ -427,14 +430,15 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
                     }
                 }
             }
+            */
 
             solve_Dzz_blocks(gamma, size.depth, size.height, size.width,
-                             t, tmp, rhs.x, rhs.y, rhs.z,
+                             t, tmp, zeta.x, zeta.y, zeta.z,
                              vel.x, vel.y, vel.z);
 
+            /*
             field3 vel_old = field3_alloc(size, arena);
 
-            /*
             for (uint32_t i = 0; i < size.depth; ++i) {
                 for (uint32_t j = 0; j < size.height; ++j) {
                     for (uint32_t k = 0; k < size.width; ++k) {
@@ -455,14 +459,17 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
             /* Now solve pressure. */
             pressure_solve(to_const_field3(vel), size, pressure, phi, t, arena);
 
+            /*
             pressure_correct_rot(to_const_field3(vel),
                                  to_const_field3(vel_old),
                                  size, pressure, 0.0, t);
+            */
 
-
-            //char output_file_name[32];
-            //sprintf(output_file_name, "solution-%.4f-%d.vtk", _DT, t);
-            //output_vtk_write(output, output_file_name);
+            /*
+            char output_file_name[32];
+            sprintf(output_file_name, "solution-%.4f-%d.vtk", _DT, t);
+            output_vtk_write(output, output_file_name);
+            */
         }
 
         field3 manufactured_v = field3_alloc(size, arena);
