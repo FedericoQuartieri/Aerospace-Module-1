@@ -53,12 +53,15 @@
 #endif
 #endif
 
+#ifndef FLOAT
 inline __attribute__((always_inline)) vftype vgather(const ftype *src,
                                                      uint32_t stride)
 {
+    /* TODO: Load from array. */
     __m128i offset = _mm_set_epi32(stride * 3, stride * 2, stride * 1, 0);
     return _mm256_i32gather_pd(src, offset, sizeof(ftype));
 }
+#endif
 
 inline __attribute__((always_inline)) void vscatter(vftype src,
                                                     ftype *dst,
@@ -128,6 +131,8 @@ void transpose_vtile(const ftype *restrict src,
                      uint32_t dst_stride,
                      ftype *restrict dst)
 {
+    /* TODO: refactor using load_vtile macros. */
+
     /* TODO: faster version if you transpose in memory using insert2f128? */
 #ifdef FLOAT
     vftype r0 = vload(src + 0 * src_stride);
@@ -157,6 +162,41 @@ void transpose_vtile(const ftype *restrict src,
     vstore(dst + 1 * dst_stride, r1);
     vstore(dst + 2 * dst_stride, r2);
     vstore(dst + 3 * dst_stride, r3);
+#endif
+}
+
+static inline __attribute__((always_inline))
+void transpose_vtile_inplace(uint32_t stride, ftype *restrict src)
+{
+    /* TODO: refactor using load_vtile macros. */
+#ifdef FLOAT
+    vftype r0 = vload(src + 0 * stride);
+    vftype r1 = vload(src + 1 * stride);
+    vftype r2 = vload(src + 2 * stride);
+    vftype r3 = vload(src + 3 * stride);
+    vftype r4 = vload(src + 4 * stride);
+    vftype r5 = vload(src + 5 * stride);
+    vftype r6 = vload(src + 6 * stride);
+    vftype r7 = vload(src + 7 * stride);
+    vtranspose(&r0, &r1, &r2, &r3, &r4, &r5, &r6, &r7);
+    vstore(src + 0 * stride, r0);
+    vstore(src + 1 * stride, r1);
+    vstore(src + 2 * stride, r2);
+    vstore(src + 3 * stride, r3);
+    vstore(src + 4 * stride, r4);
+    vstore(src + 5 * stride, r5);
+    vstore(src + 6 * stride, r6);
+    vstore(src + 7 * stride, r7);
+#else
+    vftype r0 = vload(src + 0 * stride);
+    vftype r1 = vload(src + 1 * stride);
+    vftype r2 = vload(src + 2 * stride);
+    vftype r3 = vload(src + 3 * stride);
+    vtranspose(&r0, &r1, &r2, &r3);
+    vstore(src + 0 * stride, r0);
+    vstore(src + 1 * stride, r1);
+    vstore(src + 2 * stride, r2);
+    vstore(src + 3 * stride, r3);
 #endif
 }
 

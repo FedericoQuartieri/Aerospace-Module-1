@@ -24,4 +24,6 @@ const_field3 solver_get_velocity(Solver *solver);
 
 const_field solver_get_pressure(Solver *solver);
 
+const_field solver_get_porosity(Solver *solver);
+
 #endif

@@ -61,7 +61,24 @@ void solver_init(Solver *solver)
 
     /* Setting constant unit porosity. */
     field tmp = field_alloc(domain_size, solver->arena);
-    field_fill(domain_size, 1.0, tmp);
+    field_fill(domain_size, 1e20, tmp);
+
+    for (uint32_t i = 0; i < domain_size.depth; ++i) {
+        for (uint32_t j = 0; j < domain_size.height; ++j) {
+            for (uint32_t k = 0; k < domain_size.width; ++k) {
+                uint64_t idx = field_idx(domain_size, k, j, i);
+
+                if (((i < 48 && i > 16) && (j > 16 && j < 26)) ||
+                    ((i > 16) && (j > 46 && j < 56) && (k < 32)) ||
+                    ((i < 48) && (j > 76 && j < 86) && (k > 32)) ||
+                    ((i > 32) && (j > 106 && j < 116))
+                ) {
+                    tmp[idx] = 1e-20;
+                }
+            }
+        }
+    }
+
     solver_set_porosity(solver, tmp);
 
     arena_exit(solver->arena);
@@ -112,4 +129,9 @@ const_field3 solver_get_velocity(Solver *solver)
 const_field solver_get_pressure(Solver *solver)
 {
     return solver->pressure;
+}
+
+const_field solver_get_porosity(Solver *solver)
+{
+    return solver->porosity;
 }

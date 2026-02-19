@@ -23,7 +23,7 @@ do {                                                              \
     char *ptr = strstr(func_name_buff, "(");                      \
     memset(ptr, ' ', 32 - (ptr - func_name_buff));                \
     func_name_buff[31] = '\0';                                    \
-    printf("%s %6.2f ms [%d runs avg]\n",                         \
+    printf("%s%8.2f ms [%d runs avg]\n",                          \
            func_name_buff,                                        \
            elapsed_ns_avg / (1e6 * avg_iter), avg_iter);          \
 } while (0)

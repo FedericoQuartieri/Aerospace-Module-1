@@ -39,6 +39,31 @@ DEFINE_FUNCTION_BC_U(get_man_u_x, get_man_u_y, get_man_u_z, BC_BOTTOM)
 DEFINE_FUNCTION_BC_U(get_man_u_x, get_man_u_y, get_man_u_z, BC_FRONT)
 DEFINE_FUNCTION_BC_U(get_man_u_x, get_man_u_y, get_man_u_z, BC_BACK)
 
+static ftype get_forcing_x(ftype x, ftype y, ftype z, ftype t)
+{
+    /* WARNING: _K here is constant! */
+
+    return sin(x) * (-sin(y + t) * sin(z) +
+                      cos(y + t) * sin(z) * _NU * (3 + 1.0 / _K) +
+                      cos(y + t) * cos(z) * -3 * _NU);
+}
+
+static ftype get_forcing_y(ftype x, ftype y, ftype z, ftype t)
+{
+    return cos(x) * (cos(y + t) * sin(z) +
+                     sin(y + t) * sin(z) * _NU * (3 + 1.0 / _K) +
+                     sin(y + t) * cos(z) * -3 * _NU);
+}
+
+static ftype get_forcing_z(ftype x, ftype y, ftype z, ftype t)
+{
+    return cos(x) * (sin(y + t) * cos(z) * -2 +
+                     cos(y + t) * cos(z) * 2 * _NU * (3 + 1.0 / _K) +
+                     cos(y + t) * sin(z) * -3 * _NU);
+}
+
+DEFINE_FORCING(get_forcing_x, get_forcing_y, get_forcing_z)
+
 static void compute_manufactured_solution(field_size size,
                                           uint32_t timestep,
                                           field3 dst)
@@ -50,39 +75,12 @@ static void compute_manufactured_solution(field_size size,
                 uint64_t idx = size.height * size.width * i +
                                size.width * j + k;
 
-                dst.x[idx] = get_man_u_x(_DX * k + _DX / 2, _DX * j, _DX * i, time);
-                dst.y[idx] = get_man_u_y(_DX * k, _DX * j + _DX / 2, _DX * i, time);
-                dst.z[idx] = get_man_u_z(_DX * k, _DX * j, _DX * i + _DX / 2, time);
-            }
-        }
-    }
-}
-
-static void compute_manufactured_forcing_brinkman(field_size size,
-                                                  uint32_t timestep,
-                                                  field3 dst)
-{
-    ftype t = timestep * _DT - _DT / 2;
-
-    ftype coeff = _NU * (3 + 1.0 / _K);
-
-    for (uint32_t i = 0; i < size.depth; ++i) {
-        for (uint32_t j = 0; j < size.height; ++j) {
-            for (uint32_t k = 0; k < size.width; ++k) {
-                uint64_t idx = size.height * size.width * i +
-                               size.width * j + k;
-
-                dst.x[idx] = sin(k * _DX + _DX / 2) * (-sin(j * _DX + t) * sin(i * _DX) +
-                                                       coeff * cos(j * _DX + t) * sin(i * _DX) +
-                                                       -3 * _NU * cos(j * _DX + t) * cos(i * _DX));
-
-                dst.y[idx] = cos(k * _DX) * (cos(j * _DX + _DX / 2 + t) * sin(i * _DX) +
-                                             coeff * sin(j * _DX + _DX / 2 + t) * sin(i * _DX) +
-                                             -3 * _NU * sin(j * _DX + _DX / 2 + t) * cos(i * _DX));
-
-                dst.z[idx] = cos(k * _DX) * (-2 * sin(j * _DX + t) * cos(i * _DX + _DX / 2) +
-                                             2 * coeff * cos(j * _DX + t) * cos(i * _DX + _DX / 2) +
-                                             -3 * _NU * cos(j * _DX + t) * sin(i * _DX + _DX / 2));
+                dst.x[idx] =
+                    get_man_u_x(_DX * k + _DX / 2, _DX * j, _DX * i, time);
+                dst.y[idx] =
+                    get_man_u_y(_DX * k, _DX * j + _DX / 2, _DX * i, time);
+                dst.z[idx] =
+                    get_man_u_z(_DX * k, _DX * j, _DX * i + _DX / 2, time);
             }
         }
     }
@@ -129,16 +127,16 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
 
         SET_DT(dt);
 
+        field porosity = field_alloc(size, arena);
+        field_fill(size, _K, porosity);
+
         field gamma = field_alloc(size, arena);
         field_fill(size, (_K * _NU * _DT) /
                          ((2.0 * _K + _NU * _DT) * _DX * _DX), gamma);
 
-        ftype beta = (2.0 * _K + _DT * _NU) / (2.0 * _K);
-
-        field3 eps = field3_alloc(size, arena);
-        field3 eta = field3_alloc(size, arena);
-        field3 zeta = field3_alloc(size, arena);
-        field3 vel = field3_alloc(size, arena);
+        field3 eta = field3_alloc_pad(size, arena);
+        field3 zeta = field3_alloc_pad(size, arena);
+        field3 vel = field3_alloc_pad(size, arena);
 
         field3_fill(size, 0, eta);
         field3_fill(size, 0, zeta);
@@ -176,261 +174,21 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
         for (uint32_t t = 1; t < num_timesteps + 1; ++t) {
             arena_enter(arena);
 
-            field pressure_pred = field_alloc(size, arena);
-
-            for (uint64_t i = 0; i < field_num_points(size); ++i) {
-                pressure_pred[i] = pressure[i] + phi[i];
-            }
-
-            field3 forcing = field3_alloc(size, arena);
-            compute_manufactured_forcing_brinkman(size, t, forcing);
-
-            /* Compute eps. */
-            for (uint32_t i = 0; i < size.depth; ++i) {
-                for (uint32_t j = 0; j < size.height; ++j) {
-                    for (uint32_t k = 0; k < size.width; ++k) {
-                        uint64_t idx = size.height * size.width * i +
-                                       size.width * j + k;
-
-                        ftype Dxx_eta_x = 0;
-                        ftype Dxx_eta_y = 0;
-                        ftype Dxx_eta_z = 0;
-
-                        ftype Dyy_zeta_x = 0;
-                        ftype Dyy_zeta_y = 0;
-                        ftype Dyy_zeta_z = 0;
-
-                        ftype Dzz_sol_x = 0;
-                        ftype Dzz_sol_y = 0;
-                        ftype Dzz_sol_z = 0;
-
-                        /* Compute Dxx eta_n */
-
-                        if (k == 0) {
-                            /*
-                            Dxx_eta_x = (4.0 / 3 * eta.x[idx + 1] -
-                                         4 * eta.x[idx] +
-                                         8.0 / 3 * get_man_u_x(0, j * _DX, i * _DX,
-                                                               (t - 1) * _DT)) / (_DX * _DX);
-                            */
-
-                        } else if (k > 0 && k < size.width - 1) {
-
-                            Dxx_eta_x = (eta.x[idx - 1] -
-                                         2 * eta.x[idx] +
-                                         eta.x[idx + 1]) / (_DX * _DX);
-
-                            Dxx_eta_y = (eta.y[idx - 1] -
-                                         2 * eta.y[idx] +
-                                         eta.y[idx + 1]) / (_DX * _DX);
-
-                            Dxx_eta_z = (eta.z[idx - 1] -
-                                         2 * eta.z[idx] +
-                                         eta.z[idx + 1]) / (_DX * _DX);
-
-                        } else if (k == size.width - 1) {
-
-                            /* NOTE: Try to revert to previous approx. */
-
-                            Dxx_eta_y = (4.0 / 3 * eta.y[idx - 1] -
-                                         4 * eta.y[idx] +
-                                         8.0 / 3 * get_man_u_y(k * _DX + _DX / 2,
-                                                               j * _DX + _DX / 2,
-                                                               i * _DX, (t - 1) * _DT)) /
-                                                               (_DX * _DX);
-
-                            Dxx_eta_z = (4.0 / 3 * eta.z[idx - 1] -
-                                         4 * eta.z[idx] +
-                                         8.0 / 3 * get_man_u_z(k * _DX + _DX / 2,
-                                                               j * _DX,
-                                                               i * _DX + _DX / 2,
-                                                               (t - 1) * _DT)) / (_DX * _DX);
-                        }
-
-                       if (j == 0) {
-                            /*
-                            Dyy_zeta_y = (4.0 / 3 * zeta.y[idx + size.width] -
-                                          4 * zeta.y[idx] +
-                                          8.0 / 3 * get_man_u_y(k * _DX, 0, i * _DX,
-                                                               (t - 1) * _DT)) / (_DX * _DX);
-                            */
-
-                        } else if (j > 0 && j < size.height - 1) {
-
-                            Dyy_zeta_x = (zeta.x[idx - size.width] -
-                                          2 * zeta.x[idx] +
-                                          zeta.x[idx + size.width]) / (_DX * _DX);
-
-                            Dyy_zeta_y = (zeta.y[idx - size.width] -
-                                          2 * zeta.y[idx] +
-                                          zeta.y[idx + size.width]) / (_DX * _DX);
-
-                            Dyy_zeta_z = (zeta.z[idx - size.width] -
-                                          2 * zeta.z[idx] +
-                                          zeta.z[idx + size.width]) / (_DX * _DX);
-
-                        } else if (j == size.height - 1) {
-
-                            Dyy_zeta_x = (4.0 / 3 * zeta.x[idx - size.width] -
-                                          4 * zeta.x[idx] +
-                                          8.0 / 3 * get_man_u_x(k * _DX + _DX / 2,
-                                                                j * _DX + _DX / 2,
-                                                                i * _DX, (t - 1) * _DT)) /
-                                                                (_DX * _DX);
-
-                            Dyy_zeta_z = (4.0 / 3 * zeta.z[idx - size.width] -
-                                          4 * zeta.z[idx] +
-                                          8.0 / 3 * get_man_u_z(k * _DX,
-                                                                j * _DX + _DX / 2,
-                                                                i * _DX + _DX / 2,
-                                                                (t - 1) * _DT)) / (_DX * _DX);
-                        }
-
-                        if (i == 0) {
-                            /*
-                            Dzz_sol_z = (4.0 / 3 * vel.z[idx + size.height * size.width] -
-                                         4 * vel.z[idx] +
-                                         8.0 / 3 * get_man_u_z(k * _DX, j * _DX, 0,
-                                                               (t - 1) * _DT)) / (_DX * _DX);
-                            */
-
-                        } else if (i > 0 && i < size.depth - 1) {
-
-                            Dzz_sol_x = (vel.x[idx - size.height * size.width] -
-                                         2 * vel.x[idx] +
-                                         vel.x[idx + size.height * size.width]) / (_DX * _DX);
-
-                            Dzz_sol_y = (vel.y[idx - size.height * size.width] -
-                                         2 * vel.y[idx] +
-                                         vel.y[idx + size.height * size.width]) / (_DX * _DX);
-
-                            Dzz_sol_z = (vel.z[idx - size.height * size.width] -
-                                         2 * vel.z[idx] +
-                                         vel.z[idx + size.height * size.width]) / (_DX * _DX);
-
-                        } else if (i == size.depth - 1) {
-
-                            Dzz_sol_x = (4.0 / 3 * vel.x[idx - size.height * size.width] -
-                                         4 * vel.x[idx] +
-                                         8.0 / 3 * get_man_u_x(k * _DX + _DX / 2,
-                                                               j * _DX,
-                                                               i * _DX + _DX / 2, (t - 1) * _DT)) /
-                                                               (_DX * _DX);
-
-                            Dzz_sol_y = (4.0 / 3 * vel.y[idx - size.height * size.width] -
-                                         4 * vel.y[idx] +
-                                         8.0 / 3 * get_man_u_y(k * _DX,
-                                                               j * _DX + _DX / 2,
-                                                               i * _DX + _DX / 2, (t - 1) * _DT)) /
-                                                               (_DX * _DX);
-                        }
-
-                        ftype Dx_p = 0;
-                        ftype Dy_p = 0;
-                        ftype Dz_p = 0;
-
-                        if (k < size.width - 1) {
-                            Dx_p = (pressure_pred[idx + 1] -
-                                    pressure_pred[idx]) / _DX;
-                        }
-
-                        if (j < size.height - 1) {
-                            Dy_p = (pressure_pred[idx + size.width] -
-                                    pressure_pred[idx]) / _DX;
-                        }
-
-                        if (i < size.depth - 1) {
-                            Dz_p = (pressure_pred[idx + size.height * size.width] -
-                                    pressure_pred[idx]) / _DX;
-                        }
-
-                        eps.x[idx] = vel.x[idx] + _DT / beta * (forcing.x[idx] +
-                            _NU * (Dxx_eta_x +
-                                       Dyy_zeta_x +
-                                       Dzz_sol_x -
-                                       1.0 / _K * vel.x[idx]) -
-                            Dx_p);
-
-                        eps.y[idx] = vel.y[idx] + _DT / beta * (forcing.y[idx] +
-                            _NU * (Dxx_eta_y +
-                                       Dyy_zeta_y +
-                                       Dzz_sol_y -
-                                       1.0 / _K * vel.y[idx]) -
-                            Dy_p);
-
-                        eps.z[idx] = vel.z[idx] + _DT / beta * (forcing.z[idx] +
-                            _NU * (Dxx_eta_z +
-                                       Dyy_zeta_z +
-                                       Dzz_sol_z -
-                                       1.0 / _K * vel.z[idx]) -
-                            Dz_p);
-                    }
-                }
-            }
-
             field_size tmp_size = { size.width,
                                     size.height,
                                     size.depth * 4 + 3 };
 
             field tmp = field_alloc(tmp_size, arena);
-            field3 rhs = field3_alloc(size, arena);
 
-            /* Solve for eta_n+1 */
-
-            for (uint32_t i = 0; i < size.depth; ++i) {
-                for (uint32_t j = 0; j < size.height; ++j) {
-                    for (uint32_t k = 0; k < size.width; ++k) {
-                        uint64_t idx = size.height * size.width * i +
-                                       size.width * j + k;
-
-                        rhs.x[idx] = eps.x[idx] - eta.x[idx];
-                        rhs.y[idx] = eps.y[idx] - eta.y[idx];
-                        rhs.z[idx] = eps.z[idx] - eta.z[idx];
-                    }
-                }
-            }
-
-            solve_Dxx_blocks(gamma, size.depth, size.height, size.width,
-                             t, tmp, rhs.x, rhs.y, rhs.z,
-                             eta.x, eta.y, eta.z);
-
-            /* Solve for zeta_n+1 */
-
-            /*
-            for (uint32_t i = 0; i < size.depth; ++i) {
-                for (uint32_t j = 0; j < size.height; ++j) {
-                    for (uint32_t k = 0; k < size.width; ++k) {
-                        uint64_t idx = size.height * size.width * i +
-                                       size.width * j + k;
-
-                        rhs.x[idx] = eta.x[idx] - zeta.x[idx];
-                        rhs.y[idx] = eta.y[idx] - zeta.y[idx];
-                        rhs.z[idx] = eta.z[idx] - zeta.z[idx];
-                    }
-                }
-            }
-            */
+            solve_Dxx_blocks_fused_rhs(porosity, gamma, pressure, phi,
+                                       eta.x, eta.y, eta.z, zeta.x, zeta.y,
+                                       zeta.z, vel.x, vel.y, vel.z,
+                                       size.depth, size.height, size.width,
+                                       t, tmp);
 
             solve_Dyy_blocks(gamma, size.depth, size.height, size.width,
                              t, tmp, eta.x, eta.y, eta.z,
                              zeta.x, zeta.y, zeta.z);
-
-            /* Solve for zeta_n+1 */
-
-            /*
-            for (uint32_t i = 0; i < size.depth; ++i) {
-                for (uint32_t j = 0; j < size.height; ++j) {
-                    for (uint32_t k = 0; k < size.width; ++k) {
-                        uint64_t idx = size.height * size.width * i +
-                                       size.width * j + k;
-
-                        rhs.x[idx] = zeta.x[idx] - vel.x[idx];
-                        rhs.y[idx] = zeta.y[idx] - vel.y[idx];
-                        rhs.z[idx] = zeta.z[idx] - vel.z[idx];
-                    }
-                }
-            }
-            */
 
             solve_Dzz_blocks(gamma, size.depth, size.height, size.width,
                              t, tmp, zeta.x, zeta.y, zeta.z,

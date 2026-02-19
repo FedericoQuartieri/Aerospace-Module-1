@@ -10,6 +10,8 @@
 #include "consts.h"
 #include "timeit.h"
 
+DECLARE_FORCING()
+
 DECLARE_BC_U(BC_LEFT)
 DECLARE_BC_U(BC_TOP)
 DECLARE_BC_U(BC_FRONT)
@@ -28,7 +30,8 @@ vftype compute_g_comp_at(const ftype *restrict eta,
                          vftype eta_,
                          vftype zeta_,
                          vftype u_,
-                         vftype D_pp)
+                         vftype D_pp,
+                         vftype f_)
 {
     /* Compute second derivatives. */
     /* WARNING: Allocate extra face at the start. */
@@ -36,15 +39,13 @@ vftype compute_g_comp_at(const ftype *restrict eta,
     vftype Dyy_zeta = compute_Dyy_at(zeta, idx, width, zeta_);
     vftype Dzz_u = compute_Dzz_at(u, idx, height * width, u_);
 
-    /* WARNING: Null volume force */
-    vftype f_ = vbroadcast(0.0);
-    vftype nu_half = vbroadcast(_NU / 2);
+    vftype nu = vbroadcast(_NU);
     vftype inv_dx = vbroadcast(1 / _DX);
     vftype inv_dxdx = vbroadcast(1 / (_DX * _DX));
 
     /* yes, it's ugly :/ */
     return vadd(f_,
-                vsub(vmul(nu_half,
+                vsub(vmul(nu,
                           vsub(vmul(vadd(Dxx_eta,
                                          vadd(Dyy_zeta,
                                               Dzz_u)),
@@ -63,14 +64,15 @@ vftype compute_Dxx_rhs_comp_at(const ftype *restrict eta,
                                uint32_t width,
                                vftype k,
                                vftype D_pp,
-                               vftype dt_beta)
+                               vftype dt_beta,
+                               vftype f)
 {
     vftype eta_ = vload(eta + idx);
     vftype zeta_ = vload(zeta + idx);
     vftype u_ = vload(u + idx);
     vftype g = compute_g_comp_at(eta, zeta, u,
                                  idx, height, width,
-                                 k, eta_, zeta_, u_, D_pp);
+                                 k, eta_, zeta_, u_, D_pp, f);
 
     return vsub(vfmadd(dt_beta, g, u_), eta_);
 }
@@ -111,7 +113,8 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
      * and k = width - 1 (for x). We set rhs to 0 there
      * at the moment. */
 
-    /* Fill with zeros first row, since solution is enforced by BCs there (only valid for constant BCs, right?) */
+    /* Fill with zeros first row, since solution is enforced
+     * by BCs there (only valid for constant BCs, right?) */
 
     /*
     for (uint32_t j = 0; j < height; ++j) {
@@ -123,7 +126,6 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
         }
     }
     */
-
 
     for (uint32_t i = 1; i < depth; ++i) {
         /* Fill with zeros first row, since solution is enforced by BCs
@@ -159,28 +161,31 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
                 vftype kk = vadd(k_, k_);
                 vftype dt_beta = vdiv(vmul(kk, vdt), vadd(kk, vdt_nu));
 
+                vftype f_x, f_y, f_z;
+                _get_forcing(l, j, i, timestep, &f_x, &f_y, &f_z);
+
                 /* NT stores make no difference here,
                  * loads are bottlenecking. */
                 vstore(rhs_x + idx,
                        compute_Dxx_rhs_comp_at(eta_x, zeta_x, u_x,
                                                idx, height, width,
-                                               k_, Dx_pp, dt_beta));
+                                               k_, Dx_pp, dt_beta, f_x));
                 vstore(rhs_y + idx,
                        compute_Dxx_rhs_comp_at(eta_y, zeta_y, u_y,
                                                idx, height, width,
-                                               k_, Dy_pp, dt_beta));
+                                               k_, Dy_pp, dt_beta, f_y));
                 vstore(rhs_z + idx,
                        compute_Dxx_rhs_comp_at(eta_z, zeta_z, u_z,
                                                idx, height, width,
-                                               k_, Dz_pp, dt_beta));
+                                               k_, Dz_pp, dt_beta, f_z));
             }
 
             /* For y and z, correct Dxx(eta) using the ghost node. */
             uint64_t idx = height * width * i + width * j + width - 1;
             //ftype coeff = 2 * k[idx] * _DT / (2 * k[idx] + _DT * _NU) *
             //              _NU / (2 * _DX * _DX);
-            ftype coeff = (_DT * _NU * k[idx]) / (2 * k[idx] + _DT * _NU) / (_DX * _DX);
-
+            ftype coeff = (2 * _DT * _NU * k[idx]) / (2 * k[idx] + _DT * _NU) /
+                          (_DX * _DX);
 
             vftype u_ex_x, u_ex_y, u_ex_z;
             _get_right_bc_u(width - 1, j, i, timestep - 1, &u_ex_x, &u_ex_y, &u_ex_z);
@@ -210,7 +215,7 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             /* For x and z, correct Dyy(zeta) using the ghost node. */
 
             vftype k_ = vload(k + idx);
-            vftype coeff = (_DT * _NU * k_) /
+            vftype coeff = (2 * _DT * _NU * k_) /
                            (2 * k_ + _DT * _NU) / (_DX * _DX);
                         //2 * k_ * _DT / (2 * k_ + _DT * _NU) *
                            //_NU / (2 * _DX * _DX);
@@ -233,16 +238,16 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vstore(rhs_x + idx,
                    vload(rhs_x + idx) -
                    coeff * (vload(zeta_x + idx + width)
-                            - 1.0 / 3 * vload(zeta_x + idx - width)
-                            + 2 * vload(zeta_x + idx)
-                            - 8.0 / 3.0 * u_ex_x));
+                            - (ftype) 1.0 / 3 * vload(zeta_x + idx - width)
+                            + (ftype) 2 * vload(zeta_x + idx)
+                            - (ftype) 8.0 / 3 * u_ex_x));
 
             vstore(rhs_z + idx,
                    vload(rhs_z + idx) -
                    coeff * (vload(zeta_z + idx + width)
-                            - 1.0 / 3 * vload(zeta_z + idx - width)
-                            + 2 * vload(zeta_z + idx)
-                            - 8.0 / 3.0 * u_ex_z));
+                            - (ftype) 1.0 / 3 * vload(zeta_z + idx - width)
+                            + (ftype) 2 * vload(zeta_z + idx)
+                            - (ftype) 8.0 / 3 * u_ex_z));
 
             /* Set rhs=0 here, since solution is enforced on the wall. */
             vstore(rhs_y + idx, vbroadcast(0));
@@ -256,8 +261,8 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             /* For x and y, correct Dzz(u) using the ghost node. */
 
             vftype k_ = vload(k + idx);
-            vftype coeff = 2 * k_ * _DT / (2 * k_ + _DT * _NU) *
-                           _NU / (2 * _DX * _DX);
+            vftype coeff = (2 * _DT * _NU * k_) /
+                           (2 * k_ + _DT * _NU) / (_DX * _DX);
 
             vftype u_ex_x, u_ex_y, u_ex_z;
             _get_back_bc_u(l, j, depth - 1, timestep - 1,
@@ -276,16 +281,16 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
             vstore(rhs_x + idx,
                    vload(rhs_x + idx) -
                    coeff * (vload(u_x + idx + height * width)
-                            - 1.0 / 3 * vload(u_x + idx - height * width)
-                            + 2 * vload(u_x + idx)
-                            - 8.0 / 3.0 * u_ex_x));
+                            - (ftype) 1.0 / 3 * vload(u_x + idx - height * width)
+                            + (ftype) 2 * vload(u_x + idx)
+                            - (ftype) 8.0 / 3 * u_ex_x));
 
             vstore(rhs_y + idx,
                    vload(rhs_y + idx) -
                    coeff * (vload(u_y + idx + height * width)
-                            - 1.0 / 3 * vload(u_y + idx - height * width)
-                            + 2 * vload(u_y + idx)
-                            - 8.0 / 3.0 * u_ex_y));
+                            - (ftype) 1.0 / 3 * vload(u_y + idx - height * width)
+                            + (ftype) 2 * vload(u_y + idx)
+                            - (ftype) 8.0 / 3 * u_ex_y));
 
             /* WARNING: Setting rhs=0 here, since solution
              * is enforced on the wall. */
@@ -577,7 +582,11 @@ do {                                  \
     vstore(dst + 3 * stride, r3);     \
 } while (0)
 
+#define COMPONENT_X 0
+#define COMPONENT_Y 1
+#define COMPONENT_Z 2
 
+#ifndef FLOAT
 static inline __attribute__((always_inline))
 void compute_Dxx_Dyy_Dzz(const ftype *restrict eta,
                          const ftype *restrict zeta,
@@ -585,6 +594,7 @@ void compute_Dxx_Dyy_Dzz(const ftype *restrict eta,
                          int is_last_face,
                          int is_last_row,
                          int is_last_col,
+                         int component,
                          uint32_t i,
                          uint32_t j,
                          uint32_t k,
@@ -592,97 +602,125 @@ void compute_Dxx_Dyy_Dzz(const ftype *restrict eta,
                          uint32_t height,
                          uint32_t width,
                          uint32_t timestep,
-                         ftype *restrict rhs_t)
+                         ftype *restrict rhs)
 {
-    vftype dd0x, dd1x, dd2x, dd3x;
-    load_vtile(vel, width, dd0x, dd1x, dd2x, dd3x);
+    /* NOTE: All of the conditionals here will be
+     * evaluated at compile time and optimized away. */
 
-    /* Compute Dzz vel_x */
-    if (is_last_face) {
-        vftype vx0, vx1, vx2, vx3;
-        load_vtile(vel - height * width, width, vx0, vx1, vx2, vx3);
+    vftype dd0, dd1, dd2, dd3;
+    load_vtile(vel, width, dd0, dd1, dd2, dd3);
 
-        dd0x = (ftype) 4.0 / 3 * vx0 - 4 * dd0x;
-        dd1x = (ftype) 4.0 / 3 * vx1 - 4 * dd1x;
-        dd2x = (ftype) 4.0 / 3 * vx2 - 4 * dd2x;
-        dd3x = (ftype) 4.0 / 3 * vx3 - 4 * dd3x;
+    /* Compute Dzz vel */
 
-        /* NOTE: You have to obtain the correct component. */
-        vftype _y, _z;
-        _get_back_bc_u(k, j + 0, depth - 1, timestep - 1, &vx0, &_y, &_z);
-        _get_back_bc_u(k, j + 1, depth - 1, timestep - 1, &vx1, &_y, &_z);
-        _get_back_bc_u(k, j + 2, depth - 1, timestep - 1, &vx2, &_y, &_z);
-        _get_back_bc_u(k, j + 3, depth - 1, timestep - 1, &vx3, &_y, &_z);
+    if (is_last_face && component == COMPONENT_Z) {
+         /* We don't care about the value of the rhs here. */
+        return;
 
-        dd0x += (ftype) 8.0 / 3 * vx0;
-        dd1x += (ftype) 8.0 / 3 * vx1;
-        dd2x += (ftype) 8.0 / 3 * vx2;
-        dd3x += (ftype) 8.0 / 3 * vx3;
+    } else if (is_last_face) {
+
+        vftype v0, v1, v2, v3;
+        /* WARNING: Safe but vel must be padded. */
+        load_vtile(vel - height * width, width, v0, v1, v2, v3);
+
+        dd0 = (ftype) 4.0 / 3 * v0 - 4 * dd0;
+        dd1 = (ftype) 4.0 / 3 * v1 - 4 * dd1;
+        dd2 = (ftype) 4.0 / 3 * v2 - 4 * dd2;
+        dd3 = (ftype) 4.0 / 3 * v3 - 4 * dd3;
+
+        if (component == COMPONENT_X) {
+            vftype _y, _z; /* Dummy variables, they will be optmized away. */
+            _get_back_bc_u(k, j + 0, depth - 1, timestep - 1, &v0, &_y, &_z);
+            _get_back_bc_u(k, j + 1, depth - 1, timestep - 1, &v1, &_y, &_z);
+            _get_back_bc_u(k, j + 2, depth - 1, timestep - 1, &v2, &_y, &_z);
+            _get_back_bc_u(k, j + 3, depth - 1, timestep - 1, &v3, &_y, &_z);
+        } else { /* component == COMPONENT_Y */
+            vftype _x, _z; /* Dummy variables, they will be optmized away. */
+            _get_back_bc_u(k, j + 0, depth - 1, timestep - 1, &_x, &v0, &_z);
+            _get_back_bc_u(k, j + 1, depth - 1, timestep - 1, &_x, &v1, &_z);
+            _get_back_bc_u(k, j + 2, depth - 1, timestep - 1, &_x, &v2, &_z);
+            _get_back_bc_u(k, j + 3, depth - 1, timestep - 1, &_x, &v3, &_z);
+        }
+
+        dd0 += (ftype) 8.0 / 3 * v0;
+        dd1 += (ftype) 8.0 / 3 * v1;
+        dd2 += (ftype) 8.0 / 3 * v2;
+        dd3 += (ftype) 8.0 / 3 * v3;
 
     } else {
-        dd0x *= -2; dd1x *= -2; dd2x *= -2; dd3x *= -2;
-        load_vtile_add(vel - height * width, width, dd0x, dd1x, dd2x, dd3x);
-        load_vtile_add(vel + height * width, width, dd0x, dd1x, dd2x, dd3x);
+        dd0 *= -2; dd1 *= -2; dd2 *= -2; dd3 *= -2;
+        load_vtile_add(vel - height * width, width, dd0, dd1, dd2, dd3);
+        load_vtile_add(vel + height * width, width, dd0, dd1, dd2, dd3);
     }
 
     /* Compute Dyy zeta_x */
-    vftype zt0x, zt1x, zt2x, zt3x, zt4x, zt5x;
-    load_vtile(zeta, width, zt1x, zt2x, zt3x, zt4x);
+
+    vftype zt0, zt1, zt2, zt3, zt4, zt5;
+    load_vtile(zeta, width, zt1, zt2, zt3, zt4);
     /* WARNING: Safe but zeta must be padded. */
-    zt0x = vload(zeta - width);
+    zt0 = vload(zeta - width);
+    dd0 += zt0 - 2 * zt1 + zt2;
+    dd1 += zt1 - 2 * zt2 + zt3;
+    dd2 += zt2 - 2 * zt3 + zt4;
 
-    dd0x += zt0x - 2 * zt1x + zt2x;
-    dd1x += zt1x - 2 * zt2x + zt3x;
-    dd2x += zt2x - 2 * zt3x + zt4x;
+    if (is_last_row && component != COMPONENT_Y) {
+        if (component == COMPONENT_X) {
+            vftype _y, _z;
+            _get_bottom_bc_u(k, height - 1, i, timestep - 1, &zt5, &_y, &_z);
+        } else { /* component == COMPONENT_Z */
+            vftype _x, _y;
+            _get_bottom_bc_u(k, height - 1, i, timestep - 1, &_x, &_y, &zt5);
+        }
+        dd3 += (ftype) 4.0 / 3 * zt3 - 4 * zt4 + (ftype) 8.0 / 3 * zt5;
 
-    if (is_last_row) {
-        /* NOTE: You have to obtain the correct component. */
-        vftype _y, _z;
-        _get_bottom_bc_u(k, height - 1, i, timestep - 1, &zt5x, &_y, &_z);
-        dd3x += (ftype) 4.0 / 3 * zt3x - 4 * zt4x + (ftype) 8.0 / 3 * zt5x;
-    } else {
-        zt5x = vload(zeta + width * 4);
-        dd3x += zt3x - 2 * zt4x + zt5x;
+    } else if (!is_last_row) {
+        zt5 = vload(zeta + width * 4);
+        dd3 += zt3 - 2 * zt4 + zt5;
     }
 
-    /* Compute Dxx eta_x */
-    vftype et0x, et1x, et2x, et3x, et4x, et5x;
+     /* Compute Dxx eta_x */
+
+    vftype et0, et1, et2, et3, et4, et5;
     /* WARNING: Safe but eta must be padded. */
-    et0x = vgather(eta - 1, width);
-    load_vtile(eta, width, et1x, et2x, et3x, et4x);
-    vtranspose(&et1x, &et2x, &et3x, &et4x);
+    et0 = vgather(eta - 1, width);
+    load_vtile(eta, width, et1, et2, et3, et4);
+    vtranspose(&et1, &et2, &et3, &et4);
 
-    et0x = et0x - 2 * et1x + et2x;
-    et1x = et1x - 2 * et2x + et3x;
-    et2x = et2x - 2 * et3x + et4x;
+    et0 = et0 - 2 * et1 + et2;
+    et1 = et1 - 2 * et2 + et3;
+    et2 = et2 - 2 * et3 + et4;
 
-    if (is_last_col) {
-        /* Not strictly needed here, but let's keep it. */
+    if (is_last_col && component != COMPONENT_X) {
+        if (component == COMPONENT_Y) {
+            vftype _x, _z;
+            _get_right_bc_u(width - 1, j, i, timestep - 1, &_x, &et5, &_z);
+        } else { /* component == COMPONENT_Z */
+             vftype _x, _y;
+            _get_right_bc_u(width - 1, j, i, timestep - 1, &_x, &_y, &et5);
+        }
+        et3 = (ftype) 4.0 / 3 * et3 - 4 * et4 + (ftype) 8.0 / 3 * et5;
 
-        /* NOTE: You have to obtain the correct component. */
-        vftype _y, _z;
-        _get_right_bc_u(width - 1, j, i, timestep - 1, &et5x, &_y, &_z);
-        et3x = (ftype) 4.0 / 3 * et3x - 4 * et4x + (ftype) 8.0 / 3 * et5x;
-    } else {
-        et5x = vgather(eta + 1, width);
-        et3x = et3x - 2 * et4x + et5x;
-    }
+    } else if (!is_last_col) {
+        et5 = vgather(eta + VLEN, width);
+        et3 = et3 - 2 * et4 + et5;
+    }/* else {
+        et3 = vbroadcast(0);
+    }*/
 
-    vtranspose(&et0x, &et1x, &et2x, &et3x);
+    vtranspose(&et0, &et1, &et2, &et3);
 
-    dd0x = (dd0x + et0x) * _NU / (_DX * _DX);
-    dd1x = (dd1x + et1x) * _NU / (_DX * _DX);
-    dd2x = (dd2x + et2x) * _NU / (_DX * _DX);
-    dd3x = (dd3x + et3x) * _NU / (_DX * _DX);
+    dd0 = (dd0 + et0) * _NU / (_DX * _DX);
+    dd1 = (dd1 + et1) * _NU / (_DX * _DX);
+    dd2 = (dd2 + et2) * _NU / (_DX * _DX);
+    dd3 = (dd3 + et3) * _NU / (_DX * _DX);
 
-    load_vtile_add(rhs_t, VLEN, dd0x, dd1x, dd2x, dd3x);
+    load_vtile_add(rhs, VLEN, dd0, dd1, dd2, dd3);
 
-    vtranspose(&dd0x, &dd1x, &dd2x, &dd3x);
-    store_vtile(rhs_t, VLEN, dd0x, dd1x, dd2x, dd3x);
+    store_vtile(rhs, VLEN, dd0, dd1, dd2, dd3);
 }
 
 static inline __attribute__((always_inline))
-void compute_rhs_vtile(const ftype *restrict p,
+void compute_rhs_vtile(const ftype *restrict porosity,
+                       const ftype *restrict p,
                        const ftype *restrict phi,
                        const ftype *restrict eta_x,
                        const ftype *restrict eta_y,
@@ -724,6 +762,9 @@ void compute_rhs_vtile(const ftype *restrict p,
                     (pp1z - pp1) / -_DX,
                     (pp2z - pp2) / -_DX,
                     (pp3z - pp3) / -_DX);
+    } else {
+        vftype zero = vbroadcast(0);
+        store_vtile(rhs_z_t, VLEN, zero, zero, zero, zero);
     }
 
     /* Load additional row and compute dpp/dy. */
@@ -757,23 +798,58 @@ void compute_rhs_vtile(const ftype *restrict p,
     vtranspose(&pp0, &pp1, &pp2, &pp3);
     store_vtile(rhs_x_t, VLEN, pp0, pp1, pp2, pp3);
 
-    /* Computing Dxx eta + Dyy zeta + Dzz vel */
-
     compute_Dxx_Dyy_Dzz(eta_x, zeta_x, vel_x,
-                        is_last_face, is_last_row, is_last_col,
+                        is_last_face, is_last_row, is_last_col, COMPONENT_X,
                         i, j, k, depth, height, width, timestep, rhs_x_t);
 
     compute_Dxx_Dyy_Dzz(eta_y, zeta_y, vel_y,
-                        is_last_face, is_last_row, is_last_col,
+                        is_last_face, is_last_row, is_last_col, COMPONENT_Y,
                         i, j, k, depth, height, width, timestep, rhs_y_t);
 
     compute_Dxx_Dyy_Dzz(eta_z, zeta_z, vel_z,
-                        is_last_face, is_last_row, is_last_col,
+                        is_last_face, is_last_row, is_last_col, COMPONENT_Z,
                         i, j, k, depth, height, width, timestep, rhs_z_t);
+
+    /* eps_i = (1 + 2 nu dt / (2k_i + nu dt)) u_i + .. */
+
+    for (int jj = 0; jj < VLEN; ++jj) {
+
+        vftype k_ = vload(porosity + width * jj);
+        vftype dt_over_beta = _DT / (1 + _DT * _NU / (2 * k_));
+        vftype coeff = 1 - 2 * _DT * _NU / (2 * k_ + _DT * _NU);
+
+        vftype rx = vload(rhs_x_t + VLEN * jj);
+        vftype ry = vload(rhs_y_t + VLEN * jj);
+        vftype rz = vload(rhs_z_t + VLEN * jj);
+
+        vftype fx, fy, fz;
+        _get_forcing(k, j + jj, i, timestep, &fx, &fy, &fz);
+
+        rx = (fx + rx) * dt_over_beta;
+        ry = (fy + ry) * dt_over_beta;
+        rz = (fz + rz) * dt_over_beta;
+
+        vftype vx = vload(vel_x + width * jj);
+        vftype vy = vload(vel_y + width * jj);
+        vftype vz = vload(vel_z + width * jj);
+
+        rx += coeff * vx - vload(eta_x + width * jj);
+        ry += coeff * vy - vload(eta_y + width * jj);
+        rz += coeff * vz - vload(eta_z + width * jj);
+
+        vstore(rhs_x_t + VLEN * jj, rx);
+        vstore(rhs_y_t + VLEN * jj, ry);
+        vstore(rhs_z_t + VLEN * jj, rz);
+    }
+
+    transpose_vtile_inplace(VLEN, rhs_x_t);
+    transpose_vtile_inplace(VLEN, rhs_y_t);
+    transpose_vtile_inplace(VLEN, rhs_z_t);
 }
 
 static inline __attribute__((always_inline))
-void solve_vtile_row(const ftype *restrict w,
+void solve_vtile_row(const ftype *restrict porosity,
+                     const ftype *restrict w,
                      const ftype *restrict p,
                      const ftype *restrict phi,
                      ftype *restrict eta_x,
@@ -807,11 +883,13 @@ void solve_vtile_row(const ftype *restrict w,
     ftype __attribute__((aligned(32))) w_t[VLEN * VLEN];
 
     transpose_vtile(w, width, VLEN, w_t);
-    compute_rhs_vtile(p, phi, eta_x, eta_y, eta_z,
+
+    compute_rhs_vtile(porosity, p, phi, eta_x, eta_y, eta_z,
                       zeta_x, zeta_y, zeta_z, vel_x, vel_y, vel_z,
                       is_last_face, is_last_row, INNER_COL,
                       i, j, 0, depth, height, width, timestep,
                       f_x_t, f_y_t, f_z_t);
+
     /* Apply BCs on the first column of the tile. */
     apply_left_bc(0, j, i, timestep,
                   tmp_upp, tmp_f_x, tmp_f_y, tmp_f_z);
@@ -831,14 +909,15 @@ void solve_vtile_row(const ftype *restrict w,
     for (uint32_t tk = VLEN; tk < width - VLEN; tk += VLEN) {
         /* Load and transpose next tile. */
         transpose_vtile(w + tk, width, VLEN, w_t);
-        compute_rhs_vtile(p + tk, phi + tk,
+
+        compute_rhs_vtile(porosity + tk, p + tk, phi + tk,
                           eta_x + tk, eta_y + tk, eta_z + tk,
                           zeta_x + tk, zeta_y + tk, zeta_z + tk,
                           vel_x + tk, vel_y + tk, vel_z + tk,
                           is_last_face, is_last_row, INNER_COL,
                           i, j, tk, depth, height, width, timestep,
                           f_x_t, f_y_t, f_z_t);
-
+ 
         for (uint32_t k = 0; k < VLEN; ++k) {
             gauss_reduce_vstrip(w_t + VLEN * k,
                                 tmp_upp + VLEN * (tk + k - 1),
@@ -852,7 +931,9 @@ void solve_vtile_row(const ftype *restrict w,
     }
 
     transpose_vtile(w + width - VLEN, width, VLEN, w_t);
-    compute_rhs_vtile(p + width - VLEN,
+
+    compute_rhs_vtile(porosity + width - VLEN,
+                      p + width - VLEN,
                       phi + width - VLEN,
                       eta_x + width - VLEN,
                       eta_y + width - VLEN,
@@ -866,6 +947,7 @@ void solve_vtile_row(const ftype *restrict w,
                       is_last_face, is_last_row, LAST_COL,
                       i, j, width - VLEN, depth, height, width, timestep,
                       f_x_t, f_y_t, f_z_t);
+
     /* Reduce last tile except last column. */
     for (int k = 0; k < VLEN - 1; ++k) {
         gauss_reduce_vstrip(w_t + VLEN * k,
@@ -940,7 +1022,8 @@ void solve_vtile_row(const ftype *restrict w,
     }
 }
 
-static void solve_Dxx_blocks_fused_rhs(const ftype *restrict w,
+static void solve_Dxx_blocks_fused_rhs(const ftype *restrict k,
+                                       const ftype *restrict w,
                                        const ftype *restrict p,
                                        const ftype *restrict phi,
                                        ftype *restrict eta_x,
@@ -963,7 +1046,7 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict w,
         for (uint32_t j = 0; j < height - VLEN; j += VLEN) {
             /* Solving each row of tiles, except the last. */
             uint64_t off = height * width * i + width * j;
-            solve_vtile_row(w + off, p + off, phi + off,
+            solve_vtile_row(k + off, w + off, p + off, phi + off,
                             eta_x + off, eta_y + off, eta_z + off,
                             zeta_x + off, zeta_y + off, zeta_z + off,
                             vel_x + off, vel_y + off, vel_z + off,
@@ -972,7 +1055,7 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict w,
         }
         /* Solving each tile of the last row. */
         uint64_t off = height * width * i + width * (height - VLEN);
-        solve_vtile_row(w + off, p + off, phi + off, 
+        solve_vtile_row(k + off, w + off, p + off, phi + off, 
                         eta_x + off, eta_y + off, eta_z + off,
                         zeta_x + off, zeta_y + off, zeta_z + off,
                         vel_x + off, vel_y + off, vel_z + off,
@@ -983,7 +1066,7 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict w,
     /* Solving the last face of the domain. */
     for (uint32_t j = 0; j < height - VLEN; j += VLEN) {
         uint64_t off = height * width * (depth - 1) + width * j;
-        solve_vtile_row(w + off, p + off, phi + off,
+        solve_vtile_row(k + off, w + off, p + off, phi + off,
                         eta_x + off, eta_y + off, eta_z + off,
                         zeta_x + off, zeta_y + off, zeta_z + off,
                         vel_x + off, vel_y + off, vel_z + off,
@@ -991,13 +1074,14 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict w,
                         LAST_FACE, INNER_ROW, tmp);
     }
     uint64_t off = height * width * (depth - 1) + width * (height - VLEN);
-    solve_vtile_row(w + off, p + off, phi + off,
+    solve_vtile_row(k + off, w + off, p + off, phi + off,
                     eta_x + off, eta_y + off, eta_z + off,
                     zeta_x + off, zeta_y + off, zeta_z + off,
                     vel_x + off, vel_y + off, vel_z + off,
                     depth - 1, height - VLEN, depth, height, width, timestep,
                     LAST_FACE, LAST_ROW, tmp);
 }
+#endif
 
 /* Solves the block diagonal system (I - wDxx)(u_n+1 - u_n) = f - u_n. */
 static void solve_Dxx_blocks(const ftype *restrict w,
@@ -1040,7 +1124,9 @@ static void solve_Dxx_blocks(const ftype *restrict w,
      * You can reduce the number of cache misses. ->
      * No longer possible due to vel update fusion. */
 
-    /* TODO: Consider threading to parallelize outer loops. */
+    /* TODO: Consider threading to parallelize outer loops,
+     * for tmp storage here, each thread would need its own
+     * arena, so blindly using OpenMP is not enough. */
 
     for (uint32_t i = 0; i < depth; ++i) {
         /* Solving in groups of VLEN rows. */
@@ -1329,9 +1415,11 @@ static void solve_Dyy_blocks(const ftype *restrict w,
 
     ftype *restrict tmp_u_x = tmp + width * height * 4;
     ftype *restrict tmp_u_y = tmp + width * height * 4 + width;
-    ftype *restrict tmp_u_z = tmp + width * height * 5 + width * 2;
+    ftype *restrict tmp_u_z = tmp + width * height * 4 + width * 2;
 
     /* We solve for each face of the domain, one at a time. */
+
+    //#pragma omp parallel for
     for (int i = 0; i < depth; ++i) {
         /* Gauss reduce the first row. */
         uint64_t face_offset = height * width * i;
@@ -1468,8 +1556,8 @@ static void solve_Dzz_blocks(const ftype *restrict w,
     ftype *restrict tmp_f_z = tmp + depth * height * width * 3;
 
     ftype *restrict tmp_u_x = tmp + depth * height * width * 4;
-    ftype *restrict tmp_u_y = tmp + (depth + 1) * height * width * 4;
-    ftype *restrict tmp_u_z = tmp + (depth + 2) * height * width * 4;
+    ftype *restrict tmp_u_y = tmp + depth * height * width * 4 + height * width;
+    ftype *restrict tmp_u_z = tmp + depth * height * width * 4 + height * width * 2;
 
     /* Apply BCs to the first face. */
     for (uint32_t j = 0; j < height; ++j) {
@@ -1552,7 +1640,9 @@ void momentum_init(field_size size, field3 field)
     for (uint32_t i = 0; i < size.depth; ++i) {
         for (uint32_t k = 0; k < size.width; ++k) {
             uint64_t idx = field_idx(size, k, 0, i);
-            field.x[idx] = 0.1;
+            field.y[idx] = 1.0;
+            idx = field_idx(size, k, size.height - 1, i);
+            field.y[idx] = 1.0;
         }
     }
 }
@@ -1574,6 +1664,8 @@ void momentum_solve(const_field porosity,
     field tmp = field_alloc(tmp_size, arena);
 
     /*
+    field3 rhs = field3_alloc(size, arena);
+
     TIMEITN(compute_Dxx_rhs(
         porosity, pressure, pressure_delta, velocity_Dxx.x,
         velocity_Dxx.y, velocity_Dxx.z, velocity_Dyy.x,
@@ -1583,12 +1675,12 @@ void momentum_solve(const_field porosity,
 
     TIMEITN(solve_Dxx_blocks(
         gamma, size.depth, size.height, size.width, timestep,
-        tmp, rhs.x, rhs.y, rhs.z,  velocity_Dxx.x, velocity_Dxx.y,
+        tmp, rhs.x, rhs.y, rhs.z, velocity_Dxx.x, velocity_Dxx.y,
         velocity_Dxx.z), 1);
     */
 
     TIMEITN(solve_Dxx_blocks_fused_rhs(
-        gamma, pressure, pressure_delta,
+        porosity, gamma, pressure, pressure_delta,
         velocity_Dxx.x, velocity_Dxx.y, velocity_Dxx.z,
         velocity_Dyy.x, velocity_Dyy.y, velocity_Dyy.z,
         velocity_Dzz.x, velocity_Dzz.y, velocity_Dzz.z,
@@ -1597,7 +1689,7 @@ void momentum_solve(const_field porosity,
     TIMEITN(solve_Dyy_blocks(
         gamma, size.depth, size.height, size.width, timestep,
         tmp, velocity_Dxx.x, velocity_Dxx.y, velocity_Dxx.z,
-        velocity_Dyy.x, velocity_Dyy.y, velocity_Dzz.z), 1);
+        velocity_Dyy.x, velocity_Dyy.y, velocity_Dyy.z), 1);
 
     TIMEITN(solve_Dzz_blocks(
         gamma, size.depth, size.height, size.width, timestep,

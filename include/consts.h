@@ -12,6 +12,10 @@ extern ftype _DX;
 #define DEFINE_DT(x) ftype _DT = x;
 #define DEFINE_DX(x) ftype _DX = x;
 
+#define DEFINE_CONST_NU(x) const ftype _NU = x;
+#define DEFINE_CONST_DT(x) const ftype _DT = x;
+#define DEFINE_CONST_DX(x) const ftype _DX = x;
+
 #define SET_NU(x) _NU = x
 #define SET_DT(x) _DT = x
 #define SET_DX(x) _DX = x
@@ -36,15 +40,16 @@ void _get_forcing(uint32_t __attribute__((unused)) x,                        \
                   vftype *restrict f_y,                                      \
                   vftype *restrict f_z)                                      \
 {                                                                            \
-                                                                             \
     ftype __attribute__((aligned(32))) tmp_x[VLEN];                          \
     ftype __attribute__((aligned(32))) tmp_y[VLEN];                          \
     ftype __attribute__((aligned(32))) tmp_z[VLEN];                          \
                                                                              \
+    ftype t_mid = t * _DT - _DT / 2;                                         \
+                                                                             \
     for (int i = 0; i < VLEN; ++i) {                                         \
-        f_x[i] = func_x((x + i) * _DX + _DX / 2, y * _DX, z * _DX, t * _DT); \
-        f_y[i] = func_y((x + i) * _DX, y * _DX + _DX / 2, z * _DX, t * _DT); \
-        f_z[i] = func_z((x + i) * _DX, y * _DX, z * _DX + _DX / 2, t * _DT); \
+        tmp_x[i] = func_x((x + i) * _DX + _DX / 2, y * _DX, z * _DX, t_mid); \
+        tmp_y[i] = func_y((x + i) * _DX, y * _DX + _DX / 2, z * _DX, t_mid); \
+        tmp_z[i] = func_z((x + i) * _DX, y * _DX, z * _DX + _DX / 2, t_mid); \
     }                                                                        \
                                                                              \
     *f_x = vload(tmp_x);                                                     \
