@@ -23,7 +23,6 @@ struct OutputVTK
 {
     field_size grid_size;
     ftype grid_spacing;
-    ArenaAllocator *arena;
 
     struct OutputNode *nodes_list_head;
 };
@@ -36,7 +35,6 @@ OutputVTK *output_vtk_create(field_size grid_size,
     output->grid_size = grid_size;
     output->grid_spacing = grid_spacing;
     output->nodes_list_head = NULL;
-    output->arena = arena;
     return output;
 }
 
@@ -91,7 +89,9 @@ static inline void to_big_endian(const ftype *src, ftype *dst)
 #endif
 }
 
-void output_vtk_write(const OutputVTK *output, const char *output_file_name)
+void output_vtk_write(const OutputVTK *output,
+                      const char *output_file_name,
+                      ArenaAllocator *arena)
 {
     FILE *output_file = fopen(output_file_name, "wb");
 
@@ -118,11 +118,11 @@ void output_vtk_write(const OutputVTK *output, const char *output_file_name)
     static const char *ftype_str = "double";
 #endif
 
-    arena_enter(output->arena);
+    arena_enter(arena);
 
     uint64_t num_points = field_num_points(output->grid_size);
 
-    ftype *tmp = arena_push_count(output->arena, ftype, 3 * num_points);
+    ftype *tmp = arena_push_count(arena, ftype, 3 * num_points);
 
     struct OutputNode *curr = output->nodes_list_head;
     while (curr != NULL) {
@@ -156,5 +156,5 @@ void output_vtk_write(const OutputVTK *output, const char *output_file_name)
 
     fclose(output_file);
 
-    arena_exit(output->arena);
+    arena_exit(arena);
 }

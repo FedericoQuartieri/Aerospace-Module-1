@@ -6,6 +6,8 @@
 #include "ftype.h"
 #include "field.h"
 #include "consts.h"
+#include "timeit.h"
+#include "thread-array.h"
 
 static ftype get_man_u_x(ftype x, ftype y, ftype z, ftype t)
 {
@@ -766,15 +768,20 @@ void pressure_solve(const_field3 velocity,
                     field pressure,
                     field pressure_delta,
                     uint32_t timestep,
-                    ArenaAllocator *arena)
+                    Thread *thread)
 {
+    if (thread->t_id > 0) {
+        return;
+    }
+
+    ArenaAllocator *arena = thread_get_arena(thread);
     arena_enter(arena);
 
     field tmp = field_alloc(size, arena);
     field sol = field_alloc(size, arena);
-    field div = field_alloc(size, arena);
+    //field div = field_alloc(size, arena);
 
-    ftype t = timestep * _DT;
+    //ftype t = timestep * _DT;
 
     /*
     for (uint32_t i = 0; i < size.depth; ++i) {
@@ -837,6 +844,12 @@ void pressure_solve(const_field3 velocity,
 
     solve_Dzz_blocks(size.depth, size.height, size.width,
                      tmp, sol, pressure_delta);
+
+    /*
+    TIMEITN(solve_pressure_fused(size.depth, size.height, size.width,
+                                 tmp, velocity.x, velocity.y, velocity.z,
+                                 pressure_delta), 1);
+    */
 
     /* Update pressure. */
     uint64_t num_points = field_num_points(size);

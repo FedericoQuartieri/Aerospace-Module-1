@@ -5,9 +5,9 @@
 #include "field.h"
 #include "consts.h"
 #include "timeit.h"
+#include "thread-array.h"
 
 struct Solver {
-    ArenaAllocator *arena;
     field_size domain_size;
     field porosity;
     field gamma;
@@ -25,8 +25,6 @@ Solver *solver_alloc(uint32_t domain_depth,
 {
     Solver *solver = arena_push(arena, sizeof(Solver));
     memset(solver, 0, sizeof(Solver));
-
-    solver->arena = arena;
 
     field_size domain_size;
     domain_size.depth = domain_depth;
@@ -46,7 +44,7 @@ Solver *solver_alloc(uint32_t domain_depth,
     return solver;
 }
 
-void solver_init(Solver *solver)
+void solver_init(Solver *solver, ArenaAllocator *arena)
 {
     field_size domain_size = solver->domain_size;
 
@@ -57,10 +55,10 @@ void solver_init(Solver *solver)
     pressure_init(domain_size, solver->pressure);
     pressure_init(domain_size, solver->pressure_delta);
 
-    arena_enter(solver->arena);
+    arena_enter(arena);
 
     /* Setting constant unit porosity. */
-    field tmp = field_alloc(domain_size, solver->arena);
+    field tmp = field_alloc(domain_size, arena);
     field_fill(domain_size, 1e20, tmp);
 
     for (uint32_t i = 0; i < domain_size.depth; ++i) {
@@ -73,7 +71,7 @@ void solver_init(Solver *solver)
                     ((i < 48) && (j > 76 && j < 86) && (k > 32)) ||
                     ((i > 32) && (j > 106 && j < 116))
                 ) {
-                    tmp[idx] = 1e-20;
+                    //tmp[idx] = 1e-20;
                 }
             }
         }
@@ -81,7 +79,7 @@ void solver_init(Solver *solver)
 
     solver_set_porosity(solver, tmp);
 
-    arena_exit(solver->arena);
+    arena_exit(arena);
 }
 
 void solver_set_porosity(Solver *solver, const ftype *src)
@@ -90,7 +88,7 @@ void solver_set_porosity(Solver *solver, const ftype *src)
     compute_gamma(src, solver->domain_size, solver->gamma);
 }
 
-void solver_step_momentum(Solver *solver, uint32_t timestep)
+void solver_step_momentum(Solver *solver, uint32_t timestep, Thread *thread)
 {
     momentum_solve(solver->porosity,
                    solver->gamma,
@@ -101,24 +99,25 @@ void solver_step_momentum(Solver *solver, uint32_t timestep)
                    solver->velocity_Dyy,
                    solver->velocity_Dzz,
                    timestep,
-                   solver->arena);
+                   thread);
 }
 
-void solver_step_pressure(Solver *solver, uint32_t timestep)
+void solver_step_pressure(Solver *solver, uint32_t timestep, Thread *thread)
 {
     pressure_solve(to_const_field3(solver->velocity_Dzz),
                    solver->domain_size,
                    solver->pressure,
                    solver->pressure_delta,
                    timestep,
-                   solver->arena);
+                   thread);
 }
 
-void solver_step(Solver *solver, uint32_t timestep)
+void solver_step(Solver *solver, uint32_t timestep, Thread *thread)
 {
-    TIMEITN(solver_step_momentum(solver, timestep), 1);
+    solver_step_momentum(solver, timestep, thread);
+    solver_step_pressure(solver, timestep, thread);
 
-    TIMEITN(solver_step_pressure(solver, timestep), 1);
+    thread_wait_on_barrier(thread);
 }
 
 const_field3 solver_get_velocity(Solver *solver)

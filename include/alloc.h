@@ -47,6 +47,11 @@ static inline uint64_t arena_pos(ArenaAllocator *arena)
     return arena->pos_;
 }
 
+static inline uint64_t arena_unused(ArenaAllocator *arena)
+{
+    return arena->size_ - arena->pos_;
+}
+
 static inline void *arena_push(ArenaAllocator *arena, uint64_t size)
 {
     /* There's a bug here that leaves ALIGN_TO unused bytes between
@@ -74,6 +79,18 @@ static inline void *arena_push_noalign(ArenaAllocator *arena, uint64_t size)
 static inline void arena_pop_to(ArenaAllocator *arena, uint64_t pos)
 {
     arena->pos_  = pos;
+}
+
+static inline void arena_get_partition(const ArenaAllocator *src_arena,
+                                       ArenaAllocator *dst_arena,
+                                       uint64_t pos,
+                                       uint64_t size)
+{
+    dst_arena->pos_ = 0;
+    /* Make sure start_ is aligned. */
+    dst_arena->start_ = ((char *) src_arena->start_) +
+                        ((pos + ALIGN_TO - 1ul) & ~(ALIGN_TO - 1ul));
+    dst_arena->size_ = size;
 }
 
 #define arena_push_count(arena, type, count) \
