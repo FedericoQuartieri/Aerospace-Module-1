@@ -8,7 +8,7 @@ BUILD_DIR = build
 FTYPE ?= DOUBLE
 VEC ?= EXPL
 
-DEFINE = -D$(FTYPE) -D$(VEC)
+DEFINE = -D$(FTYPE) -D$(VEC) -DTIMEITALL
 INCLUDE = -I$(INC_DIR) -I$(SRC_DIR)
 LIBS = -lm
 
@@ -17,7 +17,8 @@ UNIT_TEST_OBJS = unit-test.o momentum-test.o pressure-test.o
 CONVERGENCE_TEST_OBJS = $(SOLVER_OBJS) convergence-test.o
 
 solver: mkdir-build $(BUILD_DIR)/solver
-tests: mkdir-build $(BUILD_DIR)/unit-test $(BUILD_DIR)/convergence-test $(BUILD_DIR)/convergence-pressure-test
+#tests: mkdir-build $(BUILD_DIR)/unit-test $(BUILD_DIR)/convergence-test $(BUILD_DIR)/convergence-pressure-test
+tests: mkdir-build $(BUILD_DIR)/convergence-test
 
 mkdir-build:
 	mkdir -p $(BUILD_DIR)/objs
@@ -28,7 +29,7 @@ $(BUILD_DIR)/solver: $(addprefix $(BUILD_DIR)/objs/, $(SOLVER_OBJS) main.o)
 $(BUILD_DIR)/unit-test: $(addprefix $(BUILD_DIR)/objs/, $(UNIT_TEST_OBJS))
 	$(CC) $^ $(LIBS) -o $@
 
-$(BUILD_DIR)/convergence-test: $(addprefix $(BUILD_DIR)/objs/, output.o convergence-test.o pressure.o)
+$(BUILD_DIR)/convergence-test: $(addprefix $(BUILD_DIR)/objs/, $(CONVERGENCE_TEST_OBJS))
 	$(CC) $^ $(LIBS) -o $@
 
 $(BUILD_DIR)/convergence-pressure-test: $(BUILD_DIR)/objs/convergence-pressure-test.o

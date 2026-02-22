@@ -1044,10 +1044,10 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict k,
                                        uint32_t t_id,
                                        uint32_t num_threads)
 {
-    uint32_t num_faces_per_thread = (depth - 1) / num_threads;
+    uint32_t block_depth = (depth - 1) / num_threads;
 
-    uint32_t face_start = num_faces_per_thread * t_id;
-    uint32_t face_end = num_faces_per_thread * (t_id + 1);
+    uint32_t face_start = block_depth * t_id;
+    uint32_t face_end = block_depth * (t_id + 1);
 
     /* Solving each face of the domain, except the last. */
     for (uint32_t i = face_start; i < face_end; ++i) {
@@ -1073,7 +1073,7 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict k,
 
 
     uint32_t num_remainder_faces = depth - 1 -
-                                   num_faces_per_thread * num_threads;
+                                   block_depth * num_threads;
 
     if (t_id == 0) {
         /* Solving the last face of the domain. */
@@ -1339,7 +1339,6 @@ void backward_sub_row(const ftype *restrict f_x,
                       const ftype *restrict f_z,
                       const ftype *restrict upper,
                       uint32_t width,
-                      uint32_t row_stride,
                       ftype *restrict tmp_u_x,
                       ftype *restrict tmp_u_y,
                       ftype *restrict tmp_u_z,
@@ -1457,13 +1456,12 @@ static void solve_Dyy_blocks(const ftype *restrict w,
     ftype *restrict tmp_u_y = tmp + width * height * 4 + width;
     ftype *restrict tmp_u_z = tmp + width * height * 4 + width * 2;
 
-
     /* WARNING: Assumes depth is multiple of num_threads. */
-    uint32_t num_faces_per_thread = depth / num_threads;
+    uint32_t block_depth = depth / num_threads;
 
     /* We solve for each face of the domain, one at a time. */
-    for (int i = num_faces_per_thread * t_id;
-             i < num_faces_per_thread * (t_id + 1); ++i) {
+    for (int i = block_depth * t_id;
+             i < block_depth * (t_id + 1); ++i) {
         /* Gauss reduce the first row. */
         uint64_t face_offset = height * width * i;
 
@@ -1513,7 +1511,6 @@ static void solve_Dyy_blocks(const ftype *restrict w,
                              tmp_f_y + width * (height - j - 1),
                              tmp_f_z + width * (height - j - 1),
                              tmp + row_offset - face_offset,
-                             width,
                              width,
                              tmp_u_x,
                              tmp_u_y,
@@ -1596,37 +1593,42 @@ static void solve_Dzz_blocks(const ftype *restrict w,
     ONES = vbroadcast(1.0);
     SIGN_MASK = vbroadcast(-0.0f);
 
-    ftype *restrict tmp_f_x = tmp + depth * height * width;
-    ftype *restrict tmp_f_y = tmp + depth * height * width * 2;
-    ftype *restrict tmp_f_z = tmp + depth * height * width * 3;
-
-    ftype *restrict tmp_u_x = tmp + depth * height * width * 4;
-    ftype *restrict tmp_u_y = tmp + depth * height * width * 4
-                                          + height * width;
-    ftype *restrict tmp_u_z = tmp + depth * height * width * 4
-                                          + height * width * 2;
-
     /* WARNING: Assumes height is multiple of num_threads. */
-    uint32_t num_rows_per_thread = height / num_threads;
-    uint32_t j_start = num_rows_per_thread * t_id;
-    uint32_t j_end = num_rows_per_thread * (t_id + 1);
+    uint32_t block_height = height / num_threads;
+
+    ftype *restrict tmp_f_x = tmp + depth * block_height * width;
+    ftype *restrict tmp_f_y = tmp + depth * block_height * width * 2;
+    ftype *restrict tmp_f_z = tmp + depth * block_height * width * 3;
+
+    ftype *restrict tmp_u_x = tmp + depth * block_height * width * 4;
+    ftype *restrict tmp_u_y = tmp + depth * block_height * width * 4
+                                          + block_height * width;
+    ftype *restrict tmp_u_z = tmp + depth * block_height * width * 4
+                                          + block_height * width * 2;
+
+    /* TODO: Cache conflicts across rows? */
+
+    uint32_t row_start = block_height * t_id;
+    uint32_t row_end = block_height * (t_id + 1);
 
     /* Apply BCs to the first face. */
-    for (uint32_t j = j_start; j < j_end; ++j) {
+    for (uint32_t j = row_start; j < row_end; ++j) {
         for (uint32_t k = 0; k < width; k += VLEN) {
             apply_front_bc(k, j, 0, timestep,
-                           tmp + width * j + k,
-                           tmp_f_x + width * j + k,
-                           tmp_f_y + width * j + k,
-                           tmp_f_z + width * j + k);
+                           tmp + width * (j - row_start) + k,
+                           tmp_f_x + width * (j - row_start) + k,
+                           tmp_f_y + width * (j - row_start) + k,
+                           tmp_f_z + width * (j - row_start) + k);
         }
     }
 
     /* Gauss reduce the remaining domain, one face at a time,
      * except the last one. */
     for (uint32_t i = 1; i < depth - 1; ++i) {
-        for (uint32_t j = j_start; j < j_end; ++j) {
+        for (uint32_t j = row_start; j < row_end; ++j) {
             uint64_t row_offset = height * width * i + width * j;
+            uint64_t tmp_row_offset = block_height * width * i +
+                                      width * (j - row_start);
             gauss_reduce_row(w + row_offset,
                              f_x + row_offset,
                              f_y + row_offset,
@@ -1635,27 +1637,29 @@ static void solve_Dzz_blocks(const ftype *restrict w,
                              u_y + row_offset,
                              u_z + row_offset,
                              width,
-                             height * width,
-                             tmp + row_offset,
-                             tmp_f_x + row_offset,
-                             tmp_f_y + row_offset,
-                             tmp_f_z + row_offset);
+                             block_height * width,
+                             tmp + tmp_row_offset,
+                             tmp_f_x + tmp_row_offset,
+                             tmp_f_y + tmp_row_offset,
+                             tmp_f_z + tmp_row_offset);
         }
     }
     /* Apply BCs the last face, solving directly. */
     uint64_t face_offset = height * width * (depth - 1);
-    for (uint32_t j = j_start; j < j_end; ++j) {
+    for (uint32_t j = row_start; j < row_end; ++j) {
+        uint64_t tmp_row_offset = block_height * width * (depth - 2) +
+                                  width * (j - row_start);
         for (uint32_t k = 0; k < width; k += VLEN) {
             apply_back_bc(w + face_offset + width * j + k,
-                          tmp + height * width * (depth - 2) + width * j + k,
-                          tmp_f_x + height * width * (depth - 2) + width * j + k,
-                          tmp_f_y + height * width * (depth - 2) + width * j + k,
+                          tmp + tmp_row_offset + k,
+                          tmp_f_x + tmp_row_offset + k,
+                          tmp_f_y + tmp_row_offset + k,
                           f_x + face_offset + width * j + k,
                           f_y + face_offset + width * j + k,
                           k, j, depth - 1, timestep,
-                          tmp_u_x + width * j + k,
-                          tmp_u_y + width * j + k,
-                          tmp_u_z + width * j + k,
+                          tmp_u_x + width * (j - row_start) + k,
+                          tmp_u_y + width * (j - row_start) + k,
+                          tmp_u_z + width * (j - row_start) + k,
                           u_x + face_offset + width * j + k,
                           u_y + face_offset + width * j + k,
                           u_z + face_offset + width * j + k);
@@ -1664,18 +1668,19 @@ static void solve_Dzz_blocks(const ftype *restrict w,
 
     /* Backward subsitute the remaining domain, one face at a time. */
     for (uint32_t i = 1; i < depth; ++i) {
-        for (uint32_t j = j_start; j < j_end; ++j) {
-            uint64_t row_offset =
-                height * width * (depth - i - 1) + width * j;
-            backward_sub_row(tmp_f_x + row_offset,
-                             tmp_f_y + row_offset,
-                             tmp_f_z + row_offset,
-                             tmp + row_offset,
+        for (uint32_t j = row_start; j < row_end; ++j) {
+            uint64_t row_offset = height * width * (depth - i - 1) +
+                                           width * j;
+            uint64_t tmp_row_offset = block_height * width *
+                                      (depth - i - 1) + width * (j - row_start);
+            backward_sub_row(tmp_f_x + tmp_row_offset, 
+                             tmp_f_y + tmp_row_offset,
+                             tmp_f_z + tmp_row_offset, 
+                             tmp + tmp_row_offset,
                              width,
-                             height * width,
-                             tmp_u_x + width * j,
-                             tmp_u_y + width * j,
-                             tmp_u_z + width * j,
+                             tmp_u_x + width * (j - row_start),
+                             tmp_u_y + width * (j - row_start),
+                             tmp_u_z + width * (j - row_start),
                              u_x + row_offset,
                              u_y + row_offset,
                              u_z + row_offset);
@@ -1688,13 +1693,10 @@ void momentum_init(field_size size, field3 field)
     field3_fill(size, 0, field);
 
     /* WARNING: Dummy initialization for lid-driven cavity. */
-
     for (uint32_t i = 0; i < size.depth; ++i) {
         for (uint32_t k = 0; k < size.width; ++k) {
             uint64_t idx = field_idx(size, k, 0, i);
             field.x[idx] = 1.0;
-            //idx = field_idx(size, k, size.height - 1, i);
-            //field.y[idx] = 1.0;
         }
     }
 }
@@ -1713,6 +1715,7 @@ void momentum_solve(const_field porosity,
     ArenaAllocator *arena = thread_get_arena(thread);
     arena_enter(arena);
 
+    /* TODO: Check actual size needed when num_threads > 1. */
     field_size tmp_size = { size.width, size.height, size.depth * 4 + 3 };
     field tmp = field_alloc(tmp_size, arena);
 
@@ -1735,31 +1738,44 @@ void momentum_solve(const_field porosity,
         velocity_Dxx.z), 1);
     */
 
-    TIMEITN(solve_Dxx_blocks_fused_rhs(
+    TIMER_CREATE(solve_momentum_Dxx_blocks_fused_rhs);
+    TIMER_CREATE(solve_momentum_Dyy_blocks);
+    TIMER_CREATE(solve_momentum_Dzz_blocks);
+
+    TIMER_RESTART(solve_momentum_Dxx_blocks_fused_rhs);
+
+    solve_Dxx_blocks_fused_rhs(
         porosity, gamma, pressure, pressure_delta,
         velocity_Dxx.x, velocity_Dxx.y, velocity_Dxx.z,
         velocity_Dyy.x, velocity_Dyy.y, velocity_Dyy.z,
         velocity_Dzz.x, velocity_Dzz.y, velocity_Dzz.z,
         size.depth, size.height, size.width, timestep, tmp,
-        t_id, num_threads), 1);
+        t_id, num_threads);
 
     thread_wait_on_barrier(thread);
+    TIMER_ELAPSED(solve_momentum_Dxx_blocks_fused_rhs, t_id == 0);
 
-    TIMEITN(solve_Dyy_blocks(
+    TIMER_RESTART(solve_momentum_Dyy_blocks);
+
+    solve_Dyy_blocks(
         gamma, size.depth, size.height, size.width, timestep,
         tmp, velocity_Dxx.x, velocity_Dxx.y, velocity_Dxx.z,
         velocity_Dyy.x, velocity_Dyy.y, velocity_Dyy.z,
-        t_id, num_threads), 1);
+        t_id, num_threads);
 
     thread_wait_on_barrier(thread);
+    TIMER_ELAPSED(solve_momentum_Dyy_blocks, t_id == 0);
 
-    TIMEITN(solve_Dzz_blocks(
+    TIMER_RESTART(solve_momentum_Dzz_blocks);
+
+    solve_Dzz_blocks(
         gamma, size.depth, size.height, size.width, timestep,
         tmp, velocity_Dyy.x, velocity_Dyy.y, velocity_Dyy.z,
         velocity_Dzz.x, velocity_Dzz.y, velocity_Dzz.z,
-        t_id, num_threads), 1);
+        t_id, num_threads);
 
     thread_wait_on_barrier(thread);
+    TIMER_ELAPSED(solve_momentum_Dzz_blocks, t_id == 0);
 
     /* Now enforce BCs on the final solution.
      * WARNING: doesn't seem to affect convergence. */

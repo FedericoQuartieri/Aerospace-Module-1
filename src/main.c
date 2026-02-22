@@ -35,7 +35,7 @@ typedef struct {
     OutputVTK *output;
 } SimulationData;
 
-void *run_simulation(void *t_data)
+static void *run_simulation(void *t_data)
 {
     ArenaAllocator *arena = thread_get_arena(t_data);
     SimulationData *sim_data = thread_get_shared_data(t_data);
@@ -45,26 +45,34 @@ void *run_simulation(void *t_data)
 
     uint32_t t_id = ((Thread *) t_data)->t_id;
 
+    /*
     if (t_id == 0) {
         output_vtk_write(output, "output/solution-cavity-0.vtk", arena);
     }
+    */
 
     thread_wait_on_barrier(t_data);
 
+    TIMER_CREATE(solver_step_aggregate);
     for (int t = 1; t < NUM_TIMESTEPS + 1; ++t) {
-        TIMEITN(solver_step(solver, t, t_data), 1);
+        TIMER_RESTART(solver_step_aggregate);
+        solver_step(solver, t, t_data);
 
+        /*
         if (t_id == 0) {
-            char output_file_name[32];
+            char output_file_name[64];
             sprintf(output_file_name, "output/solution-cavity-%d.vtk", t);
             TIMEITN(output_vtk_write(output, output_file_name, arena), 1);
-            printf("\n");
         }
+        */
 
         thread_wait_on_barrier(t_data);
+
+        TIMER_ELAPSED(solver_step_aggregate, t_id == 0);
+        if (t_id == 0) { printf("\n"); }
     }
 
-    pthread_exit(NULL);
+    return 0;
 }
 
 int main(void)
@@ -78,8 +86,8 @@ int main(void)
     field_size size = { WIDTH, HEIGHT, DEPTH };
     OutputVTK *output = output_vtk_create(size, _DX, &arena);
 
-    output_vtk_attach_field(output, solver_get_porosity(solver),
-                            "porosity", &arena);
+    //output_vtk_attach_field(output, solver_get_porosity(solver),
+    //                        "porosity", &arena);
     output_vtk_attach_field(output, solver_get_pressure(solver),
                             "pressure", &arena);
     output_vtk_attach_field3(output, solver_get_velocity(solver),

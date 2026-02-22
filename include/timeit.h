@@ -5,6 +5,10 @@
 #include <string.h>
 #include <time.h>
 
+#define TIMEIT(func_call) TIMEITN(func_call, 10)
+
+#ifdef TIMEITALL
+
 #define TIMEITN(func_call, avg_iter)                              \
 do {                                                              \
     long elapsed_ns_avg = 0;                                      \
@@ -28,6 +32,34 @@ do {                                                              \
            elapsed_ns_avg / (1e6 * avg_iter), avg_iter);          \
 } while (0)
 
-#define TIMEIT(func_call) TIMEITN(func_call, 10)
+#define TIMER_CREATE(name) \
+    struct timespec _timer_##name##_start, \
+                    _timer_##name##_curr;
+
+#define TIMER_RESTART(name)                                  \
+do {                                                         \
+    clock_gettime(CLOCK_MONOTONIC, &_timer_##name##_start);  \
+} while (0)
+
+#define TIMER_ELAPSED(name, log_cond)                         \
+do {                                                          \
+    clock_gettime(CLOCK_MONOTONIC, &_timer_##name##_curr);    \
+    long elapsed_ns = (_timer_##name##_curr.tv_sec -          \
+                       _timer_##name##_start.tv_sec) * 1e9 +  \
+                      (_timer_##name##_curr.tv_nsec -         \
+                       _timer_##name##_start.tv_nsec);        \
+    if (log_cond) {                                           \
+        printf("%-40s%8.2f ms\n", #name, elapsed_ns / 1e6);   \
+    }                                                         \
+} while (0)
+
+#else
+
+#define TIMEITN(...) func_call;
+#define TIMER_CREATE(...) ;
+#define TIMER_RESTART(...) ;
+#define TIMER_ELAPSED(...) ;
+
+#endif
 
 #endif

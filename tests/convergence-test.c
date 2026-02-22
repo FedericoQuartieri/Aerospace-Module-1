@@ -6,10 +6,11 @@
 #include "field.h"
 #include "consts.h"
 #include "output.h"
+#include "boundary.h"
+#include "momentum.h"
 #include "pressure.h"
+#include "thread-array.h"
 #include "convergence-test.h"
-
-#include "momentum.c"
 
 DEFINE_DX(1.0)
 DEFINE_DT(1.0)
@@ -106,11 +107,88 @@ static void compute_manufactured_pressure(field_size size,
     }
 }
 
-DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
+struct SolverData {
+    int num_timesteps;
+    field_size size;
+    field porosity;
+    field gamma;
+    field pressure;
+    field phi;
+    field3 eta;
+    field3 zeta;
+    field3 vel;
+};
+
+static void *solve_brinkman(void *thread)
+{
+    /*ArenaAllocator *arena = thread_get_arena(thread);*/
+    struct SolverData *solver_data = thread_get_shared_data(thread);
+
+    int num_timesteps = solver_data->num_timesteps;
+    field_size size = solver_data->size;
+    field porosity = solver_data->porosity;
+    field gamma = solver_data->gamma;
+    field pressure = solver_data->pressure;
+    field phi = solver_data->phi;
+    field3 eta = solver_data->eta;
+    field3 zeta = solver_data->zeta;
+    field3 vel = solver_data->vel;
+
+    for (uint32_t t = 1; t < num_timesteps + 1; ++t) {
+
+        momentum_solve(porosity, gamma, pressure, phi,
+                       size, eta, zeta, vel, t, thread);
+
+        /*
+        arena_enter(arena);
+
+        field3 vel_old = field3_alloc(size, arena);
+
+        for (uint32_t i = 0; i < size.depth; ++i) {
+            for (uint32_t j = 0; j < size.height; ++j) {
+                for (uint32_t k = 0; k < size.width; ++k) {
+                    uint64_t idx = size.height * size.width * i +
+                                   size.width * j + k;
+
+                    vel_old.x[idx] = vel.x[idx];
+                    vel_old.y[idx] = vel.y[idx];
+                    vel_old.z[idx] = vel.z[idx];
+
+                }
+            }
+        }
+
+        arena_exit(arena);
+        */
+
+        pressure_solve(to_const_field3(vel), size, pressure, phi, t, thread);
+ 
+        thread_wait_on_barrier(thread);
+
+        /*
+        pressure_correct_rot(to_const_field3(vel),
+                             to_const_field3(vel_old),
+                             size, pressure, 0.0, t);
+        */
+
+        /*
+        char output_file_name[32];
+        sprintf(output_file_name, "solution-%.4f-%d.vtk", _DT, t);
+        output_vtk_write(output, output_file_name);
+        */
+    }
+
+    return 0;
+}
+
+DEF_TEST(test_convergence_time_splitting_brinkman,
          ArenaAllocator *arena,
-         int num_samples)
+         int num_samples,
+         int num_threads)
 {
     arena_enter(arena);
+
+    ThreadArray *t_array = thread_array_create(num_threads, arena);
 
     double *v_errors = arena_push_count(arena, double, num_samples);
     double *p_errors = arena_push_count(arena, double, num_samples);
@@ -169,66 +247,22 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
         */
 
         printf("%d/%d\n", i + 1, num_samples);
-
         uint32_t num_timesteps = round(T / _DT);
-        for (uint32_t t = 1; t < num_timesteps + 1; ++t) {
-            arena_enter(arena);
 
-            field_size tmp_size = { size.width,
-                                    size.height,
-                                    size.depth * 4 + 3 };
+        struct SolverData data = {
+            num_timesteps,
+            size,
+            porosity,
+            gamma,
+            pressure,
+            phi,
+            eta,
+            zeta,
+            vel
+        };
 
-            field tmp = field_alloc(tmp_size, arena);
-
-            solve_Dxx_blocks_fused_rhs(porosity, gamma, pressure, phi,
-                                       eta.x, eta.y, eta.z, zeta.x, zeta.y,
-                                       zeta.z, vel.x, vel.y, vel.z,
-                                       size.depth, size.height, size.width,
-                                       t, tmp);
-
-            solve_Dyy_blocks(gamma, size.depth, size.height, size.width,
-                             t, tmp, eta.x, eta.y, eta.z,
-                             zeta.x, zeta.y, zeta.z);
-
-            solve_Dzz_blocks(gamma, size.depth, size.height, size.width,
-                             t, tmp, zeta.x, zeta.y, zeta.z,
-                             vel.x, vel.y, vel.z);
-
-            /*
-            field3 vel_old = field3_alloc(size, arena);
-
-            for (uint32_t i = 0; i < size.depth; ++i) {
-                for (uint32_t j = 0; j < size.height; ++j) {
-                    for (uint32_t k = 0; k < size.width; ++k) {
-                        uint64_t idx = size.height * size.width * i +
-                                       size.width * j + k;
-
-                        vel_old.x[idx] = vel.x[idx];
-                        vel_old.y[idx] = vel.y[idx];
-                        vel_old.z[idx] = vel.z[idx];
-
-                    }
-                }
-            }
-            */
-
-            arena_exit(arena);
-
-            /* Now solve pressure. */
-            pressure_solve(to_const_field3(vel), size, pressure, phi, t, arena);
-
-            /*
-            pressure_correct_rot(to_const_field3(vel),
-                                 to_const_field3(vel_old),
-                                 size, pressure, 0.0, t);
-            */
-
-            /*
-            char output_file_name[32];
-            sprintf(output_file_name, "solution-%.4f-%d.vtk", _DT, t);
-            output_vtk_write(output, output_file_name);
-            */
-        }
+        thread_array_set_shared_data(t_array, &data);
+        thread_array_run(t_array, solve_brinkman, arena);
 
         field3 manufactured_v = field3_alloc(size, arena);
         compute_manufactured_solution(size, num_timesteps, manufactured_v);
@@ -246,7 +280,6 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
         for (uint64_t i = 0; i < field_num_points(size); ++i) {
             pressure[i] -= mean_pressure;
         }
-
 
         compute_manufactured_pressure(size, num_timesteps,
                                       manufactured_pressure);
@@ -282,28 +315,17 @@ DEF_TEST(test_convergence_time_splitting_brinkman_auteri,
                dts[i], v_errors[i], v_orders[i], p_errors[i], p_orders[i]);
     }
 
+    thread_array_destroy(t_array);
+
     arena_exit(arena);
 }
-
 
 int main(void)
 {
     ArenaAllocator arena;
     arena_init(&arena, 1ul << 33);
 
-    /*
-    RUN_TEST(test_convergence_space_momentum_solver_Dxx, &arena, 16, 16, 16, 5);
-    RUN_TEST(test_convergence_space_momentum_solver_Dyy, &arena, 16, 16, 16, 5);
-    RUN_TEST(test_convergence_space_momentum_solver_Dzz, &arena, 16, 16, 16, 5);
-
-    RUN_TEST(test_convergence_time_momentum_solver_Dxx, &arena, 5);
-    RUN_TEST(test_convergence_time_momentum_solver_Dyy, &arena, 5);
-
-    */
-    //RUN_TEST(test_convergence_time_splitting_heat, &arena, 5);
-    //RUN_TEST(test_convergence_time_splitting_heat_drag, &arena, 5);
-    //RUN_TEST(test_convergence_time_splitting_brinkman, &arena, 5);
-    RUN_TEST(test_convergence_time_splitting_brinkman_auteri, &arena, 4);
+    RUN_TEST(test_convergence_time_splitting_brinkman, &arena, 4, 4);
 
     arena_destroy(&arena);
 }
