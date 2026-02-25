@@ -13,9 +13,9 @@
 #define HEIGHT 256
 #define WIDTH 256
 
-#define NUM_TIMESTEPS 25
+#define NUM_TIMESTEPS 10
 
-#define NUM_THREADS 8
+#define NUM_THREADS 4
 
 DEFINE_NU(1.0)
 DEFINE_DT(0.025)
@@ -44,13 +44,7 @@ static void *run_simulation(void *t_data)
     OutputVTK *output = sim_data->output;
 
     uint32_t t_id = ((Thread *) t_data)->t_id;
-
-    /*
-    if (t_id == 0) {
-        output_vtk_write(output, "output/solution-cavity-0.vtk", arena);
-    }
-    */
-
+    output_vtk_write(output, "output/solution-cavity-0.vtk", t_data);
     thread_wait_on_barrier(t_data);
 
     TIMER_CREATE(solver_step_aggregate);
@@ -58,15 +52,9 @@ static void *run_simulation(void *t_data)
         TIMER_RESTART(solver_step_aggregate);
         solver_step(solver, t, t_data);
 
-        /*
-        if (t_id == 0) {
-            char output_file_name[64];
-            sprintf(output_file_name, "output/solution-cavity-%d.vtk", t);
-            TIMEITN(output_vtk_write(output, output_file_name, arena), 1);
-        }
-        */
-
-        thread_wait_on_barrier(t_data);
+        char output_file_name[64];
+        sprintf(output_file_name, "output/solution-cavity-%d.vtk", t);
+        TIMEITN(output_vtk_write(output, output_file_name, t_data), 1);
 
         TIMER_ELAPSED(solver_step_aggregate, t_id == 0);
         if (t_id == 0) { printf("\n"); }

@@ -3,6 +3,7 @@
 
 #include "alloc.h"
 #include "field.h"
+#include "thread-array.h"
 
 struct OutputVTK;
 
@@ -22,8 +23,8 @@ void output_vtk_attach_field3(OutputVTK *output,
                              const char *name,
                              ArenaAllocator *arena);
 
-void output_vtk_write(const OutputVTK *output,
+void output_vtk_write(OutputVTK *output,
                       const char *output_file_name,
-                      ArenaAllocator *arena);
+                      Thread *thread);
 
 #endif

@@ -33,6 +33,14 @@ void thread_array_run(ThreadArray *t_array,
                       void *(*func)(void *),
                       ArenaAllocator *arena);
 
+static inline void thread_run_orphan(Thread *t,
+                                     void *(*func)(void *),
+                                     void *args)
+{
+    pthread_t pt_id;
+    pthread_create(&pt_id, &t->t_array->thread_attr_, func, args);
+}
+
 static inline void thread_array_set_shared_data(ThreadArray *t_array,
                                                 void *data)
 {

@@ -3,9 +3,16 @@
 #include <string.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/mman.h>
 
 #include "alloc.h"
 #include "field.h"
+#include "thread-array.h"
+
+#define MAX_VTK_HEADER_SIZE 256
+#define MAX_VTK_ATTRIBUTE_SPEC_SIZE 64
 
 enum OutputNodeType { OUTPUT_NODE_SCALAR, OUTPUT_NODE_VECTOR };
 
@@ -25,6 +32,7 @@ struct OutputVTK
     ftype grid_spacing;
 
     struct OutputNode *nodes_list_head;
+    char *mmapped_file;
 };
 
 OutputVTK *output_vtk_create(field_size grid_size,
@@ -43,7 +51,8 @@ void output_vtk_attach_field(OutputVTK *output,
                              const char *name,
                              ArenaAllocator *arena)
 {
-    struct OutputNode *node = arena_push_noalign(arena, sizeof(struct OutputNode));
+    struct OutputNode *node = arena_push_noalign(arena,
+                                                 sizeof(struct OutputNode));
     node->data[0] = field;
     node->name = name;
     node->type = OUTPUT_NODE_SCALAR;
@@ -57,7 +66,8 @@ void output_vtk_attach_field3(OutputVTK *output,
                               const char *name,
                               ArenaAllocator *arena)
 {
-    struct OutputNode *node = arena_push_noalign(arena, sizeof(struct OutputNode));
+    struct OutputNode *node = arena_push_noalign(arena,
+                                                 sizeof(struct OutputNode));
     node->data[0] = field.x;
     node->data[1] = field.y;
     node->data[2] = field.z;
@@ -68,7 +78,7 @@ void output_vtk_attach_field3(OutputVTK *output,
     output->nodes_list_head = node;
 }
 
-static inline void to_big_endian(const ftype *src, ftype *dst)
+static inline void to_big_endian(const ftype *src, char *dst)
 {
 #ifdef FLOAT
     uint32_t word = *((uint32_t *) src);
@@ -89,13 +99,57 @@ static inline void to_big_endian(const ftype *src, ftype *dst)
 #endif
 }
 
-void output_vtk_write(const OutputVTK *output,
-                      const char *output_file_name,
-                      ArenaAllocator *arena)
+struct UnmapFileArgs
 {
-    FILE *output_file = fopen(output_file_name, "wb");
+    
+};
 
-    fprintf(output_file,
+static void *munmap_output_file(void *args)
+{
+
+
+}
+
+void output_vtk_write(OutputVTK *output,
+                      const char *output_file_name,
+                      Thread *thread)
+{
+    uint64_t num_points = field_num_points(output->grid_size);
+
+    uint64_t file_size = MAX_VTK_HEADER_SIZE;
+    /* Estimate output file size. */
+    struct OutputNode *curr = output->nodes_list_head;
+    while (curr != NULL) {
+        file_size += MAX_VTK_ATTRIBUTE_SPEC_SIZE;
+
+        uint64_t field_size = sizeof(ftype) * num_points;
+        if (curr->type == OUTPUT_NODE_VECTOR) {
+            field_size *= 3;
+        }
+        file_size += field_size;
+
+        curr = curr->next;
+    }
+
+    int fd = 0;
+    if (thread->t_id == 0) {
+        /* TODO: Handle syscall errors. */
+        fd = creat(output_file_name, S_IRUSR | S_IWUSR |
+                                     S_IRGRP | S_IWGRP | S_IROTH);
+
+        /* Apparently access modes apply only for future accesses
+         * of the file, so we need to reopen the file. */
+        fd = open(output_file_name, O_RDWR); /* rw mode to allow mmap. */
+        ftruncate(fd, file_size);
+
+        output->mmapped_file = mmap(NULL, file_size,
+                                    PROT_WRITE, MAP_SHARED, fd, 0);
+    }
+
+    thread_wait_on_barrier(thread);
+
+    char buff[MAX_VTK_HEADER_SIZE];
+    sprintf(buff,
             "# vtk DataFile Version 3.0\n" \
             "flow\n"                       \
             "BINARY\n"                     \
@@ -112,49 +166,89 @@ void output_vtk_write(const OutputVTK *output,
             output->grid_spacing,
             field_num_points(output->grid_size));
 
-#ifdef FLOAT
-    static const char *ftype_str = "float";
-#else
-    static const char *ftype_str = "double";
-#endif
+    uint64_t header_size = strlen(buff);
 
-    arena_enter(arena);
+    if (thread->t_id == 0) {
+        memcpy(output->mmapped_file, buff, header_size);
+    }
 
-    uint64_t num_points = field_num_points(output->grid_size);
+    uint32_t num_threads = thread_get_array_size(thread);
+    uint64_t num_points_per_thread = num_points / num_threads;
+    uint64_t p_start = num_points_per_thread * thread->t_id;
+    uint64_t p_end = p_start + num_points_per_thread;
 
-    ftype *tmp = arena_push_count(arena, ftype, 3 * num_points);
+    if (thread->t_id == num_threads - 1) {
+        p_end = num_points;
+    }
 
-    struct OutputNode *curr = output->nodes_list_head;
+    uint64_t offset = header_size;
+    curr = output->nodes_list_head;
     while (curr != NULL) {
+#ifdef FLOAT
+        static const char *ftype_str = "float";
+#else
+        static const char *ftype_str = "double";
+#endif
+        if (curr->type == OUTPUT_NODE_SCALAR) {
+            sprintf(buff, "\nSCALARS %s %s 1\nLOOKUP_TABLE default\n",
+                    curr->name, ftype_str);
+        } else {
+            sprintf(buff, "\nVECTORS %s %s\n", curr->name, ftype_str);
+        }
+
+        uint64_t attribute_spec_size = strlen(buff);
+        if (thread->t_id == 0) {
+            memcpy(output->mmapped_file + offset,
+                   buff, attribute_spec_size);
+        }
+        offset += attribute_spec_size;
 
         if (curr->type == OUTPUT_NODE_SCALAR) {
-            fprintf(output_file,
-                    "\nSCALARS %s %s 1\nLOOKUP_TABLE default\n",
-                    curr->name, ftype_str);
-
             for (uint64_t i = 0; i < num_points; ++i) {
-                to_big_endian(curr->data[0] + i, tmp + i);
+                to_big_endian(curr->data[0] + i,
+                              output->mmapped_file + offset
+                                                   + i * sizeof(ftype));
             }
-
-            fwrite(tmp, sizeof(ftype), num_points, output_file);
-
-        } else if (curr->type == OUTPUT_NODE_VECTOR) {
-            fprintf(output_file, "\nVECTORS %s %s\n", curr->name, ftype_str);
-
-            for (uint64_t i = 0; i < num_points; ++i) {
+            offset += num_points * sizeof(ftype);
+        } else {
+            char *dst = output->mmapped_file + offset;
+            for (uint64_t i = p_start; i < p_end; ++i) {
                 /* Compiler please fuse and vectorize these. */
-                to_big_endian(curr->data[0] + i, tmp + (3 * i + 0));
-                to_big_endian(curr->data[1] + i, tmp + (3 * i + 1));
-                to_big_endian(curr->data[2] + i, tmp + (3 * i + 2));
+                to_big_endian(curr->data[0] + i,
+                              dst + sizeof(ftype) * (3 * i + 0));
+                to_big_endian(curr->data[1] + i,
+                              dst + sizeof(ftype) * (3 * i + 1));
+                to_big_endian(curr->data[2] + i,
+                              dst + sizeof(ftype) * (3 * i + 2));
             }
-
-            fwrite(tmp, 3 * sizeof(ftype), num_points, output_file);
+            offset += num_points * 3 * sizeof(ftype);
         }
 
         curr = curr->next;
     }
 
-    fclose(output_file);
+    thread_wait_on_barrier(thread);
 
-    arena_exit(arena);
+    /* TODO: Spawn a thread to munmap to hide the flush overhead.
+     * Moreover, two threads are enough to saturate output performance,
+     * so limit the number of threads involved. */
+
+    if (thread->t_id == 0) {
+        ftruncate(fd, offset);
+        close(fd);
+
+        /*
+        struct {
+            void *addr;
+            uint64_t size;
+        } *munmap_args = ..
+
+        munmap_args->addr = output->mmapped_file;
+        munmap_args->size = file_size;
+
+        thread_run_orpan(thread, munmap_file, munmap_args);
+        */
+
+        munmap(output->mmapped_file, file_size);
+    }
 }
