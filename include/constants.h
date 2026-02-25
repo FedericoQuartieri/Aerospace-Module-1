@@ -1,5 +1,6 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
+#include <math.h>
 
 // Grid dimensions
 #define WIDTH 32
@@ -16,13 +17,13 @@
 #define DTYPE double
 
 // Physical constants 
-#define NU 0.7                // Kinematic viscosity (nu)
+#define NU 1.0                // Kinematic viscosity (nu)
 // In the adimensional navier-stokes formulation with L=[0,1] U=1, T=L/U=1 then -> 1/Re = NU
 
 // Physical domain
-#define LX 1.0  // Domain [0, 1] in x
-#define LY 1.0  // Domain [0, 1] in y
-#define LZ 1.0  // Domain [0, 1] in z
+#define LX M_PI  // Domain [0, 1] in x
+#define LY M_PI  // Domain [0, 1] in y
+#define LZ M_PI  // Domain [0, 1] in z
 /* 
     Staggered grid:
 

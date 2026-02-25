@@ -51,7 +51,7 @@ int main(){
     // Set K that is needed to compute Gamma
     // K depends also on the spatial coordinate
     DTYPE *K = (DTYPE *) malloc(GRID_SIZE);
-    rand_fill(K); 
+    const_fill(K); // fill with all 1 for now 
     
     DTYPE *Beta = (DTYPE *) malloc(GRID_SIZE);
     DTYPE *Gamma = (DTYPE *) malloc(GRID_SIZE);

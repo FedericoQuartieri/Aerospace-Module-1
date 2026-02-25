@@ -34,7 +34,7 @@ set(TEST_NAMES
     test_convergence
     test_init_velocity
     test_manufactured
-    test_write_file
+    test_paper_manufactured
 )
 
 foreach(TEST_NAME ${TEST_NAMES})
