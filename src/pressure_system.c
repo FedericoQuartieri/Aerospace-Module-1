@@ -1,16 +1,17 @@
 #include "pressure_system.h"
 #include "velocity_field.h"
+#include <stdio.h> // test only 
 
 void solve_pressure_system(VelocityField U_next,
                            Pressure *pressure
                         )
 {
     Pressure psi;
-        Pressure phi_lower;
-        Pressure phi_higher;
-        initialize_pressure(&psi);
-        initialize_pressure(&phi_lower);
-        initialize_pressure(&phi_higher);
+    Pressure phi_lower;
+    Pressure phi_higher;
+    initialize_pressure(&psi);
+    initialize_pressure(&phi_lower);
+    initialize_pressure(&phi_higher);
                             
     compute_Psi(U_next, &psi);
     compute_Phi_lower(&psi,  &phi_lower);
@@ -20,25 +21,41 @@ void solve_pressure_system(VelocityField U_next,
 
 void compute_Psi(VelocityField U_next, Pressure *psi){
     // Initialize temporary arrays 
-    DTYPE *w = (DTYPE *) malloc(GRID_SIZE * sizeof(DTYPE));
-    DTYPE *tmp = (DTYPE *) malloc(GRID_SIZE * sizeof(DTYPE));
-    memset(tmp, 0, GRID_SIZE * sizeof(DTYPE));
+    DTYPE *tmp = (DTYPE *) malloc(GRID_SIZE);
+    memset(tmp, 0, GRID_SIZE);
 
     Pressure rhs;
     initialize_pressure(&rhs);
-     for(int k = 0; k < DEPTH; k++){
-        for(int j = 0; j < HEIGHT; j++){
-            for(int i = 0; i < WIDTH; i++){
+
+    /* 
+        In the left boundaries points impose the div(U) = 0
+    */
+    for(int k = 0; k < DEPTH-1; k++){
+        for(int j = 0; j < HEIGHT-1; j++){
+            for(int i = 0; i < WIDTH-1; i++){
                 size_t idx = rowmaj_idx(i,j,k);
+
+                // Left boundaries divergence is 0.0
+                if(k==0 || j==0 || i ==0) {
+                    rhs.p[idx] = 0.0;
+                    continue;
+                }
 
                 rhs.p[idx] = (compute_velocity_x_grad(U_next.v_x, i, j, k) +
                               compute_velocity_y_grad(U_next.v_y, i, j, k) +
                               compute_velocity_z_grad(U_next.v_z, i, j, k)) *  (-1.0 /DT);
 
-                w[idx] = - DX_INVERSE_SQUARE;
             }
         }
     }
+
+    DTYPE w = - DX_INVERSE_SQUARE;
+
+    //printf("\nPressure system, checking last value of rhs (gradient of boundaries index): \n "
+      //  ": %f \n", rhs.p[rowmaj_idx(WIDTH-1,HEIGHT-1, DEPTH-1)]);
+
+    //printf("\nPressure system, checking last value of rhs (gradient of boundaries index): \n "
+       // ": %f \n", rhs.p[rowmaj_idx(3,3,3)]);
 
     /* Solving for each row of the domain, one at a time. */
     for (int k = 0; k < DEPTH; k++) {
@@ -46,19 +63,16 @@ void compute_Psi(VelocityField U_next, Pressure *psi){
             /* Here we solve for a single block. */
             size_t off = k * (HEIGHT * WIDTH) + j * WIDTH;
 
-            Thomas_Pressure(w + off, WIDTH, tmp, rhs.p + off, psi->p + off);
+            Thomas_Pressure(w, WIDTH, tmp, rhs.p + off, psi->p + off);
         }
     }
 
     free(tmp);
-    free(w);
     free_pressure(&rhs);
 }
 
 void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
     // Initialize temporary arrays 
-    DTYPE *w = (DTYPE *) malloc(GRID_SIZE * sizeof(DTYPE));
-    DTYPE *w_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
     DTYPE *rhs_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
     DTYPE *u_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
     DTYPE *tmp_thomas = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
@@ -70,11 +84,12 @@ void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
                 for(int i = 0; i < WIDTH; i++){
                     size_t idx = rowmaj_idx(i,j,k);
 
-                    rhs.p[idx] = psi->p[idx];
-                    w[idx] = - DY_INVERSE_SQUARE;
+                    rhs.p[idx] = psi->p[idx];   
                 }
             }
         }
+
+    DTYPE w = - DY_INVERSE_SQUARE;
 
     // Loop sui sistemi 1D lungo Y (su ogni colonna i,k)
     for (int k = 0; k < DEPTH; ++k) {
@@ -88,10 +103,9 @@ void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
                 
                 // Assumendo il passo di PRESSIONE (no Gamma)
                 rhs_block[j] = rhs.p[idx]; 
-                w_block[j] = w[idx]; // w[idx] è -DY_INVERSE_SQUARE
             }
 
-            Thomas_Pressure(w_block, HEIGHT, tmp_thomas, rhs_block, u_block);
+            Thomas_Pressure(w, HEIGHT, tmp_thomas, rhs_block, u_block);
 
             // 3. SCATTER (Spargi il risultato in phi_lower)
             for (int j = 0; j < HEIGHT; ++j){
@@ -105,14 +119,10 @@ void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
     free(tmp_thomas);
     free(rhs_block);
     free(u_block);
-    free(w);
-    free(w_block);
     free_pressure(&rhs);
 };
                         
 void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
-    DTYPE *w = (DTYPE *) malloc(GRID_SIZE * sizeof(DTYPE));
-    DTYPE *w_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
     DTYPE *rhs_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
     DTYPE *u_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
     DTYPE *tmp_thomas = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
@@ -125,10 +135,12 @@ void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
                     size_t idx = rowmaj_idx(i,j,k);
 
                     rhs.p[idx] = phi_lower->p[idx];
-                    w[idx] = - DZ_INVERSE_SQUARE;
+                    
                 }
             }
         }
+
+    DTYPE w = - DZ_INVERSE_SQUARE;
 
     // Loop sui sistemi 1D lungo Y (su ogni colonna i,k)
     for (int j = 0; j < HEIGHT; ++j) {
@@ -142,10 +154,9 @@ void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
                 
                 // Assumendo il passo di PRESSIONE (no Gamma)
                 rhs_block[k] = rhs.p[idx]; 
-                w_block[k] = w[idx];
             }
 
-            Thomas_Pressure(w_block, DEPTH, tmp_thomas, rhs_block, u_block);
+            Thomas_Pressure(w, DEPTH, tmp_thomas, rhs_block, u_block);
 
             // 3. SCATTER (Spargi il risultato in phi_lower)
             for (int k = 0; k < DEPTH; ++k){
@@ -159,8 +170,6 @@ void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
     free(tmp_thomas);
     free(rhs_block);
     free(u_block);
-    free(w);
-    free(w_block);
     free_pressure(&rhs);
 };
 

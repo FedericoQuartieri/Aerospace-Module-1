@@ -28,7 +28,11 @@ void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K
         return;
     }
     mkdir("output", 0755);   /* create output/ directory if doesn't exists */
-;
+
+    /* save first timestep, U(t=0) is given by the problem (still need to be added in main)*/
+    char filename[256];
+    sprintf(filename, "output/solution_%06d.vti", 0);
+    write_vti_file(filename, &U, &pressure);
 
     // Initialize the necessary velocity and force fields
     VelocityField Xi;
@@ -39,12 +43,24 @@ void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K
     initialize_velocity_field(&Delta, v_boundary);
     initialize_force_field(&rhs);
 
-    for (int t = 0; t < STEPS; t++) {
+    /* 
+        Missing: the t=0 is set as the exact solution by definition, so we should 
+        start to solve for the timestep t = 1 
+    */
+    for (int t = 1; t <= STEPS; t++) {
 
+        /* g(t) is computed as forcing(t-1/2) and velocity(t-1) */
         compute_g(&g_field, forcing, &pressure, K, &Eta, &Zeta, &U, t, v_boundary);        
 
+        /* here we set all the boundary as the delta of boundary(t) - boundary(t-1) */
         solve_momentum_system(U, Eta, Zeta, Xi, g_field, Delta, rhs, Beta, Gamma, v_boundary, t);
 
+        /* ??? */
+        // Here we need to enforce the left boundary conditions,
+        // remember that are available in Eta, Zeta, U
+        //update_left_velocity_boundary(&U, v_boundary, t);
+        //update_right_velocity_boundary(&U, v_boundary, t);
+        
         solve_pressure_system(U, &pressure);
 
         if (t % write_frequency == 0) {

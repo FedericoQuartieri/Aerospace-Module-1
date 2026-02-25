@@ -14,6 +14,7 @@ void rand_fill_force_field(ForceField *f_field) {
     rand_fill(f_field->f_z);
 }
 
+/* Warning: This function is not used now */
 void fill_with_function(ForceField *f_field, DTYPE (*func)(size_t, size_t, size_t)) {
     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
@@ -25,7 +26,6 @@ void fill_with_function(ForceField *f_field, DTYPE (*func)(size_t, size_t, size_
             }
         }
     }
-
 }
 
 void free_force_field(ForceField *f_field) {

@@ -1,44 +1,53 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
+#include <math.h>
 
 // Grid dimensions
-#define WIDTH 10
-#define HEIGHT 6
-#define DEPTH 17
+#define WIDTH 32
+#define HEIGHT 32
+#define DEPTH 32
 
 // Grid spatial dimension (number of elements)
 #define GRID_ELEMENTS WIDTH * HEIGHT * DEPTH
 
-// Ghost cells (boundaries)
-#define GHOST_CELLS 1
-
-// Total number of grid points including ghost cells
-#define TOTAL_GRID_POINTS ( (WIDTH + GHOST_CELLS) * (HEIGHT + GHOST_CELLS) * (DEPTH + GHOST_CELLS) )
-
 // Total field size in bytes
-#define GRID_SIZE (TOTAL_GRID_POINTS * sizeof(DTYPE))
+#define GRID_SIZE (GRID_ELEMENTS * sizeof(DTYPE))
 
 // Data type
 #define DTYPE double
 
-// Physical constants for Navier-Stokes-Brinkman
-#define NU 0.7                // Kinematic viscosity (nu)
-#define PERMEABILITY 1.0      // Brinkman permeability (K)
-#define POROSITY 0.5          // Porosity (phi)
-#define DENSITY 1.0           // Fluid density (rho)
+// Physical constants 
+#define NU 1.0                // Kinematic viscosity (nu)
+// In the adimensional navier-stokes formulation with L=[0,1] U=1, T=L/U=1 then -> 1/Re = NU
 
-// Numerical parameters
-#define DX 0.001                // Grid spacing in x
-#define DY 0.001                // Grid spacing in y
-#define DZ 0.001                // Grid spacing in z
-#define DT 0.001              // Time step
-#define TOTAL_TIME 0.1      // Total simulation time
-#define STEPS (int)(TOTAL_TIME / DT)  // Number of time steps
-#define WRITE_FREQUENCY 10  // Frequency of writing output
+// Physical domain
+#define LX M_PI  // Domain [0, PI] in x
+#define LY M_PI  // Domain [0, PI] in y
+#define LZ M_PI  // Domain [0, PI] in z
+/* 
+    Staggered grid:
 
-#define DX_INVERSE (1.0) / DX
-#define DY_INVERSE (1.0) / DY
-#define DZ_INVERSE (1.0) / DZ
+    L       /---------------------/
+    grid    *-->--*-->--*-->--*-->
+    DX/2    /--/ 
+    DX      /-----/
+    
+    If the number of points is WIDTH (4 in this case) then:
+    DX/2 = L / (2WIDTH - 1)
+    DX = 2L / (2WIDTH - 1)
+*/
+#define DX ((2 * LX) / (DTYPE)(2*WIDTH - 1))   // Grid spacing in x 
+#define DY ((2 * LY) / (DTYPE)(2*HEIGHT - 1))  // Grid spacing in y
+#define DZ ((2 * LZ) / (DTYPE)(2*DEPTH - 1))   // Grid spacing in z
+
+#define DT 0.1                        // Time step
+#define TOTAL_TIME 10                    // Total simulation time
+#define STEPS ((int)(TOTAL_TIME / DT))  // Number of time steps
+#define WRITE_FREQUENCY STEPS/25            // Writing output frequency
+
+#define DX_INVERSE (1.0 / DX)
+#define DY_INVERSE (1.0 / DY)
+#define DZ_INVERSE (1.0 / DZ)
 
 #define DX_INVERSE_SQUARE (DX_INVERSE * DX_INVERSE)
 #define DY_INVERSE_SQUARE (DY_INVERSE * DY_INVERSE)

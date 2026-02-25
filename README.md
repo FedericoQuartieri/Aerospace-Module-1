@@ -1,1 +1,1 @@
-# navier-stokes-brinkman-solver
+# Navier-Stokes-Brinkman equation solver

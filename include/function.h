@@ -11,6 +11,9 @@ function_handle parse_function(const char *filename);
 /* Evaluate the function for the given component (0 -> x, 1 -> y, 2 -> z) */
 double eval_function(function_handle handle, double x, double y, double z, double t, int component);
 
+/* Evaluate the function in the delta (t, t-1) */
+double eval_delta_function(function_handle handle, double x, double y, double z, double t, int component);
+
 /* Free resources associated with a function handle */
 void destroy_function(function_handle handle);
 

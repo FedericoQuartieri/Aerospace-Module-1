@@ -31,7 +31,8 @@ void write_vti_file(const char *filename,
     const char *vtk_type = vtk_dtype();
     size_t elem_size = sizeof(DTYPE);
     size_t n_elems   = (size_t)Nx * Ny * Nz; 
-    uint32_t block_size = n_elems * elem_size;
+    uint32_t scalar_block_size = (uint32_t)(n_elems * elem_size);
+    uint32_t vector_block_size = (uint32_t)(3 * n_elems * elem_size);
 
     // -------- HEADER --------
     fprintf(f,
@@ -46,42 +47,37 @@ void write_vti_file(const char *filename,
     );
 
     // -------- OFFSETS --------
-    size_t offset_P  = 0;
-    size_t offset_Ux = offset_P  + sizeof(uint32_t) + block_size;
-    size_t offset_Uy = offset_Ux + sizeof(uint32_t) + block_size;
-    size_t offset_Uz = offset_Uy + sizeof(uint32_t) + block_size;
+    // Pressure: scalar field (1 component)
+    // Velocity: vector field (3 components interleaved)
+    size_t offset_P = 0;
+    size_t offset_V = offset_P + sizeof(uint32_t) + scalar_block_size;
 
     fprintf(f,
-        "        <DataArray type=\"%s\" Name=\"Pressure\"  format=\"appended\" offset=\"%zu\"/>\n",
+        "        <DataArray type=\"%s\" Name=\"Pressure\" format=\"appended\" offset=\"%zu\"/>\n",
         vtk_type, offset_P);
     fprintf(f,
-        "        <DataArray type=\"%s\" Name=\"Velocity_x\" format=\"appended\" offset=\"%zu\"/>\n",
-        vtk_type, offset_Ux);
-    fprintf(f,
-        "        <DataArray type=\"%s\" Name=\"Velocity_y\" format=\"appended\" offset=\"%zu\"/>\n",
-        vtk_type, offset_Uy);
-    fprintf(f,
-        "        <DataArray type=\"%s\" Name=\"Velocity_z\" format=\"appended\" offset=\"%zu\"/>\n",
-        vtk_type, offset_Uz);
+        "        <DataArray type=\"%s\" Name=\"Velocity\" NumberOfComponents=\"3\" format=\"appended\" offset=\"%zu\"/>\n",
+        vtk_type, offset_V);
 
     fprintf(f,
         "      </PointData>\n"
         "    </Piece>\n"
         "  </ImageData>\n"
-        "  <AppendedData encoding=\"raw\">\n   _");  // Spazio + underscore
+        "  <AppendedData encoding=\"raw\">\n   _");  // Space + underscore marker
 
     // -------- RAW BLOCKS --------
-    fwrite(&block_size, sizeof(uint32_t), 1, f);
+    
+    // Write Pressure (scalar)
+    fwrite(&scalar_block_size, sizeof(uint32_t), 1, f);
     fwrite(P->p, elem_size, n_elems, f);
 
-    fwrite(&block_size, sizeof(uint32_t), 1, f);
-    fwrite(U->v_x, elem_size, n_elems, f);
-
-    fwrite(&block_size, sizeof(uint32_t), 1, f);
-    fwrite(U->v_y, elem_size, n_elems, f);
-
-    fwrite(&block_size, sizeof(uint32_t), 1, f);
-    fwrite(U->v_z, elem_size, n_elems, f);
+    // Write Velocity (3-component vector, interleaved: vx,vy,vz for each point)
+    fwrite(&vector_block_size, sizeof(uint32_t), 1, f);
+    for (size_t idx = 0; idx < n_elems; idx++) {
+        fwrite(&U->v_x[idx], elem_size, 1, f);
+        fwrite(&U->v_y[idx], elem_size, 1, f);
+        fwrite(&U->v_z[idx], elem_size, 1, f);
+    }
 
     fprintf(f, "\n  </AppendedData>\n</VTKFile>\n");
     fclose(f);

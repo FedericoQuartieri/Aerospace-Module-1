@@ -44,6 +44,40 @@ static void free_context(function_handle ctx)
     }
 }
 
+/* Evaluate the function delta_t for the given component as function(t) - function(t-1) */
+double eval_delta_function(function_handle handle, double x, double y, double z, double t, int component)
+{
+    if (!handle || component < 0 || component > 2) {
+        /* Invalid handle or out-of-range component: return 0.0 as a safe default */
+        return 0.0;
+    }
+
+    if (!handle->expr[component]) {
+        /* No expression compiled for this component: treat as zero */
+        return 0.0;
+    }
+
+    /* Update variables in the context */
+    handle->x = x;
+    handle->y = y;
+    handle->z = z;
+    handle->t = t;
+
+    /* Evaluate TinyExpr expression for the requested component at time t */
+    double funct_t = te_eval(handle->expr[component]);
+    double funct_t_prev;
+
+    if(t == 0){
+        return funct_t;
+    } else {
+        /* Update and evaluate at time t-1 */
+        handle->t = t - 1;
+        funct_t_prev = te_eval(handle->expr[component]);
+
+        return (funct_t - funct_t_prev);
+    }
+}
+
 /* Evaluate the function for the given component */
 double eval_function(function_handle handle, double x, double y, double z, double t, int component)
 {
@@ -76,10 +110,10 @@ double eval_function(function_handle handle, double x, double y, double z, doubl
 function_handle parse_function(const char *filename)
 {
     FILE *f;
-    char expr_buf[3][256];
+    char expr_buf[3][512];
     int have_expr[3] = {0, 0, 0};
     int count = 0;
-    char line[256];
+    char line[512];
     function_handle ctx;
 
     int c, k;

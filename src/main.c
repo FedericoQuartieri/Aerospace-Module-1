@@ -32,11 +32,21 @@ int main(){
         return 1;
     }
 
+    /*
+        Missing: in the first timestep we must enforce the exact solution, 
+        that is given by the problem, required to be well posed.
+        So we should set Eta, Zeta, U to the exact solution in t=0,
+        then solve for t=1. 
+        The boundary conditions are computed as the delta between (t=0, t=1)
+
+        (For now in test_manufactured.c is manually set the exact velocity at t=0)
+    */
+   
     // Initilized 3 velocity field, and for each one set the SAME boundary conditions,
-    // Need to analyze performance...
     initialize_velocity_field(&Eta, v_boundary);
     initialize_velocity_field(&Zeta, v_boundary);
     initialize_velocity_field(&U, v_boundary);
+
 
     // Set K that is needed to compute Gamma
     // K depends also on the spatial coordinate
@@ -54,9 +64,6 @@ int main(){
             }
         }
     }
-    
-    double x, y, z, t;
-    double fx, fy, fz;
 
     // Inizialize g
     GField g_field;

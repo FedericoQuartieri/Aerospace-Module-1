@@ -11,8 +11,6 @@ void rand_fill_pressure(Pressure *pressure){
     rand_fill(pressure->p);
 }
 
-// TODO handle boundaries conditions
-
 DTYPE compute_pressure_x_grad(DTYPE *p, size_t i, size_t j, size_t k){
     size_t idx = rowmaj_idx(i,j,k);
     size_t neighbour = rowmaj_idx(i+1,j,k); // i+1 since i'm doing x_gradient
@@ -37,6 +35,3 @@ DTYPE compute_pressure_z_grad(DTYPE *p, size_t i, size_t j, size_t k){
 void free_pressure(Pressure *pressure){
     free(pressure->p);
 }
-
-
-

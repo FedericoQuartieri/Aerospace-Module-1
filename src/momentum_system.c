@@ -1,12 +1,12 @@
 #include "momentum_system.h"
 
 /*
-    Updated by Ema, let me know if you agree...
+    Updated by Ema, 
 
     Delta is the velocity_field now used to store the solution of the linear system,
     and the solution of the n+1 step is updated directly into Eta,Zeta,U.
-    The _next was not necessary, so to avoid using 3 velocity_field we now just
-    use the Delta field to store the solution and then update the associated velocity.
+    The _next was not necessary, now we just use the Delta field to store the solution 
+    and then update the associated velocity.
     
     The same thing applied to the (previously f_field) rhs, since now is initialized once in the solve.c
     and passed at each timestep to this file.
@@ -15,13 +15,6 @@
     Note that since in Delta the boundary values are used in the Thomas algorithm, and for the 
     'different_direction' method they are changed by the algorithm, it's necessary that before
     each system the boundary in the Delta field are re-initialize (also inside the same timestep).
-
-    This can downgrade the performance since setting the boundary values means performs stride access across 
-    the field.
-    We must think a better solution to both improve performance in the update_velocity_boundaries or 
-    in the Thomas algorithm by getting directly the value of the boundary needed instead of requiring it 
-    already in the Delta field
-
 */
 void solve_momentum_system(VelocityField U, 
                            VelocityField Eta, 
@@ -45,14 +38,26 @@ void solve_momentum_system(VelocityField U,
     compute_u_next(U, Delta, rhs, Zeta, Gamma, v_boundary, timestep);
 }
 
+/* 
+    Some doubts... (OLD , to be deleted?)
+
+    After computing Delta with Thomas, we compute the value of V_n+1 as = V_n + Delta
+    1) The left boundary values, shouldn't be summed with previous. So the update will now start from 1
+    
+    2) The right boundary values instead are computed with Thomas as the other points, so it should be
+        correct sum them with the older i think...
+    
+    3) At the end of each equations, we have the final solution for its boundary faces,
+        becouse for each equation we compute correctly 2 buondary face.
+        However in our corrently solution, we are 'throwing' them, since in the last equation with U,
+        we compute Thomas also on the other 4 faces, and take only the z-faces as boundary.
+        I would like to try to store for each equation, the value of the associated boundary faces, in order 
+        to put them into U after all.
+        (Maybe also avoiding thomas on useless faces for each equation)
+*/
+
 /* (I - ∂xx) (Eta_n+1 - Eta_n) = Xi - Eta_n */
 static void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField rhs, VelocityField Xi, DTYPE *Gamma, function_handle v_boundary, int timestep){
-   /*  
-    // Right-hand side for the tridiagonal system
-    ForceField f_field;
-    initialize_force_field(&f_field);
-    rand_fill_force_field(&f_field); 
-    */
 
     // rhs = Xi - Eta_n
     for(int k = 0; k < DEPTH; k++){
@@ -69,8 +74,17 @@ static void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField 
         }
     }
 
-    // Re-initialize Delta boundaries, modify by the previous system 
-    update_velocity_boundary(&Delta, v_boundary, timestep);
+    /* 
+        Warning: set the delta in the boundary conditions, both left and right,
+        then update Eta also in the left points (idx=0)
+
+        the Delta must be filled with the DELTA boundaries conditions, this means that since
+        we are solving for the timestep t, then we set the delta_bound(t) = boundaries(t) - boundaries(t-1)
+    */
+
+    // Re-initialize Delta boundaries, modified by the previous system 
+    update_delta_left_velocity_boundary(&Delta, v_boundary, timestep);
+    update_delta_right_velocity_boundary(&Delta, v_boundary, timestep);
 
     // Thomas algorithm for the linear system, for each component of Delta
     solve_Dxx_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, v_boundary, true);
@@ -79,6 +93,8 @@ static void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField 
 
     // Now in Delta we have the solution of the linear system: Delta = (Eta_n+1 - Eta_n)
     // we need to get Eta_n+1 as: Eta_n+1 = Delta + Eta_n
+
+    /* !! Warning: since we are imposing the delta of the boundaries, we should start from idx=0 !!*/
     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
@@ -92,8 +108,7 @@ static void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField 
             }
         }
     }
-    
-   //free_force_field(&f_field);
+
 }
 
 /* (I - ∂yy) (Zeta_n+1 - Zeta_n) = Eta_n+1 - Zeta_n */
@@ -115,7 +130,8 @@ static void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceFiel
     }
 
     // Re-initialize Delta boundaries, modified by the previous system 
-    update_velocity_boundary(&Delta, v_boundary, timestep);
+    update_delta_left_velocity_boundary(&Delta, v_boundary, timestep);
+    update_delta_right_velocity_boundary(&Delta, v_boundary, timestep);
 
     // Thomas algorithm for the linear system, for each component of Delta
     solve_Dyy_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, v_boundary, false);
@@ -124,6 +140,7 @@ static void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceFiel
 
     // Now in Delta we have the solution of the linear system: Delta = (Zeta_n+1 - Zeta_n)
     // we need to get Zeta_n+1 as: Zeta_n+1 = Delta + Zeta_n
+    /* !! Warning: trying to let left boundary as it (so to start from 1)!!*/
     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
@@ -159,7 +176,8 @@ static void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs,
     }
 
     // Re-initialize Delta boundaries, modified by the previous system 
-    update_velocity_boundary(&Delta, v_boundary, timestep);
+    update_delta_left_velocity_boundary(&Delta, v_boundary, timestep);
+    update_delta_right_velocity_boundary(&Delta, v_boundary, timestep);
 
     // Thomas algorithm for the linear system, for each component of Delta
     solve_Dzz_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, v_boundary, false);
@@ -168,6 +186,8 @@ static void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs,
 
     // Now in Delta we have the solution of the linear system: Delta = (U_n+1 - U_n)
     // we need to get U_n+1 as: U_n+1 = Delta + U_n
+
+    /* !! Warning: trying to let left boundary as it (so to start from 1)!!*/
     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){

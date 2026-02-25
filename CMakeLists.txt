@@ -139,3 +139,76 @@ foreach(TEST_SRC ${TEST_SOURCES})
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     )
 endforeach()
+
+# ==================== Test Manufactured Solution (C) ====================
+add_executable(test_manufactured
+    test/C_test/test_manufactured.c
+    test/C_test/test_common.c
+)
+
+target_link_libraries(test_manufactured
+    navier_core
+    m
+)
+
+target_include_directories(test_manufactured PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/third_party/tinyexpr
+)
+
+add_test(NAME ManufacturedSolutionTest COMMAND test_manufactured)
+
+# ==================== Test Paper Manufactured Solution (C) ====================
+add_executable(test_paper_manufactured
+    test/C_test/test_paper_manufactured.c
+    test/C_test/test_common.c
+)
+
+target_link_libraries(test_paper_manufactured
+    navier_core
+    m
+)
+
+target_include_directories(test_paper_manufactured PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/third_party/tinyexpr
+)
+
+add_test(NAME PaperManufacturedSolutionTest COMMAND test_paper_manufactured)
+
+# ==================== Test Convergence (C) ====================
+add_executable(test_convergence
+    test/C_test/test_convergence.c
+    test/C_test/test_common.c
+)
+
+target_link_libraries(test_convergence
+    navier_core
+    m
+)
+
+target_include_directories(test_convergence PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/third_party/tinyexpr
+)
+
+add_test(NAME ConvergenceTest COMMAND test_convergence)
+
+# ==================== Test Init Velocity (C) ====================
+add_executable(test_init_velocity
+    test/C_test/test_init_velocity.c
+    test/C_test/test_common.c
+)
+
+target_link_libraries(test_init_velocity
+    navier_core
+    m
+)
+
+target_include_directories(test_init_velocity PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/third_party/tinyexpr
+)
+
+add_test(NAME InitVelocityTest COMMAND test_init_velocity)
+

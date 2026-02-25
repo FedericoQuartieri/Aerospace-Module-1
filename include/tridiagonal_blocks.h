@@ -51,7 +51,7 @@ void Thomas_Different_Direction(const DTYPE *__restrict__ w,
                                DTYPE delta_space 
                             ) ;
                                
-void Thomas_Pressure(const DTYPE *__restrict__ w, 
+void Thomas_Pressure(const DTYPE w, 
                                unsigned int n,
                                DTYPE *__restrict__ tmp,
                                DTYPE *__restrict__ f,
