@@ -1,44 +1,52 @@
 cmake_minimum_required(VERSION 3.10)
-project(navier_stokes LANGUAGES C CXX)
+project(navier_stokes LANGUAGES C)
 
 set(CMAKE_C_STANDARD 99)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
-#------------------
+# ==================== FLAGS ====================
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
+set(CMAKE_C_FLAGS_RELEASE "-O2")
+set(CMAKE_C_FLAGS_DEBUG "-g -O0 -DDEBUG")
 
-include_directories(include)
+# ==================== THIRD PARTY ====================
+add_library(tinyexpr STATIC third_party/tinyexpr/tinyexpr.c)
+target_include_directories(tinyexpr PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyexpr)
 
-# Sorgenti principali (escludi main.c per poter creare una libreria riusabile)
+# ==================== LIBRERIA CORE ====================
 file(GLOB SRCS "src/*.c")
-set(MAIN_SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/main.c")
-list(REMOVE_ITEM SRCS ${MAIN_SRC})
+list(REMOVE_ITEM SRCS "${CMAKE_CURRENT_SOURCE_DIR}/src/main.c")
 
-# Compila le sorgenti C in una libreria statica
 add_library(navier_core STATIC ${SRCS})
 target_include_directories(navier_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(navier_core PUBLIC m)
+target_link_libraries(navier_core PUBLIC m tinyexpr)
 
-# Eseguibile principale linkato alla libreria
-add_executable(navier_stokes ${MAIN_SRC})
+# ==================== ESEGUIBILE PRINCIPALE ====================
+add_executable(navier_stokes src/main.c)
 target_link_libraries(navier_stokes PRIVATE navier_core)
 
-# Debug build type
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG -Wall -Wextra -O2")
+# ==================== TEST ====================
+enable_testing()
 
-# Targets utility...
-add_custom_target(valgrind
-    COMMAND valgrind --leak-check=full --show-leak-kinds=all $<TARGET_FILE:navier_stokes>
-    DEPENDS navier_stokes
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+set(TEST_COMMON "${CMAKE_CURRENT_SOURCE_DIR}/test/test_common.c")
+
+set(TEST_NAMES
+    test_convergence
+    test_init_velocity
+    test_manufactured
+    test_write_file
 )
+
+foreach(TEST_NAME ${TEST_NAMES})
+    add_executable(${TEST_NAME} test/${TEST_NAME}.c ${TEST_COMMON})
+    target_link_libraries(${TEST_NAME} PRIVATE navier_core)
+    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test
+    )
+endforeach()
+
+# ==================== TARGETS UTILI ====================
 add_custom_target(run
     COMMAND $<TARGET_FILE:navier_stokes>
     DEPENDS navier_stokes
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-)
-add_custom_target(clean-all
-    COMMAND ${CMAKE_COMMAND} -E rm -rf ${CMAKE_BINARY_DIR}/*
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    COMMENT "Cleaning all build files"
 )

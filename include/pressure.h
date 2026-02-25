@@ -11,6 +11,7 @@ typedef struct {
 } Pressure;
 
 void initialize_pressure(Pressure *pressure);
+void rand_fill_pressure(Pressure *pressure);
 void free_pressure(Pressure *pressure);
 DTYPE compute_pressure_x_grad(DTYPE *p, size_t i, size_t j, size_t k);
 DTYPE compute_pressure_y_grad(DTYPE *p, size_t i, size_t j, size_t k);
