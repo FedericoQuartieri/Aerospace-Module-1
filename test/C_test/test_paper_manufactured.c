@@ -25,7 +25,7 @@ static DTYPE manufactured_pressure(DTYPE x, DTYPE y, DTYPE z, DTYPE t) {
 
 /* 
  * Forcing term f = ∂u/∂t - (NU)∇²u + ∇p + (NU/k)u
- * where k = sin(πx) * sin(πy) * sin(πz)
+ * where k = 1
  */
 static DTYPE manufactured_forcing(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component) {
     /* x ∈ [0,π] */

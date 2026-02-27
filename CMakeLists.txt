@@ -176,6 +176,24 @@ target_include_directories(test_paper_manufactured PRIVATE
 
 add_test(NAME PaperManufacturedSolutionTest COMMAND test_paper_manufactured)
 
+# ==================== Test Zero Pressure Paper Manufactured Solution (C) ====================
+add_executable(test_zero_pressure_manufactured
+    test/C_test/test_zero_pressure_manufactured.c
+    test/C_test/test_common.c
+)
+
+target_link_libraries(test_zero_pressure_manufactured
+    navier_core
+    m
+)
+
+target_include_directories(test_zero_pressure_manufactured PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/third_party/tinyexpr
+)
+
+add_test(NAME ZeroPressureManufacturedSolutionTest COMMAND test_zero_pressure_manufactured)
+
 # ==================== Test Convergence (C) ====================
 add_executable(test_convergence
     test/C_test/test_convergence.c

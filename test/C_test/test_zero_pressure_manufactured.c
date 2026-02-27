@@ -4,72 +4,54 @@
 #include "../include/function.h"
 
 /* 
-    This test is supposed to be done with a grid normalized between [0, 1] check in constant.h
-    For this reason the functions are computed as sin(PI  * x) or cos(PI * x)
-    and not as sin(x) or cos(x)
-    For the next test it's easier to just set the domain between [0, PI]
+    This test is supposed to be done with a grid normalized between [0, PI]
 */
 /* ==================== Manufactured Solution Definition ==================== */
 
 static DTYPE manufactured_velocity(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component) {
-    /* Scale coordinates: x ∈ [0,1] → x_scaled ∈ [0,π] */
-    DTYPE sx = sin(M_PI * x); DTYPE sy = sin(M_PI * y); DTYPE sz = sin(M_PI * z);
-    DTYPE cx = cos(M_PI * x); DTYPE cy = cos(M_PI * y); DTYPE cz = cos(M_PI * z);
-    DTYPE st = sin(t);
-
-    if(t==0) return 0.0;
-
+    /* x ∈ [0,π] */
     switch (component) {
-        case 0: return st * (sx * sy * sz);         
-        case 1: return st * (cx * cy * cz);           
-        case 2: return st * (cx * sy * (cz + sz));    
+        case 0: return sin(x) * cos(t + y) * sin(z);         
+        case 1: return cos(x) * sin(t + y) * sin(z);           
+        case 2: return 2.0 * cos(x) * cos(t + y) * cos(z);    
         default: return 0.0;
     }
 }
 
 static DTYPE manufactured_pressure(DTYPE x, DTYPE y, DTYPE z, DTYPE t) {
-    /* Scale coordinates: x ∈ [0,1] → x_scaled ∈ [0,π] */
-    DTYPE cx = cos(M_PI * x); DTYPE cz = cos(M_PI * z);
-    DTYPE sy = sin(M_PI * y); DTYPE sz = sin(M_PI * z);
-
-    return - 3.0 * NU * sin(t) * (cx * sy * (sz - cz));
+    /* x ∈ [0,π] */
+    return 0.0;
 }
 
 /* 
  * Forcing term f = ∂u/∂t - (NU)∇²u + ∇p + (NU/k)u
- * where k = 1
+ * where ∇p = 0 and k = 1
  */
 static DTYPE manufactured_forcing(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component) {
-    /* Scale coordinates: x ∈ [0,1] → x_scaled ∈ [0,π] */
-    DTYPE sx = sin(M_PI * x); DTYPE sy = sin(M_PI * y); DTYPE sz = sin(M_PI * z);
-    DTYPE cx = cos(M_PI * x); DTYPE cy = cos(M_PI * y); DTYPE cz = cos(M_PI * z);
-    DTYPE ct = cos(t); DTYPE st = sin(t);
+    /* x ∈ [0,π] */
     
     /* U */
-    DTYPE u_x = manufactured_velocity(x, y, z, t, 0);
-    DTYPE u_y = manufactured_velocity(x, y, z, t, 1);
-    DTYPE u_z = manufactured_velocity(x, y, z, t, 2);
+    DTYPE u_x = manufactured_velocity(x , y, z, t, 0);
+    DTYPE u_y = manufactured_velocity(x , y, z, t, 1);
+    DTYPE u_z = manufactured_velocity(x , y, z, t, 2);
 
     /* Time derivative du/dt */
-    DTYPE dudt_x = ct * sx * sy * sz;
-    DTYPE dudt_y = ct * cx * cy * cz;
-    DTYPE dudt_z = ct * cx * sy * (cz + sz);
+    DTYPE dudt_x =   - sin(x) * sin(t + y) * sin(z);
+    DTYPE dudt_y =   cos(x) * cos(t + y) * sin(z);
+    DTYPE dudt_z =   - 2.0 * cos(x) * sin(t + y) * cos(z);
 
-    /* Laplacian: ∇²u = -3π²u */
-    DTYPE lapU_x = -3.0 * (M_PI*M_PI) * u_x;
-    DTYPE lapU_y = -3.0 * (M_PI*M_PI) * u_y;
-    DTYPE lapU_z = -3.0 * (M_PI*M_PI) * u_z;
+    /* Laplacian: ∇²u */
+    DTYPE lapU_x = -3.0 * u_x;
+    DTYPE lapU_y = -3.0 * u_y;
+    DTYPE lapU_z = -3.0 * u_z;
 
-    /* k = sinx * siny * sinz */
-    //DTYPE k = sx * sy * sz;
-    // for now we use K=1 constant in all the domain
+    // Simple test with k = 1 constant in all the domain
     DTYPE k = 1;
 
-
-    /* Pressure gradient: ∇p = -3 * NU * π * sint * [...] */
-    DTYPE dpdx = -3.0 * NU * M_PI * st * (- sx * sy * (sz - cz));
-    DTYPE dpdy = -3.0 * NU * M_PI * st * (cx * cy * (sz - cz));
-    DTYPE dpdz = -3.0 * NU * M_PI * st * (cx * sy * (cz + sz));
+    /* Pressure gradient: ∇p  */
+    DTYPE dpdx = 0.0;
+    DTYPE dpdy = 0.0;
+    DTYPE dpdz = 0.0;
 
     /* f = ∂u/∂t - (NU)∇²u + (NU/k)u + ∇p */
     switch (component) {
@@ -121,7 +103,6 @@ static void write_exact_solution_vti(const char *filename, ExactSolution *exact,
     
     write_vti_file(filename, &U_exact, &P_exact);
     
-    /* Libera memoria */
     free(U_exact.v_x);
     free(U_exact.v_y);
     free(U_exact.v_z);
@@ -152,7 +133,7 @@ static DTYPE forcing_wrapper(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component) 
 }
 
 int test_manufactured_solution(void) {
-    printf("\n====== TEST: Manufactured Solution ======\n");
+    printf("\n====== TEST: Zero Pressure Paper Manufactured Solution ======\n");
     
     ExactSolution exact = create_manufactured_solution();
 
@@ -174,7 +155,7 @@ int test_manufactured_solution(void) {
     initialize_pressure(&pressure);
     
     VelocityField Eta, Zeta, U;
-    function_handle v_boundary = parse_function("../function_files/test_manufactured_Vboundary.txt");
+    function_handle v_boundary = parse_function("../function_files/test_zero_pressure_paper_manufactured_Vboundary.txt");
     
     if (!v_boundary) {
         fprintf(stderr, "Error: Could not load boundary function file\n");
@@ -187,7 +168,7 @@ int test_manufactured_solution(void) {
     
     /* 
         Set initial conditions from exact solution at t=0,
-        in the manufactured solution method we need to start from it and verify convergence
+        in the manufactured solution method we need to start form it and verify convergence
     */
     fill_exact_velocity(&U, &exact, 0.0);
     fill_exact_velocity(&Eta, &exact, 0.0);
@@ -217,7 +198,7 @@ int test_manufactured_solution(void) {
     initialize_g_field(&g_field);
     
     /* Load forcing function */
-    function_handle forcing = parse_function("../function_files/test_manufactured_forcing.txt");
+    function_handle forcing = parse_function("../function_files/test_zero_pressure_paper_manufactured_forcing.txt");
     
     if(!forcing){
         fprintf(stderr, "Error: Could not load forcing function file\n");
@@ -251,7 +232,7 @@ int test_manufactured_solution(void) {
     result.pressure_err = compute_pressure_error(&pressure, &P_exact);
     result.convergence_rate = 0.0;
     
-    print_test_result(&result, "Manufactured Solution Test");
+    print_test_result(&result, "Zero Pressure Paper Manufactured Solution Test");
     
     /* Check if errors are within acceptable tolerance */
     DTYPE tol = 1e-3;  /* Adjust based on expected accuracy */
@@ -283,6 +264,6 @@ int test_manufactured_solution(void) {
 }
 
 int main(int argc, char *argv[]) {
-    printf("Running Manufactured Solution Test...\n");
+    printf("Running Zero Pressure Paper Manufactured Solution Test...\n");
     return test_manufactured_solution();
 }

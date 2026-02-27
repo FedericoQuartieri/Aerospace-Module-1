@@ -59,8 +59,8 @@ int main(){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
-                Beta[idx] = 1 + (DT * NU) / (2 * K[idx]);
-                Gamma[idx] = (DT * NU) / ( 2 * Beta[idx]);
+                Beta[idx] = 1.0 + (DT * NU) / (2.0 * K[idx]);
+                Gamma[idx] = (DT * NU) / (2.0 * Beta[idx]);
             }
         }
     }

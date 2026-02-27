@@ -41,7 +41,7 @@
 #define DZ ((2 * LZ) / (DTYPE)(2*DEPTH - 1))   // Grid spacing in z
 
 #define DT 0.1                        // Time step
-#define TOTAL_TIME 10                    // Total simulation time
+#define TOTAL_TIME 2                    // Total simulation time
 #define STEPS ((int)(TOTAL_TIME / DT))  // Number of time steps
 #define WRITE_FREQUENCY STEPS/25            // Writing output frequency
 

@@ -3,7 +3,7 @@
 #include <stdio.h> // test only 
 
 void solve_pressure_system(VelocityField U_next,
-                           Pressure *pressure
+                           Pressure *pressure, Pressure *pressure_star
                         )
 {
     Pressure psi;
@@ -16,7 +16,7 @@ void solve_pressure_system(VelocityField U_next,
     compute_Psi(U_next, &psi);
     compute_Phi_lower(&psi,  &phi_lower);
     compute_Phi_higher(&phi_lower, &phi_higher);
-    compute_pressure(&phi_higher, pressure);
+    compute_pressure(&phi_higher, pressure, pressure_star);
 }
 
 void compute_Psi(VelocityField U_next, Pressure *psi){
@@ -173,12 +173,22 @@ void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
     free_pressure(&rhs);
 };
 
-void compute_pressure(Pressure *phi_higher, Pressure *pressure){
+void compute_pressure(Pressure *phi_higher, Pressure *pressure, Pressure *pressure_star){
     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
                 pressure->p[idx] += phi_higher->p[idx];
+
+                // Now we compute p_star, needed for the next timestep n+1=N
+                // The current timestep is n and this pressure is p(n + 1/2) = p(n - 1/2) + phi(n + 1/2)
+                // Now we consider the next timestep n + 1 = N
+                // To compute g for the timestep N we need p_star(N + 1/2)
+                // By definition p_star(N + 1/2) = p(N - 1/2) + phi(N - 1/2)
+                // now we substitute N = n + 1 and we get that:
+                // p_star(N + 1/2) = p(n + 1/2) + phi(n + 1/2)
+                // where p(n + 1/2) = p(n - 1/2) + phi(n + 1/2)
+                pressure_star->p[idx] = pressure->p[idx] + phi_higher->p[idx]; 
             }
         }
     }
