@@ -21,9 +21,9 @@
 // In the adimensional navier-stokes formulation with L=[0,1] U=1, T=L/U=1 then -> 1/Re = NU
 
 // Physical domain
-#define LX M_PI  // Domain [0, 1] in x
-#define LY M_PI  // Domain [0, 1] in y
-#define LZ M_PI  // Domain [0, 1] in z
+#define LX M_PI  // Domain [0, PI] in x
+#define LY M_PI  // Domain [0, PI] in y
+#define LZ M_PI  // Domain [0, PI] in z
 /* 
     Staggered grid:
 
@@ -41,9 +41,9 @@
 #define DZ ((2 * LZ) / (DTYPE)(2*DEPTH - 1))   // Grid spacing in z
 
 #define DT 0.1                        // Time step
-#define TOTAL_TIME 10                    // Total simulation time
+#define TOTAL_TIME 2                    // Total simulation time
 #define STEPS ((int)(TOTAL_TIME / DT))  // Number of time steps
-#define WRITE_FREQUENCY STEPS/25            // Writing output frequency
+#define WRITE_FREQUENCY STEPS/STEPS            // Writing output frequency
 
 #define DX_INVERSE (1.0 / DX)
 #define DY_INVERSE (1.0 / DY)

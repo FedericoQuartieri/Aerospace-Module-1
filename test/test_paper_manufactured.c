@@ -25,7 +25,7 @@ static DTYPE manufactured_pressure(DTYPE x, DTYPE y, DTYPE z, DTYPE t) {
 
 /* 
  * Forcing term f = ∂u/∂t - (NU)∇²u + ∇p + (NU/k)u
- * where k = sin(πx) * sin(πy) * sin(πz)
+ * where k = 1
  */
 static DTYPE manufactured_forcing(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component) {
     /* x ∈ [0,π] */
@@ -103,7 +103,6 @@ static void write_exact_solution_vti(const char *filename, ExactSolution *exact,
     
     write_vti_file(filename, &U_exact, &P_exact);
     
-    /* Libera memoria */
     free(U_exact.v_x);
     free(U_exact.v_y);
     free(U_exact.v_z);

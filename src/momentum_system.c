@@ -1,4 +1,6 @@
 #include "momentum_system.h"
+#include <stdlib.h>
+#include <write_vti_file.h>
 
 /*
     Updated by Ema, 
@@ -86,6 +88,16 @@ static void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField 
     update_delta_left_velocity_boundary(&Delta, v_boundary, timestep);
     update_delta_right_velocity_boundary(&Delta, v_boundary, timestep);
 
+    /* TESTING */
+    Pressure p_useless;
+    initialize_pressure(&p_useless);
+    char filename[256];
+    sprintf(filename, "output_exact/deltaxx_%06d.vti", timestep);
+    /* Testing: write into file the Delta field */
+    if(timestep < 10){
+        write_vti_file(filename, &Delta, &p_useless);
+    }
+
     // Thomas algorithm for the linear system, for each component of Delta
     solve_Dxx_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, v_boundary, true);
     solve_Dxx_tridiag_blocks(Delta.v_y, rhs.f_y, Gamma, v_boundary, false);
@@ -133,6 +145,16 @@ static void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceFiel
     update_delta_left_velocity_boundary(&Delta, v_boundary, timestep);
     update_delta_right_velocity_boundary(&Delta, v_boundary, timestep);
 
+    /* TESTING */
+    Pressure p_useless;
+    initialize_pressure(&p_useless);
+    char filename[256];
+    sprintf(filename, "output_exact/deltayy_%06d.vti", timestep);
+    /* Testing: write into file the Delta field */
+    if(timestep < 10){
+        write_vti_file(filename, &Delta, &p_useless);
+    }
+
     // Thomas algorithm for the linear system, for each component of Delta
     solve_Dyy_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, v_boundary, false);
     solve_Dyy_tridiag_blocks(Delta.v_y, rhs.f_y, Gamma, v_boundary, true);
@@ -178,6 +200,16 @@ static void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs,
     // Re-initialize Delta boundaries, modified by the previous system 
     update_delta_left_velocity_boundary(&Delta, v_boundary, timestep);
     update_delta_right_velocity_boundary(&Delta, v_boundary, timestep);
+
+    /* TESTING */
+    Pressure p_useless;
+    initialize_pressure(&p_useless);
+    char filename[256];
+    sprintf(filename, "output_exact/deltazz_%06d.vti", timestep);
+    /* Testing: write into file the Delta field */
+    if(timestep < 10){
+        write_vti_file(filename, &Delta, &p_useless);
+    }
 
     // Thomas algorithm for the linear system, for each component of Delta
     solve_Dzz_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, v_boundary, false);

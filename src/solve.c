@@ -43,24 +43,29 @@ void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K
     initialize_velocity_field(&Delta, v_boundary);
     initialize_force_field(&rhs);
 
+    /* TODO this should be done better */
+    Pressure pressure_star;
+    initialize_pressure(&pressure_star);
+    memcpy(pressure_star.p, pressure.p, GRID_SIZE);
+    
+
     /* 
         t=0 is set as the exact solution by definition, so we should 
-        start to solve for the timestep t = 1 
+        start to solve at t = 1 
     */
     for (int t = 1; t <= STEPS; t++) {
 
         /* g(t) is computed with forcing(t-1/2) and velocity(t-1) */
-        compute_g(&g_field, forcing, &pressure, K, &Eta, &Zeta, &U, t, v_boundary);        
+        compute_g(&g_field, forcing, &pressure_star, K, &Eta, &Zeta, &U, t, v_boundary);        
 
         /* here we set all the boundary as the delta of boundary(t) - boundary(t-1) */
         solve_momentum_system(U, Eta, Zeta, Xi, g_field, Delta, rhs, Beta, Gamma, v_boundary, t);
 
-        // Here we need to enforce the left boundary conditions,
-        // remember that are available in Eta, Zeta, U
-        //update_left_velocity_boundary(&U, v_boundary, t);
-        //update_right_velocity_boundary(&U, v_boundary, t);
+        // Could it be useful to impose the bc on U that have been modified by Eta and Zeta, or not ? 
+        //update_delta_left_velocity_boundary(&U, v_boundary, t);
+        //update_delta_right_velocity_boundary(&U, v_boundary, t);
         
-        solve_pressure_system(U, &pressure);
+        solve_pressure_system(U, &pressure, &pressure_star);
 
         if (t % write_frequency == 0) {
 

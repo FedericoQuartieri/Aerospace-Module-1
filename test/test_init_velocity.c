@@ -11,7 +11,7 @@
 
 
 /*
- * Test to verify that all boundary points are properly initialized
+ * Test to verify that all the boundary points are properly initialized
  * using the boundary conditions from test_manufactured_Vboundary.txt
  * 
  * The boundary file contains:

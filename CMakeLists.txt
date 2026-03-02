@@ -35,6 +35,8 @@ set(TEST_NAMES
     test_init_velocity
     test_manufactured
     test_paper_manufactured
+    test_zero_pressure_manufactured
+    test_setted_boundaries
 )
 
 foreach(TEST_NAME ${TEST_NAMES})
