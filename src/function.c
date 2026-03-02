@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "constants.h"
 #include "tinyexpr.h"
 #include "function.h"
 
@@ -71,7 +72,7 @@ double eval_delta_function(function_handle handle, double x, double y, double z,
         return funct_t;
     } else {
         /* Update and evaluate at time t-1 */
-        handle->t = t - 1;
+        handle->t = t - DT;
         funct_t_prev = te_eval(handle->expr[component]);
 
         return (funct_t - funct_t_prev);

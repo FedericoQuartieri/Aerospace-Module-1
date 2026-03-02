@@ -124,8 +124,8 @@ void update_delta_left_velocity_boundary(VelocityField *v_field, function_handle
     for(int k = 1; k < DEPTH; k++){
         for(int i = 1; i < WIDTH; i++){
             idx = rowmaj_idx(i, 0, k);
-            DTYPE x = i * DX + DX/2;
-            DTYPE z = k * DZ + DZ/2;
+            DTYPE x = i * DX;
+            DTYPE z = k * DZ;
             DTYPE vel_x = x + DX/2; 
             DTYPE vel_z = z + DZ/2;
             
@@ -143,8 +143,8 @@ void update_delta_left_velocity_boundary(VelocityField *v_field, function_handle
     for(int j = 1; j < HEIGHT; j++){
         for(int i = 1; i < WIDTH; i++){
             idx = rowmaj_idx(i, j, 0);
-            DTYPE x = i * DX + DX/2;
-            DTYPE y = j * DY + DY/2;
+            DTYPE x = i * DX;
+            DTYPE y = j * DY;
             DTYPE vel_x = x + DX/2;
             DTYPE vel_y = y + DY/2;
             
