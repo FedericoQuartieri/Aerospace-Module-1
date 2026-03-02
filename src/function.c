@@ -6,6 +6,7 @@
 
 #include "tinyexpr.h"
 #include "function.h"
+#include "constants.h"
 
 /* Context that holds compiled expressions and variable storage */
 struct FunctionContext {
@@ -73,8 +74,8 @@ double eval_delta_function(function_handle handle, double x, double y, double z,
     if(t == 0){
         return funct_t;
     } else {
-        /* Update and evaluate at time t-1 */
-        handle->t = t - 1;
+        /* Update and evaluate at time t - DT !! since t is already in the physical domain */
+        handle->t = t - DT;
         funct_t_prev = te_eval(handle->expr[component]);
 
         return (funct_t - funct_t_prev);

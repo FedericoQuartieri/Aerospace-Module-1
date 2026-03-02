@@ -101,6 +101,12 @@ void update_delta_left_velocity_boundary(VelocityField *v_field, function_handle
     size_t idx;
     DTYPE t = time_step * DT;  
 
+    /* 
+        Warning: currently I'm computing the delta of the function here supposing that the eval_delta_function 
+        took the timestep, while instead it use the physical time.
+        -> FIXED !
+    */
+
     // (i,j,k) = (0,j,k) 
     for(int k = 1; k < DEPTH; k++){
         for(int j = 1; j < HEIGHT; j++){
@@ -116,7 +122,7 @@ void update_delta_left_velocity_boundary(VelocityField *v_field, function_handle
                          - ((eval_delta_function(v_boundary, 0.0, y, vel_z, t, 2) 
                             - eval_delta_function(v_boundary, 0.0, y, vel_z - DZ, t, 2)) * DZ_INVERSE));
             v_field->v_y[idx] = eval_delta_function(v_boundary, 0.0, vel_y, z, t, 1);
-            v_field->v_z[idx] = eval_delta_function(v_boundary, 0.0, y, vel_z, t, 2);
+            v_field->v_z[idx] = eval_delta_function(v_boundary, 0.0, y, vel_z, t, 2); 
         }
     }
 

@@ -2,6 +2,8 @@
 #ifndef FUNCTION_H
 #define FUNCTION_H
 
+#include "function.h"
+
 /* Opaque handle for a parsed function */
 typedef struct FunctionContext *function_handle;
 

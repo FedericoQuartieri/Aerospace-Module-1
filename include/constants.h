@@ -3,9 +3,9 @@
 #include <math.h>
 
 // Grid dimensions
-#define WIDTH 32
-#define HEIGHT 32
-#define DEPTH 32
+#define WIDTH 64
+#define HEIGHT 64
+#define DEPTH 64
 
 // Grid spatial dimension (number of elements)
 #define GRID_ELEMENTS WIDTH * HEIGHT * DEPTH
