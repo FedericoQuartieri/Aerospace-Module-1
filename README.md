@@ -9,7 +9,7 @@
 ## TODO
 
 - [x] complete fused Dxx rhs computation
-- [ ] add support for floats in fused Dxx rhs computation
+- [x] add support for floats in fused Dxx rhs computation
 - [x] fuse pressure update into Dzz solve
 - [ ] complete fused pressure solve
 - [x] test with obstacles using low permeability

@@ -13,6 +13,8 @@ OutputVTK *output_vtk_create(field_size grid_size,
                              ftype grid_spacing,
                              ArenaAllocator *arena);
 
+void output_vtk_destroy(OutputVTK *output);
+
 void output_vtk_attach_field(OutputVTK *output,
                              const_field field,
                              const char *name,

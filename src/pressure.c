@@ -79,15 +79,26 @@ vftype compute_div_vtile(const ftype *restrict src_x,
     return vbroadcast(0);
 #else
 
-#ifndef FLOAT
+    /* TODO: Try to place vftype variables in arrays and force unrolling
+     * to avoid having to use ifdefs when using floats. */
+
     /* Loads u_y tile and computes du_y/dy. */
     vftype ry0, ry1, ry2, ry3, ry4;
+#ifdef FLOAT
+    vftype ry5, ry6, ry7, ry8;
+#endif
+
     if (!is_first_row) {
         ry0 = vload(src_y - width);
     }
+#ifdef FLOAT
+    load_vtile(src_y, width, ry1, ry2, ry3, ry4, ry5, ry6, ry7, ry8);
+    fin_diff(ry0, ry1, ry2, ry3, ry4, ry5, ry6, ry7, ry8);
+#else
     load_vtile(src_y, width, ry1, ry2, ry3, ry4);
-
     fin_diff(ry0, ry1, ry2, ry3, ry4);
+#endif
+
     /* ry* now contains ddy*. */
 
     uint64_t face_stride = height * width;
@@ -95,80 +106,44 @@ vftype compute_div_vtile(const ftype *restrict src_x,
     vftype div1 = vtile_ddz(src_z, 1, width, face_stride) + ry1;
     vftype div2 = vtile_ddz(src_z, 2, width, face_stride) + ry2;
     vftype div3 = vtile_ddz(src_z, 3, width, face_stride) + ry3;
+#ifdef FLOAT
+    vftype div4 = vtile_ddz(src_z, 4, width, face_stride) + ry4;
+    vftype div5 = vtile_ddz(src_z, 5, width, face_stride) + ry5;
+    vftype div6 = vtile_ddz(src_z, 6, width, face_stride) + ry6;
+    vftype div7 = vtile_ddz(src_z, 7, width, face_stride) + ry7;
+#endif
 
     if (is_first_row) {
         div0 = vbroadcast(0);
     }
 
+#ifdef FLOAT
+    vtranspose(&div0, &div1, &div2, &div3, &div4, &div5, &div6, &div7);
+#else
     vtranspose(&div0, &div1, &div2, &div3);
+#endif
 
     if (is_first_tile) {
         div0 = vbroadcast(0);
     }
 
     vftype rx0, rx1, rx2, rx3, rx4;
-    load_vtile(src_x, width, rx1, rx2, rx3, rx4); 
-
-    if (is_first_row) {
-        rx1 = vbroadcast(0);
-    }
-
-    vtranspose(&rx1, &rx2, &rx3, &rx4);
-    if (is_first_tile) {
-        /* So that ddx0 goes to zero. */
-        rx0 = rx1;
-    } else {
-        rx0 = rx0_prev;
-    }
-
-    fin_diff(rx0, rx1, rx2, rx3, rx4);
-
-    vstore(dst + 0 * dst_stride, (div0 + rx0) / (-_DX * _DT));
-    vstore(dst + 1 * dst_stride, (div1 + rx1) / (-_DX * _DT));
-    vstore(dst + 2 * dst_stride, (div2 + rx2) / (-_DX * _DT));
-    vstore(dst + 3 * dst_stride, (div3 + rx3) / (-_DX * _DT));
-
-    return rx4;
-
-#else
-    /* Loads u_y tile and computes du_y/dy. */
-    vftype ry0, ry1, ry2, ry3, ry4, ry5, ry6, ry7, ry8;
-    if (!is_first_row) {
-        ry0 = vload(src_y - width);
-    }
-    load_vtile(src_y, width, ry1, ry2, ry3, ry4, ry5, ry6, ry7, ry8);
-
-    fin_diff(ry0, ry1, ry2, ry3, ry4, ry5, ry6, ry7, ry8);
-    /* ry* now contains ddy*. */
-
-    uint64_t face_stride = height * width;
-    vftype div0 = vtile_ddz(src_z, 0, width, face_stride) + ry0;
-    vftype div1 = vtile_ddz(src_z, 1, width, face_stride) + ry1;
-    vftype div2 = vtile_ddz(src_z, 2, width, face_stride) + ry2;
-    vftype div3 = vtile_ddz(src_z, 3, width, face_stride) + ry3;
-    vftype div4 = vtile_ddz(src_z, 4, width, face_stride) + ry4;
-    vftype div5 = vtile_ddz(src_z, 5, width, face_stride) + ry5;
-    vftype div6 = vtile_ddz(src_z, 6, width, face_stride) + ry6;
-    vftype div7 = vtile_ddz(src_z, 7, width, face_stride) + ry7;
-
-    if (is_first_row) {
-        div0 = vbroadcast(0);
-    }
-
-    vtranspose(&div0, &div1, &div2, &div3, &div4, &div5, &div6, &div7);
-
-    if (is_first_tile) {
-        div0 = vbroadcast(0);
-    }
-
-    vftype rx0, rx1, rx2, rx3, rx4, rx5, rx6, rx7, rx8;
+#ifdef FLOAT
+    vftype rx5, rx6, rx7, rx8;
     load_vtile(src_x, width, rx1, rx2, rx3, rx4, rx5, rx6, rx7, rx8); 
+#else
+    load_vtile(src_x, width, rx1, rx2, rx3, rx4); 
+#endif
 
     if (is_first_row) {
         rx1 = vbroadcast(0);
     }
 
+#ifdef FLOAT
     vtranspose(&rx1, &rx2, &rx3, &rx4, &rx5, &rx6, &rx7, &rx8);
+#else
+    vtranspose(&rx1, &rx2, &rx3, &rx4);
+#endif
     if (is_first_tile) {
         /* So that ddx0 goes to zero. */
         rx0 = rx1;
@@ -176,18 +151,25 @@ vftype compute_div_vtile(const ftype *restrict src_x,
         rx0 = rx0_prev;
     }
 
+#ifdef FLOAT
     fin_diff(rx0, rx1, rx2, rx3, rx4, rx5, rx6, rx7, rx8);
+#else
+    fin_diff(rx0, rx1, rx2, rx3, rx4);
+#endif
 
     vstore(dst + 0 * dst_stride, (div0 + rx0) / (-_DX * _DT));
     vstore(dst + 1 * dst_stride, (div1 + rx1) / (-_DX * _DT));
     vstore(dst + 2 * dst_stride, (div2 + rx2) / (-_DX * _DT));
     vstore(dst + 3 * dst_stride, (div3 + rx3) / (-_DX * _DT));
+#ifdef FLOAT
     vstore(dst + 4 * dst_stride, (div4 + rx4) / (-_DX * _DT));
     vstore(dst + 5 * dst_stride, (div5 + rx5) / (-_DX * _DT));
     vstore(dst + 6 * dst_stride, (div6 + rx6) / (-_DX * _DT));
     vstore(dst + 7 * dst_stride, (div7 + rx7) / (-_DX * _DT));
 
     return rx8;
+#else
+    return rx4;
 #endif
 
 #endif
@@ -307,6 +289,8 @@ static void solve_Dxx_blocks(const ftype *restrict u_x,
 #ifdef AUTO_VEC
     printf("WARNING: solve_Dxx_blocks for AUTO_VEC not implemented\n");
 #else
+    /* TODO: Precompute upp once up to max(d, h, w) and reuse
+     * the coefficients for Dyy and Dzz. */
     ftype upp = -2.0 / (2.0 + _DX * _DX); /* Left BC. */
     tmp[0] = upp;
     /* We can reduce once, each row of the first face

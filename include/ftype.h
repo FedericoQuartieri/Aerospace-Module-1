@@ -53,15 +53,21 @@
 #endif
 #endif
 
-#ifndef FLOAT
 inline __attribute__((always_inline)) vftype vgather(const ftype *src,
                                                      uint32_t stride)
 {
     /* TODO: Load from array. */
+#ifdef FLOAT
+    __m256i offset = _mm256_set_epi32(stride * 7, stride * 6,
+                                      stride * 5, stride * 4,
+                                      stride * 3, stride * 2,
+                                      stride * 1, 0);
+    return _mm256_i32gather_ps(src, offset, sizeof(ftype));
+#else
     __m128i offset = _mm_set_epi32(stride * 3, stride * 2, stride * 1, 0);
     return _mm256_i32gather_pd(src, offset, sizeof(ftype));
-}
 #endif
+}
 
 inline __attribute__((always_inline)) void vscatter(vftype src,
                                                     ftype *dst,

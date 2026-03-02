@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/mman.h>
 
 #include "alloc.h"
@@ -50,9 +51,7 @@ void output_vtk_attach_field(OutputVTK *output,
                              const_field field,
                              const char *name,
                              ArenaAllocator *arena)
-{
-    struct OutputNode *node = arena_push_noalign(arena,
-                                                 sizeof(struct OutputNode));
+{ struct OutputNode *node = arena_push_noalign(arena, sizeof(struct OutputNode));
     node->data[0] = field;
     node->name = name;
     node->type = OUTPUT_NODE_SCALAR;
@@ -99,21 +98,26 @@ static inline void to_big_endian(const ftype *src, char *dst)
 #endif
 }
 
-struct UnmapFileArgs
+struct MUnmapArgs
 {
-    
+    void *addr;
+    uint64_t size;
 };
 
-static void *munmap_output_file(void *args)
+static void *munmap_vtk_file(void *args)
 {
-
-
+    struct MUnmapArgs *munmap_args = (struct MUnmapArgs *) args;
+    munmap(munmap_args->addr, munmap_args->size);
+    free(munmap_args);
+    return 0;
 }
 
 void output_vtk_write(OutputVTK *output,
                       const char *output_file_name,
                       Thread *thread)
 {
+    /* TODO: add the option to limit the numbers of threads involved. */
+
     uint64_t num_points = field_num_points(output->grid_size);
 
     uint64_t file_size = MAX_VTK_HEADER_SIZE;
@@ -140,7 +144,11 @@ void output_vtk_write(OutputVTK *output,
         /* Apparently access modes apply only for future accesses
          * of the file, so we need to reopen the file. */
         fd = open(output_file_name, O_RDWR); /* rw mode to allow mmap. */
-        ftruncate(fd, file_size);
+
+        if (ftruncate(fd, file_size) != 0) {
+            printf("[%s:%d] Error (%d) while truncating %s\n",
+                   __FILE__, __LINE__, errno, output_file_name);
+        }
 
         output->mmapped_file = mmap(NULL, file_size,
                                     PROT_WRITE, MAP_SHARED, fd, 0);
@@ -229,26 +237,17 @@ void output_vtk_write(OutputVTK *output,
 
     thread_wait_on_barrier(thread);
 
-    /* TODO: Spawn a thread to munmap to hide the flush overhead.
-     * Moreover, two threads are enough to saturate output performance,
-     * so limit the number of threads involved. */
-
     if (thread->t_id == 0) {
-        ftruncate(fd, offset);
+        if (ftruncate(fd, offset) != 0) {
+            printf("[%s:%d] Error (%d) while truncating %s\n",
+                   __FILE__, __LINE__, errno, output_file_name);
+        }
         close(fd);
 
-        /*
-        struct {
-            void *addr;
-            uint64_t size;
-        } *munmap_args = ..
-
-        munmap_args->addr = output->mmapped_file;
-        munmap_args->size = file_size;
-
-        thread_run_orpan(thread, munmap_file, munmap_args);
-        */
-
-        munmap(output->mmapped_file, file_size);
+        /* TODO: Can I avoid the malloc without locking? */
+        struct MUnmapArgs *args = malloc(sizeof(struct MUnmapArgs));
+        args->addr = output->mmapped_file;
+        args->size = file_size;
+        thread_run_orphan(thread, munmap_vtk_file, args);
     }
 }

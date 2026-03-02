@@ -103,9 +103,6 @@ void compute_Dxx_rhs(const ftype *restrict k, /* Porosity. */
                      ftype *restrict rhs_y,
                      ftype *restrict rhs_z)
 {
-    /* TODO: Consider on the fly rhs evaluation while solving. */
-
-
     vftype vdt = vbroadcast(_DT);
     vftype vdt_nu = vbroadcast(_DT * _NU);
 
@@ -556,38 +553,131 @@ void backward_sub_vstrip(const ftype *restrict f_x,
 #define LAST_ROW   1
 #define LAST_FACE  1
 
-#define load_vtile(src, stride,      \
-                   r0, r1, r2, r3)   \
-do {                                 \
-    r0 = vload(src + 0 * stride);    \
-    r1 = vload(src + 1 * stride);    \
-    r2 = vload(src + 2 * stride);    \
-    r3 = vload(src + 3 * stride);    \
+#ifdef FLOAT
+
+#define def_vtile(name) \
+    vftype name##0, name##1, name##2, name##3, \
+           name##4, name##5, name##6, name##7
+
+#define load_vtile(src, stride, tile)   \
+do {                                    \
+    tile##0 = vload(src + 0 * stride);  \
+    tile##1 = vload(src + 1 * stride);  \
+    tile##2 = vload(src + 2 * stride);  \
+    tile##3 = vload(src + 3 * stride);  \
+    tile##4 = vload(src + 4 * stride);  \
+    tile##5 = vload(src + 5 * stride);  \
+    tile##6 = vload(src + 6 * stride);  \
+    tile##7 = vload(src + 7 * stride);  \
 } while (0)
 
-#define load_vtile_add(src, stride,      \
-                       r0, r1, r2, r3)   \
-do {                                     \
-    r0 += vload(src + 0 * stride);       \
-    r1 += vload(src + 1 * stride);       \
-    r2 += vload(src + 2 * stride);       \
-    r3 += vload(src + 3 * stride);       \
+#define load_vtile_add(src, stride, tile)  \
+do {                                       \
+    tile##0 += vload(src + 0 * stride);    \
+    tile##1 += vload(src + 1 * stride);    \
+    tile##2 += vload(src + 2 * stride);    \
+    tile##3 += vload(src + 3 * stride);    \
+    tile##4 += vload(src + 4 * stride);    \
+    tile##5 += vload(src + 5 * stride);    \
+    tile##6 += vload(src + 6 * stride);    \
+    tile##7 += vload(src + 7 * stride);    \
 } while (0)
 
-#define store_vtile(dst, stride,      \
-                    r0, r1, r2, r3)   \
-do {                                  \
-    vstore(dst + 0 * stride, r0);     \
-    vstore(dst + 1 * stride, r1);     \
-    vstore(dst + 2 * stride, r2);     \
-    vstore(dst + 3 * stride, r3);     \
+#define store_vtile(dst, stride, tile)  \
+do {                                    \
+    vstore(dst + 0 * stride, tile##0);  \
+    vstore(dst + 1 * stride, tile##1);  \
+    vstore(dst + 2 * stride, tile##2);  \
+    vstore(dst + 3 * stride, tile##3);  \
+    vstore(dst + 4 * stride, tile##4);  \
+    vstore(dst + 5 * stride, tile##5);  \
+    vstore(dst + 6 * stride, tile##6);  \
+    vstore(dst + 7 * stride, tile##7);  \
 } while (0)
+
+#define fin_diff_vtiles(src_tile, src_tile_prev, dst_tile)  \
+do {                                                        \
+    dst_tile##0 = (src_tile##0 - src_tile_prev##0) / -_DX;  \
+    dst_tile##1 = (src_tile##1 - src_tile_prev##1) / -_DX;  \
+    dst_tile##2 = (src_tile##2 - src_tile_prev##2) / -_DX;  \
+    dst_tile##3 = (src_tile##3 - src_tile_prev##3) / -_DX;  \
+    dst_tile##4 = (src_tile##4 - src_tile_prev##4) / -_DX;  \
+    dst_tile##5 = (src_tile##5 - src_tile_prev##5) / -_DX;  \
+    dst_tile##6 = (src_tile##6 - src_tile_prev##6) / -_DX;  \
+    dst_tile##7 = (src_tile##7 - src_tile_prev##7) / -_DX;  \
+} while (0)
+
+#define fin_diff_vtile(src_tile, dst_tile)             \
+do {                                                   \
+    dst_tile##0 = (src_tile##1 - src_tile##0) / -_DX;  \
+    dst_tile##1 = (src_tile##2 - src_tile##1) / -_DX;  \
+    dst_tile##2 = (src_tile##3 - src_tile##2) / -_DX;  \
+    dst_tile##3 = (src_tile##4 - src_tile##3) / -_DX;  \
+    dst_tile##4 = (src_tile##5 - src_tile##4) / -_DX;  \
+    dst_tile##5 = (src_tile##6 - src_tile##5) / -_DX;  \
+    dst_tile##6 = (src_tile##7 - src_tile##6) / -_DX;  \
+    dst_tile##7 = (src_tile##8 - src_tile##7) / -_DX;  \
+} while (0)
+
+#define transpose_vtile_ip(tile)                        \
+    vtranspose(&tile##0, &tile##1, &tile##2, &tile##3,  \
+               &tile##4, &tile##5, &tile##6, &tile##7)
+
+#else
+
+#define def_vtile(name) \
+    vftype name##0, name##1, name##2, name##3;
+
+
+#define load_vtile(src, stride, tile)   \
+do {                                    \
+    tile##0 = vload(src + 0 * stride);  \
+    tile##1 = vload(src + 1 * stride);  \
+    tile##2 = vload(src + 2 * stride);  \
+    tile##3 = vload(src + 3 * stride);  \
+} while (0)
+
+#define load_vtile_add(src, stride, tile)  \
+do {                                       \
+    tile##0 += vload(src + 0 * stride);    \
+    tile##1 += vload(src + 1 * stride);    \
+    tile##2 += vload(src + 2 * stride);    \
+    tile##3 += vload(src + 3 * stride);    \
+} while (0)
+
+#define store_vtile(dst, stride, tile)  \
+do {                                    \
+    vstore(dst + 0 * stride, tile##0);  \
+    vstore(dst + 1 * stride, tile##1);  \
+    vstore(dst + 2 * stride, tile##2);  \
+    vstore(dst + 3 * stride, tile##3);  \
+} while (0)
+
+#define fin_diff_vtiles(src_tile, src_tile_prev, dst_tile)  \
+do {                                                        \
+    dst_tile##0 = (src_tile##0 - src_tile_prev##0) / -_DX;  \
+    dst_tile##1 = (src_tile##1 - src_tile_prev##1) / -_DX;  \
+    dst_tile##2 = (src_tile##2 - src_tile_prev##2) / -_DX;  \
+    dst_tile##3 = (src_tile##3 - src_tile_prev##3) / -_DX;  \
+} while (0)
+
+#define fin_diff_vtile(src_tile, dst_tile)             \
+do {                                                   \
+    dst_tile##0 = (src_tile##1 - src_tile##0) / -_DX;  \
+    dst_tile##1 = (src_tile##2 - src_tile##1) / -_DX;  \
+    dst_tile##2 = (src_tile##3 - src_tile##2) / -_DX;  \
+    dst_tile##3 = (src_tile##4 - src_tile##3) / -_DX;  \
+} while (0)
+
+#define transpose_vtile_ip(tile) \
+    vtranspose(&tile##0, &tile##1, &tile##2, &tile##3);
+
+#endif
 
 #define COMPONENT_X 0
 #define COMPONENT_Y 1
 #define COMPONENT_Z 2
 
-#ifndef FLOAT
 static inline __attribute__((always_inline))
 void compute_Dxx_Dyy_Dzz(const ftype *restrict eta,
                          const ftype *restrict zeta,
@@ -608,8 +698,8 @@ void compute_Dxx_Dyy_Dzz(const ftype *restrict eta,
     /* NOTE: All of the conditionals here will be
      * evaluated at compile time and optimized away. */
 
-    vftype dd0, dd1, dd2, dd3;
-    load_vtile(vel, width, dd0, dd1, dd2, dd3);
+    def_vtile(dd);
+    load_vtile(vel, width, dd);
 
     /* Compute Dzz vel */
 
@@ -619,14 +709,20 @@ void compute_Dxx_Dyy_Dzz(const ftype *restrict eta,
 
     } else if (is_last_face) {
 
-        vftype v0, v1, v2, v3;
+        def_vtile(v);
         /* WARNING: Safe but vel must be padded. */
-        load_vtile(vel - height * width, width, v0, v1, v2, v3);
+        load_vtile(vel - height * width, width, v);
 
         dd0 = (ftype) 4.0 / 3 * v0 - 4 * dd0;
         dd1 = (ftype) 4.0 / 3 * v1 - 4 * dd1;
         dd2 = (ftype) 4.0 / 3 * v2 - 4 * dd2;
         dd3 = (ftype) 4.0 / 3 * v3 - 4 * dd3;
+#ifdef FLOAT
+        dd4 = (ftype) 4.0 / 3 * v4 - 4 * dd4;
+        dd5 = (ftype) 4.0 / 3 * v5 - 4 * dd5;
+        dd6 = (ftype) 4.0 / 3 * v6 - 4 * dd6;
+        dd7 = (ftype) 4.0 / 3 * v7 - 4 * dd7;
+#endif
 
         if (component == COMPONENT_X) {
             vftype _y, _z; /* Dummy variables, they will be optmized away. */
@@ -634,89 +730,147 @@ void compute_Dxx_Dyy_Dzz(const ftype *restrict eta,
             _get_back_bc_u(k, j + 1, depth - 1, timestep - 1, &v1, &_y, &_z);
             _get_back_bc_u(k, j + 2, depth - 1, timestep - 1, &v2, &_y, &_z);
             _get_back_bc_u(k, j + 3, depth - 1, timestep - 1, &v3, &_y, &_z);
+#ifdef FLOAT
+            _get_back_bc_u(k, j + 0, depth - 1, timestep - 1, &v4, &_y, &_z);
+            _get_back_bc_u(k, j + 1, depth - 1, timestep - 1, &v5, &_y, &_z);
+            _get_back_bc_u(k, j + 2, depth - 1, timestep - 1, &v6, &_y, &_z);
+            _get_back_bc_u(k, j + 3, depth - 1, timestep - 1, &v7, &_y, &_z);
+#endif
         } else { /* component == COMPONENT_Y */
             vftype _x, _z; /* Dummy variables, they will be optmized away. */
             _get_back_bc_u(k, j + 0, depth - 1, timestep - 1, &_x, &v0, &_z);
             _get_back_bc_u(k, j + 1, depth - 1, timestep - 1, &_x, &v1, &_z);
             _get_back_bc_u(k, j + 2, depth - 1, timestep - 1, &_x, &v2, &_z);
             _get_back_bc_u(k, j + 3, depth - 1, timestep - 1, &_x, &v3, &_z);
+#ifdef FLOAT
+            _get_back_bc_u(k, j + 0, depth - 1, timestep - 1, &_x, &v4, &_z);
+            _get_back_bc_u(k, j + 1, depth - 1, timestep - 1, &_x, &v5, &_z);
+            _get_back_bc_u(k, j + 2, depth - 1, timestep - 1, &_x, &v6, &_z);
+            _get_back_bc_u(k, j + 3, depth - 1, timestep - 1, &_x, &v7, &_z);
+#endif
         }
 
         dd0 += (ftype) 8.0 / 3 * v0;
         dd1 += (ftype) 8.0 / 3 * v1;
         dd2 += (ftype) 8.0 / 3 * v2;
         dd3 += (ftype) 8.0 / 3 * v3;
+#ifdef FLOAT
+        dd4 += (ftype) 8.0 / 3 * v4;
+        dd5 += (ftype) 8.0 / 3 * v5;
+        dd6 += (ftype) 8.0 / 3 * v6;
+        dd7 += (ftype) 8.0 / 3 * v7;
+#endif
 
     } else {
         dd0 *= -2; dd1 *= -2; dd2 *= -2; dd3 *= -2;
-        load_vtile_add(vel - height * width, width, dd0, dd1, dd2, dd3);
-        load_vtile_add(vel + height * width, width, dd0, dd1, dd2, dd3);
+#ifdef FLOAT
+        dd4 *= -2; dd5 *= -2; dd6 *= -2; dd7 *= -2;
+#endif
+        load_vtile_add(vel - height * width, width, dd);
+        load_vtile_add(vel + height * width, width, dd);
     }
 
     /* Compute Dyy zeta_x */
+    def_vtile(zt);
+    vftype ztp, ztn;
 
-    vftype zt0, zt1, zt2, zt3, zt4, zt5;
-    load_vtile(zeta, width, zt1, zt2, zt3, zt4);
+    load_vtile(zeta, width, zt);
     /* WARNING: Safe but zeta must be padded. */
-    zt0 = vload(zeta - width);
-    dd0 += zt0 - 2 * zt1 + zt2;
-    dd1 += zt1 - 2 * zt2 + zt3;
-    dd2 += zt2 - 2 * zt3 + zt4;
+    ztp = vload(zeta - width);
+
+    dd0 += ztp - 2 * zt0 + zt1;
+    dd1 += zt0 - 2 * zt1 + zt2;
+    dd2 += zt1 - 2 * zt2 + zt3;
+#ifdef FLOAT
+    dd3 += zt2 - 2 * zt3 + zt4;
+    dd4 += zt3 - 2 * zt4 + zt5;
+    dd5 += zt4 - 2 * zt5 + zt6;
+    dd6 += zt5 - 2 * zt6 + zt7;
+#endif
 
     if (is_last_row && component != COMPONENT_Y) {
         if (component == COMPONENT_X) {
             vftype _y, _z;
-            _get_bottom_bc_u(k, height - 1, i, timestep - 1, &zt5, &_y, &_z);
+            _get_bottom_bc_u(k, height - 1, i, timestep - 1, &ztn, &_y, &_z);
         } else { /* component == COMPONENT_Z */
             vftype _x, _y;
-            _get_bottom_bc_u(k, height - 1, i, timestep - 1, &_x, &_y, &zt5);
+            _get_bottom_bc_u(k, height - 1, i, timestep - 1, &_x, &_y, &ztn);
         }
-        dd3 += (ftype) 4.0 / 3 * zt3 - 4 * zt4 + (ftype) 8.0 / 3 * zt5;
-
+#ifdef FLOAT
+        dd7 += (ftype) 4.0 / 3 * zt6 - 4 * zt7 + (ftype) 8.0 / 3 * ztn;
+#else
+        dd3 += (ftype) 4.0 / 3 * zt2 - 4 * zt3 + (ftype) 8.0 / 3 * ztn;
+#endif
     } else if (!is_last_row) {
-        zt5 = vload(zeta + width * 4);
-        dd3 += zt3 - 2 * zt4 + zt5;
+        ztn = vload(zeta + width * VLEN);
+#ifdef FLOAT
+        dd7 += zt6 - 2 * zt7 + ztn;
+#else
+        dd3 += zt2 - 2 * zt3 + ztn;
+#endif
     }
 
      /* Compute Dxx eta_x */
-
-    vftype et0, et1, et2, et3, et4, et5;
+    def_vtile(et);
+    vftype etp, etn;
     /* WARNING: Safe but eta must be padded. */
-    et0 = vgather(eta - 1, width);
-    load_vtile(eta, width, et1, et2, et3, et4);
-    vtranspose(&et1, &et2, &et3, &et4);
+    etp = vgather(eta - 1, width);
+    load_vtile(eta, width, et);
+    transpose_vtile_ip(et);
 
+    etp = etp - 2 * et0 + et1;
     et0 = et0 - 2 * et1 + et2;
     et1 = et1 - 2 * et2 + et3;
+#ifdef FLOAT
     et2 = et2 - 2 * et3 + et4;
+    et3 = et3 - 2 * et4 + et5;
+    et4 = et4 - 2 * et5 + et6;
+    et5 = et5 - 2 * et6 + et7;
+#endif
 
     if (is_last_col && component != COMPONENT_X) {
         if (component == COMPONENT_Y) {
             vftype _x, _z;
-            _get_right_bc_u(width - 1, j, i, timestep - 1, &_x, &et5, &_z);
+            _get_right_bc_u(width - 1, j, i, timestep - 1, &_x, &etn, &_z);
         } else { /* component == COMPONENT_Z */
              vftype _x, _y;
-            _get_right_bc_u(width - 1, j, i, timestep - 1, &_x, &_y, &et5);
+            _get_right_bc_u(width - 1, j, i, timestep - 1, &_x, &_y, &etn);
         }
-        et3 = (ftype) 4.0 / 3 * et3 - 4 * et4 + (ftype) 8.0 / 3 * et5;
-
+#ifdef FLOAT
+        et6 = (ftype) 4.0 / 3 * et6 - 4 * et7 + (ftype) 8.0 / 3 * etn;
+#else
+        et2 = (ftype) 4.0 / 3 * et2 - 4 * et3 + (ftype) 8.0 / 3 * etn;
+#endif
     } else if (!is_last_col) {
-        et5 = vgather(eta + VLEN, width);
-        et3 = et3 - 2 * et4 + et5;
+        etn = vgather(eta + VLEN, width);
+#ifdef FLOAT
+        et6 = et6 - 2 * et7 + etn;
+#else
+        et2 = et2 - 2 * et3 + etn;
+#endif
     }/* else {
         et3 = vbroadcast(0);
     }*/
 
-    vtranspose(&et0, &et1, &et2, &et3);
+#ifdef FLOAT
+    vtranspose(&etp, &et0, &et1, &et2, &et3, &et4, &et5, &et6);
+#else
+    vtranspose(&etp, &et0, &et1, &et2);
+#endif
 
-    dd0 = (dd0 + et0) * _NU / (_DX * _DX);
-    dd1 = (dd1 + et1) * _NU / (_DX * _DX);
-    dd2 = (dd2 + et2) * _NU / (_DX * _DX);
-    dd3 = (dd3 + et3) * _NU / (_DX * _DX);
+    dd0 = (dd0 + etp) * _NU / (_DX * _DX);
+    dd1 = (dd1 + et0) * _NU / (_DX * _DX);
+    dd2 = (dd2 + et1) * _NU / (_DX * _DX);
+    dd3 = (dd3 + et2) * _NU / (_DX * _DX);
+#ifdef FLOAT
+    dd4 = (dd4 + et3) * _NU / (_DX * _DX);
+    dd5 = (dd5 + et4) * _NU / (_DX * _DX);
+    dd6 = (dd6 + et5) * _NU / (_DX * _DX);
+    dd7 = (dd7 + et6) * _NU / (_DX * _DX);
+#endif
 
-    load_vtile_add(rhs, VLEN, dd0, dd1, dd2, dd3);
-
-    store_vtile(rhs, VLEN, dd0, dd1, dd2, dd3);
+    load_vtile_add(rhs, VLEN, dd);
+    store_vtile(rhs, VLEN, dd);
 }
 
 static inline __attribute__((always_inline))
@@ -746,58 +900,71 @@ void compute_rhs_vtile(const ftype *restrict porosity,
                        ftype *restrict rhs_y_t,
                        ftype *restrict rhs_z_t)
 {
-
-    /* NOTE: I could use more registers here. */
-
-    vftype pp0, pp1, pp2, pp3;
+    def_vtile(pp);
     /* Computing pressure predictor for current tile. */
-    load_vtile(p, width, pp0, pp1, pp2, pp3);
-    load_vtile_add(phi, width, pp0, pp1, pp2, pp3);
+    load_vtile(p, width, pp);
+    load_vtile_add(phi, width, pp);
 
     if (!is_last_face) {
-        vftype pp0z, pp1z, pp2z, pp3z;
-        load_vtile(p + height * width, width, pp0z, pp1z, pp2z, pp3z);
-        load_vtile_add(phi + height * width, width, pp0z, pp1z, pp2z, pp3z);
-        store_vtile(rhs_z_t, VLEN,
-                    (pp0z - pp0) / -_DX,
-                    (pp1z - pp1) / -_DX,
-                    (pp2z - pp2) / -_DX,
-                    (pp3z - pp3) / -_DX);
+        def_vtile(ppz);
+        load_vtile(p + height * width, width, ppz);
+        load_vtile_add(phi + height * width, width, ppz);
+        /* Computing pressure predictor z derivative. */
+        fin_diff_vtiles(ppz, pp, ppz);
+        store_vtile(rhs_z_t, VLEN, ppz);
     } else {
-        vftype zero = vbroadcast(0);
-        store_vtile(rhs_z_t, VLEN, zero, zero, zero, zero);
+        vftype zeros = vbroadcast(0);
+        vstore(rhs_z_t + 0 * VLEN, zeros);
+        vstore(rhs_z_t + 1 * VLEN, zeros);
+        vstore(rhs_z_t + 2 * VLEN, zeros);
+        vstore(rhs_z_t + 3 * VLEN, zeros);
+#ifdef FLOAT
+        vstore(rhs_z_t + 4 * VLEN, zeros);
+        vstore(rhs_z_t + 5 * VLEN, zeros);
+        vstore(rhs_z_t + 6 * VLEN, zeros);
+        vstore(rhs_z_t + 7 * VLEN, zeros);
+#endif
     }
 
     /* Load additional row and compute dpp/dy. */
+#ifdef FLOAT
+    vftype pp8;
+    if (is_last_row) {
+        pp8 = pp7; /* Such that y derivative is zero. */
+    } else {
+        pp8 = vload(p + width * VLEN) + vload(phi + width * VLEN);
+    }
+#else
     vftype pp4;
     if (is_last_row) {
         pp4 = pp3; /* Such that y derivative is zero. */
     } else {
-        pp4 = vload(p + width * 4) + vload(phi + width * 4);
+        pp4 = vload(p + width * VLEN) + vload(phi + width * VLEN);
     }
-    store_vtile(rhs_y_t, VLEN,
-                (pp1 - pp0) / -_DX,
-                (pp2 - pp1) / -_DX,
-                (pp3 - pp2) / -_DX,
-                (pp4 - pp3) / -_DX);
+#endif
+    def_vtile(ppy);
+    fin_diff_vtile(pp, ppy);
+    store_vtile(rhs_y_t, VLEN, ppy);
 
     /* NOTE: Why not using vloadu? */
-
-    vtranspose(&pp0, &pp1, &pp2, &pp3);
-
+    transpose_vtile_ip(pp);
     /* Compute dpp/dx. */
+#ifdef FLOAT
+    if (is_last_col) {
+        pp8 = pp7; /* Such that x derivative is zero. */
+    } else {
+        pp8 = vgather(p + VLEN, width) + vgather(phi + VLEN, width);
+    }
+#else
     if (is_last_col) {
         pp4 = pp3; /* Such that x derivative is zero. */
     } else {
         pp4 = vgather(p + VLEN, width) + vgather(phi + VLEN, width);
     }
-    pp0 = (pp1 - pp0) / -_DX;
-    pp1 = (pp2 - pp1) / -_DX;
-    pp2 = (pp3 - pp2) / -_DX;
-    pp3 = (pp4 - pp3) / -_DX;
-
-    vtranspose(&pp0, &pp1, &pp2, &pp3);
-    store_vtile(rhs_x_t, VLEN, pp0, pp1, pp2, pp3);
+#endif
+    fin_diff_vtile(pp, pp);
+    transpose_vtile_ip(pp);
+    store_vtile(rhs_x_t, VLEN, pp);
 
     compute_Dxx_Dyy_Dzz(eta_x, zeta_x, vel_x,
                         is_last_face, is_last_row, is_last_col, COMPONENT_X,
@@ -1049,6 +1216,9 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict k,
     uint32_t face_start = block_depth * t_id;
     uint32_t face_end = block_depth * (t_id + 1);
 
+    /* TODO: I could try to improve cache reuse when computing the rhs
+     * by tiling the sweep across the depth. */
+
     /* Solving each face of the domain, except the last. */
     for (uint32_t i = face_start; i < face_end; ++i) {
         for (uint32_t j = 0; j < height - VLEN; j += VLEN) {
@@ -1119,7 +1289,6 @@ static void solve_Dxx_blocks_fused_rhs(const ftype *restrict k,
                         INNER_FACE, LAST_ROW, tmp);
     }
 }
-#endif
 
 /* Solves the block diagonal system (I - wDxx)(u_n+1 - u_n) = f - u_n. */
 static void solve_Dxx_blocks(const ftype *restrict w,
@@ -1148,6 +1317,7 @@ static void solve_Dxx_blocks(const ftype *restrict w,
         }
     }
 #else
+    /* TODO: just broadcast on the fly.. */
     ZEROS = vbroadcast(0.0);
     ONES = vbroadcast(1.0);
     SIGN_MASK = vbroadcast(-0.0f);
@@ -1267,9 +1437,12 @@ static void solve_Dxx_blocks(const ftype *restrict w,
                     u_y_t + VLEN * (VLEN - 1 - k),
                     u_z_t + VLEN * (VLEN - 1 - k));
             }
-            transpose_vtile_add(u_x_t, VLEN, width, u_x + offset + width - VLEN);
-            transpose_vtile_add(u_y_t, VLEN, width, u_y + offset + width - VLEN);
-            transpose_vtile_add(u_z_t, VLEN, width, u_z + offset + width - VLEN);
+            transpose_vtile_add(
+                u_x_t, VLEN, width, u_x + offset + width - VLEN);
+            transpose_vtile_add(
+                u_y_t, VLEN, width, u_y + offset + width - VLEN);
+            transpose_vtile_add(
+                u_z_t, VLEN, width, u_z + offset + width - VLEN);
 
             /* Backward substitute one tile at a time. */
             for (uint32_t tk = VLEN; tk < width; tk += VLEN) {
