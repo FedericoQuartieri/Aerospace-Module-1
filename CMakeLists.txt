@@ -9,6 +9,33 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
 set(CMAKE_C_FLAGS_RELEASE "-O2")
 set(CMAKE_C_FLAGS_DEBUG "-g -O0 -DDEBUG")
 
+# ==================== CONFIGURABLE CONSTANTS ====================
+# These can be overridden via cmake -DGRID_WIDTH=64 etc.
+option(GRID_WIDTH "Grid width" "")
+option(GRID_HEIGHT "Grid height" "")
+option(GRID_DEPTH "Grid depth" "")
+option(TIME_STEP "Time step DT" "")
+option(SIM_TOTAL_TIME "Total simulation time" "")
+
+set(OVERRIDE_DEFINES "")
+if(GRID_WIDTH)
+    set(OVERRIDE_DEFINES "${OVERRIDE_DEFINES} -DWIDTH_OVERRIDE=${GRID_WIDTH}")
+endif()
+if(GRID_HEIGHT)
+    set(OVERRIDE_DEFINES "${OVERRIDE_DEFINES} -DHEIGHT_OVERRIDE=${GRID_HEIGHT}")
+endif()
+if(GRID_DEPTH)
+    set(OVERRIDE_DEFINES "${OVERRIDE_DEFINES} -DDEPTH_OVERRIDE=${GRID_DEPTH}")
+endif()
+if(TIME_STEP)
+    set(OVERRIDE_DEFINES "${OVERRIDE_DEFINES} -DDT_OVERRIDE=${TIME_STEP}")
+endif()
+if(SIM_TOTAL_TIME)
+    set(OVERRIDE_DEFINES "${OVERRIDE_DEFINES} -DTOTAL_TIME_OVERRIDE=${SIM_TOTAL_TIME}")
+endif()
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OVERRIDE_DEFINES}")
+
 # ==================== THIRD PARTY ====================
 add_library(tinyexpr STATIC third_party/tinyexpr/tinyexpr.c)
 target_include_directories(tinyexpr PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyexpr)

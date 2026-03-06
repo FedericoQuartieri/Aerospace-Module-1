@@ -88,15 +88,16 @@ static void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField 
     update_delta_left_velocity_boundary(&Delta, v_boundary, timestep);
     update_delta_right_velocity_boundary(&Delta, v_boundary, timestep);
 
-    /* TESTING */
+ /*     // Testing
     Pressure p_useless;
     initialize_pressure(&p_useless);
     char filename[256];
-    sprintf(filename, "output_exact/deltaxx_%06d.vti", timestep);
-    /* Testing: write into file the Delta field */
+    sprintf(filename, "output_exact/deltazz_%06d.vti", timestep);
+    // Testing: write into file the Delta field 
     if(timestep < 10){
         write_vti_file(filename, &Delta, &p_useless);
     }
+    */ 
 
     // Thomas algorithm for the linear system, for each component of Delta
     solve_Dxx_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, v_boundary, true);
@@ -105,8 +106,9 @@ static void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField 
 
     // Now in Delta we have the solution of the linear system: Delta = (Eta_n+1 - Eta_n)
     // we need to get Eta_n+1 as: Eta_n+1 = Delta + Eta_n
+    // we have also the delta of the boundaries
 
-    /* !! Warning: since we are imposing the delta of the boundaries, we should start from idx=0 !!*/
+    
     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
@@ -145,15 +147,16 @@ static void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceFiel
     update_delta_left_velocity_boundary(&Delta, v_boundary, timestep);
     update_delta_right_velocity_boundary(&Delta, v_boundary, timestep);
 
-    /* TESTING */
+/*     // Testing
     Pressure p_useless;
     initialize_pressure(&p_useless);
     char filename[256];
-    sprintf(filename, "output_exact/deltayy_%06d.vti", timestep);
-    /* Testing: write into file the Delta field */
+    sprintf(filename, "output_exact/deltazz_%06d.vti", timestep);
+    // Testing: write into file the Delta field 
     if(timestep < 10){
         write_vti_file(filename, &Delta, &p_useless);
     }
+    */ 
 
     // Thomas algorithm for the linear system, for each component of Delta
     solve_Dyy_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, v_boundary, false);
@@ -201,15 +204,16 @@ static void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs,
     update_delta_left_velocity_boundary(&Delta, v_boundary, timestep);
     update_delta_right_velocity_boundary(&Delta, v_boundary, timestep);
 
-    /* TESTING */
+/*     // Testing
     Pressure p_useless;
     initialize_pressure(&p_useless);
     char filename[256];
     sprintf(filename, "output_exact/deltazz_%06d.vti", timestep);
-    /* Testing: write into file the Delta field */
+    // Testing: write into file the Delta field 
     if(timestep < 10){
         write_vti_file(filename, &Delta, &p_useless);
     }
+    */ 
 
     // Thomas algorithm for the linear system, for each component of Delta
     solve_Dzz_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, v_boundary, false);
@@ -241,9 +245,9 @@ static void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs,
  * Xi_n+1 = U_n + (dt/β) * g_n
  *  */
 static void compute_xi(GField g_field, VelocityField U, VelocityField Xi, DTYPE *Beta){
-    for(int k = 1; k < DEPTH; k++){
-        for(int j = 1; j < HEIGHT; j++){
-            for(int i = 1; i < WIDTH; i++){
+    for(int k = 0; k < DEPTH; k++){
+        for(int j = 0; j < HEIGHT; j++){
+            for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
                 
                 DTYPE coeff = DT / Beta[idx];
@@ -252,7 +256,7 @@ static void compute_xi(GField g_field, VelocityField U, VelocityField Xi, DTYPE 
 
                 Xi.v_y[idx] = U.v_y[idx] + coeff * g_field.g_y[idx];
 
-                Xi.v_z[idx] = U.v_z[idx] + coeff * g_field.g_z[idx];
+                Xi.v_z[idx] = U.v_z[idx] + coeff * g_field.g_z[idx];    
             }
         }
     }

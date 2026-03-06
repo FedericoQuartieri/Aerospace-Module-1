@@ -40,7 +40,7 @@ DTYPE compute_velocity_y_grad(DTYPE *v_component, size_t i, size_t j, size_t k){
 }
 
 DTYPE compute_velocity_z_grad(DTYPE *v_component, size_t i, size_t j, size_t k){
-    uint64_t idx = rowmaj_idx(i,j,k);
+    uint64_t idx = rowmaj_idx(i, j, k);
     uint64_t left = rowmaj_idx(i, j, k-1);
 
     return (v_component[idx] - v_component[left]) * DZ_INVERSE;

@@ -1,77 +1,126 @@
+/**
+ * test_convergence.c
+ * 
+ * Test for spatial and temporal convergence using the paper manufactured solution.
+ * Outputs results in a parsable format (JSON line) for automated convergence studies.
+ * 
+ * Usage: ./test_convergence [output_file]
+ *   If output_file is provided, appends results to it; otherwise prints to stdout.
+ */
+
+ /* 
+    Warning: check that the manufactured solution is the one that you want to use,
+            check then that the forcing and boundary file corresponds,
+            then check the parameters in constant.h, especially the lenght of the pyhisical domain (i.e. [0, 1] or [0, pi])
+ */
 #include "test_common.h"
 #include "../include/solve.h"
 #include "../include/g_field.h"
 #include "../include/function.h"
+#include <sys/stat.h>
 
-/* 
- * Convergence test: analyzes results from multiple resolutions
- * and verifies the expected convergence rate.
- *
- * For 2nd order schemes, expect rate ≈ 2.0
- *
- * Usage:
- *   1. Run ./run_convergence_test.sh to generate convergence_results.txt
- *   2. Run ./test_convergence convergence_results.txt to analyze
- *
- * Or run with no arguments to use current compiled resolution.
- */
+/* ==================== Manufactured Solution ==================== */
 
-#define MAX_REFINEMENTS 10
-
-typedef struct {
-    int N;              /* Grid points per dimension */
-    DTYPE dx;           /* Grid spacing */
-    DTYPE L2_vx;        /* L2 error for velocity x */
-    DTYPE L2_vy;        /* L2 error for velocity y */
-    DTYPE L2_vz;        /* L2 error for velocity z */
-    DTYPE L2_p;         /* L2 error for pressure */
-} ConvergenceDataPoint;
-
-/* ==================== Manufactured Solution (same as test_manufactured.c) ==================== */
 
 static DTYPE manufactured_velocity(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component) {
-    DTYPE sx = sin(M_PI * x); DTYPE sy = sin(M_PI * y); DTYPE sz = sin(M_PI * z);
-    DTYPE cx = cos(M_PI * x); DTYPE cy = cos(M_PI * y); DTYPE cz = cos(M_PI * z);
-    DTYPE st = sin(t);
-    
+    /* x ∈ [0,π] */
     switch (component) {
-        case 0: return st * (sx * sy * sz);         
-        case 1: return st * (cx * cy * cz);           
-        case 2: return st * (cx * sy * (cz + sz));    
+        case 0: return sin(x) * cos(t + y) * sin(z);         
+        case 1: return cos(x) * sin(t + y) * sin(z);           
+        case 2: return 2.0 * cos(x) * cos(t + y) * cos(z);    
         default: return 0.0;
     }
 }
 
 static DTYPE manufactured_pressure(DTYPE x, DTYPE y, DTYPE z, DTYPE t) {
-    DTYPE cx = cos(M_PI * x); DTYPE cz = cos(M_PI * z);
-    DTYPE sy = sin(M_PI * y); DTYPE sz = sin(M_PI * z);
-    return -3.0 * NU * sin(t) * (cx * sy * (sz - cz));
+    /* x ∈ [0,π] */
+    return 0.0;
+}
+
+/* 
+ * Forcing term f = ∂u/∂t - (NU)∇²u + ∇p + (NU/k)u
+ * where ∇p = 0 and k = 1
+ */
+static DTYPE manufactured_forcing(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component) {
+    /* x ∈ [0,π] */
+    
+    /* U */
+    DTYPE u_x = manufactured_velocity(x , y, z, t, 0);
+    DTYPE u_y = manufactured_velocity(x , y, z, t, 1);
+    DTYPE u_z = manufactured_velocity(x , y, z, t, 2);
+
+    /* Time derivative du/dt */
+    DTYPE dudt_x =   - sin(x) * sin(t + y) * sin(z);
+    DTYPE dudt_y =   cos(x) * cos(t + y) * sin(z);
+    DTYPE dudt_z =   - 2.0 * cos(x) * sin(t + y) * cos(z);
+
+    /* Laplacian: ∇²u */
+    DTYPE lapU_x = -3.0 * u_x;
+    DTYPE lapU_y = -3.0 * u_y;
+    DTYPE lapU_z = -3.0 * u_z;
+
+    // Simple test with k = 1 constant in all the domain
+    DTYPE k = 1;
+
+    /* Pressure gradient: ∇p  */
+    DTYPE dpdx = 0.0;
+    DTYPE dpdy = 0.0;
+    DTYPE dpdz = 0.0;
+
+    /* f = ∂u/∂t - (NU)∇²u + (NU/k)u + ∇p */
+    switch (component) {
+        case 0: 
+            return dudt_x - NU * lapU_x + (NU/k) * u_x + dpdx;
+        case 1:
+            return dudt_y - NU * lapU_y + (NU/k) * u_y + dpdy;
+        case 2:
+            return dudt_z - NU * lapU_z + (NU/k) * u_z + dpdz;    
+        default: 
+            return 0.0;
+    }
 }
 
 static DTYPE manufactured_boundary(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component) {
     return manufactured_velocity(x, y, z, t, component);
 }
 
+/* ==================== Test Implementation ==================== */
+
 static ExactSolution create_manufactured_solution(void) {
     ExactSolution exact = {
         .velocity = manufactured_velocity,
         .pressure = manufactured_pressure,
-        .forcing = NULL,  /* Not needed for error computation */
+        .forcing = manufactured_forcing,
         .boundary = manufactured_boundary
     };
     return exact;
 }
 
-/* ==================== Single Resolution Test ==================== */
+typedef struct {
+    int width, height, depth;
+    DTYPE dx, dy, dz, dt;
+    int steps;
+    DTYPE total_time;
+    ErrorNorms vel_err[3];
+    ErrorNorms pres_err;
+} ConvergenceResult;
 
-/* Run test at current compiled resolution and return errors */
-ConvergenceDataPoint run_single_resolution_test(void) {
-    ConvergenceDataPoint data;
-    data.N = WIDTH;  /* Assuming WIDTH == HEIGHT == DEPTH */
-    data.dx = DX;
-    
-    printf("Running simulation with N = %d, dx = %e\n", data.N, data.dx);
-    
+static void print_result_json(FILE *fp, ConvergenceResult *res) {
+    fprintf(fp, "{\"width\":%d,\"height\":%d,\"depth\":%d,"
+                "\"dx\":%.15e,\"dy\":%.15e,\"dz\":%.15e,\"dt\":%.15e,"
+                "\"steps\":%d,\"total_time\":%.15e,"
+                "\"vel_x_L2\":%.15e,\"vel_y_L2\":%.15e,\"vel_z_L2\":%.15e,"
+                "\"vel_x_Linf\":%.15e,\"vel_y_Linf\":%.15e,\"vel_z_Linf\":%.15e,"
+                "\"pres_L2\":%.15e,\"pres_Linf\":%.15e}\n",
+            res->width, res->height, res->depth,
+            res->dx, res->dy, res->dz, res->dt,
+            res->steps, res->total_time,
+            res->vel_err[0].L2, res->vel_err[1].L2, res->vel_err[2].L2,
+            res->vel_err[0].Linf, res->vel_err[1].Linf, res->vel_err[2].Linf,
+            res->pres_err.L2, res->pres_err.Linf);
+}
+
+int run_convergence_test(FILE *output_fp) {
     ExactSolution exact = create_manufactured_solution();
     
     /* Initialize fields */
@@ -79,10 +128,11 @@ ConvergenceDataPoint run_single_resolution_test(void) {
     initialize_pressure(&pressure);
     
     VelocityField Eta, Zeta, U;
-    function_handle v_boundary = parse_function("test_manufactured_Vboundary.txt");
+    function_handle v_boundary = parse_function("../function_files/test_zero_pressure_paper_manufactured_Vboundary.txt");
     
     if (!v_boundary) {
-        fprintf(stderr, "Warning: Could not load boundary function file\n");
+        fprintf(stderr, "Error: Could not load boundary function file\n");
+        return TEST_FAIL;
     }
     
     initialize_velocity_field(&Eta, v_boundary);
@@ -94,7 +144,7 @@ ConvergenceDataPoint run_single_resolution_test(void) {
     fill_exact_velocity(&Eta, &exact, 0.0);
     fill_exact_velocity(&Zeta, &exact, 0.0);
     fill_exact_pressure(&pressure, &exact, 0.0);
-    
+
     /* Initialize K, Beta, Gamma */
     DTYPE *K = (DTYPE *)malloc(GRID_SIZE);
     DTYPE *Beta = (DTYPE *)malloc(GRID_SIZE);
@@ -116,18 +166,20 @@ ConvergenceDataPoint run_single_resolution_test(void) {
     initialize_g_field(&g_field);
     
     /* Load forcing function */
-    function_handle forcing = parse_function("test_manufactured_forcing.txt");
+    function_handle forcing = parse_function("../function_files/test_zero_pressure_paper_manufactured_forcing.txt");
     
-    /* Run solver - use fewer steps for testing */
-    int test_steps = STEPS / 10;
-    if (test_steps < 10) test_steps = 10;
-    
+    if (!forcing) {
+        fprintf(stderr, "Error: Could not load forcing function file\n");
+        return TEST_FAIL;
+    }
+
+    /* Run solver - no file output for convergence tests */
     solve(g_field, forcing, pressure, K, Eta, Zeta, U, 
           Beta, Gamma, v_boundary, 
-          test_steps, false, NULL, NULL);
+          STEPS, false, NULL, NULL);  /* write_frequency > STEPS means no output */
     
     /* Compute exact solution at final time */
-    DTYPE t_final = test_steps * DT;
+    DTYPE t_final = STEPS * DT;
     VelocityField U_exact;
     Pressure P_exact;
     initialize_velocity_field(&U_exact, v_boundary);
@@ -136,15 +188,32 @@ ConvergenceDataPoint run_single_resolution_test(void) {
     fill_exact_velocity(&U_exact, &exact, t_final);
     fill_exact_pressure(&P_exact, &exact, t_final);
     
-    /* Compute errors */
-    ErrorNorms err_vx, err_vy, err_vz;
-    compute_velocity_error(&U, &U_exact, &err_vx, &err_vy, &err_vz);
-    ErrorNorms err_p = compute_pressure_error(&pressure, &P_exact);
+    /* Compute errors and store results */
+    ConvergenceResult result;
+    result.width = WIDTH;
+    result.height = HEIGHT;
+    result.depth = DEPTH;
+    result.dx = DX;
+    result.dy = DY;
+    result.dz = DZ;
+    result.dt = DT;
+    result.steps = STEPS;
+    result.total_time = TOTAL_TIME;
     
-    data.L2_vx = err_vx.L2;
-    data.L2_vy = err_vy.L2;
-    data.L2_vz = err_vz.L2;
-    data.L2_p = err_p.L2;
+    compute_velocity_error(&U, &U_exact, 
+                          &result.vel_err[0],
+                          &result.vel_err[1],
+                          &result.vel_err[2]);
+    result.pres_err = compute_pressure_error(&pressure, &P_exact);
+    
+    /* Output result */
+    print_result_json(output_fp, &result);
+    
+    /* Also print summary to stderr for visibility */
+    fprintf(stderr, "Grid: %dx%dx%d, DX=%.4e, DT=%.4e\n", WIDTH, HEIGHT, DEPTH, DX, DT);
+    fprintf(stderr, "  Vel L2 errors: [%.4e, %.4e, %.4e]\n", 
+            result.vel_err[0].L2, result.vel_err[1].L2, result.vel_err[2].L2);
+    fprintf(stderr, "  Pressure L2 error: %.4e\n", result.pres_err.L2);
     
     /* Cleanup */
     free(K);
@@ -157,142 +226,28 @@ ConvergenceDataPoint run_single_resolution_test(void) {
     free_velocity_field(&U);
     free_velocity_field(&U_exact);
     free_g_field(&g_field);
-    if (v_boundary) destroy_function(v_boundary);
-    if (forcing) destroy_function(forcing);
+    destroy_function(v_boundary);
+    destroy_function(forcing);
     
-    return data;
-}
-
-/* ==================== Convergence Analysis from File ==================== */
-
-int test_convergence_from_file(const char *filename) {
-    printf("\n====== TEST: Convergence Analysis from File ======\n");
-    printf("Reading results from: %s\n\n", filename);
-    
-    FILE *fp = fopen(filename, "r");
-    if (!fp) {
-        fprintf(stderr, "Error: Cannot open %s\n", filename);
-        return TEST_FAIL;
-    }
-    
-    ConvergenceDataPoint data[MAX_REFINEMENTS];
-    int count = 0;
-    char line[256];
-    
-    while (count < MAX_REFINEMENTS && fgets(line, sizeof(line), fp)) {
-        /* Skip comment lines */
-        if (line[0] == '#') continue;
-        
-        int n;
-        double dx, l2_vx, l2_vy, l2_vz, l2_p;
-        if (sscanf(line, "%d %lf %lf %lf %lf %lf", &n, &dx, &l2_vx, &l2_vy, &l2_vz, &l2_p) == 6) {
-            data[count].N = n;
-            data[count].dx = dx;
-            data[count].L2_vx = l2_vx;
-            data[count].L2_vy = l2_vy;
-            data[count].L2_vz = l2_vz;
-            data[count].L2_p = l2_p;
-            count++;
-        }
-    }
-    fclose(fp);
-    
-    if (count < 2) {
-        fprintf(stderr, "Error: Need at least 2 data points for convergence analysis\n");
-        return TEST_FAIL;
-    }
-    
-    /* Print results table */
-    printf("%-8s %-12s %-12s %-12s %-12s %-12s %-8s\n", 
-           "N", "dx", "L2(vx)", "L2(vy)", "L2(vz)", "L2(p)", "Rate");
-    printf("%-8s %-12s %-12s %-12s %-12s %-12s %-8s\n",
-           "---", "---", "---", "---", "---", "---", "---");
-    
-    DTYPE last_rate = 0.0;
-    for (int i = 0; i < count; i++) {
-        DTYPE rate = 0.0;
-        if (i > 0 && data[i].L2_vx > 1e-15 && data[i-1].L2_vx > 1e-15) {
-            rate = compute_convergence_rate(
-                data[i-1].L2_vx, data[i].L2_vx,
-                data[i-1].dx, data[i].dx
-            );
-            last_rate = rate;
-        }
-        
-        if (i == 0) {
-            printf("%-8d %-12.4e %-12.4e %-12.4e %-12.4e %-12.4e %-8s\n",
-                   data[i].N, data[i].dx, data[i].L2_vx, data[i].L2_vy, 
-                   data[i].L2_vz, data[i].L2_p, "-");
-        } else {
-            printf("%-8d %-12.4e %-12.4e %-12.4e %-12.4e %-12.4e %-8.2f\n",
-                   data[i].N, data[i].dx, data[i].L2_vx, data[i].L2_vy, 
-                   data[i].L2_vz, data[i].L2_p, rate);
-        }
-    }
-    
-    /* Check convergence rate */
-    DTYPE expected_rate = 2.0;
-    DTYPE rate_tolerance = 0.5;  /* Allow some tolerance */
-    
-    printf("\n");
-    printf("Expected convergence rate: %.1f (2nd order method)\n", expected_rate);
-    printf("Measured convergence rate: %.2f\n", last_rate);
-    
-    bool passed = (count >= 2) && (fabs(last_rate - expected_rate) < rate_tolerance);
-    
-    if (passed) {
-        printf("\n✓ TEST PASSED: Convergence rate is within tolerance\n");
-        return TEST_PASS;
-    } else {
-        printf("\n✗ TEST FAILED: Convergence rate outside tolerance (%.1f ± %.1f)\n",
-               expected_rate, rate_tolerance);
-        return TEST_FAIL;
-    }
-}
-
-/* ==================== Simple Convergence Test (current resolution) ==================== */
-
-int test_convergence(void) {
-    printf("\n====== TEST: Convergence Analysis ======\n");
-    printf("Note: For full convergence test, run ./run_convergence_test.sh\n");
-    printf("      This runs a single test at the current compiled resolution.\n\n");
-    
-    ConvergenceDataPoint data = run_single_resolution_test();
-    
-    printf("\n");
-    printf("%-10s %-15s %-15s %-15s %-15s %-15s\n", 
-           "N", "dx", "L2(vx)", "L2(vy)", "L2(vz)", "L2(p)");
-    printf("%-10s %-15s %-15s %-15s %-15s %-15s\n",
-           "---", "---", "---", "---", "---", "---");
-    printf("%-10d %-15e %-15e %-15e %-15e %-15e\n",
-           data.N, data.dx, data.L2_vx, data.L2_vy, data.L2_vz, data.L2_p);
-    
-    /* For single resolution, just check that errors are reasonable */
-    DTYPE max_error = 1.0;  /* Threshold for reasonable error */
-    bool passed = (data.L2_vx < max_error && data.L2_vy < max_error && 
-                   data.L2_vz < max_error );//&& data.L2_p < max_error);
-    
-    printf("\n");
-    if (passed) {
-        printf("✓ TEST PASSED: Errors are within reasonable bounds\n");
-        printf("  Run ./run_convergence_test.sh for full convergence analysis\n");
-        return TEST_PASS;
-    } else {
-        printf("✗ TEST FAILED: Errors exceed threshold\n");
-        return TEST_FAIL;
-    }
+    return TEST_PASS;
 }
 
 int main(int argc, char *argv[]) {
-    printf("============================================\n");
-    printf("  Navier-Stokes Convergence Test\n");
-    printf("============================================\n");
+    FILE *output_fp = stdout;
     
     if (argc > 1) {
-        /* Analyze results from file */
-        return test_convergence_from_file(argv[1]);
+        output_fp = fopen(argv[1], "a");  /* Append mode */
+        if (!output_fp) {
+            fprintf(stderr, "Error: Could not open output file %s\n", argv[1]);
+            return TEST_FAIL;
+        }
     }
     
-    /* Run single resolution test */
-    return test_convergence();
+    int result = run_convergence_test(output_fp);
+    
+    if (output_fp != stdout) {
+        fclose(output_fp);
+    }
+    
+    return result;
 }

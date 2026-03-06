@@ -30,9 +30,9 @@ void compute_Psi(VelocityField U_next, Pressure *psi){
     /* 
         In the left boundaries points impose the div(U) = 0
     */
-    for(int k = 0; k < DEPTH-1; k++){
-        for(int j = 0; j < HEIGHT-1; j++){
-            for(int i = 0; i < WIDTH-1; i++){
+    for(int k = 0; k < DEPTH; k++){
+        for(int j = 0; j < HEIGHT; j++){
+            for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
 
                 // Left boundaries divergence is 0.0
@@ -43,7 +43,7 @@ void compute_Psi(VelocityField U_next, Pressure *psi){
 
                 rhs.p[idx] = (compute_velocity_x_grad(U_next.v_x, i, j, k) +
                               compute_velocity_y_grad(U_next.v_y, i, j, k) +
-                              compute_velocity_z_grad(U_next.v_z, i, j, k)) *  (-1.0 /DT);
+                              compute_velocity_z_grad(U_next.v_z, i, j, k)) *  (-1.0 / DT);
 
             }
         }
@@ -78,16 +78,17 @@ void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
     DTYPE *tmp_thomas = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
     
     Pressure rhs;
-        initialize_pressure(&rhs);
-        for(int k = 0; k < DEPTH; k++){
-            for(int j = 0; j < HEIGHT; j++){
-                for(int i = 0; i < WIDTH; i++){
-                    size_t idx = rowmaj_idx(i,j,k);
+    initialize_pressure(&rhs);
+        
+    for(int k = 0; k < DEPTH; k++){
+        for(int j = 0; j < HEIGHT; j++){
+            for(int i = 0; i < WIDTH; i++){
+                size_t idx = rowmaj_idx(i,j,k);
 
-                    rhs.p[idx] = psi->p[idx];   
-                }
+                rhs.p[idx] = psi->p[idx];   
             }
         }
+    }
 
     DTYPE w = - DY_INVERSE_SQUARE;
 

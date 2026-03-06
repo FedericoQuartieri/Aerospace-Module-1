@@ -42,7 +42,8 @@ void Thomas_Same_Direction(const DTYPE *__restrict__ w,
 
     // Set the u[n-1] right boundary
     // u[n-1] is already setted (before thomas, in the update_right_boundary)
-
+    // u[n-1] = rhs[n-1]
+    
     for(int i = 1; i < n; i++){
         u[n - 1 - i] = rhs[n - 1 - i] - tmp[n - 1 - i] * u[n - i];
     }

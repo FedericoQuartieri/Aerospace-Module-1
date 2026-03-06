@@ -54,6 +54,7 @@ void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K
         start to solve at t = 1 
     */
     for (int t = 1; t <= STEPS; t++) {
+        //memset(pressure_star.p, 0, GRID_SIZE); // Test zero pressure
 
         /* g(t) is computed with forcing(t-1/2) and velocity(t-1) */
         compute_g(&g_field, forcing, &pressure_star, K, &Eta, &Zeta, &U, t, v_boundary);        

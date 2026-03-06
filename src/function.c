@@ -46,8 +46,8 @@ static void free_context(function_handle ctx)
 }
 
 /*
-    Evaluate the function delta_t for the given component as function(t) - function(t-1)
-    If t==0 then will only return function(t==0) 
+    Evaluates the function delta_t for the given component as function(t) - function(t-1)
+    If t==0 it returns the function(t==0) 
 */
 double eval_delta_function(function_handle handle, double x, double y, double z, double t, int component)
 {
