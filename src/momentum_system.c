@@ -209,9 +209,9 @@ static void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs,
  * Xi_n+1 = U_n + (dt/β) * g_n
  *  */
 static void compute_xi(GField g_field, VelocityField U, VelocityField Xi, DTYPE *Beta){
-    for(int k = 1; k < DEPTH; k++){
-        for(int j = 1; j < HEIGHT; j++){
-            for(int i = 1; i < WIDTH; i++){
+    for(int k = 0; k < DEPTH; k++){
+        for(int j = 0; j < HEIGHT; j++){
+            for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
                 
                 DTYPE coeff = DT / Beta[idx];

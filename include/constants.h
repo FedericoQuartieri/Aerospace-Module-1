@@ -2,10 +2,25 @@
 #define CONSTANTS_H
 #include <math.h>
 
-// Grid dimensions
-#define WIDTH 64
-#define HEIGHT 64
-#define DEPTH 64
+// ==================== CONFIGURABLE VIA CMAKE ====================
+// Grid dimensions (overridable via -DWIDTH_OVERRIDE=N etc.)
+#ifdef WIDTH_OVERRIDE
+    #define WIDTH WIDTH_OVERRIDE
+#else
+    #define WIDTH 128
+#endif
+
+#ifdef HEIGHT_OVERRIDE
+    #define HEIGHT HEIGHT_OVERRIDE
+#else
+    #define HEIGHT 128
+#endif
+
+#ifdef DEPTH_OVERRIDE
+    #define DEPTH DEPTH_OVERRIDE
+#else
+    #define DEPTH 128
+#endif
 
 // Grid spatial dimension (number of elements)
 #define GRID_ELEMENTS WIDTH * HEIGHT * DEPTH
@@ -40,8 +55,19 @@
 #define DY ((2 * LY) / (DTYPE)(2*HEIGHT - 1))  // Grid spacing in y
 #define DZ ((2 * LZ) / (DTYPE)(2*DEPTH - 1))   // Grid spacing in z
 
-#define DT 0.1                        // Time step
-#define TOTAL_TIME 2                    // Total simulation time
+// Time stepping (overridable via -DDT_OVERRIDE=0.01 etc.)
+#ifdef DT_OVERRIDE
+    #define DT DT_OVERRIDE
+#else
+    #define DT 0.001
+#endif
+
+#ifdef TOTAL_TIME_OVERRIDE
+    #define TOTAL_TIME TOTAL_TIME_OVERRIDE
+#else
+    #define TOTAL_TIME 0.005
+#endif
+
 #define STEPS ((int)(TOTAL_TIME / DT))  // Number of time steps
 #define WRITE_FREQUENCY STEPS/STEPS            // Writing output frequency
 

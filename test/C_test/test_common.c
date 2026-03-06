@@ -83,7 +83,7 @@ DTYPE compute_convergence_rate(DTYPE error_coarse, DTYPE error_fine,
 
 void print_test_result(TestResult *result, const char *test_name) {
     printf("\n========== %s ==========\n", test_name);
-    printf("Grid size: %d, dx = %e\n", result->grid_size, result->dx);
+    printf("Grid size: %d, dx = %e,\ndt = %.1e, total time = %.1e", result->grid_size, result->dx, DT, TOTAL_TIME);
     printf("\nVelocity errors:\n");
     printf("  v_x: L1=%e, L2=%e, Linf=%e\n", 
            result->velocity_err[0].L1, result->velocity_err[0].L2, result->velocity_err[0].Linf);

@@ -230,3 +230,29 @@ target_include_directories(test_init_velocity PRIVATE
 
 add_test(NAME InitVelocityTest COMMAND test_init_velocity)
 
+# ==================== CONFIGURABLE CONSTANTS ====================
+option(GRID_WIDTH "Grid width" "")
+option(GRID_HEIGHT "Grid height" "")
+option(GRID_DEPTH "Grid depth" "")
+option(TIME_STEP "Time step DT" "")
+option(SIM_TOTAL_TIME "Total simulation time" "")
+
+set(OVERRIDE_DEFINES "")
+if(GRID_WIDTH)
+    set(OVERRIDE_DEFINES "${OVERRIDE_DEFINES} -DWIDTH_OVERRIDE=${GRID_WIDTH}")
+endif()
+if(GRID_HEIGHT)
+    set(OVERRIDE_DEFINES "${OVERRIDE_DEFINES} -DHEIGHT_OVERRIDE=${GRID_HEIGHT}")
+endif()
+if(GRID_DEPTH)
+    set(OVERRIDE_DEFINES "${OVERRIDE_DEFINES} -DDEPTH_OVERRIDE=${GRID_DEPTH}")
+endif()
+if(TIME_STEP)
+    set(OVERRIDE_DEFINES "${OVERRIDE_DEFINES} -DDT_OVERRIDE=${TIME_STEP}")
+endif()
+if(SIM_TOTAL_TIME)
+    set(OVERRIDE_DEFINES "${OVERRIDE_DEFINES} -DTOTAL_TIME_OVERRIDE=${SIM_TOTAL_TIME}")
+endif()
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OVERRIDE_DEFINES}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OVERRIDE_DEFINES}")
