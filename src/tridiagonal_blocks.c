@@ -9,10 +9,7 @@ void Thomas_Same_Direction(const DTYPE *__restrict__ w,
                                unsigned int n,
                                DTYPE *__restrict__ tmp,
                                DTYPE *__restrict__ rhs,
-                               DTYPE *__restrict__ u,
-                               double v_boundary,
-                               DTYPE delta_space 
-                            ) 
+                               DTYPE *__restrict__ u) 
 {
     // Check input 
     if (!w || !tmp || !rhs || !u || n == 0) {
@@ -53,11 +50,7 @@ void Thomas_Different_Direction(const DTYPE *__restrict__ w,
                                unsigned int n,
                                DTYPE *__restrict__ tmp,
                                DTYPE *__restrict__ rhs,
-                               DTYPE *__restrict__ u,
-                               double v_boundary,
-                               DTYPE delta_space 
-
-                            ) 
+                               DTYPE *__restrict__ u) 
 {
     // Check input 
     if (!w || !tmp || !rhs || !u || n == 0) {
@@ -136,7 +129,9 @@ void Thomas_Pressure(const DTYPE  w,
         }
 }
 
-void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamma, function_handle v_boundary, bool same_direction){
+void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamma, function_handle v_boundary, bool same_direction, int v_component, int time_step){
+    DTYPE t = time_step * DT;
+    DTYPE bvx, bvy, bvz;
 
     // Initialize temporary arrays 
     DTYPE *w = (DTYPE *) malloc(GRID_SIZE);
@@ -163,13 +158,13 @@ void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamm
                 /* Here we solve for a single block. */
                 size_t off = k * (HEIGHT * WIDTH) + j * WIDTH; 
 
-                // Physical coordinates, pass to eval_function() 
-                DTYPE y = j*DY + DY/2; DTYPE z = k*DZ + DZ/2; // !! missing time
+                get_boundary_velocity(0, j, k, t, v_boundary, &bvx, &bvy, &bvz);
+                Eta_next_component[off] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
 
-                Thomas_Same_Direction(w + off, WIDTH, tmp + off, rhs + off, Eta_next_component + off,
-                                    eval_function(v_boundary, 0, y, z, 0, 0),
-                                    DX);
-                //Eta_next_component[0]= dirichlet_left(w + off, rhs + off, Eta_next_component + off)
+                get_boundary_velocity(WIDTH-1, j, k, t, v_boundary, &bvx, &bvy, &bvz);
+                Eta_next_component[off + WIDTH-1] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
+
+                Thomas_Same_Direction(w + off, WIDTH, tmp + off, rhs + off, Eta_next_component + off);
             }
         }
     } else {
@@ -179,13 +174,13 @@ void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamm
                 /* Here we solve for a single block. */
                 size_t off = k * (HEIGHT * WIDTH) + j * WIDTH; 
 
-                // Physical coordinates, pass to eval_function() 
-                DTYPE y = j*DY + DY/2; DTYPE z = k*DZ + DZ/2; // !! missing time
+                get_boundary_velocity(0, j, k, t, v_boundary, &bvx, &bvy, &bvz);
+                Eta_next_component[off] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
 
-                Thomas_Different_Direction(w + off, WIDTH, tmp + off, rhs + off, Eta_next_component + off,
-                                    eval_function(v_boundary, 0, y, z, 0, 0),
-                                    DX);
-                //Eta_next_component[0]= dirichlet_left(w + off, f_field_component + off, Eta_next_component + off)
+                get_boundary_velocity(WIDTH-1, j, k, t, v_boundary, &bvx, &bvy, &bvz);
+                Eta_next_component[off + WIDTH-1] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
+
+                Thomas_Different_Direction(w + off, WIDTH, tmp + off, rhs + off, Eta_next_component + off);
             }
         }
     }
@@ -194,7 +189,9 @@ void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *rhs, DTYPE *Gamm
     free(tmp);
 }
 
-void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, function_handle v_boundary, bool same_direction){
+void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, function_handle v_boundary, bool same_direction, int v_component, int time_step){
+    DTYPE t = time_step * DT;
+    DTYPE bvx, bvy, bvz;
     // Buffer riutilizzati per ogni colonna (i,k)
     DTYPE *f_block   = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
     DTYPE *u_block   = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
@@ -220,16 +217,13 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, functi
                     w_block[j] = - Gamma[idx] * DY_INVERSE_SQUARE;
                 }
 
-                // missed: set u_block boundary value before Thomas !
-                u_block[0] = Zeta_next[off]; // left bc: u[0]
-                u_block[HEIGHT-1] = Zeta_next[off + (HEIGHT-1)*WIDTH]; // right bc: u[n-1]
+                get_boundary_velocity(i, 0, k, t, v_boundary, &bvx, &bvy, &bvz);
+                u_block[0] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
 
-                // Physical coordinates, pass to eval_function() 
-                DTYPE x = i*DX + DX/2; DTYPE z = k*DZ + DZ/2; // !! missing time
+                get_boundary_velocity(i, HEIGHT-1, k, t, v_boundary, &bvx, &bvy, &bvz);
+                u_block[HEIGHT-1] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
 
-                Thomas_Same_Direction(w_block, HEIGHT, tmp_block, rhs_block, u_block,
-                                    eval_function(v_boundary, x, 0, z, 0, 1),
-                                    DY);
+                Thomas_Same_Direction(w_block, HEIGHT, tmp_block, rhs_block, u_block);
 
                 // scatter risultato
                 for (int j = 0; j < HEIGHT; ++j){
@@ -250,17 +244,13 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, functi
                     w_block[j] = - Gamma[idx] * DY_INVERSE_SQUARE;
                 }
 
-                // missed: set u_block boundary value before Thomas !
-                u_block[0] = Zeta_next[off]; // left bc: u[0]
-                u_block[HEIGHT-1] = Zeta_next[off + (HEIGHT-1)*WIDTH]; // right bc: u[n-1]
+                get_boundary_velocity(i, 0, k, t, v_boundary, &bvx, &bvy, &bvz);
+                u_block[0] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
 
-                // Physical coordinates, pass to eval_function() 
-                DTYPE x = i*DX + DX/2; DTYPE z = k*DZ + DZ/2; // !! missing time
+                get_boundary_velocity(i, HEIGHT-1, k, t, v_boundary, &bvx, &bvy, &bvz);
+                u_block[HEIGHT-1] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
 
-                
-                Thomas_Different_Direction(w_block, HEIGHT, tmp_block, rhs_block, u_block,
-                                    eval_function(v_boundary, x, 0, z, 0, 1),
-                                    DY);
+                Thomas_Different_Direction(w_block, HEIGHT, tmp_block, rhs_block, u_block);
 
                 // scatter risultato
                 for (int j = 0; j < HEIGHT; ++j){
@@ -278,7 +268,9 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, functi
     free(rhs_block);
 }
 
-void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function_handle v_boundary, bool same_direction){
+void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function_handle v_boundary, bool same_direction, int v_component, int time_step){
+    DTYPE t = time_step * DT;
+    DTYPE bvx, bvy, bvz;
     // Buffer riutilizzati per ogni colonna (i,k)
     DTYPE *f_block   = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
     DTYPE *u_block   = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
@@ -303,17 +295,13 @@ void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function_
                     w_block[k] = - Gamma[idx] * DZ_INVERSE_SQUARE;
                 }
 
-                // missed: set u_block boundary value before Thomas !
-                u_block[0] = U_next[off]; // Left bc: u[0]
-                u_block[DEPTH-1] = U_next[off + (DEPTH-1)*HEIGHT*WIDTH]; // Right bc: u[n-1]
+                get_boundary_velocity(i, j, 0, t, v_boundary, &bvx, &bvy, &bvz);
+                u_block[0] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
 
-                // Physical coordinates, pass to eval_function() 
-                DTYPE x = i*DX + DX/2; DTYPE y = j*DY + DY/2; // !! missing time
+                get_boundary_velocity(i, j, DEPTH-1, t, v_boundary, &bvx, &bvy, &bvz);
+                u_block[DEPTH-1] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
 
-                
-                Thomas_Same_Direction(w_block, DEPTH, tmp_block, rhs_block, u_block,
-                                    eval_function(v_boundary, x, y, 0, 0, 2),
-                                    DZ);
+                Thomas_Same_Direction(w_block, DEPTH, tmp_block, rhs_block, u_block);
 
                 // scatter risultato
                 for (int k = 0; k < DEPTH; ++k){
@@ -334,17 +322,13 @@ void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, function_
                     w_block[k] = - Gamma[idx] * DZ_INVERSE_SQUARE;
                 }
 
-                // missed: set u_block boundary value before Thomas !
-                u_block[0] = U_next[off]; // Left bc: u[0]
-                u_block[DEPTH-1] = U_next[off + (DEPTH-1)*HEIGHT*WIDTH]; // Right bc: u[n-1]
+                get_boundary_velocity(i, j, 0, t, v_boundary, &bvx, &bvy, &bvz);
+                u_block[0] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
 
-                // Physical coordinates, pass to eval_function() 
-                DTYPE x = i*DX + DX/2; DTYPE y = j*DY + DY/2; // !! missing time
+                get_boundary_velocity(i, j, DEPTH-1, t, v_boundary, &bvx, &bvy, &bvz);
+                u_block[DEPTH-1] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
 
-                
-                Thomas_Different_Direction(w_block, DEPTH, tmp_block, rhs_block, u_block,
-                                    eval_function(v_boundary, x, y, 0, 0, 2),
-                                    DZ);
+                Thomas_Different_Direction(w_block, DEPTH, tmp_block, rhs_block, u_block);
 
                 // scatter risultato
                 for (int k = 0; k < DEPTH; ++k){

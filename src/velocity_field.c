@@ -1,5 +1,6 @@
 #include "velocity_field.h"
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 void initialize_velocity_field(VelocityField *v_field, function_handle v_boundary) {
@@ -203,6 +204,103 @@ void update_delta_left_velocity_boundary(VelocityField *v_field, function_handle
     v_field->v_y[idx] = eval_delta_function(v_boundary, 0.0, DY/2, 0.0, t, 1);
     v_field->v_z[idx] = eval_delta_function(v_boundary, 0.0, 0.0, DZ/2, t, 2);
 
+}
+
+/*
+    Returns the boundary velocity (vx, vy, vz) at grid point (i,j,k) and physical time t,
+    covering all cases handled by update_delta_left_velocity_boundary and
+    update_delta_right_velocity_boundary. Left boundaries take priority over right ones.
+    For interior (non-boundary) points, all components are set to 0.
+*/
+void get_boundary_velocity(size_t i, size_t j, size_t k, DTYPE t, function_handle v_boundary,
+                           DTYPE *vx, DTYPE *vy, DTYPE *vz) {
+    DTYPE x = i * DX, y = j * DY, z = k * DZ;
+    DTYPE vel_x = x + DX/2, vel_y = y + DY/2, vel_z = z + DZ/2;
+
+    if (i == 0 && j == 0 && k == 0) {
+        *vx = eval_delta_function(v_boundary, DX/2, 0.0, 0.0, t, 0);
+        *vy = eval_delta_function(v_boundary, 0.0, DY/2, 0.0, t, 1);
+        *vz = eval_delta_function(v_boundary, 0.0, 0.0, DZ/2, t, 2);
+    } else if (i == 0 && j == 0) {
+        // (0, 0, k)
+        *vx = eval_delta_function(v_boundary, DX/2, 0.0, z, t, 0);
+        *vy = eval_delta_function(v_boundary, 0.0, DY/2, z, t, 1);
+        *vz = eval_delta_function(v_boundary, 0.0, 0.0, vel_z, t, 2);
+    } else if (i == 0 && k == 0) {
+        // (0, j, 0)
+        *vx = eval_delta_function(v_boundary, DX/2, y, 0.0, t, 0);
+        *vy = eval_delta_function(v_boundary, 0.0, vel_y, 0.0, t, 1);
+        *vz = eval_delta_function(v_boundary, 0.0, y, DZ/2, t, 2);
+    } else if (j == 0 && k == 0) {
+        // (i, 0, 0)
+        *vx = eval_delta_function(v_boundary, vel_x, 0.0, 0.0, t, 0);
+        *vy = eval_delta_function(v_boundary, x, DY/2, 0.0, t, 1);
+        *vz = eval_delta_function(v_boundary, x, 0.0, DZ/2, t, 2);
+    } else if (i == 0) {
+        // (0, j, k)
+        *vx = eval_delta_function(v_boundary, 0.0, y, z, t, 0)
+            + DX/2 * (- ((eval_delta_function(v_boundary, 0.0, vel_y, z, t, 1)
+                        - eval_delta_function(v_boundary, 0.0, vel_y - DY, z, t, 1)) * DY_INVERSE)
+                     - ((eval_delta_function(v_boundary, 0.0, y, vel_z, t, 2)
+                        - eval_delta_function(v_boundary, 0.0, y, vel_z - DZ, t, 2)) * DZ_INVERSE));
+        *vy = eval_delta_function(v_boundary, 0.0, vel_y, z, t, 1);
+        *vz = eval_delta_function(v_boundary, 0.0, y, vel_z, t, 2);
+    } else if (j == 0) {
+        // (i, 0, k)
+        *vx = eval_delta_function(v_boundary, vel_x, 0.0, z, t, 0);
+        *vy = eval_delta_function(v_boundary, x, 0.0, z, t, 1)
+            + DY/2 * (- ((eval_delta_function(v_boundary, vel_x, 0.0, z, t, 0)
+                        - eval_delta_function(v_boundary, vel_x - DX, 0.0, z, t, 0)) * DX_INVERSE)
+                     - ((eval_delta_function(v_boundary, x, 0.0, vel_z, t, 2)
+                        - eval_delta_function(v_boundary, x, 0.0, vel_z - DZ, t, 2)) * DZ_INVERSE));
+        *vz = eval_delta_function(v_boundary, x, 0.0, vel_z, t, 2);
+    } else if (k == 0) {
+        // (i, j, 0)
+        *vx = eval_delta_function(v_boundary, vel_x, y, 0.0, t, 0);
+        *vy = eval_delta_function(v_boundary, x, vel_y, 0.0, t, 1);
+        *vz = eval_delta_function(v_boundary, x, y, 0.0, t, 2)
+            + DZ/2 * (- ((eval_delta_function(v_boundary, vel_x, y, 0.0, t, 0)
+                        - eval_delta_function(v_boundary, vel_x - DX, y, 0.0, t, 0)) * DX_INVERSE)
+                     - ((eval_delta_function(v_boundary, x, vel_y, 0.0, t, 1)
+                        - eval_delta_function(v_boundary, x, vel_y - DY, 0.0, t, 1)) * DY_INVERSE));
+    } else if (i == WIDTH-1 && j == HEIGHT-1 && k == DEPTH-1) {
+        // right corner: z-face loop runs last
+        *vx = eval_delta_function(v_boundary, vel_x, y, vel_z, t, 0);
+        *vy = eval_delta_function(v_boundary, x, vel_y, vel_z, t, 1);
+        *vz = eval_delta_function(v_boundary, x, y, vel_z, t, 2);
+    } else if (i == WIDTH-1 && j == HEIGHT-1) {
+        // right edge x-y: y-face loop runs last
+        *vx = eval_delta_function(v_boundary, vel_x, vel_y, z, t, 0);
+        *vy = eval_delta_function(v_boundary, x, vel_y, z, t, 1);
+        *vz = eval_delta_function(v_boundary, x, vel_y, vel_z, t, 2);
+    } else if (i == WIDTH-1 && k == DEPTH-1) {
+        // right edge x-z: z-face loop runs last
+        *vx = eval_delta_function(v_boundary, vel_x, y, vel_z, t, 0);
+        *vy = eval_delta_function(v_boundary, x, vel_y, vel_z, t, 1);
+        *vz = eval_delta_function(v_boundary, x, y, vel_z, t, 2);
+    } else if (j == HEIGHT-1 && k == DEPTH-1) {
+        // right edge y-z: z-face loop runs last
+        *vx = eval_delta_function(v_boundary, vel_x, y, vel_z, t, 0);
+        *vy = eval_delta_function(v_boundary, x, vel_y, vel_z, t, 1);
+        *vz = eval_delta_function(v_boundary, x, y, vel_z, t, 2);
+    } else if (i == WIDTH-1) {
+        // (WIDTH-1, j, k)
+        *vx = eval_delta_function(v_boundary, vel_x, y, z, t, 0);
+        *vy = eval_delta_function(v_boundary, vel_x, vel_y, z, t, 1);
+        *vz = eval_delta_function(v_boundary, vel_x, y, vel_z, t, 2);
+    } else if (j == HEIGHT-1) {
+        // (i, HEIGHT-1, k)
+        *vx = eval_delta_function(v_boundary, vel_x, vel_y, z, t, 0);
+        *vy = eval_delta_function(v_boundary, x, vel_y, z, t, 1);
+        *vz = eval_delta_function(v_boundary, x, vel_y, vel_z, t, 2);
+    } else if (k == DEPTH-1) {
+        // (i, j, DEPTH-1)
+        *vx = eval_delta_function(v_boundary, vel_x, y, vel_z, t, 0);
+        *vy = eval_delta_function(v_boundary, x, vel_y, vel_z, t, 1);
+        *vz = eval_delta_function(v_boundary, x, y, vel_z, t, 2);
+    } else {
+        *vx = *vy = *vz = 0.0;
+    }
 }
 
 // !! Warning: this functions puts all the components as if they were on the boundary walls

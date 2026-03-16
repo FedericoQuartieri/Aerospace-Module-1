@@ -23,5 +23,7 @@ DTYPE compute_velocity_yy_grad(DTYPE *v_component, size_t i, size_t j, size_t k)
 DTYPE compute_velocity_zz_grad(DTYPE *v_component, size_t i, size_t j, size_t k);
 void update_delta_left_velocity_boundary(VelocityField *v_field, function_handle v_boundary, int time_step);
 void update_delta_right_velocity_boundary(VelocityField *v_field, function_handle v_boundary, int time_step);
+void get_boundary_velocity(size_t i, size_t j, size_t k, DTYPE t, function_handle v_boundary,
+                           DTYPE *vx, DTYPE *vy, DTYPE *vz);
 
 #endif // VELOCITY_FIELD_H

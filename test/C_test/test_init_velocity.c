@@ -63,8 +63,8 @@ int test_boundary_nan(void) {
     }
     
     initialize_velocity_field(&v_field, v_boundary);
-    update_left_velocity_boundary(&v_field, v_boundary, 6);
-    update_right_velocity_boundary(&v_field, v_boundary, 6);
+    update_delta_left_velocity_boundary(&v_field, v_boundary, 6);
+    update_delta_right_velocity_boundary(&v_field, v_boundary, 6);
     
     int failed_points = 0;
     int total_boundary_points = 0;
@@ -125,8 +125,8 @@ int test_boundary_values_accuracy(void) {
     DTYPE t = time_step * DT;
     
     initialize_velocity_field(&v_field, v_boundary);
-    update_left_velocity_boundary(&v_field, v_boundary, time_step);
-    update_right_velocity_boundary(&v_field, v_boundary, time_step);
+    update_delta_left_velocity_boundary(&v_field, v_boundary, time_step);
+    update_delta_right_velocity_boundary(&v_field, v_boundary, time_step);
 
     int failed_points = 0;
     int total_checked = 0;
@@ -228,8 +228,8 @@ int test_missing_boundary_points(void) {
     DTYPE t = time_step * DT;
     
     initialize_velocity_field(&v_field, v_boundary);
-    update_left_velocity_boundary(&v_field, v_boundary, time_step);
-    update_right_velocity_boundary(&v_field, v_boundary, time_step);
+    update_delta_left_velocity_boundary(&v_field, v_boundary, time_step);
+    update_delta_right_velocity_boundary(&v_field, v_boundary, time_step);
     
     printf("Checking specific edge/vertex points that might be missing...\n");
     printf("t = %f\n\n", t);

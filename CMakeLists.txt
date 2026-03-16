@@ -230,6 +230,60 @@ target_include_directories(test_init_velocity PRIVATE
 
 add_test(NAME InitVelocityTest COMMAND test_init_velocity)
 
+# ==================== Test Force Field (C) ====================
+add_executable(test_force_field
+    test/C_test/test_force_field.c
+    test/C_test/test_common.c
+)
+
+target_link_libraries(test_force_field
+    navier_core
+    m
+)
+
+target_include_directories(test_force_field PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/third_party/tinyexpr
+)
+
+add_test(NAME ForceFieldTest COMMAND test_force_field)
+
+# ==================== Test Tridiagonal (C) ====================
+add_executable(test_tridiagonal
+    test/C_test/test_tridiagonal.c
+    test/C_test/test_common.c
+)
+
+target_link_libraries(test_tridiagonal
+    navier_core
+    m
+)
+
+target_include_directories(test_tridiagonal PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/third_party/tinyexpr
+)
+
+add_test(NAME TridiagonalTest COMMAND test_tridiagonal)
+
+# ==================== Test Boundary Conditions (C) ====================
+add_executable(test_boundary_conditions
+    test/C_test/test_boundary_conditions.c
+    test/C_test/test_common.c
+)
+
+target_link_libraries(test_boundary_conditions
+    navier_core
+    m
+)
+
+target_include_directories(test_boundary_conditions PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/third_party/tinyexpr
+)
+
+add_test(NAME BoundaryConditionsTest COMMAND test_boundary_conditions)
+
 # ==================== CONFIGURABLE CONSTANTS ====================
 option(GRID_WIDTH "Grid width" "")
 option(GRID_HEIGHT "Grid height" "")
