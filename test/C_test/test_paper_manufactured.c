@@ -49,9 +49,9 @@ static DTYPE manufactured_forcing(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int compon
     DTYPE k = 1;
 
     /* Pressure gradient: ∇p  */
-    DTYPE dpdx = - 3.0 * NU * sin(x) * cos(t + y) * cos(z);
-    DTYPE dpdy = - 3.0 * NU * cos(x) * sin(t + y) * cos(z);
-    DTYPE dpdz = - 3.0 * NU * cos(x) * cos(t + y) * sin(z);
+    DTYPE dpdx = 3.0 * NU * sin(x) * cos(t + y) * cos(z);
+    DTYPE dpdy = 3.0 * NU * cos(x) * sin(t + y) * cos(z);
+    DTYPE dpdz = 3.0 * NU * cos(x) * cos(t + y) * sin(z);
 
     /* f = ∂u/∂t - (NU)∇²u + (NU/k)u + ∇p */
     switch (component) {

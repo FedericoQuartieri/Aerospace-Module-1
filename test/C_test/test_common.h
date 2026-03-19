@@ -1,7 +1,5 @@
 #ifndef TEST_COMMON_H
-#define TEST_COMMON_H
-
-#include <stdio.h>
+#define TEST_COMMON_H #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <stdbool.h>
@@ -51,6 +49,9 @@ void fill_exact_velocity(VelocityField *v, ExactSolution *exact, DTYPE t);
 
 /* Fill a Pressure field with exact solution at time t */
 void fill_exact_pressure(Pressure *p, ExactSolution *exact, DTYPE t);
+
+/* Translate a Pressure field such that it has zero mean value. */
+void translate_pressure_to_origin(Pressure *p);
 
 /* ==================== Test Results ==================== */
 
