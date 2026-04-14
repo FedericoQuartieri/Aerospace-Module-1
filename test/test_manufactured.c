@@ -237,7 +237,12 @@ int test_manufactured_solution(void) {
     initialize_pressure(&P_exact);
     
     fill_exact_velocity(&U_exact, &exact, t_final);
-    fill_exact_pressure(&P_exact, &exact, t_final);
+
+    /* p is solved for timestep n+1/2 */
+    fill_exact_pressure(&P_exact, &exact, t_final - DT / 2);
+
+    translate_pressure_to_origin(&pressure);
+    translate_pressure_to_origin(&P_exact);
     
     /* Compute errors */
     TestResult result;

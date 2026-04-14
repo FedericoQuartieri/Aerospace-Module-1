@@ -49,9 +49,9 @@ static DTYPE manufactured_forcing(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int compon
     DTYPE k = 1;
 
     /* Pressure gradient: ∇p  */
-    DTYPE dpdx = - 3.0 * NU * sin(x) * cos(t + y) * cos(z);
-    DTYPE dpdy = - 3.0 * NU * cos(x) * sin(t + y) * cos(z);
-    DTYPE dpdz = - 3.0 * NU * cos(x) * cos(t + y) * sin(z);
+    DTYPE dpdx = 3.0 * NU * sin(x) * cos(t + y) * cos(z);
+    DTYPE dpdy = 3.0 * NU * cos(x) * sin(t + y) * cos(z);
+    DTYPE dpdz = 3.0 * NU * cos(x) * cos(t + y) * sin(z);
 
     /* f = ∂u/∂t - (NU)∇²u + (NU/k)u + ∇p */
     switch (component) {
@@ -218,7 +218,12 @@ int test_manufactured_solution(void) {
     initialize_pressure(&P_exact);
     
     fill_exact_velocity(&U_exact, &exact, t_final);
-    fill_exact_pressure(&P_exact, &exact, t_final);
+
+    /* p is solved for timestep n+1/2 */
+    fill_exact_pressure(&P_exact, &exact, t_final - DT / 2);
+
+    translate_pressure_to_origin(&pressure);
+    translate_pressure_to_origin(&P_exact);
     
     /* Compute errors */
     TestResult result;

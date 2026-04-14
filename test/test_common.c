@@ -75,6 +75,27 @@ void fill_exact_pressure(Pressure *p, ExactSolution *exact, DTYPE t) {
     }
 }
 
+void translate_pressure_to_origin(Pressure *p) {
+    DTYPE mean = 0.0;
+    for(int k = 0; k < DEPTH; k++) {
+        for(int j = 0; j < HEIGHT; j++) {
+            for(int i = 0; i < WIDTH; i++) {
+                mean += p->p[rowmaj_idx(i, j, k)];
+            }
+        }
+    }
+
+    mean /= (WIDTH * HEIGHT * DEPTH);
+
+    for(int k = 0; k < DEPTH; k++) {
+        for(int j = 0; j < HEIGHT; j++) {
+            for(int i = 0; i < WIDTH; i++) {
+                p->p[rowmaj_idx(i, j, k)] -= mean;
+            }
+        }
+    }
+
+}
 DTYPE compute_convergence_rate(DTYPE error_coarse, DTYPE error_fine,
                                DTYPE h_coarse, DTYPE h_fine) {
     if (error_fine < 1e-15 || error_coarse < 1e-15) return 0.0;

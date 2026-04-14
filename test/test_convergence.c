@@ -34,12 +34,12 @@ static DTYPE manufactured_velocity(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int compo
 
 static DTYPE manufactured_pressure(DTYPE x, DTYPE y, DTYPE z, DTYPE t) {
     /* x ∈ [0,π] */
-    return 0.0;
+    return - 3.0 * NU * cos(x) * cos(t + y) * cos(z);
 }
 
 /* 
  * Forcing term f = ∂u/∂t - (NU)∇²u + ∇p + (NU/k)u
- * where ∇p = 0 and k = 1
+ * where k = 1
  */
 static DTYPE manufactured_forcing(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component) {
     /* x ∈ [0,π] */
@@ -63,9 +63,9 @@ static DTYPE manufactured_forcing(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int compon
     DTYPE k = 1;
 
     /* Pressure gradient: ∇p  */
-    DTYPE dpdx = 0.0;
-    DTYPE dpdy = 0.0;
-    DTYPE dpdz = 0.0;
+    DTYPE dpdx = 3.0 * NU * sin(x) * cos(t + y) * cos(z);
+    DTYPE dpdy = 3.0 * NU * cos(x) * sin(t + y) * cos(z);
+    DTYPE dpdz = 3.0 * NU * cos(x) * cos(t + y) * sin(z);
 
     /* f = ∂u/∂t - (NU)∇²u + (NU/k)u + ∇p */
     switch (component) {
@@ -128,7 +128,7 @@ int run_convergence_test(FILE *output_fp) {
     initialize_pressure(&pressure);
     
     VelocityField Eta, Zeta, U;
-    function_handle v_boundary = parse_function("../function_files/test_zero_pressure_paper_manufactured_Vboundary.txt");
+    function_handle v_boundary = parse_function("../function_files/test_paper_manufactured_Vboundary.txt");
     
     if (!v_boundary) {
         fprintf(stderr, "Error: Could not load boundary function file\n");
@@ -166,7 +166,7 @@ int run_convergence_test(FILE *output_fp) {
     initialize_g_field(&g_field);
     
     /* Load forcing function */
-    function_handle forcing = parse_function("../function_files/test_zero_pressure_paper_manufactured_forcing.txt");
+    function_handle forcing = parse_function("../function_files/test_paper_manufactured_forcing.txt");
     
     if (!forcing) {
         fprintf(stderr, "Error: Could not load forcing function file\n");
@@ -186,7 +186,12 @@ int run_convergence_test(FILE *output_fp) {
     initialize_pressure(&P_exact);
     
     fill_exact_velocity(&U_exact, &exact, t_final);
-    fill_exact_pressure(&P_exact, &exact, t_final);
+    
+    /* p is solved for timestep n+1/2 */
+    fill_exact_pressure(&P_exact, &exact, t_final - DT / 2);
+
+    translate_pressure_to_origin(&pressure);
+    translate_pressure_to_origin(&P_exact);
     
     /* Compute errors and store results */
     ConvergenceResult result;

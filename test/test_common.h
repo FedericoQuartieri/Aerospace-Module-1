@@ -69,6 +69,8 @@ void print_test_result(TestResult *result, const char *test_name);
 DTYPE compute_convergence_rate(DTYPE error_coarse, DTYPE error_fine, 
                                DTYPE h_coarse, DTYPE h_fine);
 
+void translate_pressure_to_origin(Pressure *p);
+
 /* ==================== Test Runner ==================== */
 
 #define TEST_PASS 0
