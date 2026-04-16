@@ -33,23 +33,13 @@
  * @param[out] u   Solution vector of size n.
  */
 
-void Thomas_Same_Direction(const DTYPE *__restrict__ w, 
+void Thomas_Algorithm(const DTYPE *__restrict__ w, 
                                unsigned int n,
                                DTYPE *__restrict__ tmp,
                                DTYPE *__restrict__ rhs,
                                DTYPE *__restrict__ u,
-                               double v_boundary,
-                               DTYPE delta_space 
-                            ) ;
-
-void Thomas_Different_Direction(const DTYPE *__restrict__ w, 
-                               unsigned int n,
-                               DTYPE *__restrict__ tmp,
-                               DTYPE *__restrict__ rhs,
-                               DTYPE *__restrict__ u,
-                               double v_boundary,
-                               DTYPE delta_space 
-                            ) ;
+                               bool same_direction
+                           );
                                
 void Thomas_Pressure(const DTYPE w, 
                                unsigned int n,
@@ -59,11 +49,11 @@ void Thomas_Pressure(const DTYPE w,
                             );
 
 /* Solves the block diagonal system (I - ∂xx)u = f. */
-void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_component, DTYPE *Gamma, function_handle v_boundary, bool same_direction);
+void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_component, DTYPE *Gamma, bool same_direction);
 
 /* Solves the block diagonal system (I - ∂yy)u = f. */
-void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next_component, DTYPE *f_field_component, DTYPE *Gamma, function_handle v_boundary, bool same_direction);
+void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next_component, DTYPE *f_field_component, DTYPE *Gamma, bool same_direction);
 
 /* Solves the block diagonal system (I - ∂zz)u = f. */
-void solve_Dzz_tridiag_blocks(DTYPE *U_next_component, DTYPE *f_field_component, DTYPE *Gamma, function_handle v_boundary, bool same_direction);
+void solve_Dzz_tridiag_blocks(DTYPE *U_next_component, DTYPE *f_field_component, DTYPE *Gamma, bool same_direction);
 #endif

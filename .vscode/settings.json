@@ -1,7 +1,0 @@
-{
-    "files.associations": {
-        "g_field.h": "c",
-        "pressure.h": "c",
-        "utils.h": "c"
-    }
-}

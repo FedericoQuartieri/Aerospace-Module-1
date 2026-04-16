@@ -25,7 +25,7 @@ typedef struct {
     pthread_cond_t  not_full;   /* Signal that says to the solver thread if the queue is full */
 } IOQueue;
 
-void io_queue_init(IOQueue *q, function_handle v_boundary);
+void io_queue_init(IOQueue *q);
 void io_queue_destroy(IOQueue *q);
 void *io_thread_func(void *arg);
 

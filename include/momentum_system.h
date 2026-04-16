@@ -16,18 +16,18 @@ void solve_momentum_system(VelocityField U,
                            ForceField rhs,
                            DTYPE *Beta,
                            DTYPE *Gamma,
-                           function_handle v_boundary,
+                           const Data *data,
                            int timestep
                         );
 
-static void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField rhs, VelocityField Xi,
-    DTYPE *Gamma, function_handle v_boundary, int timestep);
+void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField rhs, VelocityField Xi,
+    DTYPE *Gamma, const Data *data, int timestep);
 
-static void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceField rhs, VelocityField Eta,
-    DTYPE *Gamma, function_handle v_boundary, int timestep);
+void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceField rhs, VelocityField Eta,
+    DTYPE *Gamma, const Data *data, int timestep);
  
-static void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs, VelocityField Zeta,
-    DTYPE *Gamma, function_handle v_boundary, int timestep);
+void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs, VelocityField Zeta,
+    DTYPE *Gamma, const Data *data, int timestep);
  
-static void compute_xi(GField g_field, VelocityField U, VelocityField Xi, DTYPE *Beta);
+void compute_xi(GField g_field, VelocityField U, VelocityField Xi, DTYPE *Beta);
 #endif

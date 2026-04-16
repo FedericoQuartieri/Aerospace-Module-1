@@ -36,17 +36,12 @@ endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OVERRIDE_DEFINES}")
 
-# ==================== THIRD PARTY ====================
-add_library(tinyexpr STATIC third_party/tinyexpr/tinyexpr.c)
-target_include_directories(tinyexpr PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyexpr)
-
 # ==================== LIBRERIA CORE ====================
 file(GLOB SRCS "src/*.c")
 list(REMOVE_ITEM SRCS "${CMAKE_CURRENT_SOURCE_DIR}/src/main.c")
 
 add_library(navier_core STATIC ${SRCS})
 target_include_directories(navier_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(navier_core PUBLIC m tinyexpr)
 
 # ==================== ESEGUIBILE PRINCIPALE ====================
 add_executable(navier_stokes src/main.c)
@@ -59,11 +54,9 @@ set(TEST_COMMON "${CMAKE_CURRENT_SOURCE_DIR}/test/test_common.c")
 
 set(TEST_NAMES
     test_convergence
-    test_init_velocity
     test_manufactured
     test_paper_manufactured
     test_zero_pressure_manufactured
-    test_setted_boundaries
 )
 
 foreach(TEST_NAME ${TEST_NAMES})

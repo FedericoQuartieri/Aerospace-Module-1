@@ -7,7 +7,7 @@
 #include "pressure.h"
 #include "velocity_field.h"
 #include "force_field.h"
-#include "function.h"
+#include "data.h"
 
 typedef struct {
     DTYPE *g_x;
@@ -17,6 +17,6 @@ typedef struct {
 
 void initialize_g_field(GField *g_field);
 void free_g_field(GField *g_field);
-void compute_g(GField *g_field, function_handle forcing, Pressure *pressure, DTYPE *k, VelocityField *Eta, VelocityField *Zeta, VelocityField *U, int time_step, function_handle v_boundary);
+void compute_g(GField *g_field, Pressure *pressure, DTYPE *k, VelocityField *Eta, VelocityField *Zeta, VelocityField *U, int time_step, const Data *data);
 
 #endif // G_FIELD_H

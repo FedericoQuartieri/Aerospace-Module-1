@@ -13,10 +13,9 @@
 #include "momentum_system.h"
 #include "pressure.h"
 #include "pressure_system.h"
+#include "data.h"
 
-void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K, 
+void solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K, 
             VelocityField Eta, VelocityField Zeta, VelocityField U, 
             DTYPE* Beta, DTYPE* Gamma, 
-            function_handle v_boundary, 
             int write_frequency, bool full_output, VelocityField** U_record, Pressure** P_record);
-

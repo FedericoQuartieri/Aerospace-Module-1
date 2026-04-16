@@ -2,10 +2,9 @@
 #include "io_thread.h"
 
 
-void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K, 
+void solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K, 
             VelocityField Eta, VelocityField Zeta, VelocityField U, 
             DTYPE* Beta, DTYPE* Gamma, 
-            function_handle v_boundary, 
             int write_frequency, bool full_output, VelocityField** U_record, Pressure** P_record) {
     
     /* 
@@ -18,7 +17,7 @@ void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K
     */
 
     IOQueue io_queue;
-    io_queue_init(&io_queue, v_boundary);
+    io_queue_init(&io_queue);
     pthread_t io_thread;
 
     /* Create the IO thread */
@@ -39,8 +38,8 @@ void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K
     VelocityField Delta;
     ForceField rhs;
     
-    initialize_velocity_field(&Xi, v_boundary);
-    initialize_velocity_field(&Delta, v_boundary);
+    initialize_velocity_field(&Xi);
+    initialize_velocity_field(&Delta);
     initialize_force_field(&rhs);
 
     /* TODO this should be done better */
@@ -57,14 +56,10 @@ void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K
         //memset(pressure_star.p, 0, GRID_SIZE); // Test zero pressure
 
         /* g(t) is computed with forcing(t-1/2) and velocity(t-1) */
-        compute_g(&g_field, forcing, &pressure_star, K, &Eta, &Zeta, &U, t, v_boundary);        
+        compute_g(&g_field, &pressure_star, K, &Eta, &Zeta, &U, t, data);        
 
         /* here we set all the boundary as the delta of boundary(t) - boundary(t-1) */
-        solve_momentum_system(U, Eta, Zeta, Xi, g_field, Delta, rhs, Beta, Gamma, v_boundary, t);
-
-        // Could it be useful to impose the bc on U that have been modified by Eta and Zeta, or not ? 
-        //update_delta_left_velocity_boundary(&U, v_boundary, t);
-        //update_delta_right_velocity_boundary(&U, v_boundary, t);
+        solve_momentum_system(U, Eta, Zeta, Xi, g_field, Delta, rhs, Beta, Gamma, data, t);
         
         solve_pressure_system(U, &pressure, &pressure_star);
 
@@ -102,7 +97,7 @@ void solve (GField g_field, function_handle forcing, Pressure pressure, DTYPE* K
             // Store current solution in record vectors
             VelocityField U_copy;
             Pressure P_copy;
-            initialize_velocity_field(&U_copy, v_boundary);
+            initialize_velocity_field(&U_copy);
             initialize_pressure(&P_copy);
 
             memcpy(U_copy.v_x, U.v_x, GRID_SIZE);

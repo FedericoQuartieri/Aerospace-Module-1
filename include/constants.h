@@ -7,19 +7,19 @@
 #ifdef WIDTH_OVERRIDE
     #define WIDTH WIDTH_OVERRIDE
 #else
-    #define WIDTH 256
+    #define WIDTH 128
 #endif
 
 #ifdef HEIGHT_OVERRIDE
     #define HEIGHT HEIGHT_OVERRIDE
 #else
-    #define HEIGHT 256
+    #define HEIGHT 128
 #endif
 
 #ifdef DEPTH_OVERRIDE
     #define DEPTH DEPTH_OVERRIDE
 #else
-    #define DEPTH 256
+    #define DEPTH 128
 #endif
 
 // Grid spatial dimension (number of elements)
@@ -59,17 +59,17 @@
 #ifdef DT_OVERRIDE
     #define DT DT_OVERRIDE
 #else
-    #define DT 0.001
+    #define DT 0.01
 #endif
 
 #ifdef TOTAL_TIME_OVERRIDE
     #define TOTAL_TIME TOTAL_TIME_OVERRIDE
 #else
-    #define TOTAL_TIME 0.005
+    #define TOTAL_TIME 1.0
 #endif
 
 #define STEPS ((int)(TOTAL_TIME / DT))  // Number of time steps
-#define WRITE_FREQUENCY STEPS/STEPS            // Writing output frequency
+#define WRITE_FREQUENCY STEPS/20            // Writing output frequency
 
 #define DX_INVERSE (1.0 / DX)
 #define DY_INVERSE (1.0 / DY)
