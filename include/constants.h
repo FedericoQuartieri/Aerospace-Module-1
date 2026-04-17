@@ -7,19 +7,19 @@
 #ifdef WIDTH_OVERRIDE
     #define WIDTH WIDTH_OVERRIDE
 #else
-    #define WIDTH 128
+    #define WIDTH 256
 #endif
 
 #ifdef HEIGHT_OVERRIDE
     #define HEIGHT HEIGHT_OVERRIDE
 #else
-    #define HEIGHT 128
+    #define HEIGHT 256
 #endif
 
 #ifdef DEPTH_OVERRIDE
     #define DEPTH DEPTH_OVERRIDE
 #else
-    #define DEPTH 128
+    #define DEPTH 256
 #endif
 
 // Grid spatial dimension (number of elements)

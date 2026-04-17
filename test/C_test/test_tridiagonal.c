@@ -51,7 +51,8 @@ int test_thomas_same_constant(void) {
     u[0]   = C;
     u[n-1] = C;
 
-    Thomas_Same_Direction(w, n, tmp, rhs, u);
+    bool same_direction = true;  
+    Thomas_Algorithm(w, n, tmp, rhs, u, same_direction);
 
     int failed = 0;
     for (unsigned int i = 0; i < n; i++) {
@@ -97,7 +98,8 @@ int test_thomas_same_linear(void) {
     u[0]   = 0.0;
     u[n-1] = (DTYPE)(n - 1);
 
-    Thomas_Same_Direction(w, n, tmp, rhs, u);
+    bool same_direction = true;
+    Thomas_Algorithm(w, n, tmp, rhs, u, same_direction);
 
     int failed = 0;
     for (unsigned int i = 0; i < n; i++) {
@@ -196,7 +198,8 @@ int test_thomas_same_zero(void) {
     u[0]   = 0.0;
     u[n-1] = 0.0;
 
-    Thomas_Same_Direction(w, n, tmp, rhs, u);
+    bool same_direction = true;
+    Thomas_Algorithm(w, n, tmp, rhs, u, same_direction);
 
     int failed = 0;
     for (unsigned int i = 0; i < n; i++) {

@@ -4,10 +4,10 @@ main
 build/
 build_convergence/
 convergence_test/
+build_profile/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-Makefile
 .vscode
 .DS_Store
 *.cmake

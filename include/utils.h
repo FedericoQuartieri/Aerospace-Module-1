@@ -18,6 +18,13 @@ static inline void rand_fill(DTYPE *component) {
     }
 }
 
+// Fill an array with random values between 0 and 1
+static inline void const_fill(DTYPE *component) {
+    for(size_t i = 0; i < GRID_ELEMENTS; i++) {
+        component[i] = 1.0;
+    }
+}
+
 // Return 1 if the cell is at the boundary, 0 otherwise
 // using row major representation: i = width, j = height, k = depth
 static inline int is_boundary(size_t i, size_t j, size_t k) {

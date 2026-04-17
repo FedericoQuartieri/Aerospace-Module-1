@@ -1,10 +1,9 @@
 #include "test_common.h"
 #include "../include/solve.h"
 #include "../include/g_field.h"
-#include "../include/function.h"
-
+#include "../include/data.h"
 /* 
-    This test is supposed to be done with a grid normalized between [0, PI] check in constant.h
+    This test is supposed to be done with a grid normalized between [0, PI]
 */
 /* ==================== Manufactured Solution Definition ==================== */
 
@@ -103,7 +102,6 @@ static void write_exact_solution_vti(const char *filename, ExactSolution *exact,
     
     write_vti_file(filename, &U_exact, &P_exact);
     
-    /* Libera memoria */
     free(U_exact.v_x);
     free(U_exact.v_y);
     free(U_exact.v_z);
@@ -116,22 +114,17 @@ static ExactSolution create_manufactured_solution(void) {
     ExactSolution exact = {
         .velocity = manufactured_velocity,
         .pressure = manufactured_pressure,
-        .forcing = manufactured_forcing,
+        .forcing =  manufactured_forcing,
         .boundary = manufactured_boundary
     };
     return exact;
 }
 
-/* Wrapper to convert ExactSolution to function_handle format */
-static DTYPE forcing_wrapper(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component) {
-    static ExactSolution *exact_ptr = NULL;
-    if (!exact_ptr) {
-        static ExactSolution exact;
-        exact = create_manufactured_solution();
-        exact_ptr = &exact;
-    }
-    return exact_ptr->forcing(x, y, z, t, component);
-}
+static const Data TEST_DATA = {
+    .name = "paper_manufactured_test",
+    .bc_velocity = manufactured_boundary,
+    .forcing = manufactured_forcing
+}; 
 
 int test_manufactured_solution(void) {
     printf("\n====== TEST: PAPER Manufactured Solution ======\n");
@@ -141,7 +134,7 @@ int test_manufactured_solution(void) {
     printf("Writing exact solutions to VTI files...\n");
     mkdir("output_exact", 0755);
     /* Write exact solution for each timestep */
-    for(int t = 0; t <= STEPS; t++) {
+     for(int t = 0; t <= STEPS; t++) {
         int write_frequency = WRITE_FREQUENCY;
         if((t % write_frequency) == 0) {
             double time = t*DT;
@@ -149,23 +142,17 @@ int test_manufactured_solution(void) {
             sprintf(filename, "output_exact/exact_solution_%06d.vti", t);
             write_exact_solution_vti(filename, &exact, time);
         }
-    }
+    }  
     
     /* Initialize fields */
     Pressure pressure;
     initialize_pressure(&pressure);
     
     VelocityField Eta, Zeta, U;
-    function_handle v_boundary = parse_function("../function_files/test_paper_manufactured_Vboundary.txt");
     
-    if (!v_boundary) {
-        fprintf(stderr, "Error: Could not load boundary function file\n");
-        return TEST_FAIL;
-    }
-    
-    initialize_velocity_field(&Eta, v_boundary);
-    initialize_velocity_field(&Zeta, v_boundary);
-    initialize_velocity_field(&U, v_boundary);
+    initialize_velocity_field(&Eta);
+    initialize_velocity_field(&Zeta);
+    initialize_velocity_field(&U);
     
     /* 
         Set initial conditions from exact solution at t=0,
@@ -198,28 +185,25 @@ int test_manufactured_solution(void) {
     GField g_field;
     initialize_g_field(&g_field);
     
-    /* Load forcing function */
-    function_handle forcing = parse_function("../function_files/test_paper_manufactured_forcing.txt");
-    
-    if(!forcing){
-        fprintf(stderr, "Error: Could not load forcing function file\n");
-        return TEST_FAIL;
-    }
-
     /* Run solver */
-    solve(g_field, forcing, pressure, K, Eta, Zeta, U, 
-          Beta, Gamma, v_boundary, 
+    solve(g_field, &TEST_DATA, pressure, K, Eta, Zeta, U,
+          Beta, Gamma,
           WRITE_FREQUENCY, false, NULL, NULL);  
     
     /* Compute exact solution at final time */
     DTYPE t_final = STEPS * DT;
     VelocityField U_exact;
     Pressure P_exact;
-    initialize_velocity_field(&U_exact, v_boundary);
+    initialize_velocity_field(&U_exact);
     initialize_pressure(&P_exact);
     
     fill_exact_velocity(&U_exact, &exact, t_final);
-    fill_exact_pressure(&P_exact, &exact, t_final);
+
+    /* p is solved for timestep n+1/2 */
+    fill_exact_pressure(&P_exact, &exact, t_final - DT / 2);
+
+    translate_pressure_to_origin(&pressure);
+    translate_pressure_to_origin(&P_exact);
     
     /* Compute errors */
     TestResult result;
@@ -252,8 +236,6 @@ int test_manufactured_solution(void) {
     free_velocity_field(&U);
     free_velocity_field(&U_exact);
     free_g_field(&g_field);
-    destroy_function(v_boundary);
-    destroy_function(forcing);
     
     if (passed) {
         printf("TEST PASSED\n");
@@ -264,7 +246,7 @@ int test_manufactured_solution(void) {
     }
 }
 
-int main(int argc, char *argv[]) {
+int main(void) {
     printf("Running Paper Manufactured Solution Test...\n");
     return test_manufactured_solution();
 }

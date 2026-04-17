@@ -1,10 +1,9 @@
 #include "test_common.h"
 #include "../include/solve.h"
 #include "../include/g_field.h"
-#include "../include/function.h"
 
 /* 
-    This test is supposed to be done with a grid normalized between [0, 1] check in constant.h
+    This test is supposed to be done with a grid normalized between [0, 1] 
     For this reason the functions are computed as sin(PI  * x) or cos(PI * x)
     and not as sin(x) or cos(x)
     For the next test it's easier to just set the domain between [0, PI]
@@ -37,7 +36,7 @@ static DTYPE manufactured_pressure(DTYPE x, DTYPE y, DTYPE z, DTYPE t) {
 
 /* 
  * Forcing term f = ∂u/∂t - (NU)∇²u + ∇p + (NU/k)u
- * where k = 1
+ * where k = sin(πx) * sin(πy) * sin(πz)
  */
 static DTYPE manufactured_forcing(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component) {
     /* Scale coordinates: x ∈ [0,1] → x_scaled ∈ [0,π] */
@@ -46,9 +45,9 @@ static DTYPE manufactured_forcing(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int compon
     DTYPE ct = cos(t); DTYPE st = sin(t);
     
     /* U */
-    DTYPE u_x = manufactured_velocity(x, y, z, t, 0);
-    DTYPE u_y = manufactured_velocity(x, y, z, t, 1);
-    DTYPE u_z = manufactured_velocity(x, y, z, t, 2);
+    DTYPE u_x = st * (sx * sy * sz);
+    DTYPE u_y = st * (cx * cy * cz);
+    DTYPE u_z = st * (cx * sy * (cz + sz));
 
     /* Time derivative du/dt */
     DTYPE dudt_x = ct * sx * sy * sz;
@@ -140,17 +139,6 @@ static ExactSolution create_manufactured_solution(void) {
     return exact;
 }
 
-/* Wrapper to convert ExactSolution to function_handle format */
-static DTYPE forcing_wrapper(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component) {
-    static ExactSolution *exact_ptr = NULL;
-    if (!exact_ptr) {
-        static ExactSolution exact;
-        exact = create_manufactured_solution();
-        exact_ptr = &exact;
-    }
-    return exact_ptr->forcing(x, y, z, t, component);
-}
-
 int test_manufactured_solution(void) {
     printf("\n====== TEST: Manufactured Solution ======\n");
     
@@ -174,16 +162,10 @@ int test_manufactured_solution(void) {
     initialize_pressure(&pressure);
     
     VelocityField Eta, Zeta, U;
-    function_handle v_boundary = parse_function("../function_files/test_manufactured_Vboundary.txt");
     
-    if (!v_boundary) {
-        fprintf(stderr, "Error: Could not load boundary function file\n");
-        return TEST_FAIL;
-    }
-    
-    initialize_velocity_field(&Eta, v_boundary);
-    initialize_velocity_field(&Zeta, v_boundary);
-    initialize_velocity_field(&U, v_boundary);
+    initialize_velocity_field(&Eta);
+    initialize_velocity_field(&Zeta);
+    initialize_velocity_field(&U);
     
     /* 
         Set initial conditions from exact solution at t=0,
@@ -215,29 +197,26 @@ int test_manufactured_solution(void) {
     /* Initialize G field */
     GField g_field;
     initialize_g_field(&g_field);
-    
-    /* Load forcing function */
-    function_handle forcing = parse_function("../function_files/test_manufactured_forcing.txt");
-    
-    if(!forcing){
-        fprintf(stderr, "Error: Could not load forcing function file\n");
-        return TEST_FAIL;
-    }
 
     /* Run solver */
     solve(g_field, forcing, pressure, K, Eta, Zeta, U, 
-          Beta, Gamma, v_boundary, 
+          Beta, Gamma, 
           WRITE_FREQUENCY, false, NULL, NULL);  
     
     /* Compute exact solution at final time */
     DTYPE t_final = STEPS * DT;
     VelocityField U_exact;
     Pressure P_exact;
-    initialize_velocity_field(&U_exact, v_boundary);
+    initialize_velocity_field(&U_exact);
     initialize_pressure(&P_exact);
     
     fill_exact_velocity(&U_exact, &exact, t_final);
-    fill_exact_pressure(&P_exact, &exact, t_final);
+
+    /* p is solved for timestep n+1/2 */
+    fill_exact_pressure(&P_exact, &exact, t_final - DT / 2);
+
+    translate_pressure_to_origin(&pressure);
+    translate_pressure_to_origin(&P_exact);
     
     /* Compute errors */
     TestResult result;
@@ -270,8 +249,6 @@ int test_manufactured_solution(void) {
     free_velocity_field(&U);
     free_velocity_field(&U_exact);
     free_g_field(&g_field);
-    destroy_function(v_boundary);
-    destroy_function(forcing);
     
     if (passed) {
         printf("TEST PASSED\n");
@@ -282,7 +259,7 @@ int test_manufactured_solution(void) {
     }
 }
 
-int main(int argc, char *argv[]) {
+int main(void) {
     printf("Running Manufactured Solution Test...\n");
     return test_manufactured_solution();
 }

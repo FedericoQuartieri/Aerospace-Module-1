@@ -1,6 +1,6 @@
 #include "io_thread.h"
 
-void io_queue_init(IOQueue *q, function_handle v_boundary)
+void io_queue_init(IOQueue *q)
 {
     q->head  = 0;
     q->tail  = 0;
@@ -15,7 +15,7 @@ void io_queue_init(IOQueue *q, function_handle v_boundary)
 
     /* Initialize all buffers of the ring queue */
     for (int i = 0; i < IO_QUEUE_SIZE; ++i) {
-        initialize_velocity_field(&q->U_buf[i], v_boundary);
+        initialize_velocity_field(&q->U_buf[i]);
         initialize_pressure(&q->P_buf[i]);
     }
 }

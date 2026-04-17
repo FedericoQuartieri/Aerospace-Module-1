@@ -8,8 +8,9 @@
 #include "utils.h"
 #include "momentum_system.h"
 #include "pressure_system.h"
-#include "function.h"
 #include "solve.h"
+
+#include "data.h"
 
 /* Navier-Stokes-Brinkman equation solver */
 
@@ -17,20 +18,12 @@ int main(){
     
     Pressure pressure;
     initialize_pressure(&pressure);
-    rand_fill(pressure.p);
 
     VelocityField Eta;
     VelocityField Zeta;
     VelocityField U;
 
-    function_handle v_boundary = parse_function("../v_boundary.txt");
-
-    function_handle forcing = parse_function("../forcing.txt");
-
-    if (!forcing) {
-        /* Error already printed to stderr */
-        return 1;
-    }
+    const Data *data = &PAPER_DATA;
 
     /*
         Missing: in the first timestep we must enforce the exact solution, 
@@ -43,15 +36,15 @@ int main(){
     */
    
     // Initilized 3 velocity field, and for each one set the SAME boundary conditions,
-    initialize_velocity_field(&Eta, v_boundary);
-    initialize_velocity_field(&Zeta, v_boundary);
-    initialize_velocity_field(&U, v_boundary);
+    initialize_velocity_field(&Eta);
+    initialize_velocity_field(&Zeta);
+    initialize_velocity_field(&U);
 
 
     // Set K that is needed to compute Gamma
     // K depends also on the spatial coordinate
     DTYPE *K = (DTYPE *) malloc(GRID_SIZE);
-    rand_fill(K); 
+    const_fill(K); // fill with all 1 for now 
     
     DTYPE *Beta = (DTYPE *) malloc(GRID_SIZE);
     DTYPE *Gamma = (DTYPE *) malloc(GRID_SIZE);
@@ -69,13 +62,10 @@ int main(){
     GField g_field;
     initialize_g_field(&g_field);    
 
-    solve(g_field, forcing, pressure, K, Eta, Zeta, U, Beta, Gamma, v_boundary, 
+    solve(g_field, data, pressure, K, Eta, Zeta, U, Beta, Gamma,
         WRITE_FREQUENCY, false,  NULL, NULL);
   
     printf("Abracadabra\n");
-
-    destroy_function(v_boundary);
-    destroy_function(forcing);
 
     free(K);
     free(Beta);

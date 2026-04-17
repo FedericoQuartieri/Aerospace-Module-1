@@ -1,5 +1,5 @@
 #include "g_field.h"
-
+#include "data.h"
 
 void initialize_g_field(GField *g_field){
     g_field->g_x = (DTYPE *) malloc(GRID_SIZE);
@@ -28,8 +28,8 @@ void free_g_field(GField *g_field){
     So to get the physical coordinates from the index of the grid:
     x = i * DX , y = j * DY, z = k * DZ, t = time_step * DT
 
-    -> After that, we have the physical coordinate of the pressure point, but since we are using
-    a staggered grid, where velocity point are shifted of D/2, we then set:
+    -> Now that we have the physical coordinate of the pressure point, since we are using
+    a staggered grid (where velocity point are shifted of D/2), we then set:
     v_x (coordinate) = (x + DX/2, y, z)
     v_y (coordinate) = (x, y + DY/2, z)
     v_z (coordinate) = (x, y, z + DZ/2)
@@ -79,7 +79,7 @@ void free_g_field(GField *g_field){
     - forcing term is evaluated in the timestep t-1/2
     - velocity term are evaluated in t-1
 */
-void compute_g(GField *g_field, function_handle forcing, Pressure *pressure, DTYPE *K, VelocityField *Eta, VelocityField *Zeta, VelocityField *U, int time_step, function_handle v_boundary){
+void compute_g(GField *g_field, Pressure *pressure, DTYPE *K, VelocityField *Eta, VelocityField *Zeta, VelocityField *U, int time_step, const Data *data){
 
     size_t idx, left_idx, down_idx, back_idx;
     // Physical coordinates of the domain
@@ -105,7 +105,7 @@ void compute_g(GField *g_field, function_handle forcing, Pressure *pressure, DTY
                 DTYPE vel_y = y + DY/2;
                 DTYPE vel_z = z + DZ/2;
 
-                g_field->g_x[idx] = eval_function(forcing, vel_x, y, z, t_half_prev, 0)
+                g_field->g_x[idx] = forcing(data, vel_x, y, z, t_half_prev, 0)
                                     - compute_pressure_x_grad(pressure->p,i,j,k) 
                                     - (NU / (K[idx])) * U->v_x[idx]
                                     + (NU) * (compute_velocity_xx_grad(Eta->v_x,i,j,k)  
@@ -113,7 +113,7 @@ void compute_g(GField *g_field, function_handle forcing, Pressure *pressure, DTY
                                                 + compute_velocity_zz_grad(U->v_x,i,j,k));
                                     
 
-                g_field->g_y[idx] =  eval_function(forcing, x, vel_y, z, t_half_prev, 1)
+                g_field->g_y[idx] =  forcing(data, x, vel_y, z, t_half_prev, 1)
                                     - compute_pressure_y_grad(pressure->p,i,j,k) 
                                     - (NU / (K[idx])) * U->v_y[idx]
                                     + (NU) * (compute_velocity_xx_grad(Eta->v_y,i,j,k)  
@@ -121,7 +121,7 @@ void compute_g(GField *g_field, function_handle forcing, Pressure *pressure, DTY
                                                 + compute_velocity_zz_grad(U->v_y,i,j,k)); 
                  
 
-                g_field->g_z[idx] =  eval_function(forcing, x, y, vel_z, t_half_prev, 2)
+                g_field->g_z[idx] =  forcing(data, x, y, vel_z, t_half_prev, 2)
                                     - compute_pressure_z_grad(pressure->p,i,j,k) 
                                     - (NU / (K[idx])) * U->v_z[idx]
                                     + (NU) * (compute_velocity_xx_grad(Eta->v_z,i,j,k)  
@@ -194,11 +194,11 @@ void compute_g(GField *g_field, function_handle forcing, Pressure *pressure, DTY
                                 + compute_velocity_zz_grad(U->v_y,WIDTH-1,HEIGHT-1,k) );
          */
         // This is the ONLY that propagates to the solution U 
-        g_field->g_z[idx] = eval_function(forcing, x_max, y_max, vel_z, t_half_prev, 2) 
+        g_field->g_z[idx] = forcing(data, x_max, y_max, vel_z, t_half_prev, 2) 
                     - compute_pressure_z_grad(pressure->p,WIDTH-1,HEIGHT-1,k) 
                     - (NU / (K[idx])) * U->v_z[idx]
-                    + (NU) * (((Eta->v_z[left_idx] - 2.0*Eta->v_z[idx] + (2.0 * eval_function(v_boundary, vel_x_max, y_max, vel_z, t_prev, 2) - Eta->v_z[idx])) * DX_INVERSE_SQUARE)    
-                                + ((Zeta->v_z[down_idx] - 2.0*Zeta->v_z[idx] + (2.0 * eval_function(v_boundary, x_max, vel_y_max, vel_z, t_prev, 2) - Zeta->v_z[idx])) * DY_INVERSE_SQUARE) 
+                    + (NU) * (((Eta->v_z[left_idx] - 2.0*Eta->v_z[idx] + (2.0 * bc_velocity(data, vel_x_max, y_max, vel_z, t_prev, 2) - Eta->v_z[idx])) * DX_INVERSE_SQUARE)    
+                                + ((Zeta->v_z[down_idx] - 2.0*Zeta->v_z[idx] + (2.0 * bc_velocity(data, x_max, vel_y_max, vel_z, t_prev, 2) - Zeta->v_z[idx])) * DY_INVERSE_SQUARE) 
                                 + compute_velocity_zz_grad(U->v_z,WIDTH-1,HEIGHT-1,k) ); 
     }   
 
@@ -219,12 +219,12 @@ void compute_g(GField *g_field, function_handle forcing, Pressure *pressure, DTY
                                 + ((U->v_x[back_idx] - 2.0*U->v_x[idx] + (2.0 * eval_function(v_boundary, x_max, y, z_max, t, 0) - U->v_x[idx])) * DZ_INVERSE_SQUARE) ); 
          */
         // This will propagate to the solution U
-        g_field->g_y[idx] = eval_function(forcing, x_max, vel_y, z_max, t_half_prev, 1) 
+        g_field->g_y[idx] = forcing(data, x_max, vel_y, z_max, t_half_prev, 1) 
                     - compute_pressure_y_grad(pressure->p,WIDTH-1,j,DEPTH-1) 
                     - (NU / (K[idx])) * U->v_y[idx]
-                    + (NU) * (((Eta->v_y[left_idx] - 2.0*Eta->v_y[idx] + (2.0 * eval_function(v_boundary, vel_x_max, vel_y, z_max, t_prev, 1) - Eta->v_y[idx])) * DX_INVERSE_SQUARE)  
+                    + (NU) * (((Eta->v_y[left_idx] - 2.0*Eta->v_y[idx] + (2.0 * bc_velocity(data, vel_x_max, vel_y, z_max, t_prev, 1) - Eta->v_y[idx])) * DX_INVERSE_SQUARE)  
                                 + compute_velocity_yy_grad(Zeta->v_y,WIDTH-1,j,DEPTH-1) 
-                                + ((U->v_y[back_idx] - 2.0*U->v_y[idx] + (2.0 * eval_function(v_boundary, x_max, vel_y, vel_z_max, t_prev, 1) - U->v_y[idx])) * DZ_INVERSE_SQUARE) );
+                                + ((U->v_y[back_idx] - 2.0*U->v_y[idx] + (2.0 * bc_velocity(data, x_max, vel_y, vel_z_max, t_prev, 1) - U->v_y[idx])) * DZ_INVERSE_SQUARE) );
         /* 
         // This will be ignored by the last equation dzz, becouse is on the right z boundary
         // !! then useless * !! 
@@ -245,12 +245,12 @@ void compute_g(GField *g_field, function_handle forcing, Pressure *pressure, DTY
         DTYPE vel_x = x + DX/2;
 
         // This will propagate to the solution U
-        g_field->g_x[idx] = eval_function(forcing, vel_x, y_max, z_max, t_half_prev, 0) 
+        g_field->g_x[idx] = forcing(data, vel_x, y_max, z_max, t_half_prev, 0) 
                     - compute_pressure_x_grad(pressure->p,i,HEIGHT-1,DEPTH-1) 
                     - (NU / (K[idx])) * U->v_x[idx]
                     + (NU) * (compute_velocity_xx_grad(Eta->v_x,i,HEIGHT-1,DEPTH-1)  
-                                + ((Zeta->v_x[down_idx] - 2.0*Zeta->v_x[idx] + (2.0 * eval_function(v_boundary, vel_x, vel_y_max, z_max, t_prev, 0) - Zeta->v_x[idx])) * DY_INVERSE_SQUARE) 
-                                + ((U->v_x[back_idx] - 2.0*U->v_x[idx] + (2.0 * eval_function(v_boundary, vel_x, y_max, vel_z_max, t_prev, 0) - U->v_x[idx])) * DZ_INVERSE_SQUARE) );
+                                + ((Zeta->v_x[down_idx] - 2.0*Zeta->v_x[idx] + (2.0 * bc_velocity(data, vel_x, vel_y_max, z_max, t_prev, 0) - Zeta->v_x[idx])) * DY_INVERSE_SQUARE) 
+                                + ((U->v_x[back_idx] - 2.0*U->v_x[idx] + (2.0 * bc_velocity(data, vel_x, y_max, vel_z_max, t_prev, 0) - U->v_x[idx])) * DZ_INVERSE_SQUARE) );
         
 /*      // This will propagate to the second equation dyy, but then ignored becouse on right y boundary (same direction)
         // !! then useless * !!                         
@@ -289,18 +289,18 @@ void compute_g(GField *g_field, function_handle forcing, Pressure *pressure, DTY
                                     + compute_velocity_zz_grad(U->v_x,WIDTH-1,j,k) );
      */
             // This will propagate to the solution U
-            g_field->g_y[idx] = eval_function(forcing, x_max, vel_y, z, t_half_prev, 1) 
+            g_field->g_y[idx] = forcing(data, x_max, vel_y, z, t_half_prev, 1) 
                         - compute_pressure_y_grad(pressure->p,WIDTH-1,j,k) 
                         - (NU / (K[idx])) * U->v_y[idx]
-                        + (NU) * (((Eta->v_y[left_idx] - 2.0*Eta->v_y[idx] + (2.0 * eval_function(v_boundary, vel_x_max, vel_y, z, t_prev, 1) - Eta->v_y[idx])) * DX_INVERSE_SQUARE)  
+                        + (NU) * (((Eta->v_y[left_idx] - 2.0*Eta->v_y[idx] + (2.0 * bc_velocity(data, vel_x_max, vel_y, z, t_prev, 1) - Eta->v_y[idx])) * DX_INVERSE_SQUARE)  
                                     + compute_velocity_yy_grad(Zeta->v_y,WIDTH-1,j,k) 
                                     + compute_velocity_zz_grad(U->v_y,WIDTH-1,j,k) );
             
             // This will propagate to the solution U
-            g_field->g_z[idx] = eval_function(forcing, x_max, y, vel_z, t_half_prev, 2) 
+            g_field->g_z[idx] = forcing(data, x_max, y, vel_z, t_half_prev, 2) 
                         - compute_pressure_z_grad(pressure->p,WIDTH-1,j,k) 
                         - (NU / (K[idx])) * U->v_z[idx]
-                        + (NU) * (((Eta->v_z[left_idx] - 2.0*Eta->v_z[idx] + (2.0 * eval_function(v_boundary, vel_x_max, y, vel_z, t_prev, 2) - Eta->v_z[idx])) * DX_INVERSE_SQUARE)  
+                        + (NU) * (((Eta->v_z[left_idx] - 2.0*Eta->v_z[idx] + (2.0 * bc_velocity(data, vel_x_max, y, vel_z, t_prev, 2) - Eta->v_z[idx])) * DX_INVERSE_SQUARE)  
                                     + compute_velocity_yy_grad(Zeta->v_z,WIDTH-1,j,k) 
                                     + compute_velocity_zz_grad(U->v_z,WIDTH-1,j,k) );
          
@@ -318,11 +318,11 @@ void compute_g(GField *g_field, function_handle forcing, Pressure *pressure, DTY
             DTYPE vel_z = z + DZ/2;
 
             // This will propagate to the solution U
-            g_field->g_x[idx] = eval_function(forcing, vel_x, y_max, z, t_half_prev, 0) 
+            g_field->g_x[idx] = forcing(data, vel_x, y_max, z, t_half_prev, 0) 
                         - compute_pressure_x_grad(pressure->p,i,HEIGHT-1,k) 
                         - (NU / (K[idx])) * U->v_x[idx]
                         + (NU) * (compute_velocity_xx_grad(Eta->v_x,i,HEIGHT-1,k)  
-                                    + ((Zeta->v_x[down_idx] - 2.0*Zeta->v_x[idx] + (2.0 * eval_function(v_boundary, vel_x, vel_y_max, z, t_prev, 0) - Zeta->v_x[idx])) * DY_INVERSE_SQUARE) 
+                                    + ((Zeta->v_x[down_idx] - 2.0*Zeta->v_x[idx] + (2.0 * bc_velocity(data, vel_x, vel_y_max, z, t_prev, 0) - Zeta->v_x[idx])) * DY_INVERSE_SQUARE) 
                                     + compute_velocity_zz_grad(U->v_x,i,HEIGHT-1,k) );
             
 /*          // This will propagate to the second equation dyy, then ignored becouse on right y boundary (same direction)
@@ -335,11 +335,11 @@ void compute_g(GField *g_field, function_handle forcing, Pressure *pressure, DTY
              */
 
             // This will propagate to the solution U
-            g_field->g_z[idx] = eval_function(forcing, x, y_max, vel_z, t_half_prev, 2) 
+            g_field->g_z[idx] = forcing(data, x, y_max, vel_z, t_half_prev, 2) 
                         - compute_pressure_z_grad(pressure->p,i,HEIGHT-1,k) 
                         - (NU / (K[idx])) * U->v_z[idx]
                         + (NU) * (compute_velocity_xx_grad(Eta->v_z,i,HEIGHT-1,k)  
-                                    + ((Zeta->v_z[down_idx] - 2.0*Zeta->v_z[idx] + (2.0 * eval_function(v_boundary, x, vel_y_max, vel_z, t_prev, 2) - Zeta->v_z[idx])) * DY_INVERSE_SQUARE) 
+                                    + ((Zeta->v_z[down_idx] - 2.0*Zeta->v_z[idx] + (2.0 * bc_velocity(data, x, vel_y_max, vel_z, t_prev, 2) - Zeta->v_z[idx])) * DY_INVERSE_SQUARE) 
                                     + compute_velocity_zz_grad(U->v_z,i,HEIGHT-1,k) );
         }
     }
@@ -355,20 +355,20 @@ void compute_g(GField *g_field, function_handle forcing, Pressure *pressure, DTY
             DTYPE vel_y = y + DY/2;
 
             // This will propagate to the solution U
-            g_field->g_x[idx] = eval_function(forcing, vel_x, y, z_max, t_half_prev, 0) 
+            g_field->g_x[idx] = forcing(data, vel_x, y, z_max, t_half_prev, 0) 
                         - compute_pressure_x_grad(pressure->p,i,j,DEPTH-1) 
                         - (NU / (K[idx])) * U->v_x[idx]
                         + (NU) * (compute_velocity_xx_grad(Eta->v_x,i,j,DEPTH-1)  
                                     + compute_velocity_yy_grad(Zeta->v_x,i,j,DEPTH-1) 
-                                    + ((U->v_x[back_idx] - 2.0*U->v_x[idx] + (2.0 * eval_function(v_boundary, vel_x, y, vel_z_max, t_prev, 0) - U->v_x[idx])) * DZ_INVERSE_SQUARE) );
+                                    + ((U->v_x[back_idx] - 2.0*U->v_x[idx] + (2.0 * bc_velocity(data, vel_x, y, vel_z_max, t_prev, 0) - U->v_x[idx])) * DZ_INVERSE_SQUARE) );
             
             // This will propagate to the solution U
-            g_field->g_y[idx] = eval_function(forcing, x, vel_y, z_max, t_half_prev, 1) 
+            g_field->g_y[idx] = forcing(data, x, vel_y, z_max, t_half_prev, 1) 
                         - compute_pressure_y_grad(pressure->p,i,j,DEPTH-1) 
                         - (NU / (K[idx])) * U->v_y[idx]
                         + (NU) * (compute_velocity_xx_grad(Eta->v_y,i,j,DEPTH-1)  
                                     + compute_velocity_yy_grad(Zeta->v_y,i,j,DEPTH-1) 
-                                    + ((U->v_y[back_idx] - 2.0*U->v_y[idx] + (2.0 * eval_function(v_boundary, x, vel_y, vel_z_max, t_prev, 1) - U->v_y[idx])) * DZ_INVERSE_SQUARE) );
+                                    + ((U->v_y[back_idx] - 2.0*U->v_y[idx] + (2.0 * bc_velocity(data, x, vel_y, vel_z_max, t_prev, 1) - U->v_y[idx])) * DZ_INVERSE_SQUARE) );
             
      /*     // This will propagate to the third equation dzz, then ignored becouse on right z boundary (same direction)
             // !! then useless * !!             

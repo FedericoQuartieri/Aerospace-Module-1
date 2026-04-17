@@ -17,6 +17,10 @@ void solve_pressure_system(VelocityField U_next,
     compute_Phi_lower(&psi,  &phi_lower);
     compute_Phi_higher(&phi_lower, &phi_higher);
     compute_pressure(&phi_higher, pressure, pressure_star);
+
+    free_pressure(&psi);
+    free_pressure(&phi_lower);
+    free_pressure(&phi_higher);
 }
 
 void compute_Psi(VelocityField U_next, Pressure *psi){
