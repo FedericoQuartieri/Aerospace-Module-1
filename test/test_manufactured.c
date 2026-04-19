@@ -139,17 +139,6 @@ static ExactSolution create_manufactured_solution(void) {
     return exact;
 }
 
-/* Wrapper to convert ExactSolution to function_handle format */
-static DTYPE forcing_wrapper(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component) {
-    static ExactSolution *exact_ptr = NULL;
-    if (!exact_ptr) {
-        static ExactSolution exact;
-        exact = create_manufactured_solution();
-        exact_ptr = &exact;
-    }
-    return exact_ptr->forcing(x, y, z, t, component);
-}
-
 int test_manufactured_solution(void) {
     printf("\n====== TEST: Manufactured Solution ======\n");
     
@@ -270,7 +259,7 @@ int test_manufactured_solution(void) {
     }
 }
 
-int main(int argc, char *argv[]) {
+int main(void) {
     printf("Running Manufactured Solution Test...\n");
     return test_manufactured_solution();
 }

@@ -7,19 +7,19 @@
 #ifdef WIDTH_OVERRIDE
     #define WIDTH WIDTH_OVERRIDE
 #else
-    #define WIDTH 128
+    #define WIDTH 256
 #endif
 
 #ifdef HEIGHT_OVERRIDE
     #define HEIGHT HEIGHT_OVERRIDE
 #else
-    #define HEIGHT 128
+    #define HEIGHT 256
 #endif
 
 #ifdef DEPTH_OVERRIDE
     #define DEPTH DEPTH_OVERRIDE
 #else
-    #define DEPTH 128
+    #define DEPTH 256
 #endif
 
 // Grid spatial dimension (number of elements)
@@ -59,17 +59,17 @@
 #ifdef DT_OVERRIDE
     #define DT DT_OVERRIDE
 #else
-    #define DT 0.01
+    #define DT 0.001
 #endif
 
 #ifdef TOTAL_TIME_OVERRIDE
     #define TOTAL_TIME TOTAL_TIME_OVERRIDE
 #else
-    #define TOTAL_TIME 1.0
+    #define TOTAL_TIME 0.005
 #endif
 
 #define STEPS ((int)(TOTAL_TIME / DT))  // Number of time steps
-#define WRITE_FREQUENCY STEPS/20            // Writing output frequency
+#define WRITE_FREQUENCY STEPS/STEPS            // Writing output frequency
 
 #define DX_INVERSE (1.0 / DX)
 #define DY_INVERSE (1.0 / DY)
@@ -82,5 +82,13 @@
 // Simulation parameters
 #define MAX_ITERATIONS 1000
 #define TOLERANCE 1e-6
+
+#if defined(USE_DOUBLE)
+    #define TYPE double
+#elif defined(USE_FLOAT)
+    #define TYPE float
+#else
+    #define USE_FLOAT
+#endif
 
 #endif // CONSTANTS_H

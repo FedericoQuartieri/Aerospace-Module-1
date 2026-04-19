@@ -83,7 +83,6 @@ void compute_g(GField *g_field, Pressure *pressure, DTYPE *K, VelocityField *Eta
 
     size_t idx, left_idx, down_idx, back_idx;
     // Physical coordinates of the domain
-    DTYPE t = time_step * DT;
     DTYPE t_half_prev = (time_step - 0.5) * DT;
     DTYPE t_prev = (time_step - 1) * DT; 
     DTYPE x_max = (WIDTH - 1) * DX;

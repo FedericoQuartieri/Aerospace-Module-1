@@ -247,7 +247,7 @@ int test_manufactured_solution(void) {
     }
 }
 
-int main(int argc, char *argv[]) {
+int main(void) {
     printf("Running Zero Pressure Paper Manufactured Solution Test...\n");
     return test_manufactured_solution();
 }

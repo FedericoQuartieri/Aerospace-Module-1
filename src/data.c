@@ -12,7 +12,7 @@ static DTYPE paper_bc_velocity(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component
 }
 
 static DTYPE paper_forcing(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int component)
-{
+{  
     /* x ∈ [0,π] */
     switch (component) {
         case 0: 

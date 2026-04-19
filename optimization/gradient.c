@@ -141,7 +141,7 @@ void comp_grad_z(TYPE *__restrict p, TYPE *__restrict g) {
     Consider the y-direction:
         load p[idx]             -> cache line: p[idx], p[idx+1], p[idx+2], p[idx+3]
         load p[idx + stride]    -> cache line: p[idx+stride], p[idx+stride+1], ...
-    As we move along the row, we lose cached elements before they are reused.
+    As we move along the row, we loose cached elements before they are reused.
 
     In contrast, the x-direction performs all operations while the relevant
     data are still in cache, achieving better locality.
@@ -173,14 +173,14 @@ void comp_grad_tiled(TYPE *__restrict p, TYPE *__restrict g_x, TYPE *__restrict 
                             size_t idx = rowmaj(i_tile, j_tile, k_tile);
                             TYPE p_idx = p[idx];
 
-                            size_t neigh = rowmaj(i_tile+1, j_tile, k_tile);
-                            g_x[idx] = p[neigh] - p_idx;
+                            size_t neigh_x = rowmaj(i_tile+1, j_tile, k_tile);
+                            g_x[idx] = p[neigh_x] - p_idx;
                             
-                            neigh = rowmaj(i_tile, j_tile+1, k_tile);
-                            g_y[idx] = p[neigh] - p_idx;
+                            size_t neigh_y = rowmaj(i_tile, j_tile+1, k_tile);
+                            g_y[idx] = p[neigh_y] - p_idx;
 
-                            neigh = rowmaj(i_tile, j_tile, k_tile+1);
-                            g_z[idx] = p[neigh] - p_idx;
+                            size_t neigh_z = rowmaj(i_tile, j_tile, k_tile+1);
+                            g_z[idx] = p[neigh_z] - p_idx;
                         }
                     }
                 }
