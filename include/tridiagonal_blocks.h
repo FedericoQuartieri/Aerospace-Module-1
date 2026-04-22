@@ -5,6 +5,8 @@
 #include "utils.h"
 #include "velocity_field.h"
 #include "force_field.h"
+#include "neon_instructions.h"
+
 #include <stdbool.h>
 
 /**
@@ -49,11 +51,16 @@ void Thomas_Pressure(const DTYPE w,
                             );
 
 /* Solves the block diagonal system (I - ∂xx)u = f. */
-void solve_Dxx_tridiag_blocks(DTYPE *Eta_next_component, DTYPE *f_field_component, DTYPE *Gamma, const Data *data, bool same_direction, int v_component, int time_step);
+void solve_Dxx_tridiag_blocks(DTYPE *__restrict__ Eta_next_component, DTYPE *__restrict__ f_field_component, DTYPE *__restrict__ Gamma, const Data *data, bool same_direction, int v_component, int time_step);
 
 /* Solves the block diagonal system (I - ∂yy)u = f. */
 void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next_component, DTYPE *f_field_component, DTYPE *Gamma, const Data *data, bool same_direction, int v_component, int time_step);
 
 /* Solves the block diagonal system (I - ∂zz)u = f. */
 void solve_Dzz_tridiag_blocks(DTYPE *U_next_component, DTYPE *f_field_component, DTYPE *Gamma, const Data *data, bool same_direction, int v_component, int time_step);
+
+void simd_Thomas_Algorithm(DTYPE *__restrict__ simd_w, unsigned int n, DTYPE *__restrict__ simd_tmp, DTYPE *__restrict__ simd_rhs, DTYPE *__restrict__ simd_u, bool same_direction);
+void vectorized_solve_Dyy_tridiag_blocks(DTYPE *__restrict__ Zeta_next, DTYPE *__restrict__ rhs, DTYPE *__restrict__ Gamma, const Data *__restrict__ data, bool same_direction, int v_component, int time_step);
+void vectorized_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *__restrict__ rhs, DTYPE *__restrict__ Gamma, const Data *__restrict__ data, bool same_direction, int v_component, int time_step);
+
 #endif

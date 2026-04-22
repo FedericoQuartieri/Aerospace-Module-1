@@ -1,6 +1,19 @@
 CC = clang
 
-COMMON_CFLAGS = -Wall -Wextra -Iinclude
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+
+PRECISION ?= USE_DOUBLE
+PRECISION_CFLAGS = -D$(PRECISION)
+
+ARCH_CFLAGS =
+ifeq ($(UNAME_S),Linux)
+ifneq (,$(filter $(UNAME_M),aarch64 arm64))
+ARCH_CFLAGS += -march=armv8-a+simd
+endif
+endif
+
+COMMON_CFLAGS = -Wall -Wextra -Iinclude $(PRECISION_CFLAGS) $(ARCH_CFLAGS)
 RELEASE_CFLAGS = -O3
 PROFILE_CFLAGS = -O3 -g -fno-omit-frame-pointer
 DEPFLAGS = -MMD -MP
@@ -31,7 +44,6 @@ TESTS = \
 	test_tridiagonal \
 	test_force_field \
 	test_boundary_conditions \
-
 
 TEST_BINS = $(addprefix $(BUILDDIR)/,$(TESTS))
 PROFILE_TEST_BINS = $(addprefix $(PROFILEDIR)/,$(TESTS))

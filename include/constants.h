@@ -28,8 +28,17 @@
 // Total field size in bytes
 #define GRID_SIZE (GRID_ELEMENTS * sizeof(DTYPE))
 
-// Data type
-#define DTYPE double
+
+// Data precision type
+#if !defined(USE_FLOAT) && !defined(USE_DOUBLE)
+    #define USE_DOUBLE
+#endif
+
+#if defined(USE_DOUBLE)
+    #define DTYPE double
+#elif defined(USE_FLOAT)
+    #define DTYPE float
+#endif
 
 // Physical constants 
 #define NU 1.0                // Kinematic viscosity (nu)

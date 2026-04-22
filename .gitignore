@@ -5,6 +5,8 @@ build/
 build_convergence/
 convergence_test/
 build_profile/
+test/C_test/output/
+test/C_test/output_exact/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
