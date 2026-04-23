@@ -3,14 +3,17 @@ CC = clang
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 
-SIMD_CFLAGS = -DUSE_DOUBLE
+PRECISION ?= USE_DOUBLE
+PRECISION_CFLAGS = -D$(PRECISION)
+
+ARCH_CFLAGS =
 ifeq ($(UNAME_S),Linux)
 ifneq (,$(filter $(UNAME_M),aarch64 arm64))
-SIMD_CFLAGS += -march=armv8-a+simd
+ARCH_CFLAGS += -march=armv8-a+simd
 endif
 endif
 
-COMMON_CFLAGS = -Wall -Wextra -Iinclude $(SIMD_CFLAGS)
+COMMON_CFLAGS = -Wall -Wextra -Iinclude $(PRECISION_CFLAGS) $(ARCH_CFLAGS)
 RELEASE_CFLAGS = -O3
 PROFILE_CFLAGS = -O3 -g -fno-omit-frame-pointer
 DEPFLAGS = -MMD -MP

@@ -6,6 +6,8 @@ void io_queue_init(IOQueue *q)
     q->tail  = 0;
     q->count = 0;
     q->stop  = 0;
+    q->write_failed = 0;
+    q->failed_timestep = -1;
     for (int i = 0; i < IO_QUEUE_SIZE; i++)
         q->timestep[i] = -1;
 
@@ -62,9 +64,17 @@ void *io_thread_func(void *arg)
 
         /* Write in file */
         char filename[256];
-        sprintf(filename, "output/solution_%06d.vti", ts);
+        snprintf(filename, sizeof(filename), "output/solution_%06d.vti", ts);
 
-        write_vti_file(filename, &q->U_buf[idx], &q->P_buf[idx]);
+        if (!write_vti_file(filename, &q->U_buf[idx], &q->P_buf[idx])) {
+            pthread_mutex_lock(&q->mutex);
+            q->write_failed = 1;
+            q->failed_timestep = ts;
+            q->stop = 1;
+            pthread_cond_broadcast(&q->not_full);
+            pthread_mutex_unlock(&q->mutex);
+            break;
+        }
     }
 
     return NULL;

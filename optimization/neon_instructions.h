@@ -1,6 +1,7 @@
 #ifndef VECTOR_NEON_H
 #define VECTOR_NEON_H
 
+#include "../include/constants.h"
 #include <arm_neon.h>
 
 /* NEON abstraction layer for float/double precision */

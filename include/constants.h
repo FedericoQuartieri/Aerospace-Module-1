@@ -28,8 +28,16 @@
 // Total field size in bytes
 #define GRID_SIZE (GRID_ELEMENTS * sizeof(DTYPE))
 
-// Data type
-#define DTYPE double
+// Data precision type
+#if !defined(USE_FLOAT) && !defined(USE_DOUBLE)
+    #define USE_DOUBLE
+#endif
+
+#if defined(USE_DOUBLE)
+    #define DTYPE double
+#elif defined(USE_FLOAT)
+    #define DTYPE float
+#endif
 
 // Physical constants 
 #define NU 1.0                // Kinematic viscosity (nu)
@@ -69,7 +77,8 @@
 #endif
 
 #define STEPS ((int)(TOTAL_TIME / DT))  // Number of time steps
-#define WRITE_FREQUENCY STEPS/STEPS            // Writing output frequency
+#define WRITE_FREQUENCY STEPS           // Writing output frequency
+#define ENABLE_OUTPUT 0                 // Set to 1 to enable output, 0 to disable
 
 #define DX_INVERSE (1.0 / DX)
 #define DY_INVERSE (1.0 / DY)
@@ -82,13 +91,5 @@
 // Simulation parameters
 #define MAX_ITERATIONS 1000
 #define TOLERANCE 1e-6
-
-#if defined(USE_DOUBLE)
-    #define TYPE double
-#elif defined(USE_FLOAT)
-    #define TYPE float
-#else
-    #define USE_FLOAT
-#endif
 
 #endif // CONSTANTS_H

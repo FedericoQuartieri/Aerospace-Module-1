@@ -1,6 +1,8 @@
 #include "test_common.h"
 #include "../include/solve.h"
 #include "../include/g_field.h"
+#include <errno.h>
+#include <string.h>
 
 /* 
     This test is supposed to be done with a grid normalized between [0, 1] 
@@ -89,7 +91,7 @@ static DTYPE manufactured_boundary(DTYPE x, DTYPE y, DTYPE z, DTYPE t, int compo
 }
 
 /* ==================== Exact manufactured solution ==================== */
-static void write_exact_solution_vti(const char *filename, ExactSolution *exact, DTYPE t) {
+static bool write_exact_solution_vti(const char *filename, ExactSolution *exact, DTYPE t) {
     VelocityField U_exact;
     Pressure P_exact;
     
@@ -113,18 +115,19 @@ static void write_exact_solution_vti(const char *filename, ExactSolution *exact,
                 U_exact.v_x[idx] = exact->velocity(vel_x, y, z, t, 0);
                 U_exact.v_y[idx] = exact->velocity(x, vel_y, z, t, 1);
                 U_exact.v_z[idx] = exact->velocity(x, y, vel_z, t, 2);
-                P_exact.p[idx] = exact->pressure(x, y, z, t);
+                P_exact.p[idx] = exact->pressure(x, y, z, t - DT / 2);
             }
         }
     }
     
-    write_vti_file(filename, &U_exact, &P_exact);
+    bool ok = write_vti_file(filename, &U_exact, &P_exact);
     
     /* Libera memoria */
     free(U_exact.v_x);
     free(U_exact.v_y);
     free(U_exact.v_z);
     free(P_exact.p);
+    return ok;
 }
 
 /* ==================== Test Implementation ==================== */
@@ -139,21 +142,35 @@ static ExactSolution create_manufactured_solution(void) {
     return exact;
 }
 
+static const Data TEST_DATA = {
+    .name = "manufactured_test",
+    .bc_velocity = manufactured_boundary,
+    .forcing = manufactured_forcing
+};
+
 int test_manufactured_solution(void) {
     printf("\n====== TEST: Manufactured Solution ======\n");
     
     ExactSolution exact = create_manufactured_solution();
 
-    printf("Writing exact solutions to VTI files...\n");
-    mkdir("output_exact", 0755);
-    /* Write exact solution for each timestep */
-    for(int t = 0; t <= STEPS; t++) {
-        int write_frequency = WRITE_FREQUENCY;
-        if((t % write_frequency) == 0) {
-            double time = t*DT;
-            char filename[256];
-            sprintf(filename, "output_exact/exact_solution_%06d.vti", t);
-            write_exact_solution_vti(filename, &exact, time);
+    if(ENABLE_OUTPUT){ /* write exact solutions only if output is enabled */
+        
+        printf("Writing exact solutions to VTI files...\n");
+        if (mkdir("output_exact", 0755) != 0 && errno != EEXIST) {
+            fprintf(stderr, "Error: could not create output_exact: %s\n", strerror(errno));
+            return TEST_FAIL;
+        }
+        /* Write exact solution for each timestep */
+        for(int t = 0; t <= STEPS; t++) {
+            int write_frequency = WRITE_FREQUENCY;
+            if((t % write_frequency) == 0) {
+                double time = t*DT;
+                char filename[256];
+                snprintf(filename, sizeof(filename), "output_exact/exact_solution_%06d.vti", t);
+                if (!write_exact_solution_vti(filename, &exact, time)) {
+                    return TEST_FAIL;
+                }
+            }
         }
     }
     
@@ -199,9 +216,20 @@ int test_manufactured_solution(void) {
     initialize_g_field(&g_field);
 
     /* Run solver */
-    solve(g_field, forcing, pressure, K, Eta, Zeta, U, 
+    if (!solve(g_field, &TEST_DATA, pressure, K, Eta, Zeta, U, 
           Beta, Gamma, 
-          WRITE_FREQUENCY, false, NULL, NULL);  
+          WRITE_FREQUENCY)) {
+        fprintf(stderr, "Error: solver reported output failure.\n");
+        free(K);
+        free(Beta);
+        free(Gamma);
+        free_pressure(&pressure);
+        free_velocity_field(&Eta);
+        free_velocity_field(&Zeta);
+        free_velocity_field(&U);
+        free_g_field(&g_field);
+        return TEST_FAIL;
+    }
     
     /* Compute exact solution at final time */
     DTYPE t_final = STEPS * DT;

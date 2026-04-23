@@ -10,6 +10,7 @@
 void solve_momentum_system(VelocityField U, 
                            VelocityField Eta, 
                            VelocityField Zeta, 
+                           Pressure *pressure_star,
                            VelocityField Xi,
                            GField g_field,
                            VelocityField Delta,
@@ -20,7 +21,7 @@ void solve_momentum_system(VelocityField U,
                            int timestep
                         );
 
-void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField rhs, VelocityField Xi,
+void compute_eta_next(VelocityField Eta, VelocityField Delta, VelocityField Zeta, VelocityField U, Pressure *pressure_star, ForceField rhs, VelocityField Xi,
     DTYPE *Gamma, const Data *data, int timestep);
 
 void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceField rhs, VelocityField Eta,

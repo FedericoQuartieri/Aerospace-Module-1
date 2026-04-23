@@ -15,7 +15,7 @@
 #include "pressure_system.h"
 #include "data.h"
 
-void solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K, 
+bool solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K, 
             VelocityField Eta, VelocityField Zeta, VelocityField U, 
             DTYPE* Beta, DTYPE* Gamma, 
-            int write_frequency, bool full_output, VelocityField** U_record, Pressure** P_record);
+            int write_frequency);

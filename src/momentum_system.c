@@ -12,6 +12,7 @@
 void solve_momentum_system(VelocityField U, 
                            VelocityField Eta, 
                            VelocityField Zeta, 
+                           Pressure *pressure_star,
                            VelocityField Xi,
                            GField g_field,
                            VelocityField Delta,
@@ -22,9 +23,9 @@ void solve_momentum_system(VelocityField U,
                            int timestep
                         )
 {     
-    compute_xi(g_field, U, Xi, Beta);
+    //compute_xi(g_field, U, Xi, Beta);
 
-    compute_eta_next(Eta, Delta, rhs, Xi, Gamma, data, timestep);
+    compute_eta_next(Eta, Delta, Zeta, U, pressure_star, rhs, Xi, Gamma, data, timestep);
 
     compute_zeta_next(Zeta, Delta, rhs, Eta, Gamma, data, timestep);
 
@@ -50,10 +51,10 @@ void solve_momentum_system(VelocityField U,
 */
 
 /* (I - ∂xx) (Eta_n+1 - Eta_n) = Xi - Eta_n */
-void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField rhs, VelocityField Xi, DTYPE *Gamma, const Data *data, int timestep){
+void compute_eta_next(VelocityField Eta, VelocityField Delta, VelocityField Zeta, VelocityField U, Pressure *pressure_star, ForceField rhs, VelocityField Xi, DTYPE *Gamma, const Data *data, int timestep){
 
     // rhs = Xi - Eta_n
-    for(int k = 0; k < DEPTH; k++){
+/*    for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
@@ -65,7 +66,7 @@ void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField rhs, Ve
                 rhs.f_z[idx] = Xi.v_z[idx] - Eta.v_z[idx];
             }
         }
-    }
+    }  */
 
     /* 
         Warning: set the delta in the boundary conditions, both left and right,
@@ -81,16 +82,20 @@ void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField rhs, Ve
 
 
     // Thomas algorithm for the linear system, for each component of Delta
-    solve_Dxx_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, true, 0, timestep);
+/*     solve_Dxx_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, true, 0, timestep);
     solve_Dxx_tridiag_blocks(Delta.v_y, rhs.f_y, Gamma, data, false, 1, timestep);
-    solve_Dxx_tridiag_blocks(Delta.v_z, rhs.f_z, Gamma, data, false, 2, timestep);
-
+    solve_Dxx_tridiag_blocks(Delta.v_z, rhs.f_z, Gamma, data, false, 2, timestep); 
+ */
+     optimize_solve_Dxx_tridiag_blocks(Eta.v_x, Zeta.v_x, U.v_x, pressure_star->p, Gamma, data, true, 0, timestep);
+    optimize_solve_Dxx_tridiag_blocks(Eta.v_y, Zeta.v_y, U.v_y, pressure_star->p, Gamma, data, false, 1, timestep);
+    optimize_solve_Dxx_tridiag_blocks(Eta.v_z, Zeta.v_z, U.v_z, pressure_star->p, Gamma, data, false, 2, timestep);
+     
     // Now in Delta we have the solution of the linear system: Delta = (Eta_n+1 - Eta_n)
     // we need to get Eta_n+1 as: Eta_n+1 = Delta + Eta_n
     // we have also the delta of the boundaries
 
     
-    for(int k = 0; k < DEPTH; k++){
+  /*    for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
@@ -102,7 +107,7 @@ void compute_eta_next(VelocityField Eta, VelocityField Delta, ForceField rhs, Ve
                 Eta.v_z[idx] = Delta.v_z[idx] + Eta.v_z[idx]; 
             }
         }
-    }
+    }  */
 
 }
 
@@ -130,15 +135,15 @@ void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceField rhs, 
 
 
     // Thomas algorithm for the linear system, for each component of Delta
-/*     solve_Dyy_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
+/*      solve_Dyy_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
     solve_Dyy_tridiag_blocks(Delta.v_y, rhs.f_y, Gamma, data, true, 1, timestep);
     solve_Dyy_tridiag_blocks(Delta.v_z, rhs.f_z, Gamma, data, false, 2, timestep);
-    */ 
+ */
   
     vectorized_solve_Dyy_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
     vectorized_solve_Dyy_tridiag_blocks(Delta.v_y, rhs.f_y, Gamma, data, true, 1, timestep);
     vectorized_solve_Dyy_tridiag_blocks(Delta.v_z, rhs.f_z, Gamma, data, false, 2, timestep);
- 
+  
     // Now in Delta we have the solution of the linear system: Delta = (Zeta_n+1 - Zeta_n)
     // we need to get Zeta_n+1 as: Zeta_n+1 = Delta + Zeta_n
     /* !! Warning: trying to let left boundary as it (so to start from 1)!!*/
@@ -181,15 +186,16 @@ void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs, Veloci
     update_delta_right_velocity_boundary(&Delta, timestep, data);
  */
     // Thomas algorithm for the linear system, for each component of Delta
-/*  solve_Dzz_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
+/*     solve_Dzz_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
     solve_Dzz_tridiag_blocks(Delta.v_y, rhs.f_y, Gamma, data, false, 1, timestep);
     solve_Dzz_tridiag_blocks(Delta.v_z, rhs.f_z, Gamma, data, true, 2, timestep);
-   */  
-
+     
+ */
+    
     vectorized_solve_Dzz_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
     vectorized_solve_Dzz_tridiag_blocks(Delta.v_y, rhs.f_y, Gamma, data, false, 1, timestep);
     vectorized_solve_Dzz_tridiag_blocks(Delta.v_z, rhs.f_z, Gamma, data, true, 2, timestep); 
-    
+     
     // Now in Delta we have the solution of the linear system: Delta = (U_n+1 - U_n)
     // we need to get U_n+1 as: U_n+1 = Delta + U_n
 

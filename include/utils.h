@@ -33,4 +33,12 @@ static inline int is_boundary(size_t i, size_t j, size_t k) {
             k == 0 || k == DEPTH  - 1);
 }
 
+static inline DTYPE compute_beta_from_gamma(DTYPE gamma){
+    return (DT * NU) / (2.0 * gamma);
+}
+
+static inline DTYPE compute_k_from_beta(DTYPE beta){
+    return (DT * NU) / (2.0 * (beta - 1.0));
+}
+
 #endif // UTILS_H

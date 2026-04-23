@@ -18,7 +18,9 @@ typedef struct {
     int count;  /* Elements in the queue */
 
     int stop;   /* Flag to indicate that solver has finished */
+    int write_failed;   /* Flag set when a background write fails */
     int timestep[IO_QUEUE_SIZE];
+    int failed_timestep;
 
     pthread_mutex_t mutex;
     pthread_cond_t  not_empty;  /* Signal that indicates if the IO thread should read the buffers */

@@ -138,35 +138,6 @@ void compute_g(GField *g_field, Pressure *pressure, DTYPE *K, VelocityField *Eta
     down_idx = rowmaj_idx(WIDTH-1,HEIGHT-2,DEPTH-1);
     back_idx = rowmaj_idx(WIDTH-1,HEIGHT-1,DEPTH-2);
 
-/*
-    // This component will be directly substitute in Thomas same direction by the U_ex,
-    // since the first equation is on dxx and 'same direction' is on x 
-    // !! then useless * !!
-     g_field->g_x[idx] = eval_function(forcing, x_max, y_max, z_max, t, 0)  
-                    - (NU / (K[idx])) * U->v_x[idx]
-                    + (NU) * (((Eta->v_x[left_idx] - 2.0*Eta->v_x[idx] + (2.0 * eval_function(v_boundary, x_max, y_max, z_max, t, 0) - Eta->v_x[idx])) * DX_INVERSE_SQUARE)  
-                                + ((Zeta->v_x[down_idx] - 2.0*Zeta->v_x[idx] + (2.0 * eval_function(v_boundary, x_max, y_max, z_max, t, 0) - Zeta->v_x[idx])) * DY_INVERSE_SQUARE) 
-                                + ((U->v_x[back_idx] - 2.0*U->v_x[idx] + (2.0 * eval_function(v_boundary, x_max, y_max, z_max, t, 0) - U->v_x[idx])) * DZ_INVERSE_SQUARE) );
-   
-    // This will be computed, but in the next equation on dyy this value is ignored since the 'same direction'
-    // is on y and this is on the right boundary face 
-    // !! then useless * !!
-    g_field->g_y[idx] = eval_function(forcing, x_max, y_max, z_max, t, 1) 
-                    - (NU / (K[idx])) * U->v_y[idx]
-                    + (NU) * (((Eta->v_y[left_idx] - 2.0*Eta->v_y[idx] + (2.0 * eval_function(v_boundary, x_max, y_max, z_max, t, 1) - Eta->v_y[idx])) * DX_INVERSE_SQUARE)  
-                                + ((Zeta->v_y[down_idx] - 2.0*Zeta->v_y[idx] + (2.0 * eval_function(v_boundary, x_max, y_max, z_max, t, 1) - Zeta->v_y[idx])) * DY_INVERSE_SQUARE) 
-                                + ((U->v_y[back_idx] - 2.0*U->v_y[idx] + (2.0 * eval_function(v_boundary, x_max, y_max, z_max, t, 1) - U->v_y[idx])) * DZ_INVERSE_SQUARE) );
-    
-    // This component will propagates till the 3 equation, where is then ignored 
-    // since it's on the right z face
-    // !! then useless * !!
-    g_field->g_z[idx] = eval_function(forcing, x_max, y_max, z_max, t, 2) 
-                    - (NU / (K[idx])) * U->v_z[idx]
-                    + (NU) * (((Eta->v_z[left_idx] - 2.0*Eta->v_z[idx] + (2.0 * eval_function(v_boundary, x_max, y_max, z_max, t, 2) - Eta->v_z[idx])) * DX_INVERSE_SQUARE)  
-                                + ((Zeta->v_z[down_idx] - 2.0*Zeta->v_z[idx] + (2.0 * eval_function(v_boundary, x_max, y_max, z_max, t, 2) - Zeta->v_z[idx])) * DY_INVERSE_SQUARE) 
-                                + ((U->v_z[back_idx] - 2.0*U->v_z[idx] + (2.0 * eval_function(v_boundary, x_max, y_max, z_max, t, 2) - U->v_z[idx])) * DZ_INVERSE_SQUARE) );
- */
-
     // (i,j,k) = (WIDTH-1,HEIGHT-1,k)
     for(int k = 1; k < DEPTH - 1; k++){
         idx = rowmaj_idx(WIDTH-1,HEIGHT-1,k);
@@ -175,23 +146,6 @@ void compute_g(GField *g_field, Pressure *pressure, DTYPE *K, VelocityField *Eta
         DTYPE z = k * DZ;
         DTYPE vel_z = z + DZ/2;
 
-/*      // This will be ignored by the first equation dxx, becouse is on the right x boundary
-        // !! then useless * !! 
-        g_field->g_x[idx] = eval_function(forcing, x_max, y_max, z, t, 0)  
-                    - (NU / (K[idx])) * U->v_x[idx]
-                    + (NU) * (((Eta->v_x[left_idx] - 2.0*Eta->v_x[idx] + (2.0 * eval_function(v_boundary, x_max, y_max, z, t, 0) - Eta->v_x[idx])) * DX_INVERSE_SQUARE)  
-                                + ((Zeta->v_x[down_idx] - 2.0*Zeta->v_x[idx] + (2.0 * eval_function(v_boundary, x_max, y_max, z, t, 0) - Zeta->v_x[idx])) * DY_INVERSE_SQUARE) 
-                                + compute_velocity_zz_grad(U->v_x,WIDTH-1,HEIGHT-1,k) );
-
-        // This will be used by the first equation but then ignored by the second dyy, since 
-        // it's on the right y boundary 
-        // !! then useless * !!
-        g_field->g_y[idx] = eval_function(forcing, x_max, y_max, z, t, 1) 
-                    - (NU / (K[idx])) * U->v_y[idx]
-                    + (NU) * (((Eta->v_y[left_idx] - 2.0*Eta->v_y[idx] + (2.0 * eval_function(v_boundary, x_max, y_max, z, t, 1) - Eta->v_y[idx])) * DX_INVERSE_SQUARE)  
-                                + ((Zeta->v_y[down_idx] - 2.0*Zeta->v_y[idx] + (2.0 * eval_function(v_boundary, x_max, y_max, z, t, 1) - Zeta->v_y[idx])) * DY_INVERSE_SQUARE) 
-                                + compute_velocity_zz_grad(U->v_y,WIDTH-1,HEIGHT-1,k) );
-         */
         // This is the ONLY that propagates to the solution U 
         g_field->g_z[idx] = forcing(data, x_max, y_max, vel_z, t_half_prev, 2) 
                     - compute_pressure_z_grad(pressure->p,WIDTH-1,HEIGHT-1,k) 
@@ -209,14 +163,6 @@ void compute_g(GField *g_field, Pressure *pressure, DTYPE *K, VelocityField *Eta
         DTYPE y = j * DY;
         DTYPE vel_y = y + DY/2;
 
-/*      // This will be ignored by the first equation dxx, becouse is on the right x boundary
-        // !! then useless * !! 
-        g_field->g_x[idx] = eval_function(forcing, x_max, y, z_max, t, 0) 
-                    - (NU / (K[idx])) * U->v_x[idx]
-                    + (NU) * (((Eta->v_x[left_idx] - 2.0*Eta->v_x[idx] + (2.0 * eval_function(v_boundary, vel_x_max, y, z_max, t, 0) - Eta->v_x[idx])) * DX_INVERSE_SQUARE)  
-                                + compute_velocity_yy_grad(Zeta->v_x,WIDTH-1,j,DEPTH-1) 
-                                + ((U->v_x[back_idx] - 2.0*U->v_x[idx] + (2.0 * eval_function(v_boundary, x_max, y, z_max, t, 0) - U->v_x[idx])) * DZ_INVERSE_SQUARE) ); 
-         */
         // This will propagate to the solution U
         g_field->g_y[idx] = forcing(data, x_max, vel_y, z_max, t_half_prev, 1) 
                     - compute_pressure_y_grad(pressure->p,WIDTH-1,j,DEPTH-1) 
@@ -224,15 +170,7 @@ void compute_g(GField *g_field, Pressure *pressure, DTYPE *K, VelocityField *Eta
                     + (NU) * (((Eta->v_y[left_idx] - 2.0*Eta->v_y[idx] + (2.0 * bc_velocity(data, vel_x_max, vel_y, z_max, t_prev, 1) - Eta->v_y[idx])) * DX_INVERSE_SQUARE)  
                                 + compute_velocity_yy_grad(Zeta->v_y,WIDTH-1,j,DEPTH-1) 
                                 + ((U->v_y[back_idx] - 2.0*U->v_y[idx] + (2.0 * bc_velocity(data, x_max, vel_y, vel_z_max, t_prev, 1) - U->v_y[idx])) * DZ_INVERSE_SQUARE) );
-        /* 
-        // This will be ignored by the last equation dzz, becouse is on the right z boundary
-        // !! then useless * !! 
-        g_field->g_z[idx] = eval_function(forcing, x_max, y, z_max, t, 2) 
-                    - (NU / (K[idx])) * U->v_z[idx]
-                    + (NU) * (((Eta->v_z[left_idx] - 2.0*Eta->v_z[idx] + (2.0 * eval_function(v_boundary, x_max, y, z_max, t, 2) - Eta->v_z[idx])) * DX_INVERSE_SQUARE)  
-                                + compute_velocity_yy_grad(Zeta->v_z,WIDTH-1,j,DEPTH-1) 
-                                + ((U->v_z[back_idx] - 2.0*U->v_z[idx] + (2.0 * eval_function(v_boundary, x_max, y, z_max, t, 2) - U->v_z[idx])) * DZ_INVERSE_SQUARE) );
-   */  
+
   }
 
     // (i,j,k) = (i,HEIGHT-1,DEPTH-1)
@@ -251,22 +189,6 @@ void compute_g(GField *g_field, Pressure *pressure, DTYPE *K, VelocityField *Eta
                                 + ((Zeta->v_x[down_idx] - 2.0*Zeta->v_x[idx] + (2.0 * bc_velocity(data, vel_x, vel_y_max, z_max, t_prev, 0) - Zeta->v_x[idx])) * DY_INVERSE_SQUARE) 
                                 + ((U->v_x[back_idx] - 2.0*U->v_x[idx] + (2.0 * bc_velocity(data, vel_x, y_max, vel_z_max, t_prev, 0) - U->v_x[idx])) * DZ_INVERSE_SQUARE) );
         
-/*      // This will propagate to the second equation dyy, but then ignored becouse on right y boundary (same direction)
-        // !! then useless * !!                         
-        g_field->g_y[idx] = eval_function(forcing, x, y_max, z_max, t, 1) 
-                    - (NU / (K[idx])) * U->v_y[idx]
-                    + (NU) * (compute_velocity_xx_grad(Eta->v_y,i,HEIGHT-1,DEPTH-1)  
-                                + ((Zeta->v_y[down_idx] - 2.0*Zeta->v_y[idx] + (2.0 * eval_function(v_boundary, x, y_max, z_max, t, 1) - Zeta->v_y[idx])) * DY_INVERSE_SQUARE) 
-                                + ((U->v_y[back_idx] - 2.0*U->v_y[idx] + (2.0 * eval_function(v_boundary, x, y_max, z_max, t, 1) - U->v_y[idx])) * DZ_INVERSE_SQUARE) );
-
-        // This will propagate to the third equation dzz, but then ignored becouse on right z boundary (same direction)
-        // !! then useless * !!                        
-        g_field->g_z[idx] = eval_function(forcing, x, y_max, z_max, t, 2) 
-                    - (NU / (K[idx])) * U->v_z[idx]
-                    + (NU) * (compute_velocity_xx_grad(Eta->v_z,i,HEIGHT-1,DEPTH-1)  
-                                + ((Zeta->v_z[down_idx] - 2.0*Zeta->v_z[idx] + (2.0 * eval_function(v_boundary, x, y_max, z_max, t, 2) - Zeta->v_z[idx])) * DY_INVERSE_SQUARE) 
-                                + ((U->v_z[back_idx] - 2.0*U->v_z[idx] + (2.0 * eval_function(v_boundary, x, y_max, z_max, t, 2) - U->v_z[idx])) * DZ_INVERSE_SQUARE) );
-     */
     }
 
     // (i, j, k) = (WIDTH-1,j,k)
@@ -279,14 +201,6 @@ void compute_g(GField *g_field, Pressure *pressure, DTYPE *K, VelocityField *Eta
             DTYPE vel_y = y + DY/2;
             DTYPE vel_z = z + DZ/2;
 
-     /*     // This will ignored by the first equation dxx, becouse on right x boundary (same direction)
-            // !! then useless * !! 
-            g_field->g_x[idx] = eval_function(forcing, x_max, y, z, t, 0) 
-                        - (NU / (K[idx])) * U->v_x[idx]
-                        + (NU) * (((Eta->v_x[left_idx] - 2.0*Eta->v_x[idx] + (2.0 * eval_function(v_boundary, x_max, y, z, t, 0) - Eta->v_x[idx])) * DX_INVERSE_SQUARE)  
-                                    + compute_velocity_yy_grad(Zeta->v_x,WIDTH-1,j,k) 
-                                    + compute_velocity_zz_grad(U->v_x,WIDTH-1,j,k) );
-     */
             // This will propagate to the solution U
             g_field->g_y[idx] = forcing(data, x_max, vel_y, z, t_half_prev, 1) 
                         - compute_pressure_y_grad(pressure->p,WIDTH-1,j,k) 
@@ -323,15 +237,6 @@ void compute_g(GField *g_field, Pressure *pressure, DTYPE *K, VelocityField *Eta
                         + (NU) * (compute_velocity_xx_grad(Eta->v_x,i,HEIGHT-1,k)  
                                     + ((Zeta->v_x[down_idx] - 2.0*Zeta->v_x[idx] + (2.0 * bc_velocity(data, vel_x, vel_y_max, z, t_prev, 0) - Zeta->v_x[idx])) * DY_INVERSE_SQUARE) 
                                     + compute_velocity_zz_grad(U->v_x,i,HEIGHT-1,k) );
-            
-/*          // This will propagate to the second equation dyy, then ignored becouse on right y boundary (same direction)
-            // !! then useless * !!        
-            g_field->g_y[idx] = eval_function(forcing, x, y_max, z, t, 1) 
-                        - (NU / (K[idx])) * U->v_y[idx]
-                        + (NU) * (compute_velocity_xx_grad(Eta->v_y,i,HEIGHT-1,k)  
-                                    + ((Zeta->v_y[down_idx] - 2.0*Zeta->v_y[idx] + (2.0 * eval_function(v_boundary, x, y_max, z, t, 1) - Zeta->v_y[idx])) * DY_INVERSE_SQUARE) 
-                                    + compute_velocity_zz_grad(U->v_y,i,HEIGHT-1,k) );
-             */
 
             // This will propagate to the solution U
             g_field->g_z[idx] = forcing(data, x, y_max, vel_z, t_half_prev, 2) 
@@ -368,15 +273,193 @@ void compute_g(GField *g_field, Pressure *pressure, DTYPE *K, VelocityField *Eta
                         + (NU) * (compute_velocity_xx_grad(Eta->v_y,i,j,DEPTH-1)  
                                     + compute_velocity_yy_grad(Zeta->v_y,i,j,DEPTH-1) 
                                     + ((U->v_y[back_idx] - 2.0*U->v_y[idx] + (2.0 * bc_velocity(data, x, vel_y, vel_z_max, t_prev, 1) - U->v_y[idx])) * DZ_INVERSE_SQUARE) );
-            
-     /*     // This will propagate to the third equation dzz, then ignored becouse on right z boundary (same direction)
-            // !! then useless * !!             
-            g_field->g_z[idx] = eval_function(forcing, x, y, z_max, t, 2) 
-                        - (NU / (K[idx])) * U->v_z[idx]
-                        + (NU) * (compute_velocity_xx_grad(Eta->v_z,i,j,DEPTH-1)  
-                                    + compute_velocity_yy_grad(Zeta->v_z,i,j,DEPTH-1) 
-                                    + ((U->v_z[back_idx] - 2.0*U->v_z[idx] + (2.0 * eval_function(v_boundary, x, y, z_max, t, 2) - U->v_z[idx])) * DZ_INVERSE_SQUARE) );
-         */
+
         }
     }
 }
+
+typedef enum {
+    VX = 0,
+    VY = 1,
+    VZ = 2
+} VelocityComponent;
+
+static inline DTYPE upper_xx_grad(const DTYPE *field, size_t idx, size_t left_idx, DTYPE bc_val) {
+    return (field[left_idx] - 2.0 * field[idx] + (2.0 * bc_val - field[idx])) * DX_INVERSE_SQUARE;
+}
+
+static inline DTYPE upper_yy_grad(const DTYPE *field, size_t idx, size_t down_idx, DTYPE bc_val) {
+    return (field[down_idx] - 2.0 * field[idx] + (2.0 * bc_val - field[idx])) * DY_INVERSE_SQUARE;
+}
+
+static inline DTYPE upper_zz_grad(const DTYPE *field, size_t idx, size_t back_idx, DTYPE bc_val) {
+    return (field[back_idx] - 2.0 * field[idx] + (2.0 * bc_val - field[idx])) * DZ_INVERSE_SQUARE;
+}
+
+
+DTYPE g_value(size_t i, size_t j, size_t k,
+              DTYPE *pressure_star,
+              DTYPE k_i,
+              DTYPE *Eta_prev,
+              DTYPE *Zeta_prev,
+              DTYPE *U_prev,
+              int time_step,
+              const Data *data,
+              int v_component)
+{
+    size_t idx = rowmaj_idx(i, j, k);
+
+    DTYPE t_half_prev = (time_step - 0.5) * DT;
+    DTYPE t_prev      = (time_step - 1.0) * DT;
+
+    DTYPE x = i * DX;
+    DTYPE y = j * DY;
+    DTYPE z = k * DZ;
+
+    DTYPE vel_x = x + DX / 2.0;
+    DTYPE vel_y = y + DY / 2.0;
+    DTYPE vel_z = z + DZ / 2.0;
+
+    DTYPE x_max = (WIDTH  - 1) * DX;
+    DTYPE y_max = (HEIGHT - 1) * DY;
+    DTYPE z_max = (DEPTH  - 1) * DZ;
+
+    DTYPE vel_x_max = x_max + DX / 2.0;
+    DTYPE vel_y_max = y_max + DY / 2.0;
+    DTYPE vel_z_max = z_max + DZ / 2.0;
+
+    size_t left_idx = (i > 0) ? rowmaj_idx(i - 1, j, k) : idx;
+    size_t down_idx = (j > 0) ? rowmaj_idx(i, j - 1, k) : idx;
+    size_t back_idx = (k > 0) ? rowmaj_idx(i, j, k - 1) : idx;
+
+    DTYPE forcing_term, pressure_grad, lap_xx, lap_yy, lap_zz;
+
+    switch (v_component) {
+
+        case VX:
+            /*
+             * Old compute_g writes g_x only for:
+             *   1 <= i <= WIDTH-2
+             *   1 <= j <= HEIGHT-1
+             *   1 <= k <= DEPTH-1
+             */
+            if (!(i >= 1 && i <= WIDTH - 2 &&
+                  j >= 1 && j <= HEIGHT - 1 &&
+                  k >= 1 && k <= DEPTH - 1)) {
+                return 0.0;
+            }
+
+            forcing_term  = forcing(data, vel_x, y, z, t_half_prev, VX);
+            pressure_grad = compute_pressure_x_grad(pressure_star, i, j, k);
+
+            lap_xx = compute_velocity_xx_grad(Eta_prev, i, j, k);
+
+            if (j == HEIGHT - 1) {
+                lap_yy = upper_yy_grad(
+                    Zeta_prev, idx, down_idx,
+                    bc_velocity(data, vel_x, vel_y_max, z, t_prev, VX)
+                );
+            } else {
+                lap_yy = compute_velocity_yy_grad(Zeta_prev, i, j, k);
+            }
+
+            if (k == DEPTH - 1) {
+                lap_zz = upper_zz_grad(
+                    U_prev, idx, back_idx,
+                    bc_velocity(data, vel_x, y, vel_z_max, t_prev, VX)
+                );
+            } else {
+                lap_zz = compute_velocity_zz_grad(U_prev, i, j, k);
+            }
+
+            return forcing_term
+                 - pressure_grad
+                 - (NU / k_i) * U_prev[idx]
+                 + NU * (lap_xx + lap_yy + lap_zz);
+
+        case VY:
+            /*
+             * Old compute_g writes g_y only for:
+             *   1 <= i <= WIDTH-1
+             *   1 <= j <= HEIGHT-2
+             *   1 <= k <= DEPTH-1
+             */
+            if (!(i >= 1 && i <= WIDTH - 1 &&
+                  j >= 1 && j <= HEIGHT - 2 &&
+                  k >= 1 && k <= DEPTH - 1)) {
+                return 0.0;
+            }
+
+            forcing_term  = forcing(data, x, vel_y, z, t_half_prev, VY);
+            pressure_grad = compute_pressure_y_grad(pressure_star, i, j, k);
+
+            if (i == WIDTH - 1) {
+                lap_xx = upper_xx_grad(
+                    Eta_prev, idx, left_idx,
+                    bc_velocity(data, vel_x_max, vel_y, z, t_prev, VY)
+                );
+            } else {
+                lap_xx = compute_velocity_xx_grad(Eta_prev, i, j, k);
+            }
+
+            lap_yy = compute_velocity_yy_grad(Zeta_prev, i, j, k);
+
+            if (k == DEPTH - 1) {
+                lap_zz = upper_zz_grad(
+                    U_prev, idx, back_idx,
+                    bc_velocity(data, x, vel_y, vel_z_max, t_prev, VY)
+                );
+            } else {
+                lap_zz = compute_velocity_zz_grad(U_prev, i, j, k);
+            }
+
+            return forcing_term
+                 - pressure_grad
+                 - (NU / k_i) * U_prev[idx]
+                 + NU * (lap_xx + lap_yy + lap_zz);
+
+        case VZ:
+            /*
+             * Old compute_g writes g_z only for:
+             *   1 <= i <= WIDTH-1
+             *   1 <= j <= HEIGHT-1
+             *   1 <= k <= DEPTH-2
+             */
+            if (!(i >= 1 && i <= WIDTH - 1 &&
+                  j >= 1 && j <= HEIGHT - 1 &&
+                  k >= 1 && k <= DEPTH - 2)) {
+                return 0.0;
+            }
+
+            forcing_term  = forcing(data, x, y, vel_z, t_half_prev, VZ);
+            pressure_grad = compute_pressure_z_grad(pressure_star, i, j, k);
+
+            if (i == WIDTH - 1) {
+                lap_xx = upper_xx_grad(
+                    Eta_prev, idx, left_idx,
+                    bc_velocity(data, vel_x_max, y, vel_z, t_prev, VZ)
+                );
+            } else {
+                lap_xx = compute_velocity_xx_grad(Eta_prev, i, j, k);
+            }
+
+            if (j == HEIGHT - 1) {
+                lap_yy = upper_yy_grad(
+                    Zeta_prev, idx, down_idx,
+                    bc_velocity(data, x, vel_y_max, vel_z, t_prev, VZ)
+                );
+            } else {
+                lap_yy = compute_velocity_yy_grad(Zeta_prev, i, j, k);
+            }
+
+            lap_zz = compute_velocity_zz_grad(U_prev, i, j, k);
+
+            return forcing_term
+                 - pressure_grad
+                 - (NU / k_i) * U_prev[idx]
+                 + NU * (lap_xx + lap_yy + lap_zz);
+
+        default:
+            return 0.0;
+    }
+} 
