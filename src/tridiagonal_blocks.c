@@ -82,9 +82,6 @@ void vectorized_solve_Dyy_tridiag_blocks(DTYPE *__restrict__ Zeta_next, DTYPE *_
 
     VTYPE minus_dy = VSET1((DTYPE) -DY_INVERSE_SQUARE);
 
-    DTYPE t = time_step * DT;
-    DTYPE bvx, bvy, bvz;
-
     if (!simd_u_block || !simd_w_block || !simd_rhs_block || !simd_tmp_block) {
         free(simd_u_block);
         free(simd_w_block);
@@ -119,19 +116,8 @@ void vectorized_solve_Dyy_tridiag_blocks(DTYPE *__restrict__ Zeta_next, DTYPE *_
             }
 
             for (int x = 0; x < VLEN; x++) {
-                DTYPE bvx0, bvy0, bvz0;
-                DTYPE bvx1, bvy1, bvz1;
-
-                get_boundary_velocity(i + x, 0,        k, t, data, &bvx0, &bvy0, &bvz0);
-                get_boundary_velocity(i + x, HEIGHT-1, k, t, data, &bvx1, &bvy1, &bvz1);
-
-                simd_u_block[x] = 
-                    (v_component == 0) ? bvx0 :
-                    (v_component == 1) ? bvy0 : bvz0;
-
-                simd_u_block[(HEIGHT - 1) * VLEN + x] =
-                    (v_component == 0) ? bvx1 :
-                    (v_component == 1) ? bvy1 : bvz1;
+                simd_u_block[x] = get_boundary_velocity(i + x, 0, k, time_step, data, v_component);
+                simd_u_block[(HEIGHT - 1) * VLEN + x] = get_boundary_velocity(i + x, HEIGHT-1, k, time_step, data, v_component);
             }
 
             /* Thomas_simd will receive a set of columns now */
@@ -157,10 +143,8 @@ void vectorized_solve_Dyy_tridiag_blocks(DTYPE *__restrict__ Zeta_next, DTYPE *_
                 simd_w_block[j] = -Gamma[idx] * DY_INVERSE_SQUARE;
             }
 
-            get_boundary_velocity(i, 0, k, t, data, &bvx, &bvy, &bvz);
-            simd_u_block[0] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
-            get_boundary_velocity(i, HEIGHT - 1, k, t, data, &bvx, &bvy, &bvz);
-            simd_u_block[HEIGHT - 1] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
+            simd_u_block[0] = get_boundary_velocity(i, 0, k, time_step, data, v_component);
+            simd_u_block[HEIGHT - 1] = get_boundary_velocity(i, HEIGHT - 1, k, time_step, data, v_component);
 
             Thomas_Algorithm(simd_w_block, HEIGHT, simd_tmp_block, simd_rhs_block, simd_u_block, same_direction);
 
@@ -188,9 +172,6 @@ void vectorized_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *__re
     DTYPE *simd_tmp_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE) * VLEN);
 
     VTYPE minus_dz = VSET1((DTYPE) - DZ_INVERSE_SQUARE);
-
-    DTYPE t = time_step * DT;
-    DTYPE bvx, bvy, bvz;
 
     if (!simd_u_block || !simd_w_block || !simd_rhs_block || !simd_tmp_block) {
         free(simd_u_block);
@@ -226,19 +207,8 @@ void vectorized_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *__re
             }
 
             for (int x = 0; x < VLEN; x++) {
-                DTYPE bvx0, bvy0, bvz0;
-                DTYPE bvx1, bvy1, bvz1;
-
-                get_boundary_velocity(i + x, j,        0, t, data, &bvx0, &bvy0, &bvz0);
-                get_boundary_velocity(i + x, j, DEPTH-1, t, data, &bvx1, &bvy1, &bvz1);
-
-                simd_u_block[x] = 
-                    (v_component == 0) ? bvx0 :
-                    (v_component == 1) ? bvy0 : bvz0;
-
-                simd_u_block[(DEPTH - 1) * VLEN + x] =
-                    (v_component == 0) ? bvx1 :
-                    (v_component == 1) ? bvy1 : bvz1;
+                simd_u_block[x] = get_boundary_velocity(i + x, j, 0, time_step, data, v_component);
+                simd_u_block[(DEPTH - 1) * VLEN + x] = get_boundary_velocity(i + x, j, DEPTH-1, time_step, data, v_component);
             }
 
             /* Thomas_simd will receive a set of columns now */
@@ -264,10 +234,8 @@ void vectorized_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *__re
                 simd_w_block[k] = -Gamma[idx] * DZ_INVERSE_SQUARE;
             }
 
-            get_boundary_velocity(i, j, 0, t, data, &bvx, &bvy, &bvz);
-            simd_u_block[0] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
-            get_boundary_velocity(i, j, DEPTH - 1, t, data, &bvx, &bvy, &bvz);
-            simd_u_block[DEPTH - 1] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
+            simd_u_block[0] = get_boundary_velocity(i, j, 0, time_step, data, v_component);
+            simd_u_block[DEPTH - 1] = get_boundary_velocity(i, j, DEPTH - 1, time_step, data, v_component);
 
             Thomas_Algorithm(simd_w_block, DEPTH, simd_tmp_block, simd_rhs_block, simd_u_block, same_direction);
 
@@ -387,14 +355,119 @@ void Thomas_Pressure(const DTYPE  w,
         }
 }
 
+/* 
+    This function performs the following optimizations:
+    - Computes the right-hand side (rhs) for the Dxx system on-the-fly when needed by the Thomas algorithm, 
+      reducing the number of load and store operations compared to the previous implementation.
+    - Avoids pre-allocating an intermediate buffer for the weights (and the rhs, which is no longer needed). 
+      It allows the Thomas algorithm to traverse the domain and fetch the 'w' values directly from the 
+      Gamma array. Because of this, Thomas algorithm has to be inside the main loop.
+
+    Parameters: 
+    - Eta: Stores the previous solution used for the rhs computation and is updated in-place 
+                     with the solution of the current time step.
+    - Gamma: coefficients (weights).
+    - rhs computation:
+        - U of the previous time step 
+        - Beta (computed from Gamma) 
+        - computation of g:
+            - pressure_star
+            - K (computed from Beta)
+            - Eta
+            - Zeta
+            - U 
+            - time_step
+            - forcing (data->forcing)
+    - data: to retrieve boundary conditions and forcing terms.
+    - same_direction: Boolean flag indicating if we are solving for the tangent or non-tangent component.
+        - v_component: which velocity component we are solving for (0, 1, or 2).
+        - time_step: required to evaluate boundary conditions and rhs.
+*/
+void optimize_solve_Dxx_tridiag_blocks(DTYPE *__restrict__ Eta_prev, DTYPE *__restrict__ Zeta_prev, DTYPE *__restrict__ U_prev, DTYPE *__restrict__ pressure_star, DTYPE *__restrict__ Gamma, const Data *data, bool same_direction, int v_component, int time_step){
+
+    /* 
+        In the Dxx system, Thomas need weights on the same row, so it will access it contiguously in memory
+        one row at a time, so we can directly take the values from Gamma without the need of a temporary array for the weights
+    */
+
+    DTYPE *tmp = (DTYPE *) malloc(WIDTH * sizeof(DTYPE)); /* coeff reduction from Thomas system */
+    DTYPE *rhs = (DTYPE *) malloc(WIDTH * sizeof(DTYPE)); 
+    DTYPE *u = (DTYPE *) malloc(WIDTH * sizeof(DTYPE)); /* solution of the current row, will be stored in Eta at the end of Thomas */
+    DTYPE bc_left, bc_right;
+
+    for(int k = 0; k < DEPTH; k++){
+        for(int j = 0; j < HEIGHT; j++){
+            /* Thomas algorithm for each row*/
+            size_t off = k * (HEIGHT * WIDTH) + j * WIDTH;
+            
+            /* Boundary condition for velocity */
+            bc_left = get_boundary_velocity(0, j, k, time_step, data, v_component);
+            bc_right = get_boundary_velocity(WIDTH - 1, j, k, time_step, data, v_component);
+
+            /* Forward pass */
+            tmp[0] = 0.0;
+            rhs[0] = bc_left;
+            DTYPE norm_coeff;
+
+            for(int i = 1; i < WIDTH - 1; i++){
+                DTYPE gamma_i = Gamma[off + i];
+                DTYPE w_i = -gamma_i * DX_INVERSE_SQUARE;
+
+                norm_coeff = 1.0 / ((1.0 - 2.0 * w_i) - w_i * tmp[i - 1]); 
+                tmp[i] = w_i * norm_coeff;
+
+                /* We need to compute the rhs directly here */
+                DTYPE beta_i = compute_beta_from_gamma(gamma_i);
+                DTYPE k_i = compute_k_from_beta(beta_i);
+                DTYPE xi_i = U_prev[off + i] + (DT / beta_i) * g_value(i, j, k, pressure_star, k_i, Eta_prev, Zeta_prev, U_prev, time_step, data, v_component);
+                rhs[i] = xi_i - Eta_prev[off + i]; 
+
+                rhs[i] = (rhs[i] - w_i * rhs[i - 1]) * norm_coeff;
+            }
+
+            /* Backward substitution */
+
+            if(same_direction){
+                u[WIDTH-1] = bc_right;
+            } else {
+                DTYPE gamma_last = Gamma[off + WIDTH - 1];
+                DTYPE w_last = -gamma_last * DX_INVERSE_SQUARE;
+                DTYPE beta_last = compute_beta_from_gamma(gamma_last);
+                DTYPE k_last = compute_k_from_beta(beta_last);
+                DTYPE xi_last = U_prev[off + WIDTH - 1]
+                                + (DT / beta_last) * g_value(WIDTH - 1, j, k, pressure_star, k_last, Eta_prev, Zeta_prev, U_prev, time_step, data, v_component);
+
+                rhs[WIDTH - 1] = xi_last - Eta_prev[off + WIDTH - 1];
+
+                rhs[WIDTH-1] = rhs[WIDTH-1] - 2.0 * w_last * bc_right; // rhs = rhs +2*w*U_ex where bc_right set to U_ex
+                norm_coeff = 1.0 / ((1.0 - 3.0 * w_last) - w_last * tmp[WIDTH - 2]);
+                rhs[WIDTH-1] = (rhs[WIDTH-1] - w_last*rhs[WIDTH-2]) * norm_coeff;
+
+                u[WIDTH - 1] = rhs[WIDTH - 1];
+            }
+
+            for(int i = WIDTH - 2; i >= 0; i--){
+                u[i] = rhs[i] - tmp[i] * u[i + 1];
+            }
+
+            /* Now u has the current solution, but it is just the delta. We need to add it to the previous solution */
+            for(int i = 0; i < WIDTH; i++){
+                Eta_prev[off + i] += u[i];
+            }
+        }
+    }
+
+    free(tmp);
+    free(rhs);
+    free(u);
+}
+
 void solve_Dxx_tridiag_blocks(DTYPE *__restrict__ Eta_next_component, DTYPE *__restrict__ rhs, DTYPE *__restrict__ Gamma, const Data *data, bool same_direction, int v_component, int time_step){
 
     // Initialize temporary arrays 
     DTYPE *w = (DTYPE *) malloc(GRID_SIZE);
-    DTYPE *tmp = (DTYPE *) malloc(GRID_SIZE);
-    memset(tmp, 0, GRID_SIZE);
-    DTYPE t = time_step * DT;
-    DTYPE bvx, bvy, bvz;
+    DTYPE *tmp = (DTYPE *) malloc(WIDTH * sizeof(DTYPE)); 
+    memset(tmp, 0, WIDTH * sizeof(DTYPE));
 
     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
@@ -405,7 +478,6 @@ void solve_Dxx_tridiag_blocks(DTYPE *__restrict__ Eta_next_component, DTYPE *__r
         }
     }
 
-    
     /* Solving for each row of the domain, one at a time. */
     for (int k = 0; k < DEPTH; k++) {
         for (int j = 0; j < HEIGHT; j++) { 
@@ -413,12 +485,10 @@ void solve_Dxx_tridiag_blocks(DTYPE *__restrict__ Eta_next_component, DTYPE *__r
             size_t off = k * (HEIGHT * WIDTH) + j * WIDTH; 
                 
             /* Compute the left and right boundaries */
-            get_boundary_velocity(0, j, k, t, data, &bvx, &bvy, &bvz);
-            Eta_next_component[off] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
-            get_boundary_velocity(WIDTH-1, j, k, t, data, &bvx, &bvy, &bvz);
-            Eta_next_component[off + WIDTH-1] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
+            Eta_next_component[off] = get_boundary_velocity(0, j, k, time_step, data, v_component);
+            Eta_next_component[off + WIDTH - 1] = get_boundary_velocity(WIDTH - 1, j, k, time_step, data, v_component);
 
-            Thomas_Algorithm(w + off, WIDTH, tmp + off, rhs + off, Eta_next_component + off, same_direction);
+            Thomas_Algorithm(w + off, WIDTH, tmp, rhs + off, Eta_next_component + off, same_direction);
         }
     }
  
@@ -433,9 +503,6 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, const 
     DTYPE *w_block   = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
     DTYPE *tmp_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
     DTYPE *rhs_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
-
-    DTYPE t = time_step * DT;
-    DTYPE bvx, bvy, bvz;
 
     if (!f_block || !u_block || !w_block || !tmp_block|| !rhs_block) {
         free(f_block); free(u_block); free(w_block); free(tmp_block); free(rhs_block);
@@ -454,10 +521,8 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, const 
             }
 
             /* Compute the left and right boundaries */
-            get_boundary_velocity(i, 0 , k, t, data, &bvx, &bvy, &bvz);
-            u_block[0] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
-            get_boundary_velocity(i, HEIGHT-1, k, t, data, &bvx, &bvy, &bvz);
-            u_block[HEIGHT-1] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
+            u_block[0] = get_boundary_velocity(i, 0 , k, time_step, data, v_component);
+            u_block[HEIGHT-1] = get_boundary_velocity(i, HEIGHT-1, k, time_step, data, v_component);
 
             Thomas_Algorithm(w_block, HEIGHT, tmp_block, rhs_block, u_block, same_direction);
 
@@ -484,8 +549,6 @@ void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, const Dat
     DTYPE *tmp_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
     DTYPE *rhs_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
 
-    DTYPE t = time_step * DT;
-    DTYPE bvx, bvy, bvz;
 
     if (!f_block || !u_block || !w_block || !tmp_block || !rhs_block) {
         free(f_block); free(u_block); free(w_block); free(tmp_block); free(rhs_block);
@@ -504,11 +567,9 @@ void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, const Dat
             }
 
             /* Compute the left and right boundaries */
-            get_boundary_velocity(i, j, 0, t, data, &bvx, &bvy, &bvz);
-            u_block[0] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
-            get_boundary_velocity(i, j, DEPTH-1, t, data, &bvx, &bvy, &bvz);
-            u_block[DEPTH-1] = (v_component == 0) ? bvx : (v_component == 1) ? bvy : bvz;
-    
+            u_block[0] = get_boundary_velocity(i, j, 0, time_step, data, v_component);
+            u_block[DEPTH-1] = get_boundary_velocity(i, j, DEPTH-1, time_step, data, v_component);
+
             Thomas_Algorithm(w_block, DEPTH, tmp_block, rhs_block, u_block, same_direction);
 
             // scatter risultato

@@ -18,5 +18,14 @@ typedef struct {
 void initialize_g_field(GField *g_field);
 void free_g_field(GField *g_field);
 void compute_g(GField *g_field, Pressure *pressure, DTYPE *k, VelocityField *Eta, VelocityField *Zeta, VelocityField *U, int time_step, const Data *data);
-
+DTYPE g_value(size_t i, size_t j, size_t k,
+              DTYPE *pressure_star,
+              DTYPE k_i,
+              DTYPE *Eta_prev,
+              DTYPE *Zeta_prev,
+              DTYPE *U_prev,
+              int time_step,
+              const Data *data,
+              int v_component);
+            
 #endif // G_FIELD_H

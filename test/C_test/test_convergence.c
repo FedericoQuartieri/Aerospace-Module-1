@@ -340,10 +340,21 @@ void run_convergence_test(FILE *output_fp, ExactSolution *exact, const Data *tes
     GField g_field;
     initialize_g_field(&g_field);
 
-    /* Run solver - no file output for convergence tests */
-    solve(g_field, test_data, pressure, K, Eta, Zeta, U,
+    
+    if (!solve(g_field, test_data, pressure, K, Eta, Zeta, U,
           Beta, Gamma,
-          WRITE_FREQUENCY, false, NULL, NULL);  /* write_frequency > STEPS means no output */
+          WRITE_FREQUENCY)) {  
+        fprintf(stderr, "Error: solver reported output failure.\n");
+        free(K);
+        free(Beta);
+        free(Gamma);
+        free_pressure(&pressure);
+        free_velocity_field(&Eta);
+        free_velocity_field(&Zeta);
+        free_velocity_field(&U);
+        free_g_field(&g_field);
+        return;
+    }
     
     /* Compute exact solution at final time */
     DTYPE t_final = STEPS * DT;
@@ -414,11 +425,11 @@ int main(int argc, char *argv[]) {
 
     /*  Run convergence tests for all manufactured solutions */
 
-    //ExactSolution exact_paper = paper_manufactured_solution();
-    //run_convergence_test(output_fp, &exact_paper, &PAPER_TEST_DATA);
+    ExactSolution exact_paper = paper_manufactured_solution();
+    run_convergence_test(output_fp, &exact_paper, &PAPER_TEST_DATA);
 
-    ExactSolution exact_zero_pressure = zero_pressure_manufactured_solution();
-    run_convergence_test(output_fp, &exact_zero_pressure, &ZERO_PRESSURE_TEST_DATA);
+    //ExactSolution exact_zero_pressure = zero_pressure_manufactured_solution();
+    //run_convergence_test(output_fp, &exact_zero_pressure, &ZERO_PRESSURE_TEST_DATA);
 
     //ExactSolution exact_auteri = auteri_manufactured_solution();
     //run_convergence_test(output_fp, &exact_auteri, &AUTERI_TEST_DATA);

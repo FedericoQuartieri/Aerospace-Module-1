@@ -62,8 +62,13 @@ int main(){
     GField g_field;
     initialize_g_field(&g_field);    
 
-    solve(g_field, data, pressure, K, Eta, Zeta, U, Beta, Gamma,
-        WRITE_FREQUENCY, false,  NULL, NULL);
+    int exit_code = EXIT_SUCCESS;
+
+    if (!solve(g_field, data, pressure, K, Eta, Zeta, U, Beta, Gamma,
+        WRITE_FREQUENCY)) {
+        fprintf(stderr, "Solver completed with output errors.\n");
+        exit_code = EXIT_FAILURE;
+    }
   
     printf("Abracadabra\n");
 
@@ -76,5 +81,5 @@ int main(){
     free_velocity_field(&U);
     free_g_field(&g_field);
 
-    return 0;
+    return exit_code;
 }

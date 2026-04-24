@@ -28,7 +28,6 @@
 // Total field size in bytes
 #define GRID_SIZE (GRID_ELEMENTS * sizeof(DTYPE))
 
-
 // Data precision type
 #if !defined(USE_FLOAT) && !defined(USE_DOUBLE)
     #define USE_DOUBLE
@@ -39,6 +38,10 @@
 #elif defined(USE_FLOAT)
     #define DTYPE float
 #endif
+
+// Time measurement
+#define START(name) uint64_t name##_start = time_ns()
+#define END_MS(name) ((time_ns() - name##_start) / 1e6)
 
 // Physical constants 
 #define NU 1.0                // Kinematic viscosity (nu)
@@ -74,11 +77,12 @@
 #ifdef TOTAL_TIME_OVERRIDE
     #define TOTAL_TIME TOTAL_TIME_OVERRIDE
 #else
-    #define TOTAL_TIME 0.005
+    #define TOTAL_TIME 0.001
 #endif
 
 #define STEPS ((int)(TOTAL_TIME / DT))  // Number of time steps
-#define WRITE_FREQUENCY STEPS/STEPS            // Writing output frequency
+#define WRITE_FREQUENCY STEPS           // Writing output frequency
+#define ENABLE_OUTPUT 0                 // Set to 1 to enable output, 0 to disable
 
 #define DX_INVERSE (1.0 / DX)
 #define DY_INVERSE (1.0 / DY)

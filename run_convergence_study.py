@@ -38,11 +38,11 @@ CONVERGENCE_TEST_DIR = PROJECT_DIR / "convergence_test"
 
 # Spatial convergence: vary grid size, keep DT small
 SPATIAL_CONFIGS = [
-    {"width": 16,  "dt": 0.0007, "total_time": 0.007},
-    {"width": 32,  "dt": 0.0007, "total_time": 0.007},
-    {"width": 64,  "dt": 0.0007, "total_time": 0.007},
-    {"width": 128, "dt": 0.0007, "total_time": 0.007},
-    {"width": 256, "dt": 0.0007, "total_time": 0.007},
+    {"width": 16,  "dt": 0.0005, "total_time": 0.005},
+    {"width": 32,  "dt": 0.0005, "total_time": 0.005},
+    {"width": 64,  "dt": 0.0005, "total_time": 0.005},
+    {"width": 128, "dt": 0.0005, "total_time": 0.005},
+    {"width": 256, "dt": 0.0005, "total_time": 0.005},
 ]
 
 # Temporal convergence: vary DT, keep grid fine
