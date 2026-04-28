@@ -4,6 +4,9 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <time.h>
 #include "../include/constants.h"
 
 // Compute the row-major index for a 3D grid, with: i = width, j = height, k = depth
@@ -39,6 +42,10 @@ static inline DTYPE compute_beta_from_gamma(DTYPE gamma){
 
 static inline DTYPE compute_k_from_beta(DTYPE beta){
     return (DT * NU) / (2.0 * (beta - 1.0));
+}
+
+static inline uint64_t time_ns(void) {
+    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
 }
 
 #endif // UTILS_H

@@ -39,6 +39,10 @@
     #define DTYPE float
 #endif
 
+// Time measurement
+#define START(name) uint64_t name##_start = time_ns()
+#define END_MS(name) ((time_ns() - name##_start) / 1e6)
+
 // Physical constants 
 #define NU 1.0                // Kinematic viscosity (nu)
 // In the adimensional navier-stokes formulation with L=[0,1] U=1, T=L/U=1 then -> 1/Re = NU
@@ -73,7 +77,7 @@
 #ifdef TOTAL_TIME_OVERRIDE
     #define TOTAL_TIME TOTAL_TIME_OVERRIDE
 #else
-    #define TOTAL_TIME 0.005
+    #define TOTAL_TIME 0.001
 #endif
 
 #define STEPS ((int)(TOTAL_TIME / DT))  // Number of time steps

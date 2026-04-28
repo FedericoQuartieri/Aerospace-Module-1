@@ -79,6 +79,7 @@ bool solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K,
     memcpy(pressure_star.p, pressure.p, GRID_SIZE);
     
 
+    
     /* 
         t=0 is set as the exact solution by definition, so we should 
         start to solve at t = 1 
@@ -87,13 +88,22 @@ bool solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K,
         //memset(pressure_star.p, 0, GRID_SIZE); // Test zero pressure
 
         /* g(t) is computed with forcing(t-1/2) and velocity(t-1) */
-        //compute_g(&g_field, &pressure_star, K, &Eta, &Zeta, &U, t, data);        
+       /*  START(compute_g);
+        compute_g(&g_field, &pressure_star, K, &Eta, &Zeta, &U, t, data); 
+        END_MS(compute_g);
+        printf("compute_g = %.3f ms\n", END_MS(compute_g));  */      
 
+        START(momentum_time);
         /* here we set all the boundary as the delta of boundary(t) - boundary(t-1) */
         solve_momentum_system(U, Eta, Zeta, &pressure_star, Xi, g_field, Delta, rhs, Beta, Gamma, data, t);
-        
+        END_MS(momentum_time);
+        printf("momentum_system = %.3f ms\n", END_MS(momentum_time));
+
+        START(pressure_time);
         /* WARNING: the pressure inside this function must be initialized before calling (psi_higher..)*/
         solve_pressure_system(U, &pressure, &pressure_star, &psi, &phi_lower, &phi_higher);
+        END_MS(pressure_time);
+        printf("pressure_system = %.3f ms\n", END_MS(pressure_time));
 
         if (output_enabled && (t % write_frequency == 0)) {
 
@@ -140,6 +150,7 @@ bool solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K,
         }
 
     }
+
 
     free_velocity_field(&Xi);
     free_velocity_field(&Delta);
