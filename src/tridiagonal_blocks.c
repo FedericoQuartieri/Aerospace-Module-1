@@ -336,7 +336,7 @@ void optimized_simd_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *
                     VTYPE w_last = VLOAD(&Gamma[last_idx]);
                     w_last = VMUL(w_last, minus_dz);
                     VTYPE rhs_last = VLOAD(&rhs[last_idx]);
-                    VTYPE rhs_prev = VLOAD(&rhs[last_idx - WIDTH]);
+                    VTYPE rhs_prev = VLOAD(&rhs[last_idx - (WIDTH * HEIGHT)]);
                     VTYPE tmp_prev = VLOAD(&simd_tmp[prev_local_idx]);
                     VTYPE bc_right_v = VLOAD(&bc_right[s*VLEN]);
 
@@ -365,6 +365,7 @@ void optimized_simd_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *
                     VTYPE u_ip1 = VLOAD(&simd_update[next_slice_idx]);
                     VTYPE u_i = VSUB(rhs_i, VMUL(tmp_i, u_ip1));
                     VSTORE(&simd_update[slice_idx], u_i);
+                    /* Can I reuse tmp to put the updated value ? */
                 }
             }
 
@@ -390,8 +391,8 @@ void optimized_simd_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *
 
             for (int k = 0; k < DEPTH; ++k) {
                 size_t idx = off + (size_t)k * (WIDTH * HEIGHT);
-                scalar_w[j] = -Gamma[idx] * DZ_INVERSE_SQUARE;
-                simd_update[j] = rhs[idx];
+                scalar_w[k] = -Gamma[idx] * DZ_INVERSE_SQUARE;
+                simd_update[k] = rhs[idx];
             }
 
             simd_tmp[0] = get_boundary_velocity(i, j, 0, time_step, data, v_component);
@@ -401,7 +402,7 @@ void optimized_simd_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *
 
             for (int k = 0; k < DEPTH; ++k) {
                 size_t idx = off + (size_t)k * (WIDTH * HEIGHT);
-                U_next[idx] += simd_tmp[j];
+                U_next[idx] += simd_tmp[k];
             }
         }
     }

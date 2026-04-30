@@ -14,18 +14,24 @@ void solve_momentum_system(VelocityField U,
                            DTYPE *Beta,
                            DTYPE *Gamma,          
                            const Data *data,
-                           int timestep
+                           int timestep,
+                           uint64_t *solver_time
                         )
 {     
-    //START(plane_Dxx);
+
     //compute_xi(g_field, U, Xi, Beta); // only needed for basic version of Dxx_tridiag
+    
+    uint64_t time = time_ns();
     compute_eta_next(Eta, Delta, Zeta, U, pressure_star, rhs, Xi, Gamma, data, timestep);
-    //END_MS(plane_Dxx);
-    //printf("Plane Dxx = %.3f ms\n", END_MS(plane_Dxx)); 
+    solver_time[0] += (time_ns() - time) / 1e6;
 
+    time = time_ns();
     compute_zeta_next(Zeta, Delta, rhs, Eta, Gamma, data, timestep);
+    solver_time[1] += (time_ns() - time) / 1e6;
 
+    time = time_ns();
     compute_u_next(U, Delta, rhs, Zeta, Gamma, data, timestep);
+    solver_time[2] += (time_ns() - time) / 1e6;
 }
 
 /* 
@@ -49,8 +55,9 @@ void solve_momentum_system(VelocityField U,
 /* (I - ∂xx) (Eta_n+1 - Eta_n) = Xi - Eta_n */
 void compute_eta_next(VelocityField Eta, VelocityField Delta, VelocityField Zeta, VelocityField U, Pressure *pressure_star, ForceField rhs, VelocityField Xi, DTYPE *Gamma, const Data *data, int timestep){
 
+     
     // rhs = Xi - Eta_n
-/*     for(int k = 0; k < DEPTH; k++){
+  /*     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
@@ -62,7 +69,7 @@ void compute_eta_next(VelocityField Eta, VelocityField Delta, VelocityField Zeta
                 rhs.f_z[idx] = Xi.v_z[idx] - Eta.v_z[idx];
             }
         }
-    }  */ 
+    }   */ 
 
     /* 
         Warning: set the delta in the boundary conditions, both left and right,
@@ -78,24 +85,24 @@ void compute_eta_next(VelocityField Eta, VelocityField Delta, VelocityField Zeta
 
 
     // Thomas algorithm for the linear system, for each component of Delta
-/*      solve_Dxx_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, true, 0, timestep);
+/*     solve_Dxx_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, true, 0, timestep);
     solve_Dxx_tridiag_blocks(Delta.v_y, rhs.f_y, Gamma, data, false, 1, timestep);
     solve_Dxx_tridiag_blocks(Delta.v_z, rhs.f_z, Gamma, data, false, 2, timestep); 
-  */
+    */
 
-    START(optimize_tridiag_dxx);
-    optimize_solve_Dxx_tridiag_blocks(Eta.v_x, Zeta.v_x, U.v_x, pressure_star->p, Gamma, data, true, 0, timestep);
+    //START(optimize_tridiag_dxx);
+     optimize_solve_Dxx_tridiag_blocks(Eta.v_x, Zeta.v_x, U.v_x, pressure_star->p, Gamma, data, true, 0, timestep);
     optimize_solve_Dxx_tridiag_blocks(Eta.v_y, Zeta.v_y, U.v_y, pressure_star->p, Gamma, data, false, 1, timestep);
     optimize_solve_Dxx_tridiag_blocks(Eta.v_z, Zeta.v_z, U.v_z, pressure_star->p, Gamma, data, false, 2, timestep);
-    END_MS(optimize_tridiag_dxx);
-    printf("Dxx_tridiag = %.3f ms\n", END_MS(optimize_tridiag_dxx));
+     //END_MS(optimize_tridiag_dxx);
+    //printf("Dxx_tridiag = %.3f ms\n", END_MS(optimize_tridiag_dxx));
  
     // Now in Delta we have the solution of the linear system: Delta = (Eta_n+1 - Eta_n)
     // we need to get Eta_n+1 as: Eta_n+1 = Delta + Eta_n
     // we have also the delta of the boundaries
 
     
-    /*   for(int k = 0; k < DEPTH; k++){
+     /*   for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
@@ -107,7 +114,7 @@ void compute_eta_next(VelocityField Eta, VelocityField Delta, VelocityField Zeta
                 Eta.v_z[idx] = Delta.v_z[idx] + Eta.v_z[idx]; 
             }
         }
-    }   */
+    }  */   
 
 }
 
@@ -115,7 +122,7 @@ void compute_eta_next(VelocityField Eta, VelocityField Delta, VelocityField Zeta
 void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceField rhs, VelocityField Eta, DTYPE *Gamma, const Data *data, int timestep){
     
     // rhs = Eta_n+1 - Zeta_n
-    for(int k = 0; k < DEPTH; k++){
+     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
@@ -127,14 +134,14 @@ void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceField rhs, 
                 rhs.f_z[idx] = Eta.v_z[idx] - Zeta.v_z[idx];
             }
         }
-    }
+    } 
 
     // Thomas algorithm for the linear system, for each component of Delta
-/*       START(tridiag_dyy);
-    solve_Dyy_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
+    //START(tridiag_dyy);
+ /*     solve_Dyy_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
     solve_Dyy_tridiag_blocks(Delta.v_y, rhs.f_y, Gamma, data, true, 1, timestep);
     solve_Dyy_tridiag_blocks(Delta.v_z, rhs.f_z, Gamma, data, false, 2, timestep);
-   */
+  */   
 
 /*     START(simd_tridiag_dyy);
     vectorized_solve_Dyy_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
@@ -142,19 +149,19 @@ void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceField rhs, 
     vectorized_solve_Dyy_tridiag_blocks(Delta.v_z, rhs.f_z, Gamma, data, false, 2, timestep);
    */    
   
-    START(optimized_simd_tridiag_dyy);
+    //START(optimized_simd_tridiag_dyy);
     optimized_simd_solve_Dyy_tridiag_blocks(Zeta.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
     optimized_simd_solve_Dyy_tridiag_blocks(Zeta.v_y, rhs.f_y, Gamma, data, true, 1, timestep);
     optimized_simd_solve_Dyy_tridiag_blocks(Zeta.v_z, rhs.f_z, Gamma, data, false, 2, timestep);
-    END_MS(optimized_simd_tridiag_dyy);
-    printf("Dyy_tridiag_optimized_simd = %.3f ms\n", END_MS(optimized_simd_tridiag_dyy));
-   
+      //END_MS(optimized_simd_tridiag_dyy);
+    //printf("Dyy_tridiag_optimized_simd = %.3f ms\n", END_MS(optimized_simd_tridiag_dyy));
+
 
 
     // Now in Delta we have the solution of the linear system: Delta = (Zeta_n+1 - Zeta_n)
     // we need to get Zeta_n+1 as: Zeta_n+1 = Delta + Zeta_n
     /* !! Warning: trying to let left boundary as it (so to start from 1)!!*/
-/*     for(int k = 0; k < DEPTH; k++){
+   /*    for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
@@ -166,7 +173,7 @@ void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceField rhs, 
                 Zeta.v_z[idx] = Delta.v_z[idx] + Zeta.v_z[idx]; 
             }
         }
-    }  */  
+    }    */
 
 /*     END_MS(simd_tridiag_dyy);
     printf("Dyy_tridiag_simd = %.3f ms\n", END_MS(simd_tridiag_dyy)); */
@@ -194,11 +201,11 @@ void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs, Veloci
     }
 
     // Thomas algorithm for the linear system, for each component of Delta
-/*      START(tridiag_dzz);
-    solve_Dzz_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
+//      START(tridiag_dzz);
+/*      solve_Dzz_tridiag_blocks(Delta.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
     solve_Dzz_tridiag_blocks(Delta.v_y, rhs.f_y, Gamma, data, false, 1, timestep);
     solve_Dzz_tridiag_blocks(Delta.v_z, rhs.f_z, Gamma, data, true, 2, timestep);
-     */  
+   */      
  
 
 /*      START(simd_tridiag_dzz);
@@ -207,18 +214,18 @@ void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs, Veloci
     vectorized_solve_Dzz_tridiag_blocks(Delta.v_z, rhs.f_z, Gamma, data, true, 2, timestep); 
      */ 
 
-      START(optimized_simd_tridiag_dzz);
+    //START(optimized_simd_tridiag_dzz);
     optimized_simd_solve_Dzz_tridiag_blocks(U.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
     optimized_simd_solve_Dzz_tridiag_blocks(U.v_y, rhs.f_y, Gamma, data, false, 1, timestep);
     optimized_simd_solve_Dzz_tridiag_blocks(U.v_z, rhs.f_z, Gamma, data, true, 2, timestep);
-    END_MS(optimized_simd_tridiag_dzz);
-    printf("Dzz_tridiag_optimized_simd = %.3f ms\n", END_MS(optimized_simd_tridiag_dzz));
+      //END_MS(optimized_simd_tridiag_dzz);
+    //printf("Dzz_tridiag_optimized_simd = %.3f ms\n", END_MS(optimized_simd_tridiag_dzz));
      
  
     // Now in Delta we have the solution of the linear system: Delta = (U_n+1 - U_n)
     // we need to get U_n+1 as: U_n+1 = Delta + U_n
     /* !! Warning: trying to let left boundary as it (so to start from 1)!!*/
-/*      for(int k = 0; k < DEPTH; k++){
+   /*    for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){
                 size_t idx = rowmaj_idx(i,j,k);
@@ -230,7 +237,7 @@ void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs, Veloci
                 U.v_z[idx] = Delta.v_z[idx] + U.v_z[idx]; 
             }
         }
-    } */ 
+    }   */
 
     //END_MS(tridiag_dzz);
     //printf("Dzz basic= %.3f ms\n", END_MS(tridiag_dzz));

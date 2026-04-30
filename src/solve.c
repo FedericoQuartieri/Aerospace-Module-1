@@ -78,32 +78,31 @@ bool solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K,
     initialize_pressure(&pressure_star);
     memcpy(pressure_star.p, pressure.p, GRID_SIZE);
     
-
+    uint64_t solver_time[7] = {0, 0, 0, 0, 0, 0, 0};
+    uint64_t time_solve = 0;
     
     /* 
         t=0 is set as the exact solution by definition, so we should 
         start to solve at t = 1 
     */
     for (int t = 1; t <= STEPS; t++) {
+        uint64_t time = time_ns();
         //memset(pressure_star.p, 0, GRID_SIZE); // Test zero pressure
 
+
         /* g(t) is computed with forcing(t-1/2) and velocity(t-1) */
-       /*  START(compute_g);
-        compute_g(&g_field, &pressure_star, K, &Eta, &Zeta, &U, t, data); 
-        END_MS(compute_g);
-        printf("compute_g = %.3f ms\n", END_MS(compute_g));  */      
+        //START(compute_g);
+        //compute_g(&g_field, &pressure_star, K, &Eta, &Zeta, &U, t, data); 
+        //END_MS(compute_g);
+        //printf("compute_g = %.3f ms\n", END_MS(compute_g));        
 
-        START(momentum_time);
+        
         /* here we set all the boundary as the delta of boundary(t) - boundary(t-1) */
-        solve_momentum_system(U, Eta, Zeta, &pressure_star, Xi, g_field, Delta, rhs, Beta, Gamma, data, t);
-        END_MS(momentum_time);
-        printf("momentum_system = %.3f ms\n", END_MS(momentum_time));
-
-        START(pressure_time);
-        /* WARNING: the pressure inside this function must be initialized before calling (psi_higher..)*/
-        solve_pressure_system(U, &pressure, &pressure_star, &psi, &phi_lower, &phi_higher);
-        END_MS(pressure_time);
-        printf("pressure_system = %.3f ms\n", END_MS(pressure_time));
+        solve_momentum_system(U, Eta, Zeta, &pressure_star, Xi, g_field, Delta, rhs, Beta, Gamma, data, t, solver_time);
+        
+        solve_pressure_system(U, &pressure, &pressure_star, &psi, &phi_lower, &phi_higher, solver_time);
+        
+        time_solve += (time_ns() - time) / 1e6;
 
         if (output_enabled && (t % write_frequency == 0)) {
 
@@ -151,6 +150,16 @@ bool solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K,
 
     }
 
+    /* Print the mean solver times for Dxx, Dyy, Dzz*/
+     printf("Average compute_eta_next time: %.3f ms\n", solver_time[0] / (double)STEPS);
+    printf("Average compute_zeta_next time: %.3f ms\n", solver_time[1] / (double)STEPS);
+    printf("Average compute_u_next time: %.3f ms\n", solver_time[2] / (double)STEPS);
+    printf("Average compute_Psi time: %.3f ms\n", solver_time[3] / (double)STEPS);
+    printf("Average compute_Phi_lower time: %.3f ms\n", solver_time[4] / (double)STEPS);
+    printf("Average compute_Phi_higher time: %.3f ms\n", solver_time[5] / (double)STEPS);
+    printf("Average compute_pressure time: %.3f ms\n", solver_time[6] / (double)STEPS);
+ 
+    printf("Average total solve time per step: %.3f ms\n", time_solve / (double)STEPS);
 
     free_velocity_field(&Xi);
     free_velocity_field(&Delta);

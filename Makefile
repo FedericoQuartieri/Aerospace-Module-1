@@ -13,7 +13,8 @@ ARCH_CFLAGS += -march=armv8-a+simd
 endif
 endif
 
-COMMON_CFLAGS = -Wall -Wextra -Iinclude $(PRECISION_CFLAGS) $(ARCH_CFLAGS)
+#COMMON_CFLAGS = -Wall -Wextra -Iinclude $(PRECISION_CFLAGS) $(ARCH_CFLAGS)
+COMMON_CFLAGS = -Iinclude $(PRECISION_CFLAGS) $(ARCH_CFLAGS)
 RELEASE_CFLAGS = -O3
 PROFILE_CFLAGS = -O3 -g -fno-omit-frame-pointer
 DEPFLAGS = -MMD -MP
