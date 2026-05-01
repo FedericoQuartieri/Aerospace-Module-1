@@ -45,7 +45,16 @@ static inline DTYPE compute_k_from_beta(DTYPE beta){
 }
 
 static inline uint64_t time_ns(void) {
+#if defined(__APPLE__)
     return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+#else
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+        return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+    } else {
+        return 0;
+    }
+#endif
 }
 
 #endif // UTILS_H

@@ -6,7 +6,7 @@
 #include "velocity_field.h"
 #include "force_field.h"
 #include "g_field.h"
-#include "neon_instructions.h"
+#include "simd_instructions.h"
 
 #include <stdbool.h>
 

@@ -6,6 +6,10 @@ UNAME_M := $(shell uname -m)
 PRECISION ?= USE_DOUBLE
 PRECISION_CFLAGS = -D$(PRECISION)
 
+# SIMD selection: auto|sse|neon|scalar
+SIMD ?= auto
+SIMD_CFLAGS =
+
 ARCH_CFLAGS =
 ifeq ($(UNAME_S),Linux)
 ifneq (,$(filter $(UNAME_M),aarch64 arm64))
@@ -13,7 +17,25 @@ ARCH_CFLAGS += -march=armv8-a+simd
 endif
 endif
 
-COMMON_CFLAGS = -Wall -Wextra -Iinclude $(PRECISION_CFLAGS) $(ARCH_CFLAGS)
+# Resolve SIMD when set to auto
+ifeq ($(SIMD),auto)
+	ifneq (,$(filter $(UNAME_M),aarch64 arm64))
+		SIMD := neon
+	else ifneq (,$(filter $(UNAME_M),x86_64 x86 i386 i686 amd64))
+		SIMD := sse
+	else
+		SIMD := scalar
+	endif
+endif
+
+ifeq ($(SIMD),neon)
+	SIMD_CFLAGS += -DUSE_NEON
+endif
+ifeq ($(SIMD),sse)
+	SIMD_CFLAGS += -DUSE_SSE -mavx -mfma
+endif
+
+COMMON_CFLAGS = -Wall -Wextra -Iinclude $(PRECISION_CFLAGS) $(ARCH_CFLAGS) $(SIMD_CFLAGS)
 RELEASE_CFLAGS = -O3
 PROFILE_CFLAGS = -O3 -g -fno-omit-frame-pointer
 DEPFLAGS = -MMD -MP

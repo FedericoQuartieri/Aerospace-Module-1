@@ -5,6 +5,31 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# SIMD and precision configuration
+# SIMD: can be 'auto', 'sse', 'neon', or 'scalar'
+set(SIMD "auto" CACHE STRING "SIMD backend: auto|sse|neon|scalar")
+set(PRECISION "USE_DOUBLE" CACHE STRING "Precision: USE_FLOAT or USE_DOUBLE")
+
+if(SIMD STREQUAL "auto")
+    if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|armv8")
+        set(SIMD "neon")
+    else()
+        set(SIMD "sse")
+    endif()
+endif()
+
+if(SIMD STREQUAL "neon")
+    add_compile_definitions(USE_NEON)
+elseif(SIMD STREQUAL "sse")
+    add_compile_definitions(USE_SSE)
+    add_compile_options(-mavx -mfma)
+endif()
+
+if(NOT (PRECISION STREQUAL "USE_FLOAT" OR PRECISION STREQUAL "USE_DOUBLE"))
+    message(FATAL_ERROR "PRECISION must be USE_FLOAT or USE_DOUBLE")
+endif()
+add_compile_definitions(${PRECISION})
+
 # Option to enable/disable Eigen-dependent tests
 option(ENABLE_EIGEN_TESTS "Build tests that depend on Eigen" ON)
 
