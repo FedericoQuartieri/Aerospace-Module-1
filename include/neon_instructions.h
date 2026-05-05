@@ -31,12 +31,4 @@
     #define VFMA(a,b,c) vfmaq_f64(a,b,c)  
 #endif
 
-/* inline __attribute__((always_inline)) void vscatter(VTYPE src, TYPE *dest, uint64_t stride) {   
-    TYPE __attribute((aligned(32))) buff[VLEN];
-    VSTORE(buff, src);
-    for(int i = 0; i < VLEN; i++) {
-        dest[i * stride] = buff[i];
-    }
-} */
-
 #endif // VECTOR_NEON_H

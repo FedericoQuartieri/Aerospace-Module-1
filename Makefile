@@ -35,7 +35,8 @@ ifeq ($(SIMD),sse)
 	SIMD_CFLAGS += -DUSE_SSE -mavx -mfma
 endif
 
-COMMON_CFLAGS = -Wall -Wextra -Iinclude $(PRECISION_CFLAGS) $(ARCH_CFLAGS) $(SIMD_CFLAGS)
+#COMMON_CFLAGS = -Wall -Wextra -Iinclude $(PRECISION_CFLAGS) $(ARCH_CFLAGS) $(SIMD_CFLAGS)
+COMMON_CFLAGS = -Iinclude $(PRECISION_CFLAGS) $(ARCH_CFLAGS) $(SIMD_CFLAGS)
 RELEASE_CFLAGS = -O3
 PROFILE_CFLAGS = -O3 -g -fno-omit-frame-pointer
 DEPFLAGS = -MMD -MP

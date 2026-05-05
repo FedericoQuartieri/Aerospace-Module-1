@@ -77,7 +77,7 @@
 #ifdef TOTAL_TIME_OVERRIDE
     #define TOTAL_TIME TOTAL_TIME_OVERRIDE
 #else
-    #define TOTAL_TIME 0.001
+    #define TOTAL_TIME 0.01
 #endif
 
 #define STEPS ((int)(TOTAL_TIME / DT))  // Number of time steps
