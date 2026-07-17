@@ -244,6 +244,16 @@ SolverStatus solver_solve(Solver *solver)
     if (solver == NULL || solver->problem == NULL) {
         return SOLVER_INVALID_CONFIG;
     }
+    if (solver->output.enabled) {
+        const uint64_t output_start = solver_time_ns();
+        if (!output_writer_write(
+                &solver->output, &solver->grid, 0, (Real)0, (Real)0,
+                &solver->state.velocity, &solver->state.pressure)) {
+            solver->stats.output_ns += solver_time_ns() - output_start;
+            return SOLVER_OUTPUT_ERROR;
+        }
+        solver->stats.output_ns += solver_time_ns() - output_start;
+    }
     for (timestep = 1; timestep <= solver->config.steps; ++timestep) {
         SolverStatus status = solver_step(solver, timestep);
         uint64_t output_start;

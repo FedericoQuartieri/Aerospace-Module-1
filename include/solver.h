@@ -62,8 +62,8 @@ typedef struct {
     Real dt;
     size_t steps;
     Real viscosity;
-    /* Zero disables output.  Otherwise a VTI snapshot is written every
-     * output_frequency completed timesteps. */
+    /* Zero disables output.  Otherwise t=0 is always written, followed by a
+     * VTI snapshot every output_frequency completed timesteps. */
     size_t output_frequency;
     const char *output_directory;
 } SolverConfig;

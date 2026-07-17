@@ -927,19 +927,25 @@ void output_writer_destroy(OutputWriter *writer);
 ```
 
 Il writer usa direttamente lo stato corrente e termina la scrittura prima che il
-timestep successivo possa modificarlo:
+primo timestep possa modificarlo. Quando l'output è abilitato, `solver_solve()`
+scrive sempre lo stato iniziale con indice e tempi nulli; la frequenza configurata
+si applica soltanto agli step completati successivi:
 
 ```text
+solver_solve
+    |
+    v
+output_writer_write(U^0, pressure^0, 0, 0)
+    |
+    v
 solver_step
     |
     v
-output_writer_write(U, pressure)   /* chiamata bloccante */
-    |
-    v
-timestep successivo
+output_writer_write(U, pressure)   /* se richiesto dalla frequenza */
 ```
 
-Dopo il passo `n -> n+1`, il file contiene `velocity` al tempo
+Il file iniziale `solution_000000.vti` contiene sia `velocity` sia `pressure` al
+tempo zero. Dopo il passo `n -> n+1`, il file contiene `velocity` al tempo
 `(n+1) dt` e `pressure` al tempo `(n+1/2) dt`. Il writer riceve entrambi i tempi
 esplicitamente e li registra nei metadati VTI; non deve dedurli dal nome del
 file. Se il formato espone un solo `TimeValue`, quello principale è il tempo

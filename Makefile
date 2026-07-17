@@ -26,6 +26,8 @@ KERNEL_TEST = $(BUILD_DIR)/test_kernel_equivalence
 CONVERGENCE_TEST = $(BUILD_DIR)/test_convergence
 OUTPUT_TEST = $(BUILD_DIR)/test_output
 STATS_TEST = $(BUILD_DIR)/test_stats
+CAVITY_STANDARD = $(BUILD_DIR)/test_variable_permeability_cavity_standard
+CAVITY_OPTIMIZED = $(BUILD_DIR)/test_variable_permeability_cavity_optimized
 BENCHMARK_STANDARD = $(BUILD_DIR)/benchmark_x_standard
 BENCHMARK_OPTIMIZED = $(BUILD_DIR)/benchmark_x_optimized
 
@@ -71,6 +73,16 @@ $(STATS_TEST): $(COMMON_SOURCES) src/kernels_standard.c \
 	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_STANDARD \
 		$^ -o $@ $(LDLIBS)
 
+$(CAVITY_STANDARD): $(COMMON_SOURCES) src/kernels_standard.c \
+		test/test_variable_permeability_cavity.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_STANDARD \
+		$^ -o $@ $(LDLIBS)
+
+$(CAVITY_OPTIMIZED): $(COMMON_SOURCES) src/kernels_optimized.c \
+		test/test_variable_permeability_cavity.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_OPTIMIZED \
+		$^ -o $@ $(LDLIBS)
+
 $(BENCHMARK_STANDARD): $(COMMON_SOURCES) src/kernels_standard.c \
 		test/benchmark_x.c test/manufactured_cases.c | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_STANDARD \
@@ -82,12 +94,14 @@ $(BENCHMARK_OPTIMIZED): $(COMMON_SOURCES) src/kernels_optimized.c \
 		$^ -o $@ $(LDLIBS)
 
 test: $(CORRECTNESS_STANDARD) $(CORRECTNESS_OPTIMIZED) $(KERNEL_TEST) \
-		$(OUTPUT_TEST) $(STATS_TEST)
+		$(OUTPUT_TEST) $(STATS_TEST) $(CAVITY_STANDARD) $(CAVITY_OPTIMIZED)
 	$(CORRECTNESS_STANDARD)
 	$(CORRECTNESS_OPTIMIZED)
 	$(KERNEL_TEST)
 	$(OUTPUT_TEST)
 	$(STATS_TEST)
+	$(CAVITY_STANDARD) --no-output
+	$(CAVITY_OPTIMIZED) --no-output
 
 test-convergence: $(CONVERGENCE_TEST)
 	$(CONVERGENCE_TEST)

@@ -126,6 +126,20 @@ target_link_libraries(test_output PRIVATE solver_core_standard)
 add_executable(test_stats test/test_stats.c)
 target_link_libraries(test_stats PRIVATE solver_core_standard)
 
+add_executable(test_variable_permeability_cavity_standard
+    test/test_variable_permeability_cavity.c
+)
+target_link_libraries(test_variable_permeability_cavity_standard PRIVATE
+    solver_core_standard
+)
+
+add_executable(test_variable_permeability_cavity_optimized
+    test/test_variable_permeability_cavity.c
+)
+target_link_libraries(test_variable_permeability_cavity_optimized PRIVATE
+    solver_core_optimized
+)
+
 # Performance probes are intentionally not registered with CTest: correctness
 # tests remain capped at 64^3, while these executables may exercise 128^3 with
 # output disabled.
@@ -172,9 +186,26 @@ add_test(NAME convergence_spatial COMMAND test_convergence --spatial)
 add_test(NAME convergence_temporal COMMAND test_convergence --temporal)
 add_test(NAME output_synchronous COMMAND test_output)
 add_test(NAME stats_report COMMAND test_stats)
+add_test(NAME variable_permeability_tunnel_standard
+    COMMAND test_variable_permeability_cavity_standard
+            --case tunnel --no-output)
+add_test(NAME variable_permeability_tunnel_optimized
+    COMMAND test_variable_permeability_cavity_optimized
+            --case tunnel --no-output)
+add_test(NAME variable_permeability_cavity_standard
+    COMMAND test_variable_permeability_cavity_standard
+            --case cavity --no-output)
+add_test(NAME variable_permeability_cavity_optimized
+    COMMAND test_variable_permeability_cavity_optimized
+            --case cavity --no-output)
 add_test(NAME sanitizer_standard COMMAND test_sanitizer_standard)
 
-set_tests_properties(correctness_standard correctness_optimized
+set_tests_properties(
+    correctness_standard correctness_optimized
+    variable_permeability_tunnel_standard
+    variable_permeability_tunnel_optimized
+    variable_permeability_cavity_standard
+    variable_permeability_cavity_optimized
     PROPERTIES LABELS correctness)
 set_tests_properties(kernel_equivalence PROPERTIES LABELS kernel)
 set_tests_properties(convergence_spatial convergence_temporal

@@ -120,6 +120,49 @@ modificare quella configurazione e ricompilare; non si devono allentare le
 soglie solo per ottenere un test verde. I test del progetto non devono superare
 64 punti per direzione.
 
+### Test tunnel e cavity
+
+[`test/test_variable_permeability_cavity.c`](test/test_variable_permeability_cavity.c)
+contiene due casi:
+
+- `tunnel`: il flusso uniforme attraversa il volume e incontra un ostacolo
+  sferico a bassa permeabilità;
+- `cavity`: un cubo unitario con apertura quadrata centrata in ingresso; il
+  condotto conserva la sezione dell'apertura fino a metà cubo, quindi si allarga
+  linearmente verso un'apertura quadrata più grande in uscita.
+
+Nel caso `cavity`, il condotto interno ha permeabilità `1`, mentre il volume
+esterno ha permeabilità `0.002`. La velocità uniforme in uscita viene ridotta in
+proporzione al rapporto fra le aree, mantenendo la portata. Pressione iniziale e
+forzante sono nulle in entrambi i casi.
+
+`tunnel` usa una griglia 48x32x32; `cavity` usa una griglia cubica 32x32x32.
+Entrambi eseguono 2000 timestep da `0.001` e scrivono uno snapshot ogni 5 step
+nella directory `output`, incluso `solution_000000.vti`, quando sono avviati
+direttamente. CTest aggiunge `--no-output` per verificare permeabilità,
+condizioni al bordo, valori finiti e attraversamento del condotto senza creare
+snapshot:
+
+```sh
+cmake --build build \
+  --target test_variable_permeability_cavity_standard \
+           test_variable_permeability_cavity_optimized \
+  --parallel 4
+ctest --test-dir build -R variable_permeability --output-on-failure
+```
+
+Lo stesso eseguibile seleziona il caso con `--case`:
+
+```sh
+./build/test_variable_permeability_cavity_standard --case tunnel
+./build/test_variable_permeability_cavity_standard --case cavity
+./build/test_variable_permeability_cavity_optimized --case tunnel
+./build/test_variable_permeability_cavity_optimized --case cavity
+```
+
+Senza opzioni, oppure con `--case all`, vengono eseguiti prima `tunnel` e poi
+`cavity`. Un'esecuzione superata non stampa nulla e termina con codice zero.
+
 ## Test di convergenza
 
 La convergenza spaziale usa 16³, 32³ e 64³ con `dt=0.0007` e 10 step. L'ordine
@@ -267,28 +310,32 @@ il vecchio formato legacy `.vtk`. Per abilitare gli snapshot:
 Il comando crea la directory `output` se necessario e scrive, in modo sincrono:
 
 ```text
+output/solution_000000.vti
 output/solution_000005.vti
 output/solution_000010.vti
 ```
 
-Impostando `--output-frequency 1` viene scritto ogni step; con 0 l'output è
-disabilitato. La directory padre deve già esistere se il percorso richiesto è
-annidato. Un errore di apertura o scrittura termina la solve con
+Quando l'output è abilitato, `solution_000000.vti` viene scritto sempre e
+contiene la condizione iniziale a `t=0`. La frequenza si applica ai timestep
+successivi: con `--output-frequency 1` viene scritto ogni step; con 0 l'output è
+completamente disabilitato. La directory padre deve già esistere se il percorso
+richiesto è annidato. Un errore di apertura o scrittura termina la solve con
 `SOLVER_OUTPUT_ERROR` e un codice di uscita diverso da zero.
 
 Ogni file contiene:
 
 - `Pressure`, array scalare sul reticolo di pressione;
 - `Velocity`, array a tre componenti ricavato dai tre campi SoA;
-- `TimeValue`, tempo della velocità `n*dt`;
-- `PressureTime`, tempo semintero della pressione `(n-1/2)*dt`.
+- `TimeValue`, tempo della velocità: `0` nel file iniziale, poi `n*dt`;
+- `PressureTime`, tempo della pressione: `0` nel file iniziale, poi
+  `(n-1/2)*dt`.
 
 I file possono essere aperti direttamente con ParaView usando **File → Open**.
 Per controllare rapidamente che il file sia stato creato e contenga gli array:
 
 ```sh
 ls -lh output/*.vti
-strings output/solution_000005.vti | grep 'Name='
+strings output/solution_000000.vti | grep 'Name='
 ```
 
 Da un programma C l'output si abilita nella configurazione prima di
