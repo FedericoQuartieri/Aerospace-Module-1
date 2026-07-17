@@ -1,85 +1,163 @@
+#include "solver.h"
+
+#include <errno.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "../include/constants.h"
-#include "velocity_field.h"
-#include "pressure.h"
-#include "force_field.h"
-#include "g_field.h"
-#include "utils.h"
-#include "momentum_system.h"
-#include "pressure_system.h"
-#include "solve.h"
+#include <string.h>
 
-#include "data.h"
+static Real paper_velocity(Real x,
+                           Real y,
+                           Real z,
+                           Real time,
+                           Direction component)
+{
+    switch (component) {
+        case DIRECTION_X: return sin(x) * cos(time + y) * sin(z);
+        case DIRECTION_Y: return cos(x) * sin(time + y) * sin(z);
+        case DIRECTION_Z:
+            return (Real)2 * cos(x) * cos(time + y) * cos(z);
+        default: return (Real)0;
+    }
+}
 
-/* Navier-Stokes-Brinkman equation solver */
+static Real paper_pressure(Real x, Real y, Real z, Real time)
+{
+    return (Real)-3 * cos(x) * cos(time + y) * cos(z);
+}
 
-int main(){
-    
-    Pressure pressure;
-    initialize_pressure(&pressure);
+static Real paper_forcing(Real x,
+                          Real y,
+                          Real z,
+                          Real time,
+                          Direction component)
+{
+    const Real velocity = paper_velocity(x, y, z, time, component);
+    Real time_derivative;
+    Real pressure_gradient;
 
-    VelocityField Eta;
-    VelocityField Zeta;
-    VelocityField U;
+    switch (component) {
+        case DIRECTION_X:
+            time_derivative = -sin(x) * sin(time + y) * sin(z);
+            pressure_gradient = (Real)3 * sin(x) * cos(time + y) * cos(z);
+            break;
+        case DIRECTION_Y:
+            time_derivative = cos(x) * cos(time + y) * sin(z);
+            pressure_gradient = (Real)3 * cos(x) * sin(time + y) * cos(z);
+            break;
+        case DIRECTION_Z:
+            time_derivative =
+                (Real)-2 * cos(x) * sin(time + y) * cos(z);
+            pressure_gradient =
+                (Real)3 * cos(x) * cos(time + y) * sin(z);
+            break;
+        default:
+            return (Real)0;
+    }
+    return time_derivative + (Real)4 * velocity + pressure_gradient;
+}
 
-    const Data *data = &PAPER_DATA;
+static Real unit_permeability(Real x, Real y, Real z, Real time)
+{
+    (void)x;
+    (void)y;
+    (void)z;
+    (void)time;
+    return (Real)1;
+}
 
-    /*
-        Missing: in the first timestep we must enforce the exact solution, 
-        that is given by the problem, required to be well posed.
-        So we should set Eta, Zeta, U to the exact solution in t=0,
-        then solve for t=1. 
-        The boundary conditions are computed as the delta between (t=0, t=1)
+static const ProblemDefinition PAPER_PROBLEM = {
+    "paper manufactured solution",
+    paper_velocity,
+    paper_pressure,
+    paper_velocity,
+    paper_forcing,
+    unit_permeability
+};
 
-        (For now in test_manufactured.c is manually set the exact velocity at t=0)
-    */
-   
-    // Initilized 3 velocity field, and for each one set the SAME boundary conditions,
-    initialize_velocity_field(&Eta);
-    initialize_velocity_field(&Zeta);
-    initialize_velocity_field(&U);
+static bool parse_size(const char *text, size_t *value)
+{
+    char *end;
+    unsigned long long parsed;
+    errno = 0;
+    parsed = strtoull(text, &end, 10);
+    if (errno != 0 || end == text || *end != '\0' || parsed == 0) {
+        return false;
+    }
+    *value = (size_t)parsed;
+    return (unsigned long long)*value == parsed;
+}
 
+static bool parse_real(const char *text, Real *value)
+{
+    char *end;
+    double parsed;
+    errno = 0;
+    parsed = strtod(text, &end);
+    if (errno != 0 || end == text || *end != '\0' ||
+        !isfinite(parsed) || parsed <= 0) {
+        return false;
+    }
+    *value = (Real)parsed;
+    return true;
+}
 
-    // Set K that is needed to compute Gamma
-    // K depends also on the spatial coordinate
-    DTYPE *K = (DTYPE *) xmalloc(GRID_SIZE);
-    const_fill(K); // fill with all 1 for now 
-    
-    DTYPE *Beta = (DTYPE *) xmalloc(GRID_SIZE);
-    DTYPE *Gamma = (DTYPE *) xmalloc(GRID_SIZE);
-    for(int k = 0; k < DEPTH; k++){
-        for(int j = 0; j < HEIGHT; j++){
-            for(int i = 0; i < WIDTH; i++){
-                size_t idx = rowmaj_idx(i,j,k);
-                Beta[idx] = 1.0 + (DT * NU) / (2.0 * K[idx]);
-                Gamma[idx] = (DT * NU) / (2.0 * Beta[idx]);
+static bool parse_config(int argc, char **argv, SolverConfig *config)
+{
+    int argument;
+    for (argument = 1; argument < argc; argument += 2) {
+        if (argument + 1 >= argc) {
+            return false;
+        }
+        if (strcmp(argv[argument], "--grid") == 0) {
+            size_t extent;
+            if (!parse_size(argv[argument + 1], &extent)) return false;
+            config->extent[DIRECTION_X] = extent;
+            config->extent[DIRECTION_Y] = extent;
+            config->extent[DIRECTION_Z] = extent;
+        } else if (strcmp(argv[argument], "--dt") == 0) {
+            if (!parse_real(argv[argument + 1], &config->dt)) return false;
+        } else if (strcmp(argv[argument], "--steps") == 0) {
+            if (!parse_size(argv[argument + 1], &config->steps)) return false;
+        } else if (strcmp(argv[argument], "--output-frequency") == 0) {
+            if (strcmp(argv[argument + 1], "0") == 0) {
+                config->output_frequency = 0;
+            } else if (!parse_size(argv[argument + 1],
+                                   &config->output_frequency)) {
+                return false;
             }
+        } else if (strcmp(argv[argument], "--output-directory") == 0) {
+            config->output_directory = argv[argument + 1];
+        } else {
+            return false;
         }
     }
+    return true;
+}
 
-    // Inizialize g
-    GField g_field;
-    initialize_g_field(&g_field);    
+int main(int argc, char **argv)
+{
+    SolverConfig config = solver_default_config();
+    Solver solver = {0};
+    SolverStatus status;
 
-    int exit_code = EXIT_SUCCESS;
-
-    if (!solve(g_field, data, pressure, K, Eta, Zeta, U, Beta, Gamma,
-        WRITE_FREQUENCY)) {
-        fprintf(stderr, "Solver completed with output errors.\n");
-        exit_code = EXIT_FAILURE;
+    if (!parse_config(argc, argv, &config)) {
+        fprintf(stderr,
+                "usage: %s [--grid N] [--dt DT] [--steps N] "
+                "[--output-frequency N] [--output-directory PATH]\n",
+                argv[0]);
+        return EXIT_FAILURE;
     }
-  
-    printf("Abracadabra\n");
 
-    free(K);
-    free(Beta);
-    free(Gamma);
-    free_pressure(&pressure);
-    free_velocity_field(&Eta);
-    free_velocity_field(&Zeta);
-    free_velocity_field(&U);
-    free_g_field(&g_field);
-
-    return exit_code;
+    status = solver_init(&solver, &config, &PAPER_PROBLEM);
+    if (status == SOLVER_SUCCESS) {
+        status = solver_solve(&solver);
+    }
+    if (status == SOLVER_SUCCESS) {
+        solver_print_stats(&solver, stdout);
+    } else {
+        fprintf(stderr, "solver failed with status %d\n", (int)status);
+    }
+    solver_destroy(&solver);
+    return status == SOLVER_SUCCESS ? EXIT_SUCCESS : EXIT_FAILURE;
 }

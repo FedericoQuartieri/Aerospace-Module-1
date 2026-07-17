@@ -1,103 +1,84 @@
-CC = clang
-
-UNAME_S := $(shell uname -s)
-UNAME_M := $(shell uname -m)
-
+CC ?= cc
 PRECISION ?= USE_DOUBLE
-PRECISION_CFLAGS = -D$(PRECISION)
+BUILD_DIR ?= build
 
-ARCH_CFLAGS =
-ifeq ($(UNAME_S),Linux)
-ifneq (,$(filter $(UNAME_M),aarch64 arm64))
-ARCH_CFLAGS += -march=armv8-a+simd
-endif
-endif
+CPPFLAGS = -Iinclude -Isrc -Itest -D_POSIX_C_SOURCE=200809L -D$(PRECISION)
+CFLAGS ?= -O3
+CFLAGS += -std=c99 -Wall -Wextra -Wpedantic
+LDLIBS = -lm
 
-#COMMON_CFLAGS = -Wall -Wextra -Iinclude $(PRECISION_CFLAGS) $(ARCH_CFLAGS)
-COMMON_CFLAGS = -Iinclude $(PRECISION_CFLAGS) $(ARCH_CFLAGS)
-RELEASE_CFLAGS = -O3
-PROFILE_CFLAGS = -O3 -g -fno-omit-frame-pointer
-DEPFLAGS = -MMD -MP
-LDFLAGS = -lm
+COMMON_SOURCES = \
+	src/field.c \
+	src/grid.c \
+	src/solver.c \
+	src/momentum.c \
+	src/pressure.c \
+	src/physics.c \
+	src/output.c
 
-BUILDDIR = build
-PROFILEDIR = build_profile
+TEST_SUPPORT = test/manufactured_cases.c test/test_support.c
 
-TARGET = $(BUILDDIR)/navier_stokes
-PROFILE_TARGET = $(PROFILEDIR)/navier_stokes
+STANDARD = $(BUILD_DIR)/solver_standard
+OPTIMIZED = $(BUILD_DIR)/solver_optimized
+CORRECTNESS_STANDARD = $(BUILD_DIR)/test_correctness_standard
+CORRECTNESS_OPTIMIZED = $(BUILD_DIR)/test_correctness_optimized
+KERNEL_TEST = $(BUILD_DIR)/test_kernel_equivalence
+CONVERGENCE_TEST = $(BUILD_DIR)/test_convergence
+OUTPUT_TEST = $(BUILD_DIR)/test_output
 
-SRCS = $(wildcard src/*.c)
-OBJS = $(patsubst src/%.c,$(BUILDDIR)/%.o,$(SRCS))
-PROFILE_OBJS = $(patsubst src/%.c,$(PROFILEDIR)/%.o,$(SRCS))
+all: $(STANDARD) $(OPTIMIZED)
 
-DEPS = $(OBJS:.o=.d)
-PROFILE_DEPS = $(PROFILE_OBJS:.o=.d)
-
-LIB_OBJS = $(filter-out $(BUILDDIR)/main.o,$(OBJS))
-PROFILE_LIB_OBJS = $(filter-out $(PROFILEDIR)/main.o,$(PROFILE_OBJS))
-
-TEST_COMMON = test/test_common.c
-TESTS = \
-	test_convergence \
-	test_manufactured \
-	test_paper_manufactured \
-	test_zero_pressure_manufactured \
-
-TEST_BINS = $(addprefix $(BUILDDIR)/,$(TESTS))
-PROFILE_TEST_BINS = $(addprefix $(PROFILEDIR)/,$(TESTS))
-
-all: $(TARGET)
-profile: $(PROFILE_TARGET)
-
-$(TARGET): $(OBJS) | $(BUILDDIR)
-	$(CC) $(COMMON_CFLAGS) $(RELEASE_CFLAGS) -o $@ $^ $(LDFLAGS)
-
-$(PROFILE_TARGET): $(PROFILE_OBJS) | $(PROFILEDIR)
-	$(CC) $(COMMON_CFLAGS) $(PROFILE_CFLAGS) -o $@ $^ $(LDFLAGS)
-
-$(BUILDDIR)/%.o: src/%.c | $(BUILDDIR)
-	$(CC) $(COMMON_CFLAGS) $(DEPFLAGS) $(RELEASE_CFLAGS) -c $< -o $@
-
-$(PROFILEDIR)/%.o: src/%.c | $(PROFILEDIR)
-	$(CC) $(COMMON_CFLAGS) $(DEPFLAGS) $(PROFILE_CFLAGS) -c $< -o $@
-
-$(BUILDDIR)/test_%: test/test_%.c $(TEST_COMMON) $(LIB_OBJS) | $(BUILDDIR)
-	$(CC) $(COMMON_CFLAGS) $(RELEASE_CFLAGS) -o $@ $^ $(LDFLAGS)
-
-$(PROFILEDIR)/test_%: test/test_%.c $(TEST_COMMON) $(PROFILE_LIB_OBJS) | $(PROFILEDIR)
-	$(CC) $(COMMON_CFLAGS) $(PROFILE_CFLAGS) -o $@ $^ $(LDFLAGS)
-
-run: $(TARGET)
-	./$(TARGET)
-
-run-profile: $(PROFILE_TARGET)
-	./$(PROFILE_TARGET)
-
-test: $(TEST_BINS)
-	@for t in $(TESTS); do \
-		(cd test && ../$(BUILDDIR)/$$t) || exit 1; \
-	done
-
-test-profile: $(PROFILE_TEST_BINS)
-	@for t in $(TESTS); do \
-		(cd test && ../$(PROFILEDIR)/$$t) || exit 1; \
-	done
-
-run-test_%: $(BUILDDIR)/test_%
-	cd test && ../$(BUILDDIR)/test_$*
-
-run-profile-test_%: $(PROFILEDIR)/test_%
-	cd test && ../$(PROFILEDIR)/test_$*
-
-$(BUILDDIR):
+$(BUILD_DIR):
 	mkdir -p $@
 
-$(PROFILEDIR):
-	mkdir -p $@
+$(STANDARD): $(COMMON_SOURCES) src/kernels_standard.c src/main.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_STANDARD \
+		$^ -o $@ $(LDLIBS)
+
+$(OPTIMIZED): $(COMMON_SOURCES) src/kernels_optimized.c src/main.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_OPTIMIZED \
+		$^ -o $@ $(LDLIBS)
+
+$(CORRECTNESS_STANDARD): $(COMMON_SOURCES) src/kernels_standard.c \
+		test/test_correctness.c $(TEST_SUPPORT) | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_STANDARD \
+		$^ -o $@ $(LDLIBS)
+
+$(CORRECTNESS_OPTIMIZED): $(COMMON_SOURCES) src/kernels_optimized.c \
+		test/test_correctness.c $(TEST_SUPPORT) | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_OPTIMIZED \
+		$^ -o $@ $(LDLIBS)
+
+$(KERNEL_TEST): src/field.c src/grid.c src/physics.c \
+		src/kernels_standard.c src/kernels_optimized.c \
+		test/test_kernel_equivalence.c test/manufactured_cases.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $^ -o $@ $(LDLIBS)
+
+$(CONVERGENCE_TEST): $(COMMON_SOURCES) src/kernels_standard.c \
+		test/test_convergence.c $(TEST_SUPPORT) | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_STANDARD \
+		$^ -o $@ $(LDLIBS)
+
+$(OUTPUT_TEST): $(COMMON_SOURCES) src/kernels_standard.c test/test_output.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_STANDARD \
+		$^ -o $@ $(LDLIBS)
+
+test: $(CORRECTNESS_STANDARD) $(CORRECTNESS_OPTIMIZED) $(KERNEL_TEST) $(OUTPUT_TEST)
+	$(CORRECTNESS_STANDARD)
+	$(CORRECTNESS_OPTIMIZED)
+	$(KERNEL_TEST)
+	$(OUTPUT_TEST)
+
+test-convergence: $(CONVERGENCE_TEST)
+	$(CONVERGENCE_TEST)
+
+run-standard: $(STANDARD)
+	$(STANDARD)
+
+run-optimized: $(OPTIMIZED)
+	$(OPTIMIZED)
 
 clean:
-	rm -rf $(BUILDDIR) $(PROFILEDIR)
+	rm -rf $(BUILD_DIR)
 
-.PHONY: all profile run run-profile test test-profile clean run-test_% run-profile-test_%
-
--include $(DEPS) $(PROFILE_DEPS)
+.PHONY: all test test-convergence run-standard run-optimized clean

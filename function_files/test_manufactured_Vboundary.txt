@@ -1,3 +1,0 @@
-sin(t) * sin(pi()*x) * sin(pi()*y) * sin(pi()*z)
-sin(t) * cos(pi()*x) * cos(pi()*y) * cos(pi()*z)
-sin(t) * cos(pi()*x) * sin(pi()*y) * (cos(pi()*z) + sin(pi()*z))
