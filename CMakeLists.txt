@@ -123,6 +123,26 @@ target_link_libraries(test_kernel_equivalence PRIVATE m)
 add_executable(test_output test/test_output.c)
 target_link_libraries(test_output PRIVATE solver_core_standard)
 
+add_executable(test_stats test/test_stats.c)
+target_link_libraries(test_stats PRIVATE solver_core_standard)
+
+# Performance probes are intentionally not registered with CTest: correctness
+# tests remain capped at 64^3, while these executables may exercise 128^3 with
+# output disabled.
+add_executable(benchmark_x_standard
+    test/benchmark_x.c
+    test/manufactured_cases.c
+)
+target_include_directories(benchmark_x_standard PRIVATE test src)
+target_link_libraries(benchmark_x_standard PRIVATE solver_core_standard)
+
+add_executable(benchmark_x_optimized
+    test/benchmark_x.c
+    test/manufactured_cases.c
+)
+target_include_directories(benchmark_x_optimized PRIVATE test src)
+target_link_libraries(benchmark_x_optimized PRIVATE solver_core_optimized)
+
 add_library(solver_core_sanitized STATIC
     ${SOLVER_COMMON_SOURCES}
     src/kernels_standard.c
@@ -151,6 +171,7 @@ add_test(NAME kernel_equivalence COMMAND test_kernel_equivalence)
 add_test(NAME convergence_spatial COMMAND test_convergence --spatial)
 add_test(NAME convergence_temporal COMMAND test_convergence --temporal)
 add_test(NAME output_synchronous COMMAND test_output)
+add_test(NAME stats_report COMMAND test_stats)
 add_test(NAME sanitizer_standard COMMAND test_sanitizer_standard)
 
 set_tests_properties(correctness_standard correctness_optimized
@@ -159,6 +180,7 @@ set_tests_properties(kernel_equivalence PROPERTIES LABELS kernel)
 set_tests_properties(convergence_spatial convergence_temporal
     PROPERTIES LABELS convergence TIMEOUT 600)
 set_tests_properties(output_synchronous PROPERTIES LABELS output)
+set_tests_properties(stats_report PROPERTIES LABELS stats)
 set_tests_properties(sanitizer_standard PROPERTIES LABELS sanitizer)
 
 add_custom_target(run

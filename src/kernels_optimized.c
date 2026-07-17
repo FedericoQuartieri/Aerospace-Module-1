@@ -1,6 +1,6 @@
-/* DESIGN: the optimized backend keeps the scalar X recurrence and exposes
- * independent X-adjacent Y/Z systems to explicit SIMD.  Tail lines use the
- * same Thomas rows and the same preallocated scratch. */
+/* DESIGN: the optimized backend batches independent scalar X recurrences and
+ * exposes X-adjacent Y/Z systems to explicit SIMD.  Every path preserves the
+ * baseline Thomas rows and uses only preallocated scratch. */
 #include "kernels.h"
 #include "solver_internal.h"
 
@@ -43,6 +43,17 @@ typedef Real SimdReal;
 #define SIMD_DIV(a, b) ((a) / (b))
 #endif
 
+/* Four independent X lines are enough to expose instruction-level
+ * parallelism without creating a large packing working set. */
+#define MOMENTUM_X_LINE_BATCH 4
+
+#if defined(__clang__) || defined(__GNUC__)
+#define OPTIMIZED_ALWAYS_INLINE \
+    static inline __attribute__((always_inline))
+#else
+#define OPTIMIZED_ALWAYS_INLINE static inline
+#endif
+
 static size_t maximum_size(size_t a, size_t b)
 {
     return a > b ? a : b;
@@ -53,7 +64,10 @@ size_t optimized_scratch_capacity(const Grid *grid)
     const size_t nx = grid->extent[DIRECTION_X];
     const size_t longest = maximum_size(grid->extent[DIRECTION_Y],
                                         grid->extent[DIRECTION_Z]);
-    const size_t standard_need = maximum_size(3 * nx, 2 * nx * longest);
+    const size_t x_batch_need =
+        2 * MOMENTUM_X_LINE_BATCH * nx;
+    const size_t standard_need = maximum_size(x_batch_need,
+                                              2 * nx * longest);
     const size_t largest_slice = 8 * SIMD_LENGTH;
     const size_t simd_need = 2 * longest * largest_slice + largest_slice +
                              3 * longest;
@@ -89,6 +103,147 @@ static void pressure_thomas_line(Real w,
     }
 }
 
+OPTIMIZED_ALWAYS_INLINE Real optimized_interior_second_difference(
+    const Grid *grid,
+    const ScalarField *field,
+    size_t index,
+    Direction direction)
+{
+    const size_t stride = grid->stride[direction];
+    return (field->data[index - stride] -
+            (Real)2 * field->data[index] +
+            field->data[index + stride]) *
+           grid->inverse_spacing_square[direction];
+}
+
+static Real optimized_upper_second_difference(
+    const Grid *grid,
+    const ProblemDefinition *problem,
+    const ScalarField *field,
+    size_t index,
+    size_t i,
+    size_t j,
+    size_t k,
+    Real time,
+    Direction derivative_direction,
+    Direction component)
+{
+    Real coordinate[DIRECTION_COUNT];
+    const size_t stride = grid->stride[derivative_direction];
+
+    coordinate[DIRECTION_X] = (Real)i * grid->spacing[DIRECTION_X];
+    coordinate[DIRECTION_Y] = (Real)j * grid->spacing[DIRECTION_Y];
+    coordinate[DIRECTION_Z] = (Real)k * grid->spacing[DIRECTION_Z];
+    coordinate[component] += grid->spacing[component] / (Real)2;
+    coordinate[derivative_direction] =
+        (Real)(grid->extent[derivative_direction] - 1) *
+        grid->spacing[derivative_direction];
+    coordinate[derivative_direction] +=
+        grid->spacing[derivative_direction] / (Real)2;
+
+    return (field->data[index - stride] -
+            (Real)3 * field->data[index] +
+            (Real)2 * problem->boundary_velocity(
+                          coordinate[DIRECTION_X],
+                          coordinate[DIRECTION_Y],
+                          coordinate[DIRECTION_Z], time, component)) *
+           grid->inverse_spacing_square[derivative_direction];
+}
+
+OPTIMIZED_ALWAYS_INLINE Real optimized_momentum_x_rhs(
+    const Grid *grid,
+    const SolverConfig *config,
+    const ProblemDefinition *problem,
+    const ScalarField *eta,
+    const ScalarField *zeta,
+    const ScalarField *velocity,
+    const ScalarField *pressure_star,
+    size_t i,
+    size_t j,
+    size_t k,
+    size_t timestep,
+    Direction component,
+    Real source_scale,
+    Real two_over_dt)
+{
+    const size_t nx = grid->extent[DIRECTION_X];
+    const size_t ny = grid->extent[DIRECTION_Y];
+    const size_t nz = grid->extent[DIRECTION_Z];
+    const size_t index = grid_index(grid, i, j, k);
+    const Real forcing_time = ((Real)timestep - (Real)0.5) * config->dt;
+    const Real velocity_time = ((Real)timestep - (Real)1) * config->dt;
+    Real coordinate[DIRECTION_COUNT];
+    Real laplacian_x;
+    Real laplacian_y;
+    Real laplacian_z;
+    Real pressure_gradient;
+    Real source_without_drag;
+    Real scaled_drag;
+
+    /* evaluate_g is exactly zero outside this component-specific support. */
+    if ((component == DIRECTION_X &&
+         !(i >= 1 && i <= nx - 2 && j >= 1 && j <= ny - 1 &&
+           k >= 1 && k <= nz - 1)) ||
+        (component == DIRECTION_Y &&
+         !(i >= 1 && i <= nx - 1 && j >= 1 && j <= ny - 2 &&
+           k >= 1 && k <= nz - 1)) ||
+        (component == DIRECTION_Z &&
+         !(i >= 1 && i <= nx - 1 && j >= 1 && j <= ny - 1 &&
+           k >= 1 && k <= nz - 2))) {
+        return velocity->data[index] - eta->data[index];
+    }
+
+    /* Inlining the coordinate formula avoids three external helper calls per
+     * cell when the project is built without link-time optimization. */
+    coordinate[DIRECTION_X] = (Real)i * grid->spacing[DIRECTION_X];
+    coordinate[DIRECTION_Y] = (Real)j * grid->spacing[DIRECTION_Y];
+    coordinate[DIRECTION_Z] = (Real)k * grid->spacing[DIRECTION_Z];
+    coordinate[component] += grid->spacing[component] / (Real)2;
+
+    pressure_gradient =
+        (pressure_star->data[index + grid->stride[component]] -
+         pressure_star->data[index]) *
+        grid->inverse_spacing[component];
+    laplacian_x = i == nx - 1
+        ? optimized_upper_second_difference(
+              grid, problem, eta, index, i, j, k, velocity_time,
+              DIRECTION_X, component)
+        : optimized_interior_second_difference(
+              grid, eta, index, DIRECTION_X);
+    laplacian_y = j == ny - 1
+        ? optimized_upper_second_difference(
+              grid, problem, zeta, index, i, j, k, velocity_time,
+              DIRECTION_Y, component)
+        : optimized_interior_second_difference(
+              grid, zeta, index, DIRECTION_Y);
+    laplacian_z = k == nz - 1
+        ? optimized_upper_second_difference(
+              grid, problem, velocity, index, i, j, k, velocity_time,
+              DIRECTION_Z, component)
+        : optimized_interior_second_difference(
+              grid, velocity, index, DIRECTION_Z);
+    source_without_drag =
+        problem->forcing(coordinate[DIRECTION_X], coordinate[DIRECTION_Y],
+                         coordinate[DIRECTION_Z], forcing_time, component) -
+        pressure_gradient +
+        config->viscosity * (laplacian_x + laplacian_y + laplacian_z);
+
+    /*
+     * beta = dt*nu/(2*gamma) and K = dt*nu/(2*(beta-1)).  Substitution in
+     * xi = u + dt/beta * (source - nu/K*u) gives
+     *
+     *   source_scale = 2*gamma/nu
+     *   source_scale*nu/K = 2 - 2*source_scale/dt.
+     *
+     * The caller supplies these scales, so the hot RHS reconstructs neither
+     * beta nor K and contains no scalar division.  All finite differences,
+     * forcing coordinates and time levels remain those of evaluate_g.
+     */
+    scaled_drag = (Real)2 - source_scale * two_over_dt;
+    return velocity->data[index] + source_scale * source_without_drag -
+           scaled_drag * velocity->data[index] - eta->data[index];
+}
+
 void optimized_momentum_solve_x(const Grid *grid,
                                 const SolverConfig *config,
                                 const ProblemDefinition *problem,
@@ -104,62 +259,125 @@ void optimized_momentum_solve_x(const Grid *grid,
     const size_t nx = grid->extent[DIRECTION_X];
     const size_t ny = grid->extent[DIRECTION_Y];
     const size_t nz = grid->extent[DIRECTION_Z];
-    Real *tmp = scratch->data;
-    Real *rhs = tmp + nx;
-    Real *increment = rhs + nx;
-    size_t j;
+    const Real two_over_viscosity = (Real)2 / config->viscosity;
+    const Real two_over_dt = (Real)2 / config->dt;
+    const size_t batch_storage = MOMENTUM_X_LINE_BATCH * nx;
+    Real *modified_superdiagonal = scratch->data;
+    Real *rhs = modified_superdiagonal + batch_storage;
     size_t k;
 
-    assert(scratch->capacity >= 3 * nx);
+    assert(scratch->capacity >= 2 * batch_storage);
     for (k = 0; k < nz; ++k) {
-        for (j = 0; j < ny; ++j) {
-            const size_t offset = grid_index(grid, 0, j, k);
-            Real inverse_diagonal;
+        size_t first_j;
+        for (first_j = 0; first_j < ny;
+             first_j += MOMENTUM_X_LINE_BATCH) {
+            const size_t line_count =
+                ny - first_j < MOMENTUM_X_LINE_BATCH
+                    ? ny - first_j
+                    : MOMENTUM_X_LINE_BATCH;
+            Real last_increment[MOMENTUM_X_LINE_BATCH];
+            size_t line;
             size_t i;
-            tmp[0] = (Real)0;
-            rhs[0] = evaluate_velocity_boundary_increment(
-                grid, config, problem, 0, j, k, timestep, component);
+
+            /*
+             * Each line remains an X-contiguous stream, but four independent
+             * Thomas recurrences advance at every level.  This preserves the
+             * fused RHS/forward pass of the baseline while giving the CPU
+             * independent divisions to overlap; no full-grid packing or
+             * second read of gamma is introduced.
+             */
+            for (line = 0; line < line_count; ++line) {
+                const size_t j = first_j + line;
+                Real *line_coefficient =
+                    modified_superdiagonal + line * nx;
+                Real *line_rhs = rhs + line * nx;
+
+                line_coefficient[0] = (Real)0;
+                line_rhs[0] = evaluate_velocity_boundary_increment(
+                    grid, config, problem, 0, j, k, timestep, component);
+            }
+
             for (i = 1; i + 1 < nx; ++i) {
-                const size_t index = offset + i;
-                const Real w = -gamma->data[index] *
-                               grid->inverse_spacing_square[DIRECTION_X];
-                inverse_diagonal =
-                    (Real)1 /
-                    (((Real)1 - (Real)2 * w) - w * tmp[i - 1]);
-                tmp[i] = w * inverse_diagonal;
-                rhs[i] = evaluate_momentum_x_rhs(
-                    grid, config, problem, eta, zeta, velocity,
-                    pressure_star, gamma, i, j, k, timestep, component);
-                rhs[i] = (rhs[i] - w * rhs[i - 1]) * inverse_diagonal;
+                for (line = 0; line < line_count; ++line) {
+                    const size_t j = first_j + line;
+                    const size_t index = grid_index(grid, i, j, k);
+                    Real *line_coefficient =
+                        modified_superdiagonal + line * nx;
+                    Real *line_rhs = rhs + line * nx;
+                    const Real gamma_value = gamma->data[index];
+                    const Real w =
+                        -gamma_value *
+                        grid->inverse_spacing_square[DIRECTION_X];
+                    const Real inverse_diagonal =
+                        (Real)1 /
+                        (((Real)1 - (Real)2 * w) -
+                         w * line_coefficient[i - 1]);
+                    line_coefficient[i] = w * inverse_diagonal;
+                    line_rhs[i] = optimized_momentum_x_rhs(
+                        grid, config, problem, eta, zeta, velocity,
+                        pressure_star, i, j, k, timestep, component,
+                        gamma_value * two_over_viscosity, two_over_dt);
+                    line_rhs[i] =
+                        (line_rhs[i] - w * line_rhs[i - 1]) *
+                        inverse_diagonal;
+                }
             }
-            if (component == DIRECTION_X) {
-                increment[nx - 1] = evaluate_velocity_boundary_increment(
-                    grid, config, problem, nx - 1, j, k, timestep,
-                    component);
-            } else {
-                const size_t index = offset + nx - 1;
-                const Real w = -gamma->data[index] *
-                               grid->inverse_spacing_square[DIRECTION_X];
-                const Real boundary = evaluate_velocity_boundary_increment(
-                    grid, config, problem, nx - 1, j, k, timestep,
-                    component);
-                rhs[nx - 1] = evaluate_momentum_x_rhs(
-                    grid, config, problem, eta, zeta, velocity,
-                    pressure_star, gamma, nx - 1, j, k, timestep,
-                    component) - (Real)2 * w * boundary;
-                inverse_diagonal =
-                    (Real)1 /
-                    (((Real)1 - (Real)3 * w) - w * tmp[nx - 2]);
-                rhs[nx - 1] =
-                    (rhs[nx - 1] - w * rhs[nx - 2]) * inverse_diagonal;
-                increment[nx - 1] = rhs[nx - 1];
+
+            for (line = 0; line < line_count; ++line) {
+                const size_t j = first_j + line;
+                const size_t index = grid_index(grid, nx - 1, j, k);
+                Real *line_coefficient =
+                    modified_superdiagonal + line * nx;
+                Real *line_rhs = rhs + line * nx;
+                if (component == DIRECTION_X) {
+                    line_rhs[nx - 1] =
+                        evaluate_velocity_boundary_increment(
+                            grid, config, problem, nx - 1, j, k,
+                            timestep, component);
+                } else {
+                    const Real gamma_value = gamma->data[index];
+                    const Real w =
+                        -gamma_value *
+                        grid->inverse_spacing_square[DIRECTION_X];
+                    const Real boundary =
+                        evaluate_velocity_boundary_increment(
+                            grid, config, problem, nx - 1, j, k,
+                            timestep, component);
+                    const Real inverse_diagonal =
+                        (Real)1 /
+                        (((Real)1 - (Real)3 * w) -
+                         w * line_coefficient[nx - 2]);
+                    line_rhs[nx - 1] =
+                        optimized_momentum_x_rhs(
+                            grid, config, problem, eta, zeta, velocity,
+                            pressure_star, nx - 1, j, k, timestep,
+                            component, gamma_value * two_over_viscosity,
+                            two_over_dt) -
+                        (Real)2 * w * boundary;
+                    line_rhs[nx - 1] =
+                        (line_rhs[nx - 1] - w * line_rhs[nx - 2]) *
+                        inverse_diagonal;
+                }
+                last_increment[line] = line_rhs[nx - 1];
+                eta->data[grid_index(grid, nx - 1, first_j + line, k)] +=
+                    last_increment[line];
             }
+
+            /* Back substitution consumes only the next value, so the update
+             * is applied immediately instead of storing an increment field. */
             i = nx - 1;
             while (i-- > 0) {
-                increment[i] = rhs[i] - tmp[i] * increment[i + 1];
-            }
-            for (i = 0; i < nx; ++i) {
-                eta->data[offset + i] += increment[i];
+                for (line = 0; line < line_count; ++line) {
+                    const size_t index =
+                        grid_index(grid, i, first_j + line, k);
+                    Real *line_coefficient =
+                        modified_superdiagonal + line * nx;
+                    Real *line_rhs = rhs + line * nx;
+                    last_increment[line] =
+                        line_rhs[i] -
+                        line_coefficient[i] * last_increment[line];
+                    eta->data[index] += last_increment[line];
+                }
             }
         }
     }

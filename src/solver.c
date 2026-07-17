@@ -8,13 +8,13 @@
 #include <time.h>
 
 #ifndef SOLVER_DEFAULT_NX
-#define SOLVER_DEFAULT_NX 128
+#define SOLVER_DEFAULT_NX 64
 #endif
 #ifndef SOLVER_DEFAULT_NY
-#define SOLVER_DEFAULT_NY 128
+#define SOLVER_DEFAULT_NY 64
 #endif
 #ifndef SOLVER_DEFAULT_NZ
-#define SOLVER_DEFAULT_NZ 128
+#define SOLVER_DEFAULT_NZ 64
 #endif
 #ifndef SOLVER_DEFAULT_DT
 #define SOLVER_DEFAULT_DT 0.001
@@ -298,6 +298,24 @@ static double average_ms(uint64_t total_ns, size_t steps)
         : (double)total_ns / (double)steps / 1.0e6;
 }
 
+static double average_us_per_cell(uint64_t total_ns,
+                                  size_t steps,
+                                  size_t cell_count)
+{
+    return steps == 0 || cell_count == 0
+        ? 0.0
+        : (double)total_ns / (double)steps / (double)cell_count / 1.0e3;
+}
+
+static double average_ns_per_cell(uint64_t total_ns,
+                                  size_t steps,
+                                  size_t cell_count)
+{
+    return steps == 0 || cell_count == 0
+        ? 0.0
+        : (double)total_ns / (double)steps / (double)cell_count;
+}
+
 void solver_print_stats(const Solver *solver, FILE *stream)
 {
     const size_t steps = solver->stats.completed_steps;
@@ -311,6 +329,10 @@ void solver_print_stats(const Solver *solver, FILE *stream)
             average_ms(solver->stats.momentum_kernel_ns[DIRECTION_Z], steps));
     fprintf(stream, "Momentum total mean: %.3f ms\n",
             average_ms(solver->stats.momentum_total_ns, steps));
+    fprintf(stream, "Momentum X per cell: %.6f ns/(step cell)\n",
+            average_ns_per_cell(
+                solver->stats.momentum_kernel_ns[DIRECTION_X], steps,
+                solver->grid.cell_count));
     fprintf(stream, "Pressure X/Y/Z mean: %.3f / %.3f / %.3f ms\n",
             average_ms(solver->stats.pressure_kernel_ns[DIRECTION_X], steps),
             average_ms(solver->stats.pressure_kernel_ns[DIRECTION_Y], steps),
@@ -319,8 +341,15 @@ void solver_print_stats(const Solver *solver, FILE *stream)
             average_ms(solver->stats.pressure_update_ns, steps));
     fprintf(stream, "Pressure total mean: %.3f ms\n",
             average_ms(solver->stats.pressure_total_ns, steps));
+    fprintf(stream, "Pressure X per cell: %.6f ns/(step cell)\n",
+            average_ns_per_cell(
+                solver->stats.pressure_kernel_ns[DIRECTION_X], steps,
+                solver->grid.cell_count));
     fprintf(stream, "Timestep compute mean: %.3f ms\n",
             average_ms(solver->stats.timestep_compute_ns, steps));
+    fprintf(stream, "Timestep compute per cell: %.6f us/(step cell)\n",
+            average_us_per_cell(solver->stats.timestep_compute_ns, steps,
+                                solver->grid.cell_count));
     fprintf(stream, "Output total: %.3f ms\n",
             (double)solver->stats.output_ns / 1.0e6);
 }

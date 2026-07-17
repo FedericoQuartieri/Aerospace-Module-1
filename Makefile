@@ -25,6 +25,9 @@ CORRECTNESS_OPTIMIZED = $(BUILD_DIR)/test_correctness_optimized
 KERNEL_TEST = $(BUILD_DIR)/test_kernel_equivalence
 CONVERGENCE_TEST = $(BUILD_DIR)/test_convergence
 OUTPUT_TEST = $(BUILD_DIR)/test_output
+STATS_TEST = $(BUILD_DIR)/test_stats
+BENCHMARK_STANDARD = $(BUILD_DIR)/benchmark_x_standard
+BENCHMARK_OPTIMIZED = $(BUILD_DIR)/benchmark_x_optimized
 
 all: $(STANDARD) $(OPTIMIZED)
 
@@ -63,11 +66,28 @@ $(OUTPUT_TEST): $(COMMON_SOURCES) src/kernels_standard.c test/test_output.c | $(
 	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_STANDARD \
 		$^ -o $@ $(LDLIBS)
 
-test: $(CORRECTNESS_STANDARD) $(CORRECTNESS_OPTIMIZED) $(KERNEL_TEST) $(OUTPUT_TEST)
+$(STATS_TEST): $(COMMON_SOURCES) src/kernels_standard.c \
+		test/test_stats.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_STANDARD \
+		$^ -o $@ $(LDLIBS)
+
+$(BENCHMARK_STANDARD): $(COMMON_SOURCES) src/kernels_standard.c \
+		test/benchmark_x.c test/manufactured_cases.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_STANDARD \
+		$^ -o $@ $(LDLIBS)
+
+$(BENCHMARK_OPTIMIZED): $(COMMON_SOURCES) src/kernels_optimized.c \
+		test/benchmark_x.c test/manufactured_cases.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DSOLVER_BACKEND=SOLVER_BACKEND_OPTIMIZED \
+		$^ -o $@ $(LDLIBS)
+
+test: $(CORRECTNESS_STANDARD) $(CORRECTNESS_OPTIMIZED) $(KERNEL_TEST) \
+		$(OUTPUT_TEST) $(STATS_TEST)
 	$(CORRECTNESS_STANDARD)
 	$(CORRECTNESS_OPTIMIZED)
 	$(KERNEL_TEST)
 	$(OUTPUT_TEST)
+	$(STATS_TEST)
 
 test-convergence: $(CONVERGENCE_TEST)
 	$(CONVERGENCE_TEST)
@@ -78,7 +98,9 @@ run-standard: $(STANDARD)
 run-optimized: $(OPTIMIZED)
 	$(OPTIMIZED)
 
+benchmark-x: $(BENCHMARK_STANDARD) $(BENCHMARK_OPTIMIZED)
+
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all test test-convergence run-standard run-optimized clean
+.PHONY: all test test-convergence run-standard run-optimized benchmark-x clean

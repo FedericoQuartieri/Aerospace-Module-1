@@ -9,6 +9,11 @@ compile time:
 La precisione predefinita è `double`. I campi vettoriali usano un layout SoA e
 la direzione X è contigua in memoria.
 
+La descrizione completa delle formule, dei sistemi di Thomas, degli accessi in
+memoria e delle implementazioni `STANDARD`/`OPTIMIZED` è disponibile in
+[`docs/kernel-design.md`](docs/kernel-design.md). L'architettura generale è
+descritta in [`docs/solver-design.md`](docs/solver-design.md).
+
 ## Configurazione e build
 
 Dalla radice del repository:
@@ -68,7 +73,9 @@ l'API C si possono assegnare separatamente i tre elementi di `config.extent`.
 La spaziatura staggered è calcolata come `2L / (2N - 1)`.
 
 Al termine l'eseguibile stampa backend, timestep completati e statistiche
-temporali. Il tempo di output è riportato separatamente dal tempo di calcolo.
+temporali, inclusi microsecondi e nanosecondi per timestep e per cella. Il tempo
+di output è riportato separatamente dal tempo di calcolo e non entra nella
+metrica normalizzata.
 
 ## Test di correttezza
 
@@ -172,6 +179,56 @@ I parametri dello studio sono intenzionalmente espliciti in
 Dopo una modifica ricompilare `test_convergence`. Conservare almeno tre livelli
 di raffinamento e non usare griglie oltre 64³ nei test.
 
+## Benchmark dei kernel X
+
+Il benchmark prestazionale è separato da CTest: non è un test numerico e può
+usare 128³, mentre correttezza e convergenza restano limitate a 64³. Compilare
+i due probe con:
+
+```sh
+cmake --build build \
+  --target benchmark_x_standard benchmark_x_optimized \
+  --parallel 4
+```
+
+Un'esecuzione singola stampa CSV con il costo del momentum X, della pressione X
+e dell'intero timestep in nanosecondi per step e per cella:
+
+```sh
+./build/benchmark_x_optimized \
+  --grid 128 --warmup 2 --steps 10 --workload paper
+```
+
+`--workload` accetta `paper` oppure `synthetic`. Il secondo usa callback
+algebriche leggere per rendere più visibile il costo del solver tridiagonale.
+Il warmup modifica normalmente lo stato ma viene escluso dalle misure; l'output
+VTI è sempre disabilitato.
+
+Per valutare una modifica confrontare l'eseguibile candidato con un eseguibile
+ottimizzato congelato prima della modifica:
+
+```sh
+python3 benchmark_x.py \
+  --baseline /percorso/baseline/benchmark_x_optimized \
+  --candidate build/benchmark_x_optimized \
+  --target momentum --repeats 5 \
+  --csv benchmark-x-raw.csv
+```
+
+In alternativa si possono usare `benchmark_x_standard` e
+`benchmark_x_optimized` della stessa build per confrontare i backend. Lo script
+alterna l'ordine delle esecuzioni, riporta mediana e MAD relativa su 64³ e 128³
+e termina con `gate=PASS` soltanto se:
+
+- il rumore massimo è al più 3%;
+- la metrica X scelta migliora almeno del 15% a 128³ su entrambi i workload;
+- il timestep paper migliora almeno del 5% a 128³;
+- metrica scelta e timestep non regrediscono oltre il 2% a 64³.
+
+Il comando restituisce codice 0 quando il gate passa e 2 quando fallisce. Non
+sono previste esecuzioni a 256³. Motivazioni, varianti scartate e misure della
+soluzione adottata sono raccolte in `docs/x-kernel-performance.md`.
+
 ## Tutti i test e le etichette CTest
 
 Per eseguire l'intera suite:
@@ -187,6 +244,7 @@ ctest --test-dir build -L correctness --output-on-failure
 ctest --test-dir build -L kernel      --output-on-failure
 ctest --test-dir build -L convergence --output-on-failure
 ctest --test-dir build -L output      --output-on-failure
+ctest --test-dir build -L stats       --output-on-failure
 ctest --test-dir build -L sanitizer   --output-on-failure
 ```
 

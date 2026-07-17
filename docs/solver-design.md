@@ -21,6 +21,8 @@ Le implementazioni dei kernel numerici non fanno parte di questa proposta. Le lo
 interfacce sono definite in modo da non impedire future implementazioni SIMD,
 cache-blocked o specifiche per una particolare architettura. L'implementazione
 corrente, corretta e convergente, costituisce il contratto numerico da preservare.
+Il design dettagliato delle implementazioni realizzate successivamente è
+raccolto in `docs/kernel-design.md`.
 
 ## 2. Obiettivi
 
@@ -493,10 +495,11 @@ target_compile_definitions(solver_optimized PRIVATE
 
 Con il layout row-major corrente, X è contiguo. Questo rende Dxx favorevole alla
 cache, ma la ricorrenza di Thomas lungo X impedisce di vettorizzare direttamente
-il loop sui punti della singola linea. Per usare SIMD occorre lavorare su più
-sistemi X indipendenti, i cui elementi non sono naturalmente adiacenti nello
-stesso vettore. Le future opzioni includono packing di più righe, trasposizione a
-blocchi o un layout interno specifico del backend.
+il loop sui punti della singola linea. Il momentum ottimizzato avanza quattro
+sistemi X indipendenti allo stesso livello della ricorrenza: resta scalare, ma
+espone instruction-level parallelism senza packing e conserva linee contigue.
+Packing, trasposizione a blocchi o un layout interno specifico restano opzioni
+del backend soltanto se superano il gate prestazionale.
 
 Per Dyy e Dzz, invece, più sistemi indipendenti corrispondono a posizioni X
 adiacenti. Un loop esterno sulla ricorrenza Y/Z e un inner loop sulle X contigue
@@ -504,9 +507,9 @@ espone naturalmente parallelismo al compilatore. Per questo motivo il backend
 standard deve essere scritto in forma semplice e auto-vettorizzabile prima di
 introdurre altre intrinsics esplicite.
 
-La stessa osservazione vale per la pressione. Dxx di velocità e pressione resta
-la principale area di ottimizzazione futura e non deve essere vincolata dal
-modello pubblico dei campi.
+La stessa osservazione vale per la pressione, il cui Dxx resta una possibile
+area di ottimizzazione e non deve essere vincolato dal modello pubblico dei
+campi.
 
 ## 5. Principi del modello dati
 
@@ -851,6 +854,16 @@ Per ogni quantità cumulativa relativa al solve viene stampata la media:
 mean = cumulative_ns / completed_steps
 ```
 
+Il tempo di calcolo del timestep viene inoltre normalizzato per il numero di
+celle, senza includere l'output sincrono:
+
+```text
+ns_per_step_per_cell = timestep_compute_ns
+                     / completed_steps
+                     / grid.cell_count
+us_per_step_per_cell = ns_per_step_per_cell / 1000
+```
+
 Il report minimo contiene:
 
 - tempo totale di inizializzazione;
@@ -859,6 +872,8 @@ Il report minimo contiene:
 - media di ciascun kernel pressione Dxx/Dyy/Dzz;
 - media del pressure solver completo;
 - media del tempo di calcolo totale per timestep;
+- tempo medio dei kernel X e del timestep per cella, in nanosecondi;
+- tempo medio del timestep per cella, anche in microsecondi;
 - tempo di output separato;
 - nome del backend compilato.
 
@@ -1146,10 +1161,10 @@ Un header interno seleziona simboli concreti a compile-time:
 #endif
 ```
 
-Il suffisso `optimized` identifica il backend con SIMD esplicita, anche quando il
-primo adattatore Dxx è ancora scalare. Questo consente di sostituire in futuro
-solo `optimized_momentum_solve_x` e `optimized_pressure_solve_x` senza modificare
-il solver.
+Il suffisso `optimized` identifica il backend con SIMD esplicita in Y/Z e con
+batching di ricorrenze scalari indipendenti nel momentum X. La pressione X resta
+scalare. I due kernel X possono cambiare internamente senza modificare il
+solver.
 
 ### 16.2 Orchestrazione di un timestep
 
@@ -1380,13 +1395,13 @@ L'architettura deve preservare i seguenti vincoli:
 14. standard e ottimizzato devono produrre risultati numericamente equivalenti e
     attraversare le stesse regole per `g` e boundary conditions.
 
-### 19.1 Priorità delle ottimizzazioni future
+### 19.1 Priorità delle ottimizzazioni X
 
-La prima priorità è Dxx per momentum e pressione. La dipendenza di Thomas è
-lungo la dimensione contigua e impedisce la SIMD sul singolo sistema. Le
-ottimizzazioni dovranno quindi valutare parallelismo fra sistemi diversi, costo
-del packing, riuso dei coefficienti e traffico aggiuntivo introdotto da eventuali
-trasposizioni.
+La dipendenza di Thomas è lungo la dimensione contigua e impedisce la SIMD sul
+singolo sistema. Il momentum X adotta parallelismo fra quattro sistemi senza
+packing; ulteriori proposte, in particolare per la pressione, devono misurare il
+costo del packing, il riuso dei coefficienti e il traffico aggiuntivo. Il gate e
+gli esperimenti scartati sono descritti in `docs/x-kernel-performance.md`.
 
 Per Dyy e Dzz la priorità iniziale è invece scrivere un backend standard con:
 
@@ -1687,7 +1702,8 @@ Sono state confermate le seguenti decisioni:
 6. i valori assoluti e gli incrementi delle boundary conditions hanno la
    semantica descritta nella sezione 4.2;
 7. `pressure_star` deve persistere perché è necessario al calcolo di `g` in Dxx;
-8. Dxx di velocità e pressione è la principale area di ottimizzazione futura;
+8. il momentum Dxx usa batching di sistemi indipendenti; la pressione Dxx resta
+   un'area di ottimizzazione solo in presenza di un guadagno end-to-end;
 9. le tre componenti della velocità hanno lo stesso numero di elementi;
 10. la velocità è memorizzata ai tempi interi, mentre pressione e correzione sono
     memorizzate ai tempi seminteri;
