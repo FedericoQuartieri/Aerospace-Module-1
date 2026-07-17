@@ -14,6 +14,7 @@
 #include "pressure.h"
 #include "pressure_system.h"
 #include "data.h"
+#include "init.h"
 
 bool solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K, 
             VelocityField Eta, VelocityField Zeta, VelocityField U, 

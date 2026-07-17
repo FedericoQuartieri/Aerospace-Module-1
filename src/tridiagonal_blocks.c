@@ -85,7 +85,7 @@ void simd_Thomas_Algorithm(DTYPE *__restrict__ simd_w, unsigned int n, DTYPE *__
     For every x in this window we solve one tridiagonal system along y:
 
 */
-void optimized_simd_solve_Dyy_tridiag_blocks(DTYPE *__restrict__ Zeta_next, DTYPE *__restrict__ rhs, DTYPE *__restrict__ Gamma, const Data *__restrict__ data, bool same_direction, int v_component, int time_step) {
+void optimized_simd_solve_Dyy_tridiag_blocks(DTYPE *__restrict__ Zeta_next, DTYPE *__restrict__ rhs, DTYPE *__restrict__ Gamma, const Data *__restrict__ data, bool same_direction, int v_component, int time_step, DTYPE *simd_tmp, DTYPE *simd_update, DTYPE *bc_right, DTYPE *scalar_w) {
 
     VTYPE minus_dy = VSET1((DTYPE) -DY_INVERSE_SQUARE);
     int slice_dim = 4; // Number of SIMD vectors treated as one cache-friendly block.
@@ -95,10 +95,10 @@ void optimized_simd_solve_Dyy_tridiag_blocks(DTYPE *__restrict__ Zeta_next, DTYP
     VTYPE vect_two = VSET1((DTYPE) 2.0);
     VTYPE vect_three = VSET1((DTYPE) 3.0);
 
-    DTYPE *simd_tmp = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE) * slice_size);
-    DTYPE *simd_update = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE) * slice_size);
-    DTYPE *bc_right = (DTYPE *) malloc(slice_size * sizeof(DTYPE));
-    DTYPE *scalar_w = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
+/*     DTYPE *simd_tmp = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE) * slice_size);
+    DTYPE *simd_update = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE) * slice_size);
+    DTYPE *bc_right = (DTYPE *) xmalloc(slice_size * sizeof(DTYPE));
+    DTYPE *scalar_w = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE)); */
 
     for(int k = 0; k < DEPTH; k++){
         int i = 0;
@@ -239,10 +239,10 @@ void optimized_simd_solve_Dyy_tridiag_blocks(DTYPE *__restrict__ Zeta_next, DTYP
         }
     }
 
-    free(simd_tmp);
+/*     free(simd_tmp);
     free(simd_update);
     free(bc_right);
-    free(scalar_w);
+    free(scalar_w); */
 }
 
 /*
@@ -254,7 +254,7 @@ void optimized_simd_solve_Dyy_tridiag_blocks(DTYPE *__restrict__ Zeta_next, DTYP
     For a fixed y and a window of contiguous x positions, every SIMD lane solves one line along z:
        
 */
-void optimized_simd_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *__restrict__ rhs, DTYPE *__restrict__ Gamma, const Data *__restrict__ data, bool same_direction, int v_component, int time_step) {
+void optimized_simd_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *__restrict__ rhs, DTYPE *__restrict__ Gamma, const Data *__restrict__ data, bool same_direction, int v_component, int time_step, DTYPE *simd_tmp, DTYPE *simd_update, DTYPE *bc_right, DTYPE *scalar_w) {
     /*
         Similar to optimized_simd_solve_Dyy_tridiag_blocks but for the z direction.
         The main difference is that the tridiagonal system is now along the depth dimension, so
@@ -268,10 +268,10 @@ void optimized_simd_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *
     VTYPE vect_two = VSET1((DTYPE) 2.0);
     VTYPE vect_three = VSET1((DTYPE) 3.0);
 
-    DTYPE *simd_tmp = (DTYPE *) malloc(DEPTH * sizeof(DTYPE) * slice_size);
-    DTYPE *simd_update = (DTYPE *) malloc(DEPTH * sizeof(DTYPE) * slice_size);
-    DTYPE *bc_right = (DTYPE *) malloc(slice_size * sizeof(DTYPE));
-    DTYPE *scalar_w = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
+/*     DTYPE *simd_tmp = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE) * slice_size);
+    DTYPE *simd_update = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE) * slice_size);
+    DTYPE *bc_right = (DTYPE *) xmalloc(slice_size * sizeof(DTYPE));
+    DTYPE *scalar_w = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE)); */
 
     for(int j = 0; j < HEIGHT; j++){
         int i = 0;
@@ -314,7 +314,6 @@ void optimized_simd_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *
                 }
 
             }
-
 
             /* right bc */
             for(int x = 0; x < slice_size; x++){
@@ -406,11 +405,11 @@ void optimized_simd_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *
             }
         }
     }
-
+/* 
     free(simd_tmp);
     free(simd_update);
     free(bc_right);
-    free(scalar_w);
+    free(scalar_w); */
 
 }
 
@@ -419,10 +418,10 @@ void vectorized_solve_Dyy_tridiag_blocks(DTYPE *__restrict__ Zeta_next, DTYPE *_
         Using SIMD instructions to vectorized the tridiagonal system
         this is based on the VLEN of the SIMD instructions
     */
-    DTYPE *simd_u_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE) * VLEN);
-    DTYPE *simd_w_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE) * VLEN);
-    DTYPE *simd_rhs_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE) * VLEN);
-    DTYPE *simd_tmp_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE) * VLEN);
+    DTYPE *simd_u_block = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE) * VLEN);
+    DTYPE *simd_w_block = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE) * VLEN);
+    DTYPE *simd_rhs_block = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE) * VLEN);
+    DTYPE *simd_tmp_block = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE) * VLEN);
 
     VTYPE minus_dy = VSET1((DTYPE) -DY_INVERSE_SQUARE);
 
@@ -510,10 +509,10 @@ void vectorized_solve_Dzz_tridiag_blocks(DTYPE *__restrict__ U_next, DTYPE *__re
         Using SIMD instructions to vectorized the tridiagonal system
         this is based on the VLEN of the SIMD instructions
     */
-    DTYPE *simd_u_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE) * VLEN);
-    DTYPE *simd_w_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE) * VLEN);
-    DTYPE *simd_rhs_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE) * VLEN);
-    DTYPE *simd_tmp_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE) * VLEN);
+    DTYPE *simd_u_block = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE) * VLEN);
+    DTYPE *simd_w_block = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE) * VLEN);
+    DTYPE *simd_rhs_block = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE) * VLEN);
+    DTYPE *simd_tmp_block = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE) * VLEN);
 
     VTYPE minus_dz = VSET1((DTYPE) - DZ_INVERSE_SQUARE);
 
@@ -727,16 +726,17 @@ void Thomas_Pressure(const DTYPE  w,
         - v_component: which velocity component we are solving for (0, 1, or 2).
         - time_step: required to evaluate boundary conditions and rhs.
 */
-void optimize_solve_Dxx_tridiag_blocks(DTYPE *__restrict__ Eta_prev, DTYPE *__restrict__ Zeta_prev, DTYPE *__restrict__ U_prev, DTYPE *__restrict__ pressure_star, DTYPE *__restrict__ Gamma, const Data *data, bool same_direction, int v_component, int time_step){
+void optimize_solve_Dxx_tridiag_blocks(DTYPE *__restrict__ Eta_prev, DTYPE *__restrict__ Zeta_prev, DTYPE *__restrict__ U_prev, DTYPE *__restrict__ pressure_star, DTYPE *__restrict__ Gamma, const Data *data, bool same_direction, int v_component, int time_step, DTYPE *tmp, DTYPE *rhs, DTYPE *u) {
 
     /* 
         In the Dxx system, Thomas need weights on the same row, so it will access it contiguously in memory
         one row at a time, so we can directly take the values from Gamma without the need of a temporary array for the weights
     */
 
-    DTYPE *tmp = (DTYPE *) malloc(WIDTH * sizeof(DTYPE)); /* coeff reduction from Thomas system */
-    DTYPE *rhs = (DTYPE *) malloc(WIDTH * sizeof(DTYPE)); 
-    DTYPE *u = (DTYPE *) malloc(WIDTH * sizeof(DTYPE)); /* solution of the current row, will be stored in Eta at the end of Thomas */
+//     DTYPE *tmp = (DTYPE *) xmalloc(WIDTH * sizeof(DTYPE)); /* coeff reduction from Thomas system */
+//    DTYPE *rhs = (DTYPE *) xmalloc(WIDTH * sizeof(DTYPE)); 
+//   DTYPE *u = (DTYPE *) xmalloc(WIDTH * sizeof(DTYPE)); /* solution of the current row, will be stored in Eta at the end of Thomas */
+     
     DTYPE bc_left, bc_right;
 
     for(int k = 0; k < DEPTH; k++){
@@ -801,16 +801,16 @@ void optimize_solve_Dxx_tridiag_blocks(DTYPE *__restrict__ Eta_prev, DTYPE *__re
         }
     }
 
-    free(tmp);
+/*     free(tmp);
     free(rhs);
-    free(u);
+    free(u); */
 }
 
 void solve_Dxx_tridiag_blocks(DTYPE *__restrict__ Eta_next_component, DTYPE *__restrict__ rhs, DTYPE *__restrict__ Gamma, const Data *data, bool same_direction, int v_component, int time_step){
 
     // Initialize temporary arrays 
-    DTYPE *w = (DTYPE *) malloc(GRID_SIZE);
-    DTYPE *tmp = (DTYPE *) malloc(WIDTH * sizeof(DTYPE)); 
+    DTYPE *w = (DTYPE *) xmalloc(GRID_SIZE);
+    DTYPE *tmp = (DTYPE *) xmalloc(WIDTH * sizeof(DTYPE)); 
     memset(tmp, 0, WIDTH * sizeof(DTYPE));
 
     for(int k = 0; k < DEPTH; k++){
@@ -842,11 +842,11 @@ void solve_Dxx_tridiag_blocks(DTYPE *__restrict__ Eta_next_component, DTYPE *__r
 
 void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, const Data *data, bool same_direction, int v_component, int time_step){
     // Buffer riutilizzati per ogni colonna (i,k)
-    DTYPE *f_block   = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
-    DTYPE *u_block   = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
-    DTYPE *w_block   = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
-    DTYPE *tmp_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
-    DTYPE *rhs_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
+    DTYPE *f_block   = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE));
+    DTYPE *u_block   = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE));
+    DTYPE *w_block   = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE));
+    DTYPE *tmp_block = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE));
+    DTYPE *rhs_block = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE));
 
     if (!f_block || !u_block || !w_block || !tmp_block|| !rhs_block) {
         free(f_block); free(u_block); free(w_block); free(tmp_block); free(rhs_block);
@@ -887,11 +887,11 @@ void solve_Dyy_tridiag_blocks(DTYPE *Zeta_next, DTYPE *rhs, DTYPE *Gamma, const 
 
 void solve_Dzz_tridiag_blocks(DTYPE *U_next, DTYPE *rhs, DTYPE *Gamma, const Data *data, bool same_direction, int v_component, int time_step){
     // Buffer riutilizzati per ogni colonna (i,k)
-    DTYPE *f_block   = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
-    DTYPE *u_block   = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
-    DTYPE *w_block   = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
-    DTYPE *tmp_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
-    DTYPE *rhs_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
+    DTYPE *f_block   = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE));
+    DTYPE *u_block   = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE));
+    DTYPE *w_block   = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE));
+    DTYPE *tmp_block = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE));
+    DTYPE *rhs_block = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE));
 
 
     if (!f_block || !u_block || !w_block || !tmp_block || !rhs_block) {

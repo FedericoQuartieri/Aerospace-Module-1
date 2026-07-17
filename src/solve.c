@@ -80,7 +80,20 @@ bool solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K,
     
     uint64_t solver_time[7] = {0, 0, 0, 0, 0, 0, 0};
     uint64_t time_solve = 0;
-    
+
+
+    /* Allocate the memory needed for temporary array by the momentum system and the pressure system once */
+    DTYPE *tmp_dxx = NULL, *rhs_dxx = NULL, *u_dxx = NULL;
+    DTYPE *simd_tmp_dyy = NULL, *simd_update_dyy = NULL, *bc_right_dyy = NULL, *scalar_w_dyy = NULL;
+    DTYPE *simd_tmp_dzz = NULL, *simd_update_dzz = NULL, *bc_right_dzz = NULL, *scalar_w_dzz = NULL;
+    if (!init_temporary_arrays(&tmp_dxx, &rhs_dxx, &u_dxx, &simd_tmp_dyy, &simd_update_dyy, &bc_right_dyy, &scalar_w_dyy,
+        &simd_tmp_dzz, &simd_update_dzz, &bc_right_dzz, &scalar_w_dzz)) {
+        fprintf(stderr, "ERROR: could not allocate temporary solver arrays\n");
+        success = false;
+        goto cleanup;
+    }
+
+
     /* 
         t=0 is set as the exact solution by definition, so we should 
         start to solve at t = 1 
@@ -98,7 +111,9 @@ bool solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K,
 
         
         /* here we set all the boundary as the delta of boundary(t) - boundary(t-1) */
-        solve_momentum_system(U, Eta, Zeta, &pressure_star, Xi, g_field, Delta, rhs, Beta, Gamma, data, t, solver_time);
+        solve_momentum_system(U, Eta, Zeta, &pressure_star, Xi, g_field, Delta, rhs, Beta, Gamma, data, t, solver_time, 
+            tmp_dxx, rhs_dxx, u_dxx, simd_tmp_dyy, simd_update_dyy, bc_right_dyy, scalar_w_dyy,
+            simd_tmp_dzz, simd_update_dzz, bc_right_dzz, scalar_w_dzz);
         
         solve_pressure_system(U, &pressure, &pressure_star, &psi, &phi_lower, &phi_higher, solver_time);
         
@@ -151,7 +166,7 @@ bool solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K,
     }
 
     /* Print the mean solver times for Dxx, Dyy, Dzz*/
-     printf("Average compute_eta_next time: %.3f ms\n", solver_time[0] / (double)STEPS);
+    printf("Average compute_eta_next time: %.3f ms\n", solver_time[0] / (double)STEPS);
     printf("Average compute_zeta_next time: %.3f ms\n", solver_time[1] / (double)STEPS);
     printf("Average compute_u_next time: %.3f ms\n", solver_time[2] / (double)STEPS);
     printf("Average compute_Psi time: %.3f ms\n", solver_time[3] / (double)STEPS);
@@ -160,6 +175,10 @@ bool solve (GField g_field, const Data *data, Pressure pressure, DTYPE* K,
     printf("Average compute_pressure time: %.3f ms\n", solver_time[6] / (double)STEPS);
  
     printf("Average total solve time per step: %.3f ms\n", time_solve / (double)STEPS);
+
+cleanup:
+    free_temporary_arrays(tmp_dxx, rhs_dxx, u_dxx, simd_tmp_dyy, simd_update_dyy, bc_right_dyy, scalar_w_dyy,
+        simd_tmp_dzz, simd_update_dzz, bc_right_dzz, scalar_w_dzz);
 
     free_velocity_field(&Xi);
     free_velocity_field(&Delta);

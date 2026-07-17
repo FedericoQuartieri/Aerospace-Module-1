@@ -5,21 +5,21 @@
 // ==================== CONFIGURABLE VIA CMAKE ====================
 // Grid dimensions (overridable via -DWIDTH_OVERRIDE=N etc.)
 #ifdef WIDTH_OVERRIDE
-    #define WIDTH WIDTH_OVERRIDE
+    #define WIDTH (size_t)WIDTH_OVERRIDE
 #else
-    #define WIDTH 256
+    #define WIDTH (size_t)128 
 #endif
 
 #ifdef HEIGHT_OVERRIDE
-    #define HEIGHT HEIGHT_OVERRIDE
+    #define HEIGHT (size_t)HEIGHT_OVERRIDE
 #else
-    #define HEIGHT 256
+    #define HEIGHT (size_t)128
 #endif
 
 #ifdef DEPTH_OVERRIDE
-    #define DEPTH DEPTH_OVERRIDE
+    #define DEPTH (size_t)DEPTH_OVERRIDE
 #else
-    #define DEPTH 256
+    #define DEPTH (size_t)128
 #endif
 
 // Grid spatial dimension (number of elements)

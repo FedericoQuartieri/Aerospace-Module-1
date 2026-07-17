@@ -27,8 +27,8 @@ void solve_pressure_system(VelocityField U_next, Pressure *pressure, Pressure *p
 
 void compute_Psi(VelocityField U_next, Pressure *psi){
     // Initialize temporary arrays 
-    DTYPE *tmp = (DTYPE *) malloc(WIDTH * sizeof(DTYPE));
-    DTYPE *rhs = (DTYPE *) malloc(GRID_SIZE);
+    DTYPE *tmp = (DTYPE *) xmalloc(WIDTH * sizeof(DTYPE));
+    DTYPE *rhs = (DTYPE *) xmalloc(GRID_SIZE);
 
     /* 
         In the left boundaries points impose the div(U) = 0
@@ -76,9 +76,9 @@ void compute_Psi(VelocityField U_next, Pressure *psi){
 
 void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
     // Initialize temporary arrays 
-    DTYPE *rhs_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
-    DTYPE *u_block = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
-    DTYPE *tmp = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
+    DTYPE *rhs_block = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE));
+    DTYPE *u_block = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE));
+    DTYPE *tmp = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE));
 
     
     Pressure rhs;
@@ -128,22 +128,22 @@ void compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
 };
                         
 void compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
-    DTYPE *rhs_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
-    DTYPE *u_block = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
-    DTYPE *tmp_thomas = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
+    DTYPE *rhs_block = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE));
+    DTYPE *u_block = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE));
+    DTYPE *tmp_thomas = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE));
     
     Pressure rhs;
-        initialize_pressure(&rhs);
-        for(int k = 0; k < DEPTH; k++){
-            for(int j = 0; j < HEIGHT; j++){
-                for(int i = 0; i < WIDTH; i++){
-                    size_t idx = rowmaj_idx(i,j,k);
+    initialize_pressure(&rhs);
+    for(int k = 0; k < DEPTH; k++){
+        for(int j = 0; j < HEIGHT; j++){
+            for(int i = 0; i < WIDTH; i++){
+                size_t idx = rowmaj_idx(i,j,k);
 
-                    rhs.p[idx] = phi_lower->p[idx];
+                rhs.p[idx] = phi_lower->p[idx];
                     
-                }
             }
         }
+    }
 
     DTYPE w = - DZ_INVERSE_SQUARE;
 
@@ -190,8 +190,8 @@ void optimize_compute_Phi_higher(Pressure *phi_lower, Pressure *phi_higher){
     int slice_dim = 16; // Number of SIMD vectors treated as one cache-friendly block.
     int slice_size = slice_dim * VLEN;
 
-    DTYPE *simd_tmp = (DTYPE *) malloc(DEPTH * sizeof(DTYPE) * slice_size);
-    DTYPE *scalar_rhs = (DTYPE *) malloc(DEPTH * sizeof(DTYPE));
+    DTYPE *simd_tmp = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE) * slice_size);
+    DTYPE *scalar_rhs = (DTYPE *) xmalloc(DEPTH * sizeof(DTYPE));
     DTYPE *rhs = phi_lower->p;
 
     if(!simd_tmp || !scalar_rhs){
@@ -332,8 +332,8 @@ void optimize_compute_Phi_lower(Pressure *psi, Pressure *phi_lower){
     int slice_dim = 16; // Number of SIMD vectors treated as one cache-friendly block.
     int slice_size = slice_dim * VLEN;
 
-    DTYPE *simd_tmp = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE) * slice_size);
-    DTYPE *scalar_rhs = (DTYPE *) malloc(HEIGHT * sizeof(DTYPE));
+    DTYPE *simd_tmp = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE) * slice_size);
+    DTYPE *scalar_rhs = (DTYPE *) xmalloc(HEIGHT * sizeof(DTYPE));
     DTYPE *rhs = psi->p;
 
     if(!simd_tmp || !scalar_rhs){

@@ -43,11 +43,11 @@ int main(){
 
     // Set K that is needed to compute Gamma
     // K depends also on the spatial coordinate
-    DTYPE *K = (DTYPE *) malloc(GRID_SIZE);
+    DTYPE *K = (DTYPE *) xmalloc(GRID_SIZE);
     const_fill(K); // fill with all 1 for now 
     
-    DTYPE *Beta = (DTYPE *) malloc(GRID_SIZE);
-    DTYPE *Gamma = (DTYPE *) malloc(GRID_SIZE);
+    DTYPE *Beta = (DTYPE *) xmalloc(GRID_SIZE);
+    DTYPE *Gamma = (DTYPE *) xmalloc(GRID_SIZE);
     for(int k = 0; k < DEPTH; k++){
         for(int j = 0; j < HEIGHT; j++){
             for(int i = 0; i < WIDTH; i++){

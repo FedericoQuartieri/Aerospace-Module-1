@@ -3,9 +3,9 @@
 #include <string.h>
 
 void initialize_force_field(ForceField *f_field) {
-    f_field->f_x = (DTYPE*) malloc(GRID_SIZE);
-    f_field->f_y = (DTYPE*) malloc(GRID_SIZE);
-    f_field->f_z = (DTYPE*) malloc(GRID_SIZE);
+    f_field->f_x = (DTYPE*) xmalloc(GRID_SIZE);
+    f_field->f_y = (DTYPE*) xmalloc(GRID_SIZE);
+    f_field->f_z = (DTYPE*) xmalloc(GRID_SIZE);
 }
 
 void rand_fill_force_field(ForceField *f_field) {

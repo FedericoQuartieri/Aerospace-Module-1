@@ -15,22 +15,25 @@ void solve_momentum_system(VelocityField U,
                            DTYPE *Gamma,          
                            const Data *data,
                            int timestep,
-                           uint64_t *solver_time
+                           uint64_t *solver_time,
+                            DTYPE *tmp_dxx, DTYPE *rhs_dxx, DTYPE *u_dxx,
+                             DTYPE *simd_tmp_dyy, DTYPE *simd_update_dyy, DTYPE *bc_right_dyy, DTYPE *scalar_w_dyy,
+                             DTYPE *simd_tmp_dzz, DTYPE *simd_update_dzz, DTYPE *bc_right_dzz, DTYPE *scalar_w_dzz
                         )
 {     
 
     //compute_xi(g_field, U, Xi, Beta); // only needed for basic version of Dxx_tridiag
     
     uint64_t time = time_ns();
-    compute_eta_next(Eta, Delta, Zeta, U, pressure_star, rhs, Xi, Gamma, data, timestep);
+    compute_eta_next(Eta, Delta, Zeta, U, pressure_star, rhs, Xi, Gamma, data, timestep, tmp_dxx, rhs_dxx, u_dxx);
     solver_time[0] += (time_ns() - time) / 1e6;
 
     time = time_ns();
-    compute_zeta_next(Zeta, Delta, rhs, Eta, Gamma, data, timestep);
+    compute_zeta_next(Zeta, Delta, rhs, Eta, Gamma, data, timestep, simd_tmp_dyy, simd_update_dyy, bc_right_dyy, scalar_w_dyy);
     solver_time[1] += (time_ns() - time) / 1e6;
 
     time = time_ns();
-    compute_u_next(U, Delta, rhs, Zeta, Gamma, data, timestep);
+    compute_u_next(U, Delta, rhs, Zeta, Gamma, data, timestep, simd_tmp_dzz, simd_update_dzz, bc_right_dzz, scalar_w_dzz);
     solver_time[2] += (time_ns() - time) / 1e6;
 }
 
@@ -53,7 +56,7 @@ void solve_momentum_system(VelocityField U,
 */
 
 /* (I - ∂xx) (Eta_n+1 - Eta_n) = Xi - Eta_n */
-void compute_eta_next(VelocityField Eta, VelocityField Delta, VelocityField Zeta, VelocityField U, Pressure *pressure_star, ForceField rhs, VelocityField Xi, DTYPE *Gamma, const Data *data, int timestep){
+void compute_eta_next(VelocityField Eta, VelocityField Delta, VelocityField Zeta, VelocityField U, Pressure *pressure_star, ForceField rhs, VelocityField Xi, DTYPE *Gamma, const Data *data, int timestep, DTYPE *tmp_dxx, DTYPE *rhs_dxx, DTYPE *u_dxx){
 
      
     // rhs = Xi - Eta_n
@@ -91,9 +94,9 @@ void compute_eta_next(VelocityField Eta, VelocityField Delta, VelocityField Zeta
     */
 
     //START(optimize_tridiag_dxx);
-     optimize_solve_Dxx_tridiag_blocks(Eta.v_x, Zeta.v_x, U.v_x, pressure_star->p, Gamma, data, true, 0, timestep);
-    optimize_solve_Dxx_tridiag_blocks(Eta.v_y, Zeta.v_y, U.v_y, pressure_star->p, Gamma, data, false, 1, timestep);
-    optimize_solve_Dxx_tridiag_blocks(Eta.v_z, Zeta.v_z, U.v_z, pressure_star->p, Gamma, data, false, 2, timestep);
+    optimize_solve_Dxx_tridiag_blocks(Eta.v_x, Zeta.v_x, U.v_x, pressure_star->p, Gamma, data, true, 0, timestep, tmp_dxx, rhs_dxx, u_dxx);
+    optimize_solve_Dxx_tridiag_blocks(Eta.v_y, Zeta.v_y, U.v_y, pressure_star->p, Gamma, data, false, 1, timestep, tmp_dxx, rhs_dxx, u_dxx);
+    optimize_solve_Dxx_tridiag_blocks(Eta.v_z, Zeta.v_z, U.v_z, pressure_star->p, Gamma, data, false, 2, timestep, tmp_dxx, rhs_dxx, u_dxx);
      //END_MS(optimize_tridiag_dxx);
     //printf("Dxx_tridiag = %.3f ms\n", END_MS(optimize_tridiag_dxx));
  
@@ -119,7 +122,7 @@ void compute_eta_next(VelocityField Eta, VelocityField Delta, VelocityField Zeta
 }
 
 /* (I - ∂yy) (Zeta_n+1 - Zeta_n) = Eta_n+1 - Zeta_n */
-void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceField rhs, VelocityField Eta, DTYPE *Gamma, const Data *data, int timestep){
+void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceField rhs, VelocityField Eta, DTYPE *Gamma, const Data *data, int timestep, DTYPE *simd_tmp_dyy, DTYPE *simd_update_dyy, DTYPE *bc_right_dyy, DTYPE *scalar_w_dyy){
     
     // rhs = Eta_n+1 - Zeta_n
      for(int k = 0; k < DEPTH; k++){
@@ -150,9 +153,9 @@ void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceField rhs, 
    */    
   
     //START(optimized_simd_tridiag_dyy);
-    optimized_simd_solve_Dyy_tridiag_blocks(Zeta.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
-    optimized_simd_solve_Dyy_tridiag_blocks(Zeta.v_y, rhs.f_y, Gamma, data, true, 1, timestep);
-    optimized_simd_solve_Dyy_tridiag_blocks(Zeta.v_z, rhs.f_z, Gamma, data, false, 2, timestep);
+    optimized_simd_solve_Dyy_tridiag_blocks(Zeta.v_x, rhs.f_x, Gamma, data, false, 0, timestep, simd_tmp_dyy, simd_update_dyy, bc_right_dyy, scalar_w_dyy);
+    optimized_simd_solve_Dyy_tridiag_blocks(Zeta.v_y, rhs.f_y, Gamma, data, true, 1, timestep, simd_tmp_dyy, simd_update_dyy, bc_right_dyy, scalar_w_dyy);
+    optimized_simd_solve_Dyy_tridiag_blocks(Zeta.v_z, rhs.f_z, Gamma, data, false, 2, timestep, simd_tmp_dyy, simd_update_dyy, bc_right_dyy, scalar_w_dyy);
       //END_MS(optimized_simd_tridiag_dyy);
     //printf("Dyy_tridiag_optimized_simd = %.3f ms\n", END_MS(optimized_simd_tridiag_dyy));
 
@@ -183,7 +186,7 @@ void compute_zeta_next(VelocityField Zeta, VelocityField Delta, ForceField rhs, 
 }
 
 /* (I - ∂zz) (U_n+1 - U_n) = Zeta_n+1 - U_n */
-void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs, VelocityField Zeta, DTYPE *Gamma, const Data *data, int timestep){
+void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs, VelocityField Zeta, DTYPE *Gamma, const Data *data, int timestep, DTYPE *simd_tmp_dzz, DTYPE *simd_update_dzz, DTYPE *bc_right_dzz, DTYPE *scalar_w_dzz){
     
     // rhs = Zeta_n+1 - U_n
     for(int k = 0; k < DEPTH; k++){
@@ -215,9 +218,9 @@ void compute_u_next(VelocityField U, VelocityField Delta, ForceField rhs, Veloci
      */ 
 
     //START(optimized_simd_tridiag_dzz);
-    optimized_simd_solve_Dzz_tridiag_blocks(U.v_x, rhs.f_x, Gamma, data, false, 0, timestep);
-    optimized_simd_solve_Dzz_tridiag_blocks(U.v_y, rhs.f_y, Gamma, data, false, 1, timestep);
-    optimized_simd_solve_Dzz_tridiag_blocks(U.v_z, rhs.f_z, Gamma, data, true, 2, timestep);
+    optimized_simd_solve_Dzz_tridiag_blocks(U.v_x, rhs.f_x, Gamma, data, false, 0, timestep, simd_tmp_dzz, simd_update_dzz, bc_right_dzz, scalar_w_dzz);
+    optimized_simd_solve_Dzz_tridiag_blocks(U.v_y, rhs.f_y, Gamma, data, false, 1, timestep, simd_tmp_dzz, simd_update_dzz, bc_right_dzz, scalar_w_dzz);
+    optimized_simd_solve_Dzz_tridiag_blocks(U.v_z, rhs.f_z, Gamma, data, true, 2, timestep, simd_tmp_dzz, simd_update_dzz, bc_right_dzz, scalar_w_dzz);
       //END_MS(optimized_simd_tridiag_dzz);
     //printf("Dzz_tridiag_optimized_simd = %.3f ms\n", END_MS(optimized_simd_tridiag_dzz));
      

@@ -3,9 +3,9 @@
 #include <string.h>
 
 void initialize_velocity_field(VelocityField *v_field) {
-    v_field->v_x = (DTYPE*) malloc(GRID_SIZE);
-    v_field->v_y = (DTYPE*) malloc(GRID_SIZE);
-    v_field->v_z = (DTYPE*) malloc(GRID_SIZE);
+    v_field->v_x = (DTYPE*) xmalloc(GRID_SIZE);
+    v_field->v_y = (DTYPE*) xmalloc(GRID_SIZE);
+    v_field->v_z = (DTYPE*) xmalloc(GRID_SIZE);
 
 }
 

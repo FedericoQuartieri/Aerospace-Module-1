@@ -393,7 +393,7 @@ void run_convergence_test(FILE *output_fp, ExactSolution *exact, const Data *tes
     print_result_json(output_fp, &result);
     
     /* Also print summary to stderr for visibility */
-    fprintf(stderr, "Grid: %dx%dx%d, DX=%.4e, DT=%.4e\n", WIDTH, HEIGHT, DEPTH, DX, DT);
+    fprintf(stderr, "Grid: %zux%zux%zu, DX=%.4e, DT=%.4e\n", WIDTH, HEIGHT, DEPTH, DX, DT);
     fprintf(stderr, "  Vel L2 errors: [%.4e, %.4e, %.4e]\n", 
             result.vel_err[0].L2, result.vel_err[1].L2, result.vel_err[2].L2);
     fprintf(stderr, "  Pressure L2 error: %.4e\n", result.pres_err.L2);
@@ -431,8 +431,8 @@ int main(int argc, char *argv[]) {
     //ExactSolution exact_zero_pressure = zero_pressure_manufactured_solution();
     //run_convergence_test(output_fp, &exact_zero_pressure, &ZERO_PRESSURE_TEST_DATA);
 
-    //ExactSolution exact_auteri = auteri_manufactured_solution();
-    //run_convergence_test(output_fp, &exact_auteri, &AUTERI_TEST_DATA);
+//    ExactSolution exact_auteri = auteri_manufactured_solution();
+  //  run_convergence_test(output_fp, &exact_auteri, &AUTERI_TEST_DATA);
 
     if (output_fp != stdout) {
         fclose(output_fp);

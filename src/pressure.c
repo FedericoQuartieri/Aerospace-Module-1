@@ -3,7 +3,7 @@
 #include <string.h>
 
 void initialize_pressure(Pressure *pressure){
-    pressure->p = (DTYPE *) malloc(GRID_SIZE);
+    pressure->p = (DTYPE *) xmalloc(GRID_SIZE);
     memset(pressure->p, 0, GRID_SIZE);
 }
 

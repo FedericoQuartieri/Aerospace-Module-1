@@ -352,6 +352,17 @@ int main(void) {
     TYPE *grad_y   = malloc(GRID_ELEMENTS * sizeof(TYPE));
     TYPE *grad_z   = malloc(GRID_ELEMENTS * sizeof(TYPE));   
 
+    if (!pressure || !grad_x || !grad_y || !grad_z) {
+        fprintf(stderr, "Failed to allocate %.2f GiB for %zu grid elements.\n",
+                (4.0 * GRID_ELEMENTS * sizeof(TYPE)) / (1024.0 * 1024.0 * 1024.0),
+                GRID_ELEMENTS);
+        free(pressure);
+        free(grad_x);
+        free(grad_y);
+        free(grad_z);
+        return EXIT_FAILURE;
+    }
+
     rand_fill(pressure);
     set_grad_zero(grad_x,grad_y,grad_z);
 

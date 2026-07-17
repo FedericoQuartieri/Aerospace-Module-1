@@ -30,7 +30,7 @@ static bool write_interleaved_velocity(FILE *f,
 {
     const size_t tuples_per_chunk = 16384;
     const size_t chunk_elems = 3 * tuples_per_chunk;
-    DTYPE *buffer = (DTYPE *)malloc(chunk_elems * sizeof(DTYPE));
+    DTYPE *buffer = (DTYPE *)xmalloc(chunk_elems * sizeof(DTYPE));
     if (!buffer) {
         fprintf(stderr, "ERROR: unable to allocate VTI write buffer\n");
         return false;

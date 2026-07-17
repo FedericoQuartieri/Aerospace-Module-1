@@ -2,9 +2,9 @@
 #include "data.h"
 
 void initialize_g_field(GField *g_field){
-    g_field->g_x = (DTYPE *) malloc(GRID_SIZE);
-    g_field->g_y = (DTYPE *) malloc(GRID_SIZE);
-    g_field->g_z = (DTYPE *) malloc(GRID_SIZE);
+    g_field->g_x = (DTYPE *) xmalloc(GRID_SIZE);
+    g_field->g_y = (DTYPE *) xmalloc(GRID_SIZE);
+    g_field->g_z = (DTYPE *) xmalloc(GRID_SIZE);
 
     memset(g_field->g_x, 0, GRID_SIZE);
     memset(g_field->g_y, 0, GRID_SIZE);

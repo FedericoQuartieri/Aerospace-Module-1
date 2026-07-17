@@ -9,6 +9,9 @@
 #include <time.h>
 #include "../include/constants.h"
 
+// Execute malloc() and exit with error if failure occurred
+void *xmalloc(size_t size);
+
 // Compute the row-major index for a 3D grid, with: i = width, j = height, k = depth
 static inline size_t rowmaj_idx(size_t i, size_t j, size_t k) {
     return k * (WIDTH * HEIGHT) + j * WIDTH + i;
