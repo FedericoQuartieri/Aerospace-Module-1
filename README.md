@@ -272,6 +272,29 @@ Il comando restituisce codice 0 quando il gate passa e 2 quando fallisce. Non
 sono previste esecuzioni a 256³. Motivazioni, varianti scartate e misure della
 soluzione adottata sono raccolte in `docs/x-kernel-performance.md`.
 
+### Prestazioni end-to-end del solver
+
+I grafici seguenti usano il tempo di calcolo dell'intero timestep, con output
+disabilitato. Le metriche sono le stesse del grafico `performance.png`:
+
+- `MLUPS = celle / tempo / 10^6`;
+- tempo per cella in secondi.
+
+![Throughput del solver in MLUPS](docs/solver-performance-mlups.svg)
+
+![Tempo del solver per cella](docs/solver-performance-time-per-cell.svg)
+
+Le misure sono state raccolte in singolo core su Apple M1, precisione `double`,
+build `Release` (`-O3 -DNDEBUG`) e workload manufactured `paper`. Ogni punto è
+la mediana di cinque esecuzioni alternate dei backend `STANDARD` e `OPTIMIZED`;
+il warmup e l'I/O sono esclusi. I valori mediani sorgente sono in
+[`docs/solver-performance.csv`](docs/solver-performance.csv). Per rigenerare i
+due SVG senza dipendenze Python esterne:
+
+```sh
+python3 plot_solver_performance.py
+```
+
 ## Tutti i test e le etichette CTest
 
 Per eseguire l'intera suite:
