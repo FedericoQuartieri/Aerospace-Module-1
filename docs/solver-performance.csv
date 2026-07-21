@@ -1,7 +1,0 @@
-backend,extent,warmup,steps,repeats,timestep_ns_per_cell
-standard,32,5,30,5,130.370076497
-optimized,32,5,30,5,106.725056966
-standard,64,3,20,5,123.978233337
-optimized,64,3,20,5,103.614616394
-standard,128,2,10,5,135.639286041
-optimized,128,2,10,5,109.861612320
