@@ -6,7 +6,7 @@
 void scalarField_alloc(ScalarField *sf);
 void vectorField_alloc(VectorField *vf);
 
-void scalarField_fill(ScalarField *sf, ScalarFunction);
-void vectorField_fill(VectorField *vf, VectorFunction);
+void scalarField_fill(ScalarField *sf, ScalarFunction scalar_fn, int t_step);
+void vectorField_fill(VectorField *vf, VectorFunction vector_fn, int t_step);
 
 #endif

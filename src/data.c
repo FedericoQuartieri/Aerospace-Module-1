@@ -10,6 +10,10 @@
 #define REAL_COS cos
 #endif
 
+
+/* In this example, the bc_velocity concide with the paper function, but in general 
+ * it could be not known, tha's why we have two functions: bc_velocity and velocity_fn (t=0)
+ * */
 static Real paper_bc_velocity(Real x, Real y, Real z, Real t, int component)
 {
     switch (component) {
@@ -69,17 +73,21 @@ Real porosity_fn(Real x, Real y, Real z, Real t, int component) {
 
 /* Exact velocity values at t = 0 */
 Real paper_velocity_fn(Real x, Real y, Real z, Real t, int component) {
-    switch(component) {
-        case 0: return 1;
-        case 1: return 1;
-        case 2: return 1;
-        default: return 0.0;
-    }
+     switch (component) {
+        case 0:
+            return REAL_SIN(x) * REAL_COS(t + y) * REAL_SIN(z);
+        case 1:
+            return REAL_COS(x) * REAL_SIN(t + y) * REAL_SIN(z);
+        case 2:
+            return 2.0f * REAL_COS(x) * REAL_COS(t + y) * REAL_COS(z);
+        default:
+            return 0.0;
+     }
 }
 
 /* Exact pressure values at t = 1/2 */ // TODO:Should I set t = 1/2 ?
 Real paper_pressure_fn(Real x, Real y, Real z, Real t) {
-    return 1;
+    return - 3.0f * NU * REAL_COS(x) * REAL_COS(t + y) * REAL_COS(z);
 }
 
 const Data paper_data = {

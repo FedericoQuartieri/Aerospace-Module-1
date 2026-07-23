@@ -18,16 +18,17 @@ void solver_init(SolverMemState *solver_mem_state,
     vectorField_alloc(&solver_mem_state->u);
     
     // Fill velocity with values at t=0
-    vectorField_fill(&solver_mem_state->eta, data->velocity_fn);
-    vectorField_fill(&solver_mem_state->zeta, data->velocity_fn);
-    vectorField_fill(&solver_mem_state->u, data->velocity_fn);
+    vectorField_fill(&solver_mem_state->eta, data->velocity_fn, 0);
+    vectorField_fill(&solver_mem_state->zeta, data->velocity_fn, 0);
+    vectorField_fill(&solver_mem_state->u, data->velocity_fn, 0);
     
-    // Fill pressure with values at t=1/2
-    scalarField_fill(&solver_mem_state->pressure, data->pressure_fn);
-    scalarField_fill(&solver_mem_state->pressure_star, data->pressure_fn);
+    // Fill pressure with values at t=0 (it should be from t=-DT/2 becouse pressure
+    // is staggered in time also
+    scalarField_fill(&solver_mem_state->pressure, data->pressure_fn, 0);
+    scalarField_fill(&solver_mem_state->pressure_star, data->pressure_fn, 0);
     
-    // Fill porosity field
-    vectorField_fill(&solver_mem_state->k, data->porosity_fn);
+    // Fill porosity field (currently is supposed to be constant in time)
+    vectorField_fill(&solver_mem_state->k, data->porosity_fn, 0);
 }
 
 void solver_solve(SolverMemState *solver_mem_state, Data *data) {
@@ -51,8 +52,6 @@ void solver_solve(SolverMemState *solver_mem_state, Data *data) {
     free(rhs);
     free(tmp);
 }
-
-
 
 
 
