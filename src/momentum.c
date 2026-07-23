@@ -4,12 +4,14 @@
 /* eta: rhs = u + (DT/beta)*g - eta 
  * v_comp = [x:0, y:1, z:2]
  * */
-void update_eta(SolverMemState *solver_mem_state, Real *rhs, Real *tmp,
-        Data *data, int t_step, int v_comp) {
+void update_eta(SolverMemState *solver_mem_state,
+                Real *restrict rhs,
+                Real *restrict tmp,
+                Data *data, int t_step, int v_comp) {
         
-    Real *restrict k_porosity;
-    Real *restrict u;
-    Real *restrict eta;
+    const Real *restrict k_porosity;
+    const Real *restrict u;
+    Real *eta;
 
     switch(v_comp) {
         case 0:
@@ -56,7 +58,8 @@ void update_eta(SolverMemState *solver_mem_state, Real *rhs, Real *tmp,
                 const Real beta_i = beta_from_k(k_i);
                 const Real xi_i =
                     u[off+i] + (DT/beta_i)*g_value(i, j, k, t_step, k_i,
-                                                 solver_mem_state, data);
+                                                 solver_mem_state, data,
+                                                 v_comp);
                 rhs[i] = xi_i - eta[off + i];
                 rhs[i] = (rhs[i] - w_i * rhs[i - 1]) * norm_coeff;
             }
@@ -68,7 +71,7 @@ void update_eta(SolverMemState *solver_mem_state, Real *rhs, Real *tmp,
             const Real xi_i =
                 u[off+WIDTH-1]
                 + (DT/beta_i)*g_value(WIDTH-1, j, k, t_step, k_i,
-                                      solver_mem_state, data);
+                                      solver_mem_state, data, v_comp);
             rhs[WIDTH-1] = xi_i - eta[off+WIDTH-1];
             const Real right_value =
                 bc_right(data->bc_velocity, WIDTH-1, j, k, t_step, v_comp);
@@ -95,10 +98,12 @@ void update_eta(SolverMemState *solver_mem_state, Real *rhs, Real *tmp,
 /* zeta:
  * rhs = eta - zeta
  */
-void update_zeta(SolverMemState *solver_mem_state, Real *rhs, Real *tmp,
-                  Data *data, int t_step, int v_comp) {
-    Real *restrict k_porosity;
-    Real *restrict eta;
+void update_zeta(SolverMemState *solver_mem_state,
+                 Real *restrict rhs,
+                 Real *restrict tmp,
+                 Data *data, int t_step, int v_comp) {
+    const Real *restrict k_porosity;
+    const Real *restrict eta;
     Real *restrict zeta;
 
     switch(v_comp) {
@@ -177,10 +182,12 @@ void update_zeta(SolverMemState *solver_mem_state, Real *rhs, Real *tmp,
 /* u:
  * rhs = zeta - u
  */
-void update_u(SolverMemState *solver_mem_state, Real *rhs, Real *tmp,
+void update_u(SolverMemState *solver_mem_state,
+              Real *restrict rhs,
+              Real *restrict tmp,
               Data *data, int t_step, int v_comp) {
-    Real *restrict k_porosity;
-    Real *restrict zeta;
+    const Real *restrict k_porosity;
+    const Real *restrict zeta;
     Real *restrict u;
 
     switch(v_comp) {
@@ -266,8 +273,10 @@ void update_u(SolverMemState *solver_mem_state, Real *rhs, Real *tmp,
     }
 }
 
-void momentum_step(SolverMemState *solver_mem_state, Real *rhs, Real *tmp, 
-        Data *data, int t_step) {
+void momentum_step(SolverMemState *solver_mem_state,
+                   Real *restrict rhs,
+                   Real *restrict tmp,
+                   Data *data, int t_step) {
     
     // eta: compute next update for the three component
     update_eta(solver_mem_state, rhs, tmp, data, t_step, 0);

@@ -22,8 +22,7 @@ void solver_init(SolverMemState *solver_mem_state,
     vectorField_fill(&solver_mem_state->zeta, data->velocity_fn, 0);
     vectorField_fill(&solver_mem_state->u, data->velocity_fn, 0);
     
-    // Fill pressure with values at t=0 (it should be from t=-DT/2 becouse pressure
-    // is staggered in time also
+    // Fill pressure with values at t=0
     scalarField_fill(&solver_mem_state->pressure, data->pressure_fn, 0);
     scalarField_fill(&solver_mem_state->pressure_star, data->pressure_fn, 0);
     
@@ -36,8 +35,8 @@ void solver_solve(SolverMemState *solver_mem_state, Data *data) {
     // to be shared among the component.
     size_t big_dim = (WIDTH > HEIGHT) ? WIDTH : HEIGHT;
     big_dim = (big_dim > DEPTH) ? big_dim : DEPTH;
-    Real *rhs = xmalloc(big_dim * sizeof(Real));
-    Real *tmp = xmalloc(big_dim * sizeof(Real));
+    Real *restrict rhs = xmalloc(big_dim * sizeof(Real));
+    Real *restrict tmp = xmalloc(big_dim * sizeof(Real));
 
     for (int t_step = 1; t_step < STEPS; t_step++) {
         // Momentum system
@@ -45,13 +44,12 @@ void solver_solve(SolverMemState *solver_mem_state, Data *data) {
 
 
         // Pressure system
-
+        pressure_step(solver_mem_state, rhs, tmp, data, t_step);
     }
 
     
     free(rhs);
     free(tmp);
 }
-
 
 

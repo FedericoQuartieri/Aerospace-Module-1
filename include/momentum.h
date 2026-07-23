@@ -4,14 +4,22 @@
 #include "types.h"
 #include <stdbool.h>
 
-void momentum_step(SolverMemState *solver_mem_state, Real *rhs, Real *tmp, 
-                Data *data, int t_step);
+void momentum_step(SolverMemState *solver_mem_state,
+                   Real *restrict rhs,
+                   Real *restrict tmp,
+                   Data *data, int t_step);
 
-void update_eta(SolverMemState *solver_mem_state, Real *rhs, Real *tmp,
+void update_eta(SolverMemState *solver_mem_state,
+                Real *restrict rhs,
+                Real *restrict tmp,
                 Data *data, int t_step, int v_comp);
-void update_zeta(SolverMemState *solver_mem_state, Real *rhs, Real *tmp,
-                Data *data, int t_step, int v_comp);
-void update_u(SolverMemState *solver_mem_state, Real *rhs, Real *tmp,
-                Data *data, int t_step, int v_comp);
+void update_zeta(SolverMemState *solver_mem_state,
+                 Real *restrict rhs,
+                 Real *restrict tmp,
+                 Data *data, int t_step, int v_comp);
+void update_u(SolverMemState *solver_mem_state,
+              Real *restrict rhs,
+              Real *restrict tmp,
+              Data *data, int t_step, int v_comp);
 
 #endif

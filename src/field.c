@@ -16,8 +16,11 @@ void vectorField_alloc(VectorField *vf) {
     vf->v_z = xmalloc(field_size);
 }
 
-void vectorField_fill(VectorField *vf, VectorFunction vector_fn, int t_step) {
+void vectorField_fill(VectorField *restrict vf, VectorFunction vector_fn, int t_step) {
     const Real t = time_physical_coord(t_step);
+    Real *restrict v_x = vf->v_x;
+    Real *restrict v_y = vf->v_y;
+    Real *restrict v_z = vf->v_z;
     size_t off = 0;
 
     for (int k = 0; k < DEPTH; k++) {
@@ -27,13 +30,13 @@ void vectorField_fill(VectorField *vf, VectorFunction vector_fn, int t_step) {
                 const Real y = centered_physical_coord(j, 1);
                 const Real z = centered_physical_coord(k, 2);
 
-                vf->v_x[off] =
+                v_x[off] =
                     vector_fn(staggered_physical_coord(i, 0),
                               y, z, t, 0);
-                vf->v_y[off] =
+                v_y[off] =
                     vector_fn(x, staggered_physical_coord(j, 1),
                               z, t, 1);
-                vf->v_z[off] =
+                v_z[off] =
                     vector_fn(x, y,
                               staggered_physical_coord(k, 2),
                               t, 2);
@@ -43,9 +46,11 @@ void vectorField_fill(VectorField *vf, VectorFunction vector_fn, int t_step) {
     }
 }
 
-void scalarField_fill(ScalarField *sf, ScalarFunction scalar_fn, int t_step) {
+void scalarField_fill(ScalarField *restrict sf, ScalarFunction scalar_fn, int t_step) {
     const Real t = time_physical_coord(t_step);
+    Real *restrict v = sf->v;
     size_t off = 0;
+
     for (int k = 0; k < DEPTH; k++) {
         for (int j = 0; j < HEIGHT; j++) {
             for (int i = 0; i < WIDTH; i++) {
@@ -53,7 +58,7 @@ void scalarField_fill(ScalarField *sf, ScalarFunction scalar_fn, int t_step) {
                 const Real y = centered_physical_coord(j, 1);
                 const Real z = centered_physical_coord(k, 2);
 
-                sf->v[off] = scalar_fn(x, y, z, t);
+                v[off] = scalar_fn(x, y, z, t);
                 off++;
             }
         }

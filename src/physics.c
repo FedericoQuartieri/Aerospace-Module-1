@@ -1,4 +1,5 @@
 #include "physics.h"
+#include "solver.h"
 
 static Real spacing_from_component(int component) {
     switch (component) {
@@ -209,4 +210,176 @@ Real bc_right(VectorFunction bc_velocity,
 
 #undef BC_INCREMENT
     return 0.0;
+}
+
+
+static inline Real interior_second_derivative(const Real *restrict field,
+                                              size_t index,
+                                              size_t stride,
+                                              Real inverse_spacing_square) {
+    return (field[index - stride] -
+            2.0 * field[index] +
+            field[index + stride]) * inverse_spacing_square;
+}
+
+static inline Real upper_second_derivative(const Real *restrict field,
+                                           size_t index,
+                                           size_t stride,
+                                           Real boundary_value,
+                                           Real inverse_spacing_square) {
+    return (field[index - stride] -
+            3.0 * field[index] +
+            2.0 * boundary_value) * inverse_spacing_square;
+}
+
+/*
+ * Momentum source at (t_step - 1/2) DT:
+ *
+ *   g = f - grad(p*) - (NU / K) u
+ *       + NU (Dxx(eta) + Dyy(zeta) + Dzz(u)).
+ *
+ * The support excludes lower faces and the upper face normal to the velocity
+ * component.  Tangential upper faces use a Dirichlet ghost value.
+ */
+Real g_value(int i, int j, int k, int t_step, Real k_i,
+             const SolverMemState *solver_mem_state,
+             const Data *data, int component) {
+    const size_t plane_size = (size_t)WIDTH * HEIGHT;
+    const size_t index = (size_t)k * plane_size +
+                         (size_t)j * WIDTH +
+                         (size_t)i;
+    const Real forcing_time = ((Real)t_step - 0.5) * (Real)DT;
+    const Real velocity_time = ((Real)t_step - 1.0) * (Real)DT;
+    const Real upper_x = ((Real)WIDTH - 0.5) * (Real)DX;
+    const Real upper_y = ((Real)HEIGHT - 0.5) * (Real)DY;
+    const Real upper_z = ((Real)DEPTH - 0.5) * (Real)DZ;
+    Real x = (Real)i * (Real)DX;
+    Real y = (Real)j * (Real)DY;
+    Real z = (Real)k * (Real)DZ;
+    const Real *restrict eta;
+    const Real *restrict zeta;
+    const Real *restrict velocity;
+    const Real *restrict pressure = solver_mem_state->pressure_star.v;
+    Real pressure_gradient;
+    Real laplacian_x;
+    Real laplacian_y;
+    Real laplacian_z;
+
+    switch (component) {
+        case 0:
+            if (i < 1 || i >= WIDTH - 1 ||
+                j < 1 || j >= HEIGHT ||
+                k < 1 || k >= DEPTH) {
+                return 0.0;
+            }
+
+            eta = solver_mem_state->eta.v_x;
+            zeta = solver_mem_state->zeta.v_x;
+            velocity = solver_mem_state->u.v_x;
+            x += (Real)DX / 2.0;
+
+            pressure_gradient =
+                (pressure[index + 1] - pressure[index]) *
+                (Real)DX_INVERSE;
+            laplacian_x = interior_second_derivative(
+                eta, index, 1, (Real)DX_INVERSE_SQUARE);
+            laplacian_y = (j == HEIGHT - 1)
+                ? upper_second_derivative(
+                      zeta, index, WIDTH,
+                      data->bc_velocity(x, upper_y, z,
+                                        velocity_time, component),
+                      (Real)DY_INVERSE_SQUARE)
+                : interior_second_derivative(
+                      zeta, index, WIDTH, (Real)DY_INVERSE_SQUARE);
+            laplacian_z = (k == DEPTH - 1)
+                ? upper_second_derivative(
+                      velocity, index, plane_size,
+                      data->bc_velocity(x, y, upper_z,
+                                        velocity_time, component),
+                      (Real)DZ_INVERSE_SQUARE)
+                : interior_second_derivative(
+                      velocity, index, plane_size,
+                      (Real)DZ_INVERSE_SQUARE);
+            break;
+
+        case 1:
+            if (i < 1 || i >= WIDTH ||
+                j < 1 || j >= HEIGHT - 1 ||
+                k < 1 || k >= DEPTH) {
+                return 0.0;
+            }
+
+            eta = solver_mem_state->eta.v_y;
+            zeta = solver_mem_state->zeta.v_y;
+            velocity = solver_mem_state->u.v_y;
+            y += (Real)DY / 2.0;
+
+            pressure_gradient =
+                (pressure[index + WIDTH] - pressure[index]) *
+                (Real)DY_INVERSE;
+            laplacian_x = (i == WIDTH - 1)
+                ? upper_second_derivative(
+                      eta, index, 1,
+                      data->bc_velocity(upper_x, y, z,
+                                        velocity_time, component),
+                      (Real)DX_INVERSE_SQUARE)
+                : interior_second_derivative(
+                      eta, index, 1, (Real)DX_INVERSE_SQUARE);
+            laplacian_y = interior_second_derivative(
+                zeta, index, WIDTH, (Real)DY_INVERSE_SQUARE);
+            laplacian_z = (k == DEPTH - 1)
+                ? upper_second_derivative(
+                      velocity, index, plane_size,
+                      data->bc_velocity(x, y, upper_z,
+                                        velocity_time, component),
+                      (Real)DZ_INVERSE_SQUARE)
+                : interior_second_derivative(
+                      velocity, index, plane_size,
+                      (Real)DZ_INVERSE_SQUARE);
+            break;
+
+        case 2:
+            if (i < 1 || i >= WIDTH ||
+                j < 1 || j >= HEIGHT ||
+                k < 1 || k >= DEPTH - 1) {
+                return 0.0;
+            }
+
+            eta = solver_mem_state->eta.v_z;
+            zeta = solver_mem_state->zeta.v_z;
+            velocity = solver_mem_state->u.v_z;
+            z += (Real)DZ / 2.0;
+
+            pressure_gradient =
+                (pressure[index + plane_size] - pressure[index]) *
+                (Real)DZ_INVERSE;
+            laplacian_x = (i == WIDTH - 1)
+                ? upper_second_derivative(
+                      eta, index, 1,
+                      data->bc_velocity(upper_x, y, z,
+                                        velocity_time, component),
+                      (Real)DX_INVERSE_SQUARE)
+                : interior_second_derivative(
+                      eta, index, 1, (Real)DX_INVERSE_SQUARE);
+            laplacian_y = (j == HEIGHT - 1)
+                ? upper_second_derivative(
+                      zeta, index, WIDTH,
+                      data->bc_velocity(x, upper_y, z,
+                                        velocity_time, component),
+                      (Real)DY_INVERSE_SQUARE)
+                : interior_second_derivative(
+                      zeta, index, WIDTH, (Real)DY_INVERSE_SQUARE);
+            laplacian_z = interior_second_derivative(
+                velocity, index, plane_size,
+                (Real)DZ_INVERSE_SQUARE);
+            break;
+
+        default:
+            return 0.0;
+    }
+
+    return data->forcing_fn(x, y, z, forcing_time, component) -
+           pressure_gradient -
+           ((Real)NU / k_i) * velocity[index] +
+           (Real)NU * (laplacian_x + laplacian_y + laplacian_z);
 }
