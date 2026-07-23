@@ -1,5 +1,5 @@
 CC = cc
-CFLAGS = -std=c11 -Wall -Wextra -Iinclude
+CFLAGS = -std=c11 -O3 -Wall -Wextra -Iinclude
 TARGET = solver
 SOURCES = $(wildcard src/*.c)
 
