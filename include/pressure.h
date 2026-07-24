@@ -3,11 +3,17 @@
 
 #include "solver.h"
 
+/*
+ * Assemble -div(u) / DT at pressure points.  The three lower boundary
+ * faces (i == 0, j == 0 or k == 0) are set to zero.
+ */
+void compute_div(Real *restrict u_div,
+                 const VectorField *restrict u);
+
 void pressure_step(SolverMemState *solver_mem_state,
+                   ScalarField *pressure_buffer,
                    Real *restrict rhs,
                    Real *restrict tmp,
-                   Data *data,
-                   int t_step,
                    SolverStats *solver_stats);
 
 #endif

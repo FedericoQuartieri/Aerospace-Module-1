@@ -39,6 +39,11 @@ typedef struct SolverStats {
     uint64_t eta_sys;
     uint64_t zeta_sys;
     uint64_t u_sys;
+    uint64_t psi_sys;
+    uint64_t phi_low_sys;
+    uint64_t phi_high_sys;
+    uint64_t pressure_update;
+    uint64_t solve_steps;
     uint64_t wr_output;
 } SolverStats;
 

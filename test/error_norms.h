@@ -141,14 +141,14 @@ static inline void print_solver_error_norms(const SolverErrorNorms *errors,
     printf("  Grid: %d x %d x %d\n", WIDTH, HEIGHT, DEPTH);
     printf("  dt: %.2e\n", (double)DT);
     printf("  T:  %.2e\n", (double)T);
-    printf("  Velocity verification time: %.10e\n",
+    printf("  Velocity verification time: %.2e\n",
            (double)velocity_time);
-    printf("  Pressure verification time: %.10e\n",
+    printf("  Pressure verification time: %.2e\n",
            (double)pressure_time);
-    printf("  L2 error u_x: %.10e\n", (double)errors->velocity_x.L2);
-    printf("  L2 error u_y: %.10e\n", (double)errors->velocity_y.L2);
-    printf("  L2 error u_z: %.10e\n", (double)errors->velocity_z.L2);
-    printf("  L2 error p:   %.10e\n", (double)errors->pressure.L2);
+    printf("  L2 error u_x: %.4e\n", (double)errors->velocity_x.L2);
+    printf("  L2 error u_y: %.4e\n", (double)errors->velocity_y.L2);
+    printf("  L2 error u_z: %.4e\n", (double)errors->velocity_z.L2);
+    printf("  L2 error p:   %.4e\n", (double)errors->pressure.L2);
 }
 
 #endif
