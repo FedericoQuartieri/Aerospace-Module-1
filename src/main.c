@@ -10,10 +10,11 @@ int main(int argc, char **argv) {
 
     SolverMemState solver_mem_state;
     Data data = paper_data;
-    
+    SolverStats solver_stats = {0};
+
     solver_init(&solver_mem_state, &data, data_name);
     
-    solver_solve(&solver_mem_state, &data);
+    solver_solve(&solver_mem_state, &data, &solver_stats);
 
     return 0;
 }

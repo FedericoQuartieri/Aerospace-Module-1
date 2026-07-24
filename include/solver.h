@@ -8,9 +8,9 @@
 #include "physics.h"
 #include "utils.h"
 
-#define WIDTH 64
-#define HEIGHT 64
-#define DEPTH 64
+#define WIDTH 128
+#define HEIGHT 128
+#define DEPTH 128
 
 #define GRID_CELLS ((size_t)WIDTH * (size_t)HEIGHT * (size_t)DEPTH)
 
@@ -30,8 +30,8 @@
 #define DY_INVERSE_SQUARE (DY_INVERSE * DY_INVERSE)
 #define DZ_INVERSE_SQUARE (DZ_INVERSE * DZ_INVERSE)
 
-#define T 1e-0
-#define DT 1e-4
+#define T 1e-2
+#define DT 1e-3
 #define STEPS (int)(T/DT)
 // Kinematic viscosity
 #define NU 1.0
@@ -52,6 +52,8 @@ void solver_init(SolverMemState *solver_mem_state,
                  Data *data,
                  const char *data_name);
 
-void solver_solve(SolverMemState *solver_mem_state, Data *data);
+void solver_solve(SolverMemState *solver_mem_state,
+                  Data *data,
+                  SolverStats *solver_stats);
 
 #endif

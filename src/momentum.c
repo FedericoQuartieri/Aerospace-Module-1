@@ -276,21 +276,26 @@ void update_u(SolverMemState *solver_mem_state,
 void momentum_step(SolverMemState *solver_mem_state,
                    Real *restrict rhs,
                    Real *restrict tmp,
-                   Data *data, int t_step) {
+                   Data *data, int t_step, SolverStats *solver_stats) {
     
     // eta: compute next update for the three component
+    uint64_t start_ns = time_ns();
     update_eta(solver_mem_state, rhs, tmp, data, t_step, 0);
     update_eta(solver_mem_state, rhs, tmp, data, t_step, 1);
     update_eta(solver_mem_state, rhs, tmp, data, t_step, 2);
+    solver_stats->eta_sys += time_ns() - start_ns;
 
     // zeta: compute next update for the three component
+    start_ns = time_ns();
     update_zeta(solver_mem_state, rhs, tmp, data, t_step, 0);
     update_zeta(solver_mem_state, rhs, tmp, data, t_step, 1);
     update_zeta(solver_mem_state, rhs, tmp, data, t_step, 2);
-    
+    solver_stats->zeta_sys += time_ns() - start_ns;
+
     // u: compute next update for the three component
+    start_ns = time_ns();
     update_u(solver_mem_state, rhs, tmp, data, t_step, 0);
     update_u(solver_mem_state, rhs, tmp, data, t_step, 1);
     update_u(solver_mem_state, rhs, tmp, data, t_step, 2);
-    
+    solver_stats->u_sys += time_ns() - start_ns;
 }

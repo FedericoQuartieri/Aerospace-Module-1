@@ -63,6 +63,11 @@ static Real paper_forcing(Real x, Real y, Real z, Real t, int component)
 }
 
 Real porosity_fn(Real x, Real y, Real z, Real t, int component) {
+    (void)x;
+    (void)y;
+    (void)z;
+    (void)t;
+
     switch(component) {
         case 0: return 1.0;
         case 1: return 1.0;

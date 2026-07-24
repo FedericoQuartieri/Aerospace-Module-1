@@ -7,7 +7,9 @@
 void momentum_step(SolverMemState *solver_mem_state,
                    Real *restrict rhs,
                    Real *restrict tmp,
-                   Data *data, int t_step);
+                   Data *data,
+                   int t_step,
+                   SolverStats *solver_stats);
 
 void update_eta(SolverMemState *solver_mem_state,
                 Real *restrict rhs,

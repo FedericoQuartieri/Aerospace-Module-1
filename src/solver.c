@@ -1,10 +1,12 @@
 #include "solver.h"
 #include "field.h"
 #include "momentum.h"
+#include "pressure.h"
 
 void solver_init(SolverMemState *solver_mem_state,
                  Data *data,
                  const char *data_name) {
+    (void)data_name;
    
     //TODO: Parse data_name and assign the correspondent Data structure,
     // return error if not matched
@@ -30,7 +32,7 @@ void solver_init(SolverMemState *solver_mem_state,
     vectorField_fill(&solver_mem_state->k, data->porosity_fn, 0);
 }
 
-void solver_solve(SolverMemState *solver_mem_state, Data *data) {
+void solver_solve(SolverMemState *solver_mem_state, Data *data, SolverStats *solver_stats) {
     // This buffer allocate the biggest grid dimension, in order
     // to be shared among the component.
     size_t big_dim = (WIDTH > HEIGHT) ? WIDTH : HEIGHT;
@@ -38,18 +40,18 @@ void solver_solve(SolverMemState *solver_mem_state, Data *data) {
     Real *restrict rhs = xmalloc(big_dim * sizeof(Real));
     Real *restrict tmp = xmalloc(big_dim * sizeof(Real));
 
-    for (int t_step = 1; t_step < STEPS; t_step++) {
+    for (int t_step = 1; t_step <= STEPS; t_step++) {
         // Momentum system
-        momentum_step(solver_mem_state, rhs, tmp, data, t_step);
+        momentum_step(solver_mem_state, rhs, tmp, data, t_step, solver_stats);
 
 
         // Pressure system
-        pressure_step(solver_mem_state, rhs, tmp, data, t_step);
+        pressure_step(solver_mem_state, rhs, tmp, data, t_step, solver_stats);
     }
 
-    
+    // Print solver time statistics
+    print_stats(solver_stats, (size_t)STEPS);
+
     free(rhs);
     free(tmp);
 }
-
-

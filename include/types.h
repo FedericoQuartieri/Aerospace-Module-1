@@ -1,6 +1,8 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+#include <stdint.h>
+
 #ifdef USE_FLOAT
 typedef float Real;
 #else
@@ -31,5 +33,13 @@ typedef struct VectorField {
     Real *v_y;
     Real *v_z;
 } VectorField;
+
+typedef struct SolverStats {
+    /* Accumulated execution times, in nanoseconds. */
+    uint64_t eta_sys;
+    uint64_t zeta_sys;
+    uint64_t u_sys;
+    uint64_t wr_output;
+} SolverStats;
 
 #endif
