@@ -1,0 +1,27 @@
+#ifndef MOMENTUM_H
+#define MOMENTUM_H
+#include "solver.h"
+#include "types.h"
+#include <stdbool.h>
+
+void momentum_step(SolverMemState *solver_mem_state,
+                   Real *restrict rhs,
+                   Real *restrict tmp,
+                   Data *data,
+                   int t_step,
+                   SolverStats *solver_stats);
+
+void update_eta(SolverMemState *solver_mem_state,
+                Real *restrict rhs,
+                Real *restrict tmp,
+                Data *data, int t_step, int v_comp);
+void update_zeta(SolverMemState *solver_mem_state,
+                 Real *restrict rhs,
+                 Real *restrict tmp,
+                 Data *data, int t_step, int v_comp);
+void update_u(SolverMemState *solver_mem_state,
+              Real *restrict rhs,
+              Real *restrict tmp,
+              Data *data, int t_step, int v_comp);
+
+#endif
