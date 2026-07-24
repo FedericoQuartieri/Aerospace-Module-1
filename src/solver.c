@@ -40,18 +40,25 @@ void solver_solve(SolverMemState *solver_mem_state, Data *data, SolverStats *sol
     Real *restrict rhs = xmalloc(big_dim * sizeof(Real));
     Real *restrict tmp = xmalloc(big_dim * sizeof(Real));
 
+    // Used for the pressure_step, this buffer and pressure_star are sufficient to solve it
+    ScalarField pressure_buffer;
+    scalarField_alloc(&pressure_buffer);
+
+    uint64_t start_ns = time_ns();
     for (int t_step = 1; t_step <= STEPS; t_step++) {
         // Momentum system
         momentum_step(solver_mem_state, rhs, tmp, data, t_step, solver_stats);
 
 
         // Pressure system
-        pressure_step(solver_mem_state, rhs, tmp, data, t_step, solver_stats);
+        pressure_step(solver_mem_state, &pressure_buffer, rhs, tmp, solver_stats);
     }
+    solver_stats->solve_steps = time_ns() - start_ns;
 
     // Print solver time statistics
     print_stats(solver_stats, (size_t)STEPS);
 
     free(rhs);
     free(tmp);
+    free(pressure_buffer.v);
 }

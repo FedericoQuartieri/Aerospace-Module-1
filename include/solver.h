@@ -8,7 +8,7 @@
 #include "physics.h"
 #include "utils.h"
 
-#define WIDTH 128
+#define WIDTH 128 
 #define HEIGHT 128
 #define DEPTH 128
 
