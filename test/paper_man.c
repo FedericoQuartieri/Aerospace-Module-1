@@ -103,7 +103,7 @@ int main(void)
 
     solver_init(&solver_mem_state, &data, NULL);
     
-    solver_solve(&solver_mem_state, &data, &solver_stats);
+    solver_solve(&solver_mem_state, &data, &solver_stats, 0);
 
     const Real velocity_verification_time =
         (Real)STEPS * (Real)DT;
