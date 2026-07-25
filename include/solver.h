@@ -30,9 +30,10 @@
 #define DY_INVERSE_SQUARE (DY_INVERSE * DY_INVERSE)
 #define DZ_INVERSE_SQUARE (DZ_INVERSE * DZ_INVERSE)
 
-#define T 1e-2
-#define DT 1e-3
+#define T 1e-0
+#define DT 1e-2
 #define STEPS (int)(T/DT)
+#define WR_FREQ 5
 // Kinematic viscosity
 #define NU 1.0
 
@@ -54,6 +55,7 @@ void solver_init(SolverMemState *solver_mem_state,
 
 void solver_solve(SolverMemState *solver_mem_state,
                   Data *data,
-                  SolverStats *solver_stats);
+                  SolverStats *solver_stats,
+                  int write_enabled);
 
 #endif

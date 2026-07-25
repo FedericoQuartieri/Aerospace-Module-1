@@ -34,6 +34,9 @@ void print_stats(const SolverStats *solver_stats, size_t sample_count) {
     const double pressure_update_avg_ms =
         (double)solver_stats->pressure_update * ns_to_ms /
         (double)sample_count;
+    const double wr_output_avg_ms =
+        (double)solver_stats->wr_output * ns_to_ms /
+        (double)sample_count;
     const double solve_steps_avg_ns =
         (double)solver_stats->solve_steps / (double)sample_count;
     double per_cell_step = (solve_steps_avg_ns / (GRID_CELLS))/10.0;
@@ -45,5 +48,6 @@ void print_stats(const SolverStats *solver_stats, size_t sample_count) {
     printf("  phi low:     %.3f ms\n", phi_low_avg_ms);
     printf("  phi high:    %.3f ms\n", phi_high_avg_ms);
     printf("  pressure:    %.3f ms\n", pressure_update_avg_ms);
+    printf("  write file:  %.3f ms\n", wr_output_avg_ms);
     printf("  per cell-step: %.3f 1e-8s\n", per_cell_step);
 }
