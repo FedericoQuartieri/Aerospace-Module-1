@@ -22,6 +22,33 @@ typedef struct SolverErrorNorms {
     ErrorNorms pressure;
 } SolverErrorNorms;
 
+/*
+ * Observed convergence rate between two discretizations:
+ *
+ *            log(error_coarse / error_fine)
+ *   rate = ---------------------------------
+ *              log(h_coarse / h_fine)
+ *
+ * h can represent either the spatial spacing or the time step.  The errors
+ * must be positive and the two spacings must be positive and distinct.
+ */
+static inline Real compute_convergence_rate(Real error_coarse,
+                                            Real error_fine,
+                                            Real h_coarse,
+                                            Real h_fine)
+{
+    if (error_coarse <= (Real)0 ||
+        error_fine <= (Real)0 ||
+        h_coarse <= (Real)0 ||
+        h_fine <= (Real)0 ||
+        h_coarse == h_fine) {
+        return (Real)NAN;
+    }
+
+    return (Real)(log((double)(error_coarse / error_fine)) /
+                  log((double)(h_coarse / h_fine)));
+}
+
 static inline ErrorNorms compute_error_norms(const Real *numerical,
                                              const Real *exact,
                                              size_t size)
@@ -32,6 +59,40 @@ static inline ErrorNorms compute_error_norms(const Real *numerical,
     for (size_t index = 0; index < size; index++) {
         const Real difference =
             (Real)fabs((double)(numerical[index] - exact[index]));
+
+        error.L1 += difference;
+        error.L2 += difference * difference;
+        if (difference > error.Linf) {
+            error.Linf = difference;
+        }
+    }
+
+    error.L1 *= dV;
+    error.L2 = (Real)sqrt((double)(error.L2 * dV));
+
+    return error;
+}
+
+/*
+ * Pressure is defined up to an additive constant.  Remove the mean
+ * difference between numerical and exact pressure before computing norms.
+ */
+static inline ErrorNorms compute_pressure_error_norms(const Real *numerical,
+                                                      const Real *exact,
+                                                      size_t size)
+{
+    ErrorNorms error = {0.0, 0.0, 0.0};
+    const Real dV = (Real)DX * (Real)DY * (Real)DZ;
+    Real mean_difference = 0.0;
+
+    for (size_t index = 0; index < size; index++) {
+        mean_difference += numerical[index] - exact[index];
+    }
+    mean_difference /= (Real)size;
+
+    for (size_t index = 0; index < size; index++) {
+        const Real difference = (Real)fabs(
+            (double)(numerical[index] - exact[index] - mean_difference));
 
         error.L1 += difference;
         error.L2 += difference * difference;
@@ -121,8 +182,8 @@ static inline SolverErrorNorms compute_solver_error_norms(
             compute_error_norms(solver_mem_state->u.v_z,
                                 exact_velocity.v_z, GRID_CELLS),
         .pressure =
-            compute_error_norms(solver_mem_state->pressure.v,
-                                exact_pressure.v, GRID_CELLS),
+            compute_pressure_error_norms(solver_mem_state->pressure.v,
+                                         exact_pressure.v, GRID_CELLS),
     };
 
     free(exact_velocity.v_x);
@@ -145,10 +206,10 @@ static inline void print_solver_error_norms(const SolverErrorNorms *errors,
            (double)velocity_time);
     printf("  Pressure verification time: %.2e\n",
            (double)pressure_time);
-    printf("  L2 error u_x: %.4e\n", (double)errors->velocity_x.L2);
-    printf("  L2 error u_y: %.4e\n", (double)errors->velocity_y.L2);
-    printf("  L2 error u_z: %.4e\n", (double)errors->velocity_z.L2);
-    printf("  L2 error p:   %.4e\n", (double)errors->pressure.L2);
+    printf("  L2 error u_x: %.10e\n", (double)errors->velocity_x.L2);
+    printf("  L2 error u_y: %.10e\n", (double)errors->velocity_y.L2);
+    printf("  L2 error u_z: %.10e\n", (double)errors->velocity_z.L2);
+    printf("  L2 error p:   %.10e\n", (double)errors->pressure.L2);
 }
 
 #endif
