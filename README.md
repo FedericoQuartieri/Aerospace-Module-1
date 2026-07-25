@@ -22,6 +22,21 @@ The test executables are created in `build/tests/` and can be run separately:
 ./build/tests/zero_pressure
 ```
 
+## Convergence study
+
+Run the spatial and temporal convergence tests:
+
+```sh
+./scripts/run_convergence.sh
+```
+
+Errors and convergence rates are written to `build/convergence/results.csv`.
+The plots report the rate measured between the two finest discretizations.
+
+![Velocity convergence](docs/convergence_velocity.svg)
+
+![Pressure convergence](docs/convergence_pressure.svg)
+
 ## Solver structure
 
 `solver_init` allocates the numerical fields and initializes them through the
@@ -104,4 +119,3 @@ solver_solve
     +-- run all time steps
     +-- free pressure_buffer, rhs, and tmp
 ```
-

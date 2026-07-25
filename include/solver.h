@@ -8,9 +8,24 @@
 #include "physics.h"
 #include "utils.h"
 
-#define WIDTH 128 
+/*
+ * Compile-time configuration.  Every value can be overridden with -D, e.g.
+ *
+ *   cc ... -DWIDTH=32 -DHEIGHT=32 -DDEPTH=32 -DT=1.0 -DSTEPS=100
+ *
+ * DT is derived from T and STEPS so that every run ends exactly at T.
+ */
+#ifndef WIDTH
+#define WIDTH 128
+#endif
+
+#ifndef HEIGHT
 #define HEIGHT 128
+#endif
+
+#ifndef DEPTH
 #define DEPTH 128
+#endif
 
 #define GRID_CELLS ((size_t)WIDTH * (size_t)HEIGHT * (size_t)DEPTH)
 
@@ -30,9 +45,19 @@
 #define DY_INVERSE_SQUARE (DY_INVERSE * DY_INVERSE)
 #define DZ_INVERSE_SQUARE (DZ_INVERSE * DZ_INVERSE)
 
+#ifndef T
 #define T 1e-0
-#define DT 1e-2
-#define STEPS (int)(T/DT)
+#endif
+
+#ifndef STEPS
+#define STEPS 100
+#endif
+
+#if STEPS < 1
+#error "STEPS must be at least 1"
+#endif
+
+#define DT ((Real)(T) / (Real)(STEPS))
 #define WR_FREQ 5
 // Kinematic viscosity
 #define NU 1.0
