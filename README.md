@@ -9,6 +9,12 @@ Compile the main `solver` executable:
 make solver
 ```
 
+Enable the explicit SIMD momentum kernels with independently tunable blocks of SIMD vectors:
+
+```sh
+make SIMD=1 ZETA_SIMD_VECTORS=4 U_SIMD_VECTORS=8
+```
+
 Compile all tests:
 
 ```sh
@@ -79,7 +85,7 @@ the physical terms, field utilities, and problem definition.
 default and becomes `float` when the code is compiled with `-DUSE_FLOAT`.
 
 ```text
-ScalarField                         VectorField (structure of arrays)
+ScalarField                         VectorField
 +------------------+                +------------------+
 | Real *v          |                | Real *v_x        | --> [x0][x1]...[xN]
 +------------------+                | Real *v_y        | --> [y0][y1]...[yN]
@@ -91,25 +97,25 @@ The main structures are:
 
 ```text
 Data
-+-- name
-+-- bc_velocity()       boundary velocity
-+-- forcing_fn()        forcing term
-+-- porosity_fn()       porosity field
-+-- velocity_fn()       initial/exact velocity
-+-- pressure_fn()       initial/exact pressure
++-- name                      scenario name used for output
++-- bc_velocity()             boundary velocity
++-- forcing_fn()              forcing term
++-- porosity_fn()             porosity field
++-- porosity_time_dependent   boolean
++-- velocity_fn()             initial/exact velocity
++-- pressure_fn()             initial/exact pressure
 
 SolverMemState
-+-- eta, zeta, u, k     VectorField
-+-- pressure,
-    pressure_star       ScalarField
++-- eta, zeta, u, k           VectorField
++-- pressure, pressure_star   ScalarField
 
 SolverStats
 +-- execution times for the solver stages, stored in nanoseconds
 ```
 
 Function pointers in `Data` keep the numerical solver independent from a
-specific physical test case. `SolverMemState` groups all fields that must
-remain available between time steps.
+specific physical test case. `SolverMemState` groups all
+fields that must remain available between time steps.
 
 ## Memory management
 
@@ -121,7 +127,7 @@ solver_init
 
 solver_solve
     +-- allocate pressure_buffer   1 full-grid temporary array
-    +-- allocate rhs and tmp       2 reusable line buffers
+    +-- allocate rhs and tmp       2 reusable line/block buffers
     +-- run all time steps
     +-- free pressure_buffer, rhs, and tmp
 ```

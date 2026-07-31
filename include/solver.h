@@ -14,15 +14,15 @@
  *   cc ... -DWIDTH=32 -DHEIGHT=32 -DDEPTH=32 -DT=1.0 -DSTEPS=100
  */
 #ifndef WIDTH
-#define WIDTH 64
+#define WIDTH 128
 #endif
 
 #ifndef HEIGHT
-#define HEIGHT 64
+#define HEIGHT 128
 #endif
 
 #ifndef DEPTH
-#define DEPTH 64
+#define DEPTH 128
 #endif
 
 #define GRID_CELLS ((size_t)WIDTH * (size_t)HEIGHT * (size_t)DEPTH)
@@ -56,7 +56,7 @@
 #endif
 
 #ifndef STEPS
-#define STEPS 300
+#define STEPS 200
 #endif
 
 #define DT ((Real)(T) / (Real)(STEPS))

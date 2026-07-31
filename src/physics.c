@@ -39,7 +39,7 @@ Real staggered_physical_coord(int index, int component) {
 static inline Real boundary_increment(VectorFunction bc_velocity,
                                       Real x, Real y, Real z,
                                       Real t, int t_step, int component) {
-    const Real current = bc_velocity(x, y, z, t, component);
+    Real current = bc_velocity(x, y, z, t, component);
     if (t_step == 0) {
         return current;
     }
@@ -54,14 +54,14 @@ static inline Real boundary_increment(VectorFunction bc_velocity,
  */
 Real bc_left(VectorFunction bc_velocity,
              int i, int j, int k, int t_step, int component) {
-    const Real t = time_physical_coord(t_step);
-    const Real x = (Real)i * (Real)DX;
-    const Real y = (Real)j * (Real)DY;
-    const Real z = (Real)k * (Real)DZ;
-    const Real vx = x + (Real)DX / 2.0;
-    const Real vy = y + (Real)DY / 2.0;
-    const Real vz = z + (Real)DZ / 2.0;
-    const int lower_face_count = (i == 0) + (j == 0) + (k == 0);
+    Real t = time_physical_coord(t_step);
+    Real x = (Real)i * (Real)DX;
+    Real y = (Real)j * (Real)DY;
+    Real z = (Real)k * (Real)DZ;
+    Real vx = x + (Real)DX / 2.0;
+    Real vy = y + (Real)DY / 2.0;
+    Real vz = z + (Real)DZ / 2.0;
+    int lower_face_count = (i == 0) + (j == 0) + (k == 0);
 
     if ((unsigned int)component > 2U) {
         fprintf(stderr, "Invalid vector component: %d\n", component);
@@ -88,11 +88,11 @@ Real bc_left(VectorFunction bc_velocity,
 
     if (i == 0) {
         if (component == 0) {
-            const Real divergence_y =
+            Real divergence_y =
                 (BC_INCREMENT(0.0, vy, z, 1) -
                  BC_INCREMENT(0.0, vy - (Real)DY, z, 1)) *
                 (Real)DY_INVERSE;
-            const Real divergence_z =
+            Real divergence_z =
                 (BC_INCREMENT(0.0, y, vz, 2) -
                  BC_INCREMENT(0.0, y, vz - (Real)DZ, 2)) *
                 (Real)DZ_INVERSE;
@@ -110,11 +110,11 @@ Real bc_left(VectorFunction bc_velocity,
             return BC_INCREMENT(vx, 0.0, z, 0);
         }
         if (component == 1) {
-            const Real divergence_x =
+            Real divergence_x =
                 (BC_INCREMENT(vx, 0.0, z, 0) -
                  BC_INCREMENT(vx - (Real)DX, 0.0, z, 0)) *
                 (Real)DX_INVERSE;
-            const Real divergence_z =
+            Real divergence_z =
                 (BC_INCREMENT(x, 0.0, vz, 2) -
                  BC_INCREMENT(x, 0.0, vz - (Real)DZ, 2)) *
                 (Real)DZ_INVERSE;
@@ -132,11 +132,11 @@ Real bc_left(VectorFunction bc_velocity,
     }
 
     {
-        const Real divergence_x =
+        Real divergence_x =
             (BC_INCREMENT(vx, y, 0.0, 0) -
              BC_INCREMENT(vx - (Real)DX, y, 0.0, 0)) *
             (Real)DX_INVERSE;
-        const Real divergence_y =
+        Real divergence_y =
             (BC_INCREMENT(x, vy, 0.0, 1) -
              BC_INCREMENT(x, vy - (Real)DY, 0.0, 1)) *
             (Real)DY_INVERSE;
@@ -163,13 +163,13 @@ Real bc_right(VectorFunction bc_velocity,
         exit(1);
     }
 
-    const Real t = time_physical_coord(t_step);
-    const Real x = (Real)i * (Real)DX;
-    const Real y = (Real)j * (Real)DY;
-    const Real z = (Real)k * (Real)DZ;
-    const Real vx = x + (Real)DX / 2.0;
-    const Real vy = y + (Real)DY / 2.0;
-    const Real vz = z + (Real)DZ / 2.0;
+    Real t = time_physical_coord(t_step);
+    Real x = (Real)i * (Real)DX;
+    Real y = (Real)j * (Real)DY;
+    Real z = (Real)k * (Real)DZ;
+    Real vx = x + (Real)DX / 2.0;
+    Real vy = y + (Real)DY / 2.0;
+    Real vz = z + (Real)DZ / 2.0;
 
 #define BC_INCREMENT(px, py, pz, comp) \
     boundary_increment(bc_velocity, (px), (py), (pz), \
@@ -244,15 +244,15 @@ static inline Real upper_second_derivative(const Real *restrict field,
 Real g_value(int i, int j, int k, int t_step, Real k_i,
              const SolverMemState *solver_mem_state,
              const Data *data, int component) {
-    const size_t plane_size = (size_t)WIDTH * HEIGHT;
-    const size_t index = (size_t)k * plane_size +
+    size_t plane_size = (size_t)WIDTH * HEIGHT;
+    size_t index = (size_t)k * plane_size +
                          (size_t)j * WIDTH +
                          (size_t)i;
-    const Real forcing_time = ((Real)t_step - 0.5) * (Real)DT;
-    const Real velocity_time = ((Real)t_step - 1.0) * (Real)DT;
-    const Real upper_x = ((Real)WIDTH - 0.5) * (Real)DX;
-    const Real upper_y = ((Real)HEIGHT - 0.5) * (Real)DY;
-    const Real upper_z = ((Real)DEPTH - 0.5) * (Real)DZ;
+    Real forcing_time = ((Real)t_step - 0.5) * (Real)DT;
+    Real velocity_time = ((Real)t_step - 1.0) * (Real)DT;
+    Real upper_x = ((Real)WIDTH - 0.5) * (Real)DX;
+    Real upper_y = ((Real)HEIGHT - 0.5) * (Real)DY;
+    Real upper_z = ((Real)DEPTH - 0.5) * (Real)DZ;
     Real x = (Real)i * (Real)DX;
     Real y = (Real)j * (Real)DY;
     Real z = (Real)k * (Real)DZ;

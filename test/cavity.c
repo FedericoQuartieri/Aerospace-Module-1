@@ -73,6 +73,7 @@ int main(void)
         .bc_velocity = cavity_boundary_velocity,
         .forcing_fn = zero_vector,
         .porosity_fn = free_fluid_permeability,
+        .porosity_time_dependent = 0,
         .velocity_fn = zero_vector,
         .pressure_fn = zero_pressure,
     };
