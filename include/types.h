@@ -20,6 +20,7 @@ typedef struct Data {
     VectorFunction bc_velocity;
     VectorFunction forcing_fn;
     VectorFunction porosity_fn;
+    int porosity_time_dependent;
     VectorFunction velocity_fn;
     ScalarFunction pressure_fn;
 } Data;

@@ -34,18 +34,20 @@ static Real manufactured_paper_pressure(Real x, Real y, Real z, Real t)
 }
 
 static Real manufactured_porosity(Real x,
-                                       Real y,
-                                       Real z,
-                                       Real t,
-                                       int component)
+                                   Real y,
+                                   Real z,
+                                   Real t,
+                                   int component)
 {
-    (void)x;
-    (void)y;
-    (void)z;
-    (void)t;
     (void)component;
 
-    return 1.0;
+    /*
+     * Smooth space- and time-dependent Brinkman permeability.  Since the
+     * trigonometric product belongs to [-1, 1], K stays in [0.55, 0.95].
+     */
+    return (Real)0.75 +
+           (Real)0.20 * REAL_SIN(x) * REAL_COS(y) *
+           REAL_SIN(z) * REAL_COS(t);
 }
 
 
@@ -95,6 +97,7 @@ int main(void)
         .bc_velocity = manufactured_paper_velocity,
         .forcing_fn = manufactured_paper_forcing,
         .porosity_fn = manufactured_porosity,
+        .porosity_time_dependent = 1,
         .velocity_fn = manufactured_paper_velocity,
         .pressure_fn = manufactured_paper_pressure,
     };

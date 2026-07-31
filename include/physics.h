@@ -7,7 +7,7 @@ struct SolverMemState;
 Real beta_from_k(Real k);
 Real gamma_from_k(Real k);
 
-Real time_physical_coord(int t_step);
+Real time_physical_coord(Real t_step);
 Real centered_physical_coord(int index, int component);
 Real staggered_physical_coord(int index, int component);
 

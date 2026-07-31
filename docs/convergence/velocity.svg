@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img">
+<title>Velocity convergence</title>
+<defs>
+<filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+<feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#0f172a" flood-opacity="0.08"/>
+</filter>
+<clipPath id="spatial-clip"><rect x="114" y="210" width="446" height="280" rx="8"/></clipPath>
+<clipPath id="temporal-clip"><rect x="684" y="210" width="446" height="280" rx="8"/></clipPath>
+<style>
+text { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #172033; }
+.canvas { fill: #f6f8fc; }
+.card { fill: #ffffff; stroke: #dfe5ef; filter: url(#shadow); }
+.plot-background { fill: #fbfcfe; stroke: #d8e0eb; }
+.figure-title { font-size: 25px; font-weight: 700; letter-spacing: -0.3px; }
+.figure-subtitle { font-size: 13px; fill: #64748b; }
+.panel-title { font-size: 18px; font-weight: 700; }
+.panel-subtitle { font-size: 12px; fill: #64748b; }
+.axis-label { font-size: 13px; font-weight: 600; fill: #475569; }
+.tick { font-size: 11px; fill: #64748b; }
+.legend { font-size: 11px; font-weight: 600; }
+.muted { fill: #64748b; }
+.grid { stroke: #dfe6ef; stroke-width: 1; }
+.grid.vertical { stroke: #edf1f6; }
+.series-line { stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+.reference { stroke: #94a3b8; stroke-width: 2; stroke-dasharray: 7 6; }
+</style>
+</defs>
+<rect width="1200" height="620" class="canvas"/>
+<text x="600.0" y="39.0" class="figure-title" text-anchor="middle">Velocity convergence</text>
+<text x="600.0" y="65.0" class="figure-subtitle" text-anchor="middle">Manufactured solution  ·  log–log scale  ·  static reference</text>
+<rect x="40" y="92" width="550" height="480" rx="18" class="card"/>
+<text x="68.0" y="126.0" class="panel-title" text-anchor="start">Spatial refinement</text>
+<text x="68.0" y="149.0" class="panel-subtitle" text-anchor="start">Grid spacing decreases while Δt is fixed</text>
+<line x1="68.0" y1="176.0" x2="93.0" y2="176.0" stroke="#2563eb" stroke-width="2.5"/>
+<circle cx="80.5" cy="176.0" r="3.8" fill="#ffffff" stroke="#2563eb" stroke-width="2.4"/>
+<text x="102.0" y="180.5" class="legend" text-anchor="start">uₓ  ·  finest slope 1.94</text>
+<line x1="328.0" y1="176.0" x2="353.0" y2="176.0" stroke="#e11d48" stroke-width="2.5"/>
+<rect x="336.7" y="172.2" width="7.6" height="7.6" rx="1" fill="#ffffff" stroke="#e11d48" stroke-width="2.4"/>
+<text x="362.0" y="180.5" class="legend" text-anchor="start">uᵧ  ·  finest slope 1.94</text>
+<line x1="68.0" y1="198.0" x2="93.0" y2="198.0" stroke="#059669" stroke-width="2.5"/>
+<polygon points="80.5,193.7 84.8,198.0 80.5,202.3 76.2,198.0" fill="#ffffff" stroke="#059669" stroke-width="2.4"/>
+<text x="102.0" y="202.5" class="legend" text-anchor="start">u_z  ·  finest slope 1.92</text>
+<line x1="328.0" y1="198.0" x2="353.0" y2="198.0" class="reference"/>
+<text x="362.0" y="202.5" class="legend muted" text-anchor="start">second-order  O(h²)</text>
+<rect x="114" y="210" width="446" height="280" rx="8" class="plot-background"/>
+<line x1="114" y1="425.6" x2="560" y2="425.6" class="grid"/>
+<text x="102.0" y="429.6" class="tick" text-anchor="end">10⁻⁵</text>
+<line x1="114" y1="302.2" x2="560" y2="302.2" class="grid"/>
+<text x="102.0" y="306.2" class="tick" text-anchor="end">10⁻⁴</text>
+<line x1="141.4" y1="210" x2="141.4" y2="490" class="grid vertical"/>
+<text x="141.4" y="515.0" class="tick" text-anchor="middle">0.0123</text>
+<line x1="271.3" y1="210" x2="271.3" y2="490" class="grid vertical"/>
+<text x="271.3" y="515.0" class="tick" text-anchor="middle">0.02464</text>
+<line x1="401.6" y1="210" x2="401.6" y2="490" class="grid vertical"/>
+<text x="401.6" y="515.0" class="tick" text-anchor="middle">0.04947</text>
+<line x1="532.6" y1="210" x2="532.6" y2="490" class="grid vertical"/>
+<text x="532.6" y="515.0" class="tick" text-anchor="middle">0.09973</text>
+<g clip-path="url(#spatial-clip)">
+<polyline points="141.4,464.7 271.3,392.4 401.6,330.5 532.6,290.5" fill="none" stroke="#2563eb" class="series-line"/>
+<circle cx="141.4" cy="464.7" r="4.5" fill="#ffffff" stroke="#2563eb" stroke-width="2.4"/>
+<circle cx="271.3" cy="392.4" r="4.5" fill="#ffffff" stroke="#2563eb" stroke-width="2.4"/>
+<circle cx="401.6" cy="330.5" r="4.5" fill="#ffffff" stroke="#2563eb" stroke-width="2.4"/>
+<circle cx="532.6" cy="290.5" r="4.5" fill="#ffffff" stroke="#2563eb" stroke-width="2.4"/>
+<polyline points="141.4,464.8 271.3,392.5 401.6,330.6 532.6,290.7" fill="none" stroke="#e11d48" class="series-line"/>
+<rect x="136.9" y="460.3" width="9.0" height="9.0" rx="1" fill="#ffffff" stroke="#e11d48" stroke-width="2.4"/>
+<rect x="266.8" y="388.0" width="9.0" height="9.0" rx="1" fill="#ffffff" stroke="#e11d48" stroke-width="2.4"/>
+<rect x="397.1" y="326.1" width="9.0" height="9.0" rx="1" fill="#ffffff" stroke="#e11d48" stroke-width="2.4"/>
+<rect x="528.1" y="286.2" width="9.0" height="9.0" rx="1" fill="#ffffff" stroke="#e11d48" stroke-width="2.4"/>
+<polyline points="141.4,419.8 271.3,348.2 401.6,288.6 532.6,255.2" fill="none" stroke="#059669" class="series-line"/>
+<polygon points="141.4,414.8 146.4,419.8 141.4,424.8 136.4,419.8" fill="#ffffff" stroke="#059669" stroke-width="2.4"/>
+<polygon points="271.3,343.2 276.3,348.2 271.3,353.2 266.3,348.2" fill="#ffffff" stroke="#059669" stroke-width="2.4"/>
+<polygon points="401.6,283.6 406.6,288.6 401.6,293.6 396.6,288.6" fill="#ffffff" stroke="#059669" stroke-width="2.4"/>
+<polygon points="532.6,250.2 537.6,255.2 532.6,260.2 527.6,255.2" fill="#ffffff" stroke="#059669" stroke-width="2.4"/>
+<polyline points="141.4,459.5 271.3,385.1 401.6,310.4 532.6,235.2" fill="none" class="reference"/>
+</g>
+<text x="337.0" y="548.0" class="axis-label" text-anchor="middle">Grid spacing  h</text>
+<text x="64.0" y="350.0" class="axis-label" text-anchor="middle" transform="rotate(-90 64.0 350.0)">L² error</text>
+<rect x="610" y="92" width="550" height="480" rx="18" class="card"/>
+<text x="638.0" y="126.0" class="panel-title" text-anchor="start">Temporal refinement</text>
+<text x="638.0" y="149.0" class="panel-subtitle" text-anchor="start">Time step decreases while the grid is fixed</text>
+<line x1="638.0" y1="176.0" x2="663.0" y2="176.0" stroke="#2563eb" stroke-width="2.5"/>
+<circle cx="650.5" cy="176.0" r="3.8" fill="#ffffff" stroke="#2563eb" stroke-width="2.4"/>
+<text x="672.0" y="180.5" class="legend" text-anchor="start">uₓ  ·  finest slope 1.96</text>
+<line x1="898.0" y1="176.0" x2="923.0" y2="176.0" stroke="#e11d48" stroke-width="2.5"/>
+<rect x="906.7" y="172.2" width="7.6" height="7.6" rx="1" fill="#ffffff" stroke="#e11d48" stroke-width="2.4"/>
+<text x="932.0" y="180.5" class="legend" text-anchor="start">uᵧ  ·  finest slope 1.95</text>
+<line x1="638.0" y1="198.0" x2="663.0" y2="198.0" stroke="#059669" stroke-width="2.5"/>
+<polygon points="650.5,193.7 654.8,198.0 650.5,202.3 646.2,198.0" fill="#ffffff" stroke="#059669" stroke-width="2.4"/>
+<text x="672.0" y="202.5" class="legend" text-anchor="start">u_z  ·  finest slope 1.93</text>
+<line x1="898.0" y1="198.0" x2="923.0" y2="198.0" class="reference"/>
+<text x="932.0" y="202.5" class="legend muted" text-anchor="start">second-order  O(Δt²)</text>
+<rect x="684" y="210" width="446" height="280" rx="8" class="plot-background"/>
+<line x1="684" y1="448.3" x2="1130" y2="448.3" class="grid"/>
+<text x="672.0" y="452.3" class="tick" text-anchor="end">10⁻³</text>
+<line x1="684" y1="333.3" x2="1130" y2="333.3" class="grid"/>
+<text x="672.0" y="337.3" class="tick" text-anchor="end">10⁻²</text>
+<line x1="684" y1="218.4" x2="1130" y2="218.4" class="grid"/>
+<text x="672.0" y="222.4" class="tick" text-anchor="end">10⁻¹</text>
+<line x1="711.4" y1="210" x2="711.4" y2="490" class="grid vertical"/>
+<text x="711.4" y="515.0" class="tick" text-anchor="middle">6.25×10⁻³</text>
+<line x1="841.8" y1="210" x2="841.8" y2="490" class="grid vertical"/>
+<text x="841.8" y="515.0" class="tick" text-anchor="middle">0.0125</text>
+<line x1="972.2" y1="210" x2="972.2" y2="490" class="grid vertical"/>
+<text x="972.2" y="515.0" class="tick" text-anchor="middle">0.025</text>
+<line x1="1102.6" y1="210" x2="1102.6" y2="490" class="grid vertical"/>
+<text x="1102.6" y="515.0" class="tick" text-anchor="middle">0.05</text>
+<g clip-path="url(#temporal-clip)">
+<polyline points="711.4,464.8 841.8,396.9 972.2,328.4 1102.6,261.4" fill="none" stroke="#2563eb" class="series-line"/>
+<circle cx="711.4" cy="464.8" r="4.5" fill="#ffffff" stroke="#2563eb" stroke-width="2.4"/>
+<circle cx="841.8" cy="396.9" r="4.5" fill="#ffffff" stroke="#2563eb" stroke-width="2.4"/>
+<circle cx="972.2" cy="328.4" r="4.5" fill="#ffffff" stroke="#2563eb" stroke-width="2.4"/>
+<circle cx="1102.6" cy="261.4" r="4.5" fill="#ffffff" stroke="#2563eb" stroke-width="2.4"/>
+<polyline points="711.4,458.9 841.8,391.4 972.2,322.0 1102.6,253.8" fill="none" stroke="#e11d48" class="series-line"/>
+<rect x="706.9" y="454.4" width="9.0" height="9.0" rx="1" fill="#ffffff" stroke="#e11d48" stroke-width="2.4"/>
+<rect x="837.3" y="386.9" width="9.0" height="9.0" rx="1" fill="#ffffff" stroke="#e11d48" stroke-width="2.4"/>
+<rect x="967.7" y="317.5" width="9.0" height="9.0" rx="1" fill="#ffffff" stroke="#e11d48" stroke-width="2.4"/>
+<rect x="1098.1" y="249.3" width="9.0" height="9.0" rx="1" fill="#ffffff" stroke="#e11d48" stroke-width="2.4"/>
+<polyline points="711.4,463.5 841.8,396.6 972.2,328.3 1102.6,261.3" fill="none" stroke="#059669" class="series-line"/>
+<polygon points="711.4,458.5 716.4,463.5 711.4,468.5 706.4,463.5" fill="#ffffff" stroke="#059669" stroke-width="2.4"/>
+<polygon points="841.8,391.6 846.8,396.6 841.8,401.6 836.8,396.6" fill="#ffffff" stroke="#059669" stroke-width="2.4"/>
+<polygon points="972.2,323.3 977.2,328.3 972.2,333.3 967.2,328.3" fill="#ffffff" stroke="#059669" stroke-width="2.4"/>
+<polygon points="1102.6,256.3 1107.6,261.3 1102.6,266.3 1097.6,261.3" fill="#ffffff" stroke="#059669" stroke-width="2.4"/>
+<polyline points="711.4,442.9 841.8,373.6 972.2,304.4 1102.6,235.2" fill="none" class="reference"/>
+</g>
+<text x="907.0" y="548.0" class="axis-label" text-anchor="middle">Time step  Δt</text>
+<text x="634.0" y="350.0" class="axis-label" text-anchor="middle" transform="rotate(-90 634.0 350.0)">L² error</text>
+</svg>

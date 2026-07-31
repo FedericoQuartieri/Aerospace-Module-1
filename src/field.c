@@ -16,8 +16,10 @@ void vectorField_alloc(VectorField *vf) {
     vf->v_z = xmalloc(field_size);
 }
 
-void vectorField_fill(VectorField *restrict vf, VectorFunction vector_fn, int t_step) {
-    const Real t = time_physical_coord(t_step);
+void vectorField_fill(VectorField *restrict vf,
+                      VectorFunction vector_fn,
+                      Real t_step) {
+    const Real time = time_physical_coord(t_step);
     Real *restrict v_x = vf->v_x;
     Real *restrict v_y = vf->v_y;
     Real *restrict v_z = vf->v_z;
@@ -32,22 +34,24 @@ void vectorField_fill(VectorField *restrict vf, VectorFunction vector_fn, int t_
 
                 v_x[off] =
                     vector_fn(staggered_physical_coord(i, 0),
-                              y, z, t, 0);
+                              y, z, time, 0);
                 v_y[off] =
                     vector_fn(x, staggered_physical_coord(j, 1),
-                              z, t, 1);
+                              z, time, 1);
                 v_z[off] =
                     vector_fn(x, y,
                               staggered_physical_coord(k, 2),
-                              t, 2);
+                              time, 2);
                 off++;
             }
         }
     }
 }
 
-void scalarField_fill(ScalarField *restrict sf, ScalarFunction scalar_fn, int t_step) {
-    const Real t = time_physical_coord(t_step);
+void scalarField_fill(ScalarField *restrict sf,
+                      ScalarFunction scalar_fn,
+                      Real t_step) {
+    const Real time = time_physical_coord(t_step);
     Real *restrict v = sf->v;
     size_t off = 0;
 
@@ -58,7 +62,7 @@ void scalarField_fill(ScalarField *restrict sf, ScalarFunction scalar_fn, int t_
                 const Real y = centered_physical_coord(j, 1);
                 const Real z = centered_physical_coord(k, 2);
 
-                v[off] = scalar_fn(x, y, z, t);
+                v[off] = scalar_fn(x, y, z, time);
                 off++;
             }
         }
