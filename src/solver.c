@@ -35,12 +35,13 @@ void solver_init(SolverMemState *solver_mem_state,
 
 void solver_solve(SolverMemState *solver_mem_state, Data *data, SolverStats *solver_stats,
                   int write_enabled) {
-    // This buffer allocate the biggest grid dimension, in order
-    // to be shared among the component.
+    // The scalar solvers use one grid line. SIMD momentum stores several
+    // independent lines interleaved in the same reusable buffers.
     size_t big_dim = (WIDTH > HEIGHT) ? WIDTH : HEIGHT;
     big_dim = (big_dim > DEPTH) ? big_dim : DEPTH;
-    Real *restrict rhs = xmalloc(big_dim * sizeof(Real));
-    Real *restrict tmp = xmalloc(big_dim * sizeof(Real));
+    size_t scratch_size = big_dim * MOMENTUM_SIMD_MAX_LINES;
+    Real *restrict rhs = xmalloc(scratch_size * sizeof(Real));
+    Real *restrict tmp = xmalloc(scratch_size * sizeof(Real));
 
     // Used for the pressure_step, this buffer and pressure_star are sufficient to solve it
     ScalarField pressure_buffer;
@@ -52,7 +53,7 @@ void solver_solve(SolverMemState *solver_mem_state, Data *data, SolverStats *sol
     uint64_t start_ns = time_ns();
     for (int t_step = 1; t_step <= STEPS; t_step++) {
         if (data->porosity_time_dependent) {
-            const Real midpoint_step = (Real)t_step - (Real)0.5;
+            Real midpoint_step = (Real)t_step - (Real)0.5;
             vectorField_fill(&solver_mem_state->k,
                              data->porosity_fn,
                              midpoint_step);

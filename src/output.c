@@ -99,12 +99,12 @@ void write_vti_binary(const SolverMemState *solver_mem_state,
 
     // Calculate byte offsets for the AppendedData section.
     // Each appended block starts with a uint64_t header indicating the block size in bytes.
-    const uint64_t bytes_p = (uint64_t)GRID_CELLS * sizeof(Real);
-    const uint64_t bytes_u = (uint64_t)GRID_CELLS * 3 * sizeof(Real);
-    const uint64_t bytes_k = (uint64_t)GRID_CELLS * 3 * sizeof(Real);
-    const size_t offset_p  = 0;
-    const size_t offset_u  = sizeof(uint64_t) + bytes_p;
-    const size_t offset_k  = offset_u + sizeof(uint64_t) + bytes_u;
+    uint64_t bytes_p = (uint64_t)GRID_CELLS * sizeof(Real);
+    uint64_t bytes_u = (uint64_t)GRID_CELLS * 3 * sizeof(Real);
+    uint64_t bytes_k = (uint64_t)GRID_CELLS * 3 * sizeof(Real);
+    size_t offset_p  = 0;
+    size_t offset_u  = sizeof(uint64_t) + bytes_p;
+    size_t offset_k  = offset_u + sizeof(uint64_t) + bytes_u;
 
     // XML header
     fprintf(fp, "<VTKFile type=\"ImageData\" version=\"1.0\" byte_order=\"LittleEndian\" header_type=\"UInt64\">\n");
@@ -185,7 +185,7 @@ void write_to_file(const SolverMemState *solver_mem_state,
             ? data_name
             : fallback_name;
     char output_directory[512];
-    const int written = snprintf(output_directory,
+    int written = snprintf(output_directory,
                                  sizeof(output_directory),
                                  "output/%s",
                                  scenario_name);

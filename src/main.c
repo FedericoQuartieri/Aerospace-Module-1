@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
 
     solver_init(&solver_mem_state, &data, data_name);
     
-    int write_enabled = 1;
+    int write_enabled = 0;
     solver_solve(&solver_mem_state, &data, &solver_stats, write_enabled);
 
     return 0;

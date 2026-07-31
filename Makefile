@@ -1,7 +1,22 @@
 CC = cc
 CFLAGS = -std=c11 -O3 -Wall -Wextra -Iinclude
+SIMD ?= 0
+ZETA_SIMD_VECTORS ?= 4
+U_SIMD_VECTORS ?= 8
+
+ifeq ($(SIMD),1)
+CFLAGS += -DUSE_SIMD \
+	-DZETA_SIMD_VECTORS=$(ZETA_SIMD_VECTORS) \
+	-DU_SIMD_VECTORS=$(U_SIMD_VECTORS)
+HOST_ARCH := $(shell uname -m)
+ifneq ($(filter x86_64 amd64,$(HOST_ARCH)),)
+CFLAGS += -mavx2
+endif
+endif
+
 TARGET = solver
-SOURCES = $(wildcard src/*.c)
+# simd_example.c documents the previous prototype and is not part of the solver.
+SOURCES = $(filter-out src/simd_example.c,$(wildcard src/*.c))
 HEADERS = $(wildcard include/*.h)
 
 TEST_DIR = test

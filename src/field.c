@@ -19,7 +19,7 @@ void vectorField_alloc(VectorField *vf) {
 void vectorField_fill(VectorField *restrict vf,
                       VectorFunction vector_fn,
                       Real t_step) {
-    const Real time = time_physical_coord(t_step);
+    Real time = time_physical_coord(t_step);
     Real *restrict v_x = vf->v_x;
     Real *restrict v_y = vf->v_y;
     Real *restrict v_z = vf->v_z;
@@ -28,9 +28,9 @@ void vectorField_fill(VectorField *restrict vf,
     for (int k = 0; k < DEPTH; k++) {
         for (int j = 0; j < HEIGHT; j++) {
             for (int i = 0; i < WIDTH; i++) {
-                const Real x = centered_physical_coord(i, 0);
-                const Real y = centered_physical_coord(j, 1);
-                const Real z = centered_physical_coord(k, 2);
+                Real x = centered_physical_coord(i, 0);
+                Real y = centered_physical_coord(j, 1);
+                Real z = centered_physical_coord(k, 2);
 
                 v_x[off] =
                     vector_fn(staggered_physical_coord(i, 0),
@@ -51,16 +51,16 @@ void vectorField_fill(VectorField *restrict vf,
 void scalarField_fill(ScalarField *restrict sf,
                       ScalarFunction scalar_fn,
                       Real t_step) {
-    const Real time = time_physical_coord(t_step);
+    Real time = time_physical_coord(t_step);
     Real *restrict v = sf->v;
     size_t off = 0;
 
     for (int k = 0; k < DEPTH; k++) {
         for (int j = 0; j < HEIGHT; j++) {
             for (int i = 0; i < WIDTH; i++) {
-                const Real x = centered_physical_coord(i, 0);
-                const Real y = centered_physical_coord(j, 1);
-                const Real z = centered_physical_coord(k, 2);
+                Real x = centered_physical_coord(i, 0);
+                Real y = centered_physical_coord(j, 1);
+                Real z = centered_physical_coord(k, 2);
 
                 v[off] = scalar_fn(x, y, z, time);
                 off++;

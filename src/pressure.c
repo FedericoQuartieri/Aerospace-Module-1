@@ -8,14 +8,14 @@ static inline void compute_pressure_rhs_x_line(
     const Real *restrict u_x = u->v_x;
     const Real *restrict u_y = u->v_y;
     const Real *restrict u_z = u->v_z;
-    const size_t plane_size = (size_t)WIDTH * HEIGHT;
-    const Real x_rhs_factor = -(Real)DX_INVERSE / (Real)DT;
-    const Real y_rhs_factor = -(Real)DY_INVERSE / (Real)DT;
-    const Real z_rhs_factor = -(Real)DZ_INVERSE / (Real)DT;
+    size_t plane_size = (size_t)WIDTH * HEIGHT;
+    Real x_rhs_factor = -(Real)DX_INVERSE / (Real)DT;
+    Real y_rhs_factor = -(Real)DY_INVERSE / (Real)DT;
+    Real z_rhs_factor = -(Real)DZ_INVERSE / (Real)DT;
 
     rhs[0] = (Real)0;
     for (size_t i = 1; i < WIDTH; i++) {
-        const size_t index = row_offset + i;
+        size_t index = row_offset + i;
 
         rhs[i] =
             (u_x[index] - u_x[index - 1]) * x_rhs_factor +
@@ -26,7 +26,7 @@ static inline void compute_pressure_rhs_x_line(
 
 void compute_div(Real *restrict u_div,
                  const VectorField *restrict u) {
-    const size_t plane_size = (size_t)WIDTH * HEIGHT;
+    size_t plane_size = (size_t)WIDTH * HEIGHT;
 
     /*
      * The pressure RHS is zero on the three lower faces (divergence free).
@@ -39,14 +39,14 @@ void compute_div(Real *restrict u_div,
     }
 
     for (size_t k = 1; k < DEPTH; k++) {
-        const size_t plane_offset = k * plane_size;
+        size_t plane_offset = k * plane_size;
 
         for (size_t i = 0; i < WIDTH; i++) {
             u_div[plane_offset + i] = (Real)0;
         }
 
         for (size_t j = 1; j < HEIGHT; j++) {
-            const size_t row_offset = plane_offset + j * (size_t)WIDTH;
+            size_t row_offset = plane_offset + j * (size_t)WIDTH;
             compute_pressure_rhs_x_line(u_div + row_offset, u, row_offset);
         }
     }
@@ -60,12 +60,12 @@ void compute_div(Real *restrict u_div,
 static Real prepare_pressure_thomas(Real *restrict tmp,
                                     size_t length,
                                     Real w) {
-    const Real inverse_diagonal_left =
+    Real inverse_diagonal_left =
         (Real)1 / ((Real)1 - (Real)2 * w);
 
     tmp[0] = ((Real)2 * w) * inverse_diagonal_left;
     for (size_t index = 1; index + 1 < length; index++) {
-        const Real inverse_diagonal =
+        Real inverse_diagonal =
             (Real)1 /
             (((Real)1 - (Real)2 * w) - w * tmp[index - 1]);
         tmp[index] = w * inverse_diagonal;
@@ -82,10 +82,10 @@ static void compute_psi(SolverMemState *restrict solver_mem_state,
     const VectorField *restrict u = &solver_mem_state->u;
     Real *restrict psi = solver_mem_state->pressure_star.v;
 
-    const size_t plane_size = (size_t)WIDTH * HEIGHT;
-    const Real w = -(Real)DX_INVERSE_SQUARE;
-    const Real inverse_w = (Real)1 / w;
-    const Real inverse_diagonal_right =
+    size_t plane_size = (size_t)WIDTH * HEIGHT;
+    Real w = -(Real)DX_INVERSE_SQUARE;
+    Real inverse_w = (Real)1 / w;
+    Real inverse_diagonal_right =
         prepare_pressure_thomas(tmp, WIDTH, w);
 
     /*
@@ -97,14 +97,14 @@ static void compute_psi(SolverMemState *restrict solver_mem_state,
     }
 
     for (size_t k = 1; k < DEPTH; k++) {
-        const size_t plane_offset = k * plane_size;
+        size_t plane_offset = k * plane_size;
 
         for (size_t i = 0; i < WIDTH; i++) {
             psi[plane_offset + i] = (Real)0;
         }
 
         for (size_t j = 1; j < HEIGHT; j++) {
-            const size_t row_offset =
+            size_t row_offset =
                 plane_offset + j * (size_t)WIDTH;
 
             /*
@@ -115,7 +115,7 @@ static void compute_psi(SolverMemState *restrict solver_mem_state,
 
             /* Forward elimination. rhs[0] is already zero. */
             for (size_t i = 1; i + 1 < WIDTH; i++) {
-                const Real inverse_diagonal = tmp[i] * inverse_w;
+                Real inverse_diagonal = tmp[i] * inverse_w;
                 rhs[i] =
                     (rhs[i] - w * rhs[i - 1]) * inverse_diagonal;
             }
@@ -139,12 +139,12 @@ static void compute_phi_low(const ScalarField *restrict psi_field,
                             Real *restrict tmp) {
     const Real *restrict psi = psi_field->v;
     Real *restrict phi_low = phi_low_field->v;
-    const size_t plane_size = (size_t)WIDTH * HEIGHT;
-    const Real w = -(Real)DY_INVERSE_SQUARE;
-    const Real inverse_w = (Real)1 / w;
-    const Real inverse_diagonal_left =
+    size_t plane_size = (size_t)WIDTH * HEIGHT;
+    Real w = -(Real)DY_INVERSE_SQUARE;
+    Real inverse_w = (Real)1 / w;
+    Real inverse_diagonal_left =
         (Real)1 / ((Real)1 - (Real)2 * w);
-    const Real inverse_diagonal_right =
+    Real inverse_diagonal_right =
         prepare_pressure_thomas(tmp, HEIGHT, w);
 
     /*
@@ -153,7 +153,7 @@ static void compute_phi_low(const ScalarField *restrict psi_field,
      * and allows SIMD across X.
      */
     for (size_t k = 0; k < DEPTH; k++) {
-        const size_t plane_offset = k * plane_size;
+        size_t plane_offset = k * plane_size;
 
         for (size_t i = 0; i < WIDTH; i++) {
             phi_low[plane_offset + i] =
@@ -161,10 +161,10 @@ static void compute_phi_low(const ScalarField *restrict psi_field,
         }
 
         for (size_t j = 1; j + 1 < HEIGHT; j++) {
-            const size_t row_offset =
+            size_t row_offset =
                 plane_offset + j * (size_t)WIDTH;
-            const size_t previous_row = row_offset - WIDTH;
-            const Real inverse_diagonal = tmp[j] * inverse_w;
+            size_t previous_row = row_offset - WIDTH;
+            Real inverse_diagonal = tmp[j] * inverse_w;
 
             for (size_t i = 0; i < WIDTH; i++) {
                 phi_low[row_offset + i] =
@@ -175,9 +175,9 @@ static void compute_phi_low(const ScalarField *restrict psi_field,
         }
 
         {
-            const size_t row_offset =
+            size_t row_offset =
                 plane_offset + (size_t)(HEIGHT - 1) * WIDTH;
-            const size_t previous_row = row_offset - WIDTH;
+            size_t previous_row = row_offset - WIDTH;
 
             for (size_t i = 0; i < WIDTH; i++) {
                 phi_low[row_offset + i] =
@@ -188,9 +188,9 @@ static void compute_phi_low(const ScalarField *restrict psi_field,
         }
 
         for (size_t j = HEIGHT - 1; j-- > 0;) {
-            const size_t row_offset =
+            size_t row_offset =
                 plane_offset + j * (size_t)WIDTH;
-            const size_t next_row = row_offset + WIDTH;
+            size_t next_row = row_offset + WIDTH;
 
             for (size_t i = 0; i < WIDTH; i++) {
                 phi_low[row_offset + i] -=
@@ -205,12 +205,12 @@ static void compute_phi_high(const ScalarField *restrict phi_low_field,
                              Real *restrict tmp) {
     const Real *restrict phi_low = phi_low_field->v;
     Real *restrict phi_high = phi_high_field->v;
-    const size_t plane_size = (size_t)WIDTH * HEIGHT;
-    const Real w = -(Real)DZ_INVERSE_SQUARE;
-    const Real inverse_w = (Real)1 / w;
-    const Real inverse_diagonal_left =
+    size_t plane_size = (size_t)WIDTH * HEIGHT;
+    Real w = -(Real)DZ_INVERSE_SQUARE;
+    Real inverse_w = (Real)1 / w;
+    Real inverse_diagonal_left =
         (Real)1 / ((Real)1 - (Real)2 * w);
-    const Real inverse_diagonal_right =
+    Real inverse_diagonal_right =
         prepare_pressure_thomas(tmp, DEPTH, w);
 
     /*
@@ -222,9 +222,9 @@ static void compute_phi_high(const ScalarField *restrict phi_low_field,
     }
 
     for (size_t k = 1; k + 1 < DEPTH; k++) {
-        const size_t plane_offset = k * plane_size;
-        const size_t previous_plane = plane_offset - plane_size;
-        const Real inverse_diagonal = tmp[k] * inverse_w;
+        size_t plane_offset = k * plane_size;
+        size_t previous_plane = plane_offset - plane_size;
+        Real inverse_diagonal = tmp[k] * inverse_w;
 
         for (size_t index = 0; index < plane_size; index++) {
             phi_high[plane_offset + index] =
@@ -235,8 +235,8 @@ static void compute_phi_high(const ScalarField *restrict phi_low_field,
     }
 
     {
-        const size_t plane_offset = (size_t)(DEPTH - 1) * plane_size;
-        const size_t previous_plane = plane_offset - plane_size;
+        size_t plane_offset = (size_t)(DEPTH - 1) * plane_size;
+        size_t previous_plane = plane_offset - plane_size;
 
         for (size_t index = 0; index < plane_size; index++) {
             phi_high[plane_offset + index] =
@@ -247,8 +247,8 @@ static void compute_phi_high(const ScalarField *restrict phi_low_field,
     }
 
     for (size_t k = DEPTH - 1; k-- > 0;) {
-        const size_t plane_offset = k * plane_size;
-        const size_t next_plane = plane_offset + plane_size;
+        size_t plane_offset = k * plane_size;
+        size_t next_plane = plane_offset + plane_size;
 
         for (size_t index = 0; index < plane_size; index++) {
             phi_high[plane_offset + index] -=
@@ -262,8 +262,8 @@ static void update_pressure(SolverMemState *restrict solver_mem_state) {
     Real *restrict phi_high = solver_mem_state->pressure_star.v;
 
     for (size_t index = 0; index < GRID_CELLS; index++) {
-        const Real phi = phi_high[index];
-        const Real pressure_new = pressure[index] + phi;
+        Real phi = phi_high[index];
+        Real pressure_new = pressure[index] + phi;
 
         pressure[index] = pressure_new;
         phi_high[index] = pressure_new + phi;

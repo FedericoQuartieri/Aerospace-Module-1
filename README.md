@@ -9,6 +9,12 @@ Compile the main `solver` executable:
 make solver
 ```
 
+Enable the explicit SIMD momentum kernels with independently tunable blocks of SIMD vectors:
+
+```sh
+make SIMD=1 ZETA_SIMD_VECTORS=4 U_SIMD_VECTORS=8
+```
+
 Compile all tests:
 
 ```sh
@@ -121,7 +127,7 @@ solver_init
 
 solver_solve
     +-- allocate pressure_buffer   1 full-grid temporary array
-    +-- allocate rhs and tmp       2 reusable line buffers
+    +-- allocate rhs and tmp       2 reusable line/block buffers
     +-- run all time steps
     +-- free pressure_buffer, rhs, and tmp
 ```
