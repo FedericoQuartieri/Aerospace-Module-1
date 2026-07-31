@@ -47,10 +47,17 @@ void solver_solve(SolverMemState *solver_mem_state, Data *data, SolverStats *sol
     scalarField_alloc(&pressure_buffer);
 
     // If write_enabled is set, write the initial state at t=0
-    if (write_enabled) write_to_file(solver_mem_state, 0);
+    if (write_enabled) write_to_file(solver_mem_state, data->name, 0);
 
     uint64_t start_ns = time_ns();
     for (int t_step = 1; t_step <= STEPS; t_step++) {
+        if (data->porosity_time_dependent) {
+            const Real midpoint_step = (Real)t_step - (Real)0.5;
+            vectorField_fill(&solver_mem_state->k,
+                             data->porosity_fn,
+                             midpoint_step);
+        }
+
         // Momentum system
         momentum_step(solver_mem_state, rhs, tmp, data, t_step, solver_stats);
 
@@ -62,7 +69,7 @@ void solver_solve(SolverMemState *solver_mem_state, Data *data, SolverStats *sol
         if (write_enabled) {
             if (t_step % WR_FREQ == 0) {
                 uint64_t wr_start = time_ns();
-                write_to_file(solver_mem_state, t_step);
+                write_to_file(solver_mem_state, data->name, t_step);
                 solver_stats->wr_output += time_ns() - wr_start;
             }
         }

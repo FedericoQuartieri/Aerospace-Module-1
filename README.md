@@ -19,7 +19,8 @@ The test executables are created in `build/tests/` and can be run separately:
 
 ```sh
 ./build/tests/paper_man
-./build/tests/zero_pressure
+./build/tests/moving_sphere
+./build/tests/channel_obstacle
 ```
 
 ## Convergence study
@@ -31,11 +32,16 @@ Run the spatial and temporal convergence tests:
 ```
 
 Errors and convergence rates are written to `build/convergence/results.csv`.
-The plots report the rate measured between the two finest discretizations.
 
-![Velocity convergence](docs/convergence_velocity.svg)
+![Velocity convergence](docs/convergence/velocity.svg)
 
-![Pressure convergence](docs/convergence_pressure.svg)
+![Pressure convergence](docs/convergence/pressure.svg)
+
+Generate and replace the static plots with, reading from `build/convergence/results.csv`:
+
+```sh
+./scripts/plot_convergence.py
+```
 
 ## Solver structure
 

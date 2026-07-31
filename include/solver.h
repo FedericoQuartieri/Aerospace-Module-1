@@ -12,27 +12,33 @@
  * Compile-time configuration.  Every value can be overridden with -D, e.g.
  *
  *   cc ... -DWIDTH=32 -DHEIGHT=32 -DDEPTH=32 -DT=1.0 -DSTEPS=100
- *
- * DT is derived from T and STEPS so that every run ends exactly at T.
  */
 #ifndef WIDTH
-#define WIDTH 128
+#define WIDTH 64
 #endif
 
 #ifndef HEIGHT
-#define HEIGHT 128
+#define HEIGHT 64
 #endif
 
 #ifndef DEPTH
-#define DEPTH 128
+#define DEPTH 64
 #endif
 
 #define GRID_CELLS ((size_t)WIDTH * (size_t)HEIGHT * (size_t)DEPTH)
 
 // Physical domain
+#ifndef LX
 #define LX M_PI
-#define LY M_PI 
+#endif
+
+#ifndef LY
+#define LY M_PI
+#endif
+
+#ifndef LZ
 #define LZ M_PI
+#endif
 
 #define DX ((2 * LX) / (Real)(2*WIDTH - 1))  // Grid spacing in x
 #define DY ((2 * LY) / (Real)(2*HEIGHT - 1)) // Grid spacing in y
@@ -50,11 +56,7 @@
 #endif
 
 #ifndef STEPS
-#define STEPS 100
-#endif
-
-#if STEPS < 1
-#error "STEPS must be at least 1"
+#define STEPS 300
 #endif
 
 #define DT ((Real)(T) / (Real)(STEPS))

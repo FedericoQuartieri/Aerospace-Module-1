@@ -8,9 +8,9 @@ void vectorField_alloc(VectorField *vf);
 
 void scalarField_fill(ScalarField *restrict sf,
                       ScalarFunction scalar_fn,
-                      int t_step);
+                      Real t_step);
 void vectorField_fill(VectorField *restrict vf,
                       VectorFunction vector_fn,
-                      int t_step);
+                      Real t_step);
 
 #endif

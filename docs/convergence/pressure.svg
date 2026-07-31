@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img">
+<title>Pressure convergence</title>
+<defs>
+<filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+<feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#0f172a" flood-opacity="0.08"/>
+</filter>
+<clipPath id="spatial-clip"><rect x="114" y="210" width="446" height="280" rx="8"/></clipPath>
+<clipPath id="temporal-clip"><rect x="684" y="210" width="446" height="280" rx="8"/></clipPath>
+<style>
+text { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #172033; }
+.canvas { fill: #f6f8fc; }
+.card { fill: #ffffff; stroke: #dfe5ef; filter: url(#shadow); }
+.plot-background { fill: #fbfcfe; stroke: #d8e0eb; }
+.figure-title { font-size: 25px; font-weight: 700; letter-spacing: -0.3px; }
+.figure-subtitle { font-size: 13px; fill: #64748b; }
+.panel-title { font-size: 18px; font-weight: 700; }
+.panel-subtitle { font-size: 12px; fill: #64748b; }
+.axis-label { font-size: 13px; font-weight: 600; fill: #475569; }
+.tick { font-size: 11px; fill: #64748b; }
+.legend { font-size: 11px; font-weight: 600; }
+.muted { fill: #64748b; }
+.grid { stroke: #dfe6ef; stroke-width: 1; }
+.grid.vertical { stroke: #edf1f6; }
+.series-line { stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+.reference { stroke: #94a3b8; stroke-width: 2; stroke-dasharray: 7 6; }
+</style>
+</defs>
+<rect width="1200" height="620" class="canvas"/>
+<text x="600.0" y="39.0" class="figure-title" text-anchor="middle">Pressure convergence</text>
+<text x="600.0" y="65.0" class="figure-subtitle" text-anchor="middle">Manufactured solution  ·  log–log scale  ·  static reference</text>
+<rect x="40" y="92" width="550" height="480" rx="18" class="card"/>
+<text x="68.0" y="126.0" class="panel-title" text-anchor="start">Spatial refinement</text>
+<text x="68.0" y="149.0" class="panel-subtitle" text-anchor="start">Grid spacing decreases while Δt is fixed</text>
+<line x1="68.0" y1="176.0" x2="93.0" y2="176.0" stroke="#7c3aed" stroke-width="2.5"/>
+<circle cx="80.5" cy="176.0" r="3.8" fill="#ffffff" stroke="#7c3aed" stroke-width="2.4"/>
+<text x="102.0" y="180.5" class="legend" text-anchor="start">mean-aligned pressure  ·  finest slope 2.04</text>
+<line x1="328.0" y1="176.0" x2="353.0" y2="176.0" class="reference"/>
+<text x="362.0" y="180.5" class="legend muted" text-anchor="start">second-order  O(h²)</text>
+<rect x="114" y="210" width="446" height="280" rx="8" class="plot-background"/>
+<line x1="114" y1="468.3" x2="560" y2="468.3" class="grid"/>
+<text x="102.0" y="472.3" class="tick" text-anchor="end">10⁻³</text>
+<line x1="114" y1="347.6" x2="560" y2="347.6" class="grid"/>
+<text x="102.0" y="351.6" class="tick" text-anchor="end">10⁻²</text>
+<line x1="114" y1="226.8" x2="560" y2="226.8" class="grid"/>
+<text x="102.0" y="230.8" class="tick" text-anchor="end">10⁻¹</text>
+<line x1="141.4" y1="210" x2="141.4" y2="490" class="grid vertical"/>
+<text x="141.4" y="515.0" class="tick" text-anchor="middle">0.0123</text>
+<line x1="271.3" y1="210" x2="271.3" y2="490" class="grid vertical"/>
+<text x="271.3" y="515.0" class="tick" text-anchor="middle">0.02464</text>
+<line x1="401.6" y1="210" x2="401.6" y2="490" class="grid vertical"/>
+<text x="401.6" y="515.0" class="tick" text-anchor="middle">0.04947</text>
+<line x1="532.6" y1="210" x2="532.6" y2="490" class="grid vertical"/>
+<text x="532.6" y="515.0" class="tick" text-anchor="middle">0.09973</text>
+<g clip-path="url(#spatial-clip)">
+<polyline points="141.4,464.8 271.3,390.4 401.6,313.4 532.6,254.7" fill="none" stroke="#7c3aed" class="series-line"/>
+<circle cx="141.4" cy="464.8" r="4.5" fill="#ffffff" stroke="#7c3aed" stroke-width="2.4"/>
+<circle cx="271.3" cy="390.4" r="4.5" fill="#ffffff" stroke="#7c3aed" stroke-width="2.4"/>
+<circle cx="401.6" cy="313.4" r="4.5" fill="#ffffff" stroke="#7c3aed" stroke-width="2.4"/>
+<circle cx="532.6" cy="254.7" r="4.5" fill="#ffffff" stroke="#7c3aed" stroke-width="2.4"/>
+<polyline points="141.4,454.8 271.3,381.9 401.6,308.8 532.6,235.2" fill="none" class="reference"/>
+</g>
+<text x="337.0" y="548.0" class="axis-label" text-anchor="middle">Grid spacing  h</text>
+<text x="64.0" y="350.0" class="axis-label" text-anchor="middle" transform="rotate(-90 64.0 350.0)">L² error</text>
+<rect x="610" y="92" width="550" height="480" rx="18" class="card"/>
+<text x="638.0" y="126.0" class="panel-title" text-anchor="start">Temporal refinement</text>
+<text x="638.0" y="149.0" class="panel-subtitle" text-anchor="start">Time step decreases while the grid is fixed</text>
+<line x1="638.0" y1="176.0" x2="663.0" y2="176.0" stroke="#7c3aed" stroke-width="2.5"/>
+<circle cx="650.5" cy="176.0" r="3.8" fill="#ffffff" stroke="#7c3aed" stroke-width="2.4"/>
+<text x="672.0" y="180.5" class="legend" text-anchor="start">mean-aligned pressure  ·  finest slope 1.66</text>
+<line x1="898.0" y1="176.0" x2="923.0" y2="176.0" class="reference"/>
+<text x="932.0" y="180.5" class="legend muted" text-anchor="start">second-order  O(Δt²)</text>
+<rect x="684" y="210" width="446" height="280" rx="8" class="plot-background"/>
+<line x1="684" y1="486.2" x2="1130" y2="486.2" class="grid"/>
+<text x="672.0" y="490.2" class="tick" text-anchor="end">10⁻²</text>
+<line x1="684" y1="359.1" x2="1130" y2="359.1" class="grid"/>
+<text x="672.0" y="363.1" class="tick" text-anchor="end">10⁻¹</text>
+<line x1="684" y1="232.1" x2="1130" y2="232.1" class="grid"/>
+<text x="672.0" y="236.1" class="tick" text-anchor="end">10⁰</text>
+<line x1="711.4" y1="210" x2="711.4" y2="490" class="grid vertical"/>
+<text x="711.4" y="515.0" class="tick" text-anchor="middle">6.25×10⁻³</text>
+<line x1="841.8" y1="210" x2="841.8" y2="490" class="grid vertical"/>
+<text x="841.8" y="515.0" class="tick" text-anchor="middle">0.0125</text>
+<line x1="972.2" y1="210" x2="972.2" y2="490" class="grid vertical"/>
+<text x="972.2" y="515.0" class="tick" text-anchor="middle">0.025</text>
+<line x1="1102.6" y1="210" x2="1102.6" y2="490" class="grid vertical"/>
+<text x="1102.6" y="515.0" class="tick" text-anchor="middle">0.05</text>
+<g clip-path="url(#temporal-clip)">
+<polyline points="711.4,459.5 841.8,396.1 972.2,325.0 1102.6,255.8" fill="none" stroke="#7c3aed" class="series-line"/>
+<circle cx="711.4" cy="459.5" r="4.5" fill="#ffffff" stroke="#7c3aed" stroke-width="2.4"/>
+<circle cx="841.8" cy="396.1" r="4.5" fill="#ffffff" stroke="#7c3aed" stroke-width="2.4"/>
+<circle cx="972.2" cy="325.0" r="4.5" fill="#ffffff" stroke="#7c3aed" stroke-width="2.4"/>
+<circle cx="1102.6" cy="255.8" r="4.5" fill="#ffffff" stroke="#7c3aed" stroke-width="2.4"/>
+<polyline points="711.4,464.8 841.8,388.3 972.2,311.7 1102.6,235.2" fill="none" class="reference"/>
+</g>
+<text x="907.0" y="548.0" class="axis-label" text-anchor="middle">Time step  Δt</text>
+<text x="634.0" y="350.0" class="axis-label" text-anchor="middle" transform="rotate(-90 634.0 350.0)">L² error</text>
+</svg>

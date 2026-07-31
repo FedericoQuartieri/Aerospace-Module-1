@@ -24,8 +24,8 @@ Real gamma_from_k(Real k) {
     return (DT * NU) / (2.0 * beta);
 }
 
-Real time_physical_coord(int t_step) {
-    return (Real)t_step * DT;
+Real time_physical_coord(Real t_step) {
+    return t_step * (Real)DT;
 }
 
 Real centered_physical_coord(int index, int component) {

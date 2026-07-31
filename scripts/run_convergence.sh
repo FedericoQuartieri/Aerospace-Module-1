@@ -18,10 +18,10 @@ spatial_configs=(
 )
 
 temporal_configs=(
-    "128 0.05    1.0"
-    "128 0.025   1.0"
-    "128 0.0125  1.0"
-    "128 0.00625 1.0"
+    "256 0.05    1.0"
+    "256 0.025   1.0"
+    "256 0.0125  1.0"
+    "256 0.00625 1.0"
 )
 
 core_sources=()
@@ -111,7 +111,4 @@ NR == 1 {
 }
 ' "$raw_file"
 
-python3 "$root/scripts/plot_convergence.py" "$results_file" "$root/docs"
-
 printf '\nResults written to %s\n' "$results_file"
-printf 'Plots written to %s\n' "$root/docs"
