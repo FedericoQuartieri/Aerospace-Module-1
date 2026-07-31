@@ -29,7 +29,7 @@ void solver_init(SolverMemState *solver_mem_state,
     scalarField_fill(&solver_mem_state->pressure, data->pressure_fn, 0);
     scalarField_fill(&solver_mem_state->pressure_star, data->pressure_fn, 0);
     
-    // Fill porosity field (currently is supposed to be constant in time)
+    // Fill the initial porosity field at t=0
     vectorField_fill(&solver_mem_state->k, data->porosity_fn, 0);
 }
 

@@ -56,7 +56,7 @@
 #endif
 
 #ifndef STEPS
-#define STEPS 100
+#define STEPS 200
 #endif
 
 #define DT ((Real)(T) / (Real)(STEPS))

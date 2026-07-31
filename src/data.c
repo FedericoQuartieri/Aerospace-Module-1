@@ -100,6 +100,7 @@ const Data paper_data = {
     .bc_velocity = paper_bc_velocity,
     .forcing_fn  = paper_forcing,
     .porosity_fn = porosity_fn,
+    .porosity_time_dependent = 0,
     .velocity_fn = paper_velocity_fn,
     .pressure_fn = paper_pressure_fn,
 };

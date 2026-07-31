@@ -99,6 +99,7 @@ int main(void)
         .bc_velocity = manufactured_zero_velocity,
         .forcing_fn = manufactured_zero_forcing,
         .porosity_fn = manufactured_unit_porosity,
+        .porosity_time_dependent = 0,
         .velocity_fn = manufactured_zero_velocity,
         .pressure_fn = manufactured_zero_pressure,
     };
