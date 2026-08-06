@@ -144,9 +144,11 @@ int main(void)
     SolverMemState state;
     SolverStats stats = {0};
     const int write_enabled = 1;
+    Decomp decomp;
 
-    solver_init(&state, &data, NULL);
-    solver_solve(&state, &data, &stats, write_enabled);
+    decomp_init_serial(&decomp);
+    solver_init(&decomp, &state, &data, NULL);
+    solver_solve(&decomp, &state, &data, &stats, write_enabled);
 
     return 0;
 }

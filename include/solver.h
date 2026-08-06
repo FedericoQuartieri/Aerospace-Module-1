@@ -5,6 +5,7 @@
 #include <math.h>
 #include <stdio.h>
 #include "types.h"
+#include "decomp.h"
 #include "physics.h"
 #include "utils.h"
 
@@ -76,11 +77,13 @@ typedef struct SolverMemState {
 
 extern const Data paper_data;
 
-void solver_init(SolverMemState *solver_mem_state,
+void solver_init(const Decomp *decomp,
+                 SolverMemState *solver_mem_state,
                  Data *data,
                  const char *data_name);
 
-void solver_solve(SolverMemState *solver_mem_state,
+void solver_solve(const Decomp *decomp,
+                  SolverMemState *solver_mem_state,
                   Data *data,
                   SolverStats *solver_stats,
                   int write_enabled);

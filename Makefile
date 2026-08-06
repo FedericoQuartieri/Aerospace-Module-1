@@ -1,5 +1,5 @@
 CC = cc
-CFLAGS = -std=c11 -O3 -Wall -Wextra -Iinclude
+CFLAGS = -std=gnu11 -O3 -Wall -Wextra -Iinclude
 SIMD ?= 0
 ZETA_SIMD_VECTORS ?= 4
 U_SIMD_VECTORS ?= 8

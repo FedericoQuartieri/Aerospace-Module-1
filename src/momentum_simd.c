@@ -18,7 +18,8 @@ static inline SimdReal weight_from_k_simd(SimdReal k,
 }
 
 /* Solve the x lines left after the last complete SIMD vector of Dyy. */
-static void update_zeta_scalar_tail(const Real *restrict k_porosity,
+static void update_zeta_scalar_tail(const Decomp *restrict d,
+                                    const Real *restrict k_porosity,
                                     const Real *restrict eta,
                                     Real *restrict zeta,
                                     Real *restrict rhs,
@@ -29,16 +30,20 @@ static void update_zeta_scalar_tail(const Real *restrict k_porosity,
                                     int k,
                                     int first_i,
                                     bool same_direction) {
-    size_t plane_offset = (size_t)k * WIDTH * HEIGHT;
+    const int ny = d->n[1];
+    const size_t stride_y = d->stride[1];
+    const int gk = decomp_global(d, k, 2);
 
-    for (int i = first_i; i < WIDTH; i++) {
-        size_t off = plane_offset + (size_t)i;
+    for (int i = first_i; i < d->n[0]; i++) {
+        size_t off = decomp_index(d, i, 0, k);
+        const int gi = decomp_global(d, i, 0);
 
         tmp[0] = 0.0;
-        rhs[0] = bc_left(data->bc_velocity, i, 0, k, t_step, v_comp);
+        rhs[0] = bc_left(data->bc_velocity,
+                         gi, decomp_global(d, 0, 1), gk, t_step, v_comp);
 
-        for (int j = 1; j < HEIGHT-1; j++) {
-            size_t j_arr = off + (size_t)j * WIDTH;
+        for (int j = 1; j < ny-1; j++) {
+            size_t j_arr = off + (size_t)j * stride_y;
             Real k_i = k_porosity[j_arr];
             Real w_i = -gamma_from_k(k_i) * DY_INVERSE_SQUARE;
             Real norm_coeff =
@@ -49,25 +54,26 @@ static void update_zeta_scalar_tail(const Real *restrict k_porosity,
             rhs[j] = (rhs[j] - w_i * rhs[j - 1]) * norm_coeff;
         }
 
-        size_t j_arr = off + (size_t)(HEIGHT-1) * WIDTH;
+        size_t j_arr = off + (size_t)(ny-1) * stride_y;
         Real k_i = k_porosity[j_arr];
         Real w_i = -gamma_from_k(k_i) * DY_INVERSE_SQUARE;
         Real right_value =
-            bc_right(data->bc_velocity, i, HEIGHT-1, k, t_step, v_comp);
+            bc_right(data->bc_velocity,
+                     gi, decomp_global(d, ny-1, 1), gk, t_step, v_comp);
 
-        rhs[HEIGHT-1] = eta[j_arr] - zeta[j_arr];
-        rhs[HEIGHT-1] -= 2.0 * w_i * right_value;
+        rhs[ny-1] = eta[j_arr] - zeta[j_arr];
+        rhs[ny-1] -= 2.0 * w_i * right_value;
 
         Real norm_coeff =
-            1.0 / ((1.0 - 3.0 * w_i) - w_i * tmp[HEIGHT - 2]);
-        rhs[HEIGHT-1] =
-            (rhs[HEIGHT-1] - w_i * rhs[HEIGHT-2]) * norm_coeff;
+            1.0 / ((1.0 - 3.0 * w_i) - w_i * tmp[ny - 2]);
+        rhs[ny-1] =
+            (rhs[ny-1] - w_i * rhs[ny-2]) * norm_coeff;
 
-        Real up1 = same_direction ? right_value : rhs[HEIGHT-1];
+        Real up1 = same_direction ? right_value : rhs[ny-1];
 
         zeta[j_arr] += up1;
-        for (int j = HEIGHT-2; j >= 0; j--) {
-            j_arr = off + (size_t)j * WIDTH;
+        for (int j = ny-2; j >= 0; j--) {
+            j_arr = off + (size_t)j * stride_y;
             Real up2 = rhs[j] - tmp[j] * up1;
 
             zeta[j_arr] += up2;
@@ -77,7 +83,8 @@ static void update_zeta_scalar_tail(const Real *restrict k_porosity,
 }
 
 /* Solve the x lines left after the last complete SIMD vector of Dzz. */
-static void update_u_scalar_tail(const Real *restrict k_porosity,
+static void update_u_scalar_tail(const Decomp *restrict d,
+                                 const Real *restrict k_porosity,
                                  const Real *restrict zeta,
                                  Real *restrict u,
                                  Real *restrict rhs,
@@ -88,16 +95,20 @@ static void update_u_scalar_tail(const Real *restrict k_porosity,
                                  int j,
                                  int first_i,
                                  bool same_direction) {
-    size_t plane_size = (size_t)WIDTH * HEIGHT;
+    const int nz = d->n[2];
+    const size_t stride_z = d->stride[2];
+    const int gj = decomp_global(d, j, 1);
 
-    for (int i = first_i; i < WIDTH; i++) {
-        size_t off = (size_t)j * WIDTH + (size_t)i;
+    for (int i = first_i; i < d->n[0]; i++) {
+        size_t off = decomp_index(d, i, j, 0);
+        const int gi = decomp_global(d, i, 0);
 
         tmp[0] = 0.0;
-        rhs[0] = bc_left(data->bc_velocity, i, j, 0, t_step, v_comp);
+        rhs[0] = bc_left(data->bc_velocity,
+                         gi, gj, decomp_global(d, 0, 2), t_step, v_comp);
 
-        for (int k = 1; k < DEPTH-1; k++) {
-            size_t k_arr = off + (size_t)k * plane_size;
+        for (int k = 1; k < nz-1; k++) {
+            size_t k_arr = off + (size_t)k * stride_z;
             Real k_i = k_porosity[k_arr];
             Real w_i = -gamma_from_k(k_i) * DZ_INVERSE_SQUARE;
             Real norm_coeff =
@@ -108,26 +119,26 @@ static void update_u_scalar_tail(const Real *restrict k_porosity,
             rhs[k] = (rhs[k] - w_i * rhs[k - 1]) * norm_coeff;
         }
 
-        size_t k_arr = off + (size_t)(DEPTH-1) * plane_size;
+        size_t k_arr = off + (size_t)(nz-1) * stride_z;
         Real k_i = k_porosity[k_arr];
         Real w_i = -gamma_from_k(k_i) * DZ_INVERSE_SQUARE;
         Real right_value =
-            bc_right(data->bc_velocity, i, j, DEPTH-1,
-                     t_step, v_comp);
+            bc_right(data->bc_velocity,
+                     gi, gj, decomp_global(d, nz-1, 2), t_step, v_comp);
 
-        rhs[DEPTH-1] = zeta[k_arr] - u[k_arr];
-        rhs[DEPTH-1] -= 2.0 * w_i * right_value;
+        rhs[nz-1] = zeta[k_arr] - u[k_arr];
+        rhs[nz-1] -= 2.0 * w_i * right_value;
 
         Real norm_coeff =
-            1.0 / ((1.0 - 3.0 * w_i) - w_i * tmp[DEPTH - 2]);
-        rhs[DEPTH-1] =
-            (rhs[DEPTH-1] - w_i * rhs[DEPTH-2]) * norm_coeff;
+            1.0 / ((1.0 - 3.0 * w_i) - w_i * tmp[nz - 2]);
+        rhs[nz-1] =
+            (rhs[nz-1] - w_i * rhs[nz-2]) * norm_coeff;
 
-        Real up1 = same_direction ? right_value : rhs[DEPTH-1];
+        Real up1 = same_direction ? right_value : rhs[nz-1];
 
         u[k_arr] += up1;
-        for (int k = DEPTH-2; k >= 0; k--) {
-            k_arr = off + (size_t)k * plane_size;
+        for (int k = nz-2; k >= 0; k--) {
+            k_arr = off + (size_t)k * stride_z;
             Real up2 = rhs[k] - tmp[k] * up1;
 
             u[k_arr] += up2;
@@ -137,7 +148,8 @@ static void update_u_scalar_tail(const Real *restrict k_porosity,
 }
 
 /* Solve Dyy along y, assigning adjacent independent x lines to SIMD lanes. */
-void update_zeta_simd(SolverMemState *solver_mem_state,
+void update_zeta_simd(const Decomp *d,
+                      SolverMemState *solver_mem_state,
                       Real *restrict rhs,
                       Real *restrict tmp,
                       Data *data, int t_step, int v_comp,
@@ -169,7 +181,9 @@ void update_zeta_simd(SolverMemState *solver_mem_state,
 
     bool same_direction = (v_comp == 1);
     int max_vectors = simd_lines / SIMD_LANES;
-    size_t plane_size = (size_t)WIDTH * HEIGHT;
+    const int nx = d->n[0];
+    const int ny = d->n[1];
+    const size_t stride_y = d->stride[1];
     SimdReal one = simd_set1((Real)1.0);
     SimdReal two = simd_set1((Real)2.0);
     SimdReal three = simd_set1((Real)3.0);
@@ -177,28 +191,30 @@ void update_zeta_simd(SolverMemState *solver_mem_state,
     SimdReal negative_inverse_square =
         simd_set1((Real)-DY_INVERSE_SQUARE);
 
-    for (int k = 0; k < DEPTH; k++) {
+    for (int k = 0; k < d->n[2]; k++) {
         int i = 0;
+        const int gk = decomp_global(d, k, 2);
 
-        while (max_vectors > 0 && i + SIMD_LANES <= WIDTH) {
-            int remaining_vectors = (WIDTH - i) / SIMD_LANES;
+        while (max_vectors > 0 && i + SIMD_LANES <= nx) {
+            int remaining_vectors = (nx - i) / SIMD_LANES;
             int active_vectors =
                 remaining_vectors < max_vectors
                     ? remaining_vectors : max_vectors;
             int active_lines = active_vectors * SIMD_LANES;
-            size_t block_offset =
-                (size_t)k * plane_size + (size_t)i;
+            size_t block_offset = decomp_index(d, i, 0, k);
 
             for (int lane = 0; lane < active_lines; lane++) {
                 tmp[lane] = 0.0;
                 rhs[lane] =
-                    bc_left(data->bc_velocity, i + lane, 0, k,
+                    bc_left(data->bc_velocity,
+                            decomp_global(d, i + lane, 0),
+                            decomp_global(d, 0, 1), gk,
                             t_step, v_comp);
             }
 
-            for (int j = 1; j < HEIGHT-1; j++) {
+            for (int j = 1; j < ny-1; j++) {
                 size_t level_offset =
-                    block_offset + (size_t)j * WIDTH;
+                    block_offset + (size_t)j * stride_y;
 
                 for (int vector = 0; vector < active_vectors; vector++) {
                     int lane = vector * SIMD_LANES;
@@ -240,25 +256,27 @@ void update_zeta_simd(SolverMemState *solver_mem_state,
             /* Thomas does not use tmp at the last level: keep the right
              * boundary block there instead of allocating a third buffer. */
             Real *right_boundary =
-                &tmp[(size_t)(HEIGHT - 1) * active_lines];
+                &tmp[(size_t)(ny - 1) * active_lines];
             for (int lane = 0; lane < active_lines; lane++) {
                 right_boundary[lane] =
-                    bc_right(data->bc_velocity, i + lane, HEIGHT-1, k,
+                    bc_right(data->bc_velocity,
+                             decomp_global(d, i + lane, 0),
+                             decomp_global(d, ny-1, 1), gk,
                              t_step, v_comp);
             }
 
             size_t last_offset =
-                block_offset + (size_t)(HEIGHT - 1) * WIDTH;
+                block_offset + (size_t)(ny - 1) * stride_y;
             for (int vector = 0; vector < active_vectors; vector++) {
                 int lane = vector * SIMD_LANES;
                 size_t field_index = last_offset + (size_t)lane;
                 size_t last_scratch =
-                    (size_t)(HEIGHT - 1) * active_lines + (size_t)lane;
+                    (size_t)(ny - 1) * active_lines + (size_t)lane;
                 SimdReal up = simd_loadu(&right_boundary[lane]);
 
                 if (!same_direction) {
                     size_t previous_scratch =
-                        (size_t)(HEIGHT - 2) * active_lines + (size_t)lane;
+                        (size_t)(ny - 2) * active_lines + (size_t)lane;
                     SimdReal k_i = simd_loadu(&k_porosity[field_index]);
                     SimdReal w_i =
                         weight_from_k_simd(k_i, numerator,
@@ -293,9 +311,9 @@ void update_zeta_simd(SolverMemState *solver_mem_state,
                             simd_add(simd_loadu(&zeta[field_index]), up));
             }
 
-            for (int j = HEIGHT-2; j >= 0; j--) {
+            for (int j = ny-2; j >= 0; j--) {
                 size_t level_offset =
-                    block_offset + (size_t)j * WIDTH;
+                    block_offset + (size_t)j * stride_y;
 
                 for (int vector = 0; vector < active_vectors; vector++) {
                     int lane = vector * SIMD_LANES;
@@ -318,14 +336,15 @@ void update_zeta_simd(SolverMemState *solver_mem_state,
             i += active_lines;
         }
 
-        update_zeta_scalar_tail(k_porosity, eta, zeta, rhs, tmp,
+        update_zeta_scalar_tail(d, k_porosity, eta, zeta, rhs, tmp,
                                 data, t_step, v_comp, k, i,
                                 same_direction);
     }
 }
 
 /* Solve Dzz along z, assigning adjacent independent x lines to SIMD lanes. */
-void update_u_simd(SolverMemState *solver_mem_state,
+void update_u_simd(const Decomp *d,
+                   SolverMemState *solver_mem_state,
                    Real *restrict rhs,
                    Real *restrict tmp,
                    Data *data, int t_step, int v_comp,
@@ -357,7 +376,9 @@ void update_u_simd(SolverMemState *solver_mem_state,
 
     bool same_direction = (v_comp == 2);
     int max_vectors = simd_lines / SIMD_LANES;
-    size_t plane_size = (size_t)WIDTH * HEIGHT;
+    const int nx = d->n[0];
+    const int nz = d->n[2];
+    const size_t stride_z = d->stride[2];
     SimdReal one = simd_set1((Real)1.0);
     SimdReal two = simd_set1((Real)2.0);
     SimdReal three = simd_set1((Real)3.0);
@@ -365,28 +386,30 @@ void update_u_simd(SolverMemState *solver_mem_state,
     SimdReal negative_inverse_square =
         simd_set1((Real)-DZ_INVERSE_SQUARE);
 
-    for (int j = 0; j < HEIGHT; j++) {
+    for (int j = 0; j < d->n[1]; j++) {
         int i = 0;
+        const int gj = decomp_global(d, j, 1);
 
-        while (max_vectors > 0 && i + SIMD_LANES <= WIDTH) {
-            int remaining_vectors = (WIDTH - i) / SIMD_LANES;
+        while (max_vectors > 0 && i + SIMD_LANES <= nx) {
+            int remaining_vectors = (nx - i) / SIMD_LANES;
             int active_vectors =
                 remaining_vectors < max_vectors
                     ? remaining_vectors : max_vectors;
             int active_lines = active_vectors * SIMD_LANES;
-            size_t block_offset =
-                (size_t)j * WIDTH + (size_t)i;
+            size_t block_offset = decomp_index(d, i, j, 0);
 
             for (int lane = 0; lane < active_lines; lane++) {
                 tmp[lane] = 0.0;
                 rhs[lane] =
-                    bc_left(data->bc_velocity, i + lane, j, 0,
+                    bc_left(data->bc_velocity,
+                            decomp_global(d, i + lane, 0), gj,
+                            decomp_global(d, 0, 2),
                             t_step, v_comp);
             }
 
-            for (int k = 1; k < DEPTH-1; k++) {
+            for (int k = 1; k < nz-1; k++) {
                 size_t level_offset =
-                    block_offset + (size_t)k * plane_size;
+                    block_offset + (size_t)k * stride_z;
 
                 for (int vector = 0; vector < active_vectors; vector++) {
                     int lane = vector * SIMD_LANES;
@@ -426,25 +449,27 @@ void update_u_simd(SolverMemState *solver_mem_state,
             }
 
             Real *right_boundary =
-                &tmp[(size_t)(DEPTH - 1) * active_lines];
+                &tmp[(size_t)(nz - 1) * active_lines];
             for (int lane = 0; lane < active_lines; lane++) {
                 right_boundary[lane] =
-                    bc_right(data->bc_velocity, i + lane, j, DEPTH-1,
+                    bc_right(data->bc_velocity,
+                             decomp_global(d, i + lane, 0), gj,
+                             decomp_global(d, nz-1, 2),
                              t_step, v_comp);
             }
 
             size_t last_offset =
-                block_offset + (size_t)(DEPTH - 1) * plane_size;
+                block_offset + (size_t)(nz - 1) * stride_z;
             for (int vector = 0; vector < active_vectors; vector++) {
                 int lane = vector * SIMD_LANES;
                 size_t field_index = last_offset + (size_t)lane;
                 size_t last_scratch =
-                    (size_t)(DEPTH - 1) * active_lines + (size_t)lane;
+                    (size_t)(nz - 1) * active_lines + (size_t)lane;
                 SimdReal up = simd_loadu(&right_boundary[lane]);
 
                 if (!same_direction) {
                     size_t previous_scratch =
-                        (size_t)(DEPTH - 2) * active_lines + (size_t)lane;
+                        (size_t)(nz - 2) * active_lines + (size_t)lane;
                     SimdReal k_i = simd_loadu(&k_porosity[field_index]);
                     SimdReal w_i =
                         weight_from_k_simd(k_i, numerator,
@@ -477,9 +502,9 @@ void update_u_simd(SolverMemState *solver_mem_state,
                             simd_add(simd_loadu(&u[field_index]), up));
             }
 
-            for (int k = DEPTH-2; k >= 0; k--) {
+            for (int k = nz-2; k >= 0; k--) {
                 size_t level_offset =
-                    block_offset + (size_t)k * plane_size;
+                    block_offset + (size_t)k * stride_z;
 
                 for (int vector = 0; vector < active_vectors; vector++) {
                     int lane = vector * SIMD_LANES;
@@ -502,7 +527,7 @@ void update_u_simd(SolverMemState *solver_mem_state,
             i += active_lines;
         }
 
-        update_u_scalar_tail(k_porosity, zeta, u, rhs, tmp,
+        update_u_scalar_tail(d, k_porosity, zeta, u, rhs, tmp,
                              data, t_step, v_comp, j, i,
                              same_direction);
     }

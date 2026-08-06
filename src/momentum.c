@@ -1,14 +1,15 @@
 #include "momentum.h"
 
 
-/* eta: rhs = u + (DT/beta)*g - eta 
+/* eta: rhs = u + (DT/beta)*g - eta
  * v_comp = [x:0, y:1, z:2]
  * */
-void update_eta(SolverMemState *solver_mem_state,
+void update_eta(const Decomp *d,
+                SolverMemState *solver_mem_state,
                 Real *restrict rhs,
                 Real *restrict tmp,
                 Data *data, int t_step, int v_comp) {
-        
+
     const Real *restrict k_porosity;
     const Real *restrict u;
     Real *eta;
@@ -29,35 +30,41 @@ void update_eta(SolverMemState *solver_mem_state,
             u = solver_mem_state->u.v_z;
             eta = solver_mem_state->eta.v_z;
             break;
-        default: 
+        default:
             fprintf(stderr, "Value of v_comp doesn't exist");
-            exit(1);    
+            exit(1);
     }
 
     bool same_direction = (v_comp == 0);
+    /* X is the contiguous direction, so a line advances one element at a time. */
+    const int nx = d->n[0];
 
-    for (int k = 0; k < DEPTH; k++) {
-        for (int j = 0; j < HEIGHT; j++) {
+    for (int k = 0; k < d->n[2]; k++) {
+        int gk = decomp_global(d, k, 2);
+
+        for (int j = 0; j < d->n[1]; j++) {
+            int gj = decomp_global(d, j, 1);
             // Row offset index
-            size_t off = (size_t)k * (WIDTH * HEIGHT)
-                             + (size_t)j * WIDTH;
-            
+            size_t off = decomp_index(d, 0, j, k);
+
             // Thomas algorithm Dxx
             tmp[0] = 0.0;
-            rhs[0] = bc_left(data->bc_velocity, 0, j, k, t_step, v_comp);
-            
+            rhs[0] = bc_left(data->bc_velocity,
+                             decomp_global(d, 0, 0), gj, gk,
+                             t_step, v_comp);
+
             // Forwards step
-            for (int i = 1; i < WIDTH-1; i++) {
+            for (int i = 1; i < nx-1; i++) {
                 Real k_i = k_porosity[off+i];
                 Real w_i = -gamma_from_k(k_i) * DX_INVERSE_SQUARE;
-                
+
                 Real norm_coeff =
                     1.0 / ((1.0 - 2.0 * w_i) - w_i * tmp[i - 1]);
                 tmp[i] = w_i * norm_coeff;
-               
+
                 Real beta_i = beta_from_k(k_i);
                 Real xi_i =
-                    u[off+i] + (DT/beta_i)*g_value(i, j, k, t_step, k_i,
+                    u[off+i] + (DT/beta_i)*g_value(d, i, j, k, t_step, k_i,
                                                  solver_mem_state, data,
                                                  v_comp);
                 rhs[i] = xi_i - eta[off + i];
@@ -65,28 +72,30 @@ void update_eta(SolverMemState *solver_mem_state,
             }
 
             //Compute last rhs value
-            Real k_i = k_porosity[off+WIDTH-1];
+            Real k_i = k_porosity[off+nx-1];
             Real w_i = -gamma_from_k(k_i) * DX_INVERSE_SQUARE;
             Real beta_i = beta_from_k(k_i);
             Real xi_i =
-                u[off+WIDTH-1]
-                + (DT/beta_i)*g_value(WIDTH-1, j, k, t_step, k_i,
+                u[off+nx-1]
+                + (DT/beta_i)*g_value(d, nx-1, j, k, t_step, k_i,
                                       solver_mem_state, data, v_comp);
-            rhs[WIDTH-1] = xi_i - eta[off+WIDTH-1];
+            rhs[nx-1] = xi_i - eta[off+nx-1];
             Real right_value =
-                bc_right(data->bc_velocity, WIDTH-1, j, k, t_step, v_comp);
-            rhs[WIDTH-1] = rhs[WIDTH-1] - 2.0 * w_i * right_value;
-            
+                bc_right(data->bc_velocity,
+                         decomp_global(d, nx-1, 0), gj, gk,
+                         t_step, v_comp);
+            rhs[nx-1] = rhs[nx-1] - 2.0 * w_i * right_value;
+
             Real norm_coeff =
-                1.0 / ((1.0 - 3.0 * w_i) - w_i * tmp[WIDTH - 2]);
-            rhs[WIDTH-1] = (rhs[WIDTH-1] - w_i*rhs[WIDTH-2]) * norm_coeff;
+                1.0 / ((1.0 - 3.0 * w_i) - w_i * tmp[nx - 2]);
+            rhs[nx-1] = (rhs[nx-1] - w_i*rhs[nx-2]) * norm_coeff;
 
             // Last value of rhs depends on same_direction
-            Real up1 = same_direction ? right_value : rhs[WIDTH - 1];
-            
+            Real up1 = same_direction ? right_value : rhs[nx - 1];
+
             // Backwards step
-            eta[off+WIDTH-1] += up1;
-            for (int i = WIDTH-2; i >= 0; i--) {
+            eta[off+nx-1] += up1;
+            for (int i = nx-2; i >= 0; i--) {
                 Real up2 = rhs[i] - tmp[i]*up1;
                 eta[off + i] += up2;
                 up1 = up2;
@@ -98,7 +107,8 @@ void update_eta(SolverMemState *solver_mem_state,
 /* zeta:
  * rhs = eta - zeta
  */
-void update_zeta(SolverMemState *solver_mem_state,
+void update_zeta(const Decomp *d,
+                 SolverMemState *solver_mem_state,
                  Real *restrict rhs,
                  Real *restrict tmp,
                  Data *data, int t_step, int v_comp) {
@@ -122,55 +132,64 @@ void update_zeta(SolverMemState *solver_mem_state,
             zeta = solver_mem_state->zeta.v_z;
             eta = solver_mem_state->eta.v_z;
             break;
-        default: 
+        default:
             fprintf(stderr, "Value of v_comp doesn't exist");
-            exit(1);    
+            exit(1);
     }
 
    bool same_direction = (v_comp == 1);
+   const int ny = d->n[1];
+   const size_t stride_y = d->stride[1];
 
-   for (int k = 0; k < DEPTH; k++) {
-       for (int i = 0; i < WIDTH; i++) {
-            size_t off = k * (WIDTH*HEIGHT) + i;
-            
+   for (int k = 0; k < d->n[2]; k++) {
+       int gk = decomp_global(d, k, 2);
+
+       for (int i = 0; i < d->n[0]; i++) {
+            int gi = decomp_global(d, i, 0);
+            size_t off = decomp_index(d, i, 0, k);
+
             tmp[0] = 0.0;
-            rhs[0] = bc_left(data->bc_velocity, i, 0, k, t_step, v_comp);
-            
-            for (int j = 1; j < HEIGHT-1; j++) {
-                size_t j_arr = off + j*WIDTH;
-                
+            rhs[0] = bc_left(data->bc_velocity,
+                             gi, decomp_global(d, 0, 1), gk,
+                             t_step, v_comp);
+
+            for (int j = 1; j < ny-1; j++) {
+                size_t j_arr = off + (size_t)j * stride_y;
+
                 Real k_i = k_porosity[j_arr];
                 Real w_i = -gamma_from_k(k_i) * DY_INVERSE_SQUARE;
-                
+
                 Real norm_coeff =
                     1.0 / ((1.0 - 2.0 * w_i) - w_i * tmp[j - 1]);
                 tmp[j] = w_i * norm_coeff;
-                
+
                 rhs[j] = eta[j_arr] - zeta[j_arr];
                 rhs[j] = (rhs[j] - w_i * rhs[j - 1]) * norm_coeff;
             }
 
              //Compute last rhs value
-            size_t j_arr = off + (HEIGHT-1)*WIDTH;
+            size_t j_arr = off + (size_t)(ny-1) * stride_y;
             Real k_i = k_porosity[j_arr];
             Real w_i = -gamma_from_k(k_i) * DY_INVERSE_SQUARE;
-            
-            rhs[HEIGHT-1] = eta[j_arr] - zeta[j_arr];
+
+            rhs[ny-1] = eta[j_arr] - zeta[j_arr];
             Real right_value =
-                bc_right(data->bc_velocity, i, HEIGHT-1, k, t_step, v_comp);
-            rhs[HEIGHT-1] = rhs[HEIGHT-1] - 2.0 * w_i * right_value;
-            
+                bc_right(data->bc_velocity,
+                         gi, decomp_global(d, ny-1, 1), gk,
+                         t_step, v_comp);
+            rhs[ny-1] = rhs[ny-1] - 2.0 * w_i * right_value;
+
             Real norm_coeff =
-                1.0 / ((1.0 - 3.0 * w_i) - w_i * tmp[HEIGHT - 2]);
-            rhs[HEIGHT-1] = (rhs[HEIGHT-1] - w_i*rhs[HEIGHT-2]) * norm_coeff;
+                1.0 / ((1.0 - 3.0 * w_i) - w_i * tmp[ny - 2]);
+            rhs[ny-1] = (rhs[ny-1] - w_i*rhs[ny-2]) * norm_coeff;
 
             // Last value of rhs depends on same_direction
-            Real up1 = same_direction ? right_value : rhs[HEIGHT - 1];
-            
+            Real up1 = same_direction ? right_value : rhs[ny - 1];
+
             // Backwards step
             zeta[j_arr] += up1;
-            for (int j = HEIGHT-2; j >= 0; j--) {
-                j_arr = off + j*WIDTH;
+            for (int j = ny-2; j >= 0; j--) {
+                j_arr = off + (size_t)j * stride_y;
                 Real up2 = rhs[j] - tmp[j]*up1;
                 zeta[j_arr] += up2;
                 up1 = up2;
@@ -182,7 +201,8 @@ void update_zeta(SolverMemState *solver_mem_state,
 /* u:
  * rhs = zeta - u
  */
-void update_u(SolverMemState *solver_mem_state,
+void update_u(const Decomp *d,
+              SolverMemState *solver_mem_state,
               Real *restrict rhs,
               Real *restrict tmp,
               Data *data, int t_step, int v_comp) {
@@ -212,18 +232,24 @@ void update_u(SolverMemState *solver_mem_state,
     }
 
     bool same_direction = (v_comp == 2);
-    size_t plane_size = (size_t)WIDTH * HEIGHT;
+    const int nz = d->n[2];
+    const size_t stride_z = d->stride[2];
 
-    for (int j = 0; j < HEIGHT; j++) {
-        for (int i = 0; i < WIDTH; i++) {
-            size_t off = (size_t)j * WIDTH + i;
+    for (int j = 0; j < d->n[1]; j++) {
+        int gj = decomp_global(d, j, 1);
+
+        for (int i = 0; i < d->n[0]; i++) {
+            int gi = decomp_global(d, i, 0);
+            size_t off = decomp_index(d, i, j, 0);
 
             tmp[0] = 0.0;
             rhs[0] =
-                bc_left(data->bc_velocity, i, j, 0, t_step, v_comp);
+                bc_left(data->bc_velocity,
+                        gi, gj, decomp_global(d, 0, 2),
+                        t_step, v_comp);
 
-            for (int k = 1; k < DEPTH-1; k++) {
-                size_t k_arr = off + (size_t)k * plane_size;
+            for (int k = 1; k < nz-1; k++) {
+                size_t k_arr = off + (size_t)k * stride_z;
 
                 Real k_i = k_porosity[k_arr];
                 Real w_i =
@@ -239,32 +265,33 @@ void update_u(SolverMemState *solver_mem_state,
             }
 
             // Compute last rhs value
-            size_t k_arr = off + (size_t)(DEPTH-1) * plane_size;
+            size_t k_arr = off + (size_t)(nz-1) * stride_z;
             Real k_i = k_porosity[k_arr];
             Real w_i =
                 -gamma_from_k(k_i) * DZ_INVERSE_SQUARE;
 
-            rhs[DEPTH-1] = zeta[k_arr] - u[k_arr];
+            rhs[nz-1] = zeta[k_arr] - u[k_arr];
             Real right_value =
-                bc_right(data->bc_velocity, i, j, DEPTH-1,
+                bc_right(data->bc_velocity,
+                         gi, gj, decomp_global(d, nz-1, 2),
                          t_step, v_comp);
-            rhs[DEPTH-1] =
-                rhs[DEPTH-1] - 2.0 * w_i * right_value;
+            rhs[nz-1] =
+                rhs[nz-1] - 2.0 * w_i * right_value;
 
             Real norm_coeff =
                 1.0 / ((1.0 - 3.0 * w_i)
-                       - w_i * tmp[DEPTH - 2]);
-            rhs[DEPTH-1] =
-                (rhs[DEPTH-1] - w_i * rhs[DEPTH-2]) * norm_coeff;
+                       - w_i * tmp[nz - 2]);
+            rhs[nz-1] =
+                (rhs[nz-1] - w_i * rhs[nz-2]) * norm_coeff;
 
             // Last value of rhs depends on same_direction
             Real up1 =
-                same_direction ? right_value : rhs[DEPTH - 1];
+                same_direction ? right_value : rhs[nz - 1];
 
             // Backwards step
             u[k_arr] += up1;
-            for (int k = DEPTH-2; k >= 0; k--) {
-                k_arr = off + (size_t)k * plane_size;
+            for (int k = nz-2; k >= 0; k--) {
+                k_arr = off + (size_t)k * stride_z;
                 Real up2 = rhs[k] - tmp[k]*up1;
                 u[k_arr] += up2;
                 up1 = up2;
@@ -273,47 +300,48 @@ void update_u(SolverMemState *solver_mem_state,
     }
 }
 
-void momentum_step(SolverMemState *solver_mem_state,
+void momentum_step(const Decomp *decomp,
+                   SolverMemState *solver_mem_state,
                    Real *restrict rhs,
                    Real *restrict tmp,
                    Data *data, int t_step, SolverStats *solver_stats) {
-    
+
     // eta: compute next update for the three component
     uint64_t start_ns = time_ns();
-    update_eta(solver_mem_state, rhs, tmp, data, t_step, 0);
-    update_eta(solver_mem_state, rhs, tmp, data, t_step, 1);
-    update_eta(solver_mem_state, rhs, tmp, data, t_step, 2);
+    update_eta(decomp, solver_mem_state, rhs, tmp, data, t_step, 0);
+    update_eta(decomp, solver_mem_state, rhs, tmp, data, t_step, 1);
+    update_eta(decomp, solver_mem_state, rhs, tmp, data, t_step, 2);
     solver_stats->eta_sys += time_ns() - start_ns;
 
     // zeta: compute next update for the three component
     start_ns = time_ns();
 #if defined(USE_SIMD) && SIMD_AVAILABLE
-    update_zeta_simd(solver_mem_state, rhs, tmp, data, t_step, 0,
+    update_zeta_simd(decomp, solver_mem_state, rhs, tmp, data, t_step, 0,
                      ZETA_SIMD_LINES);
-    update_zeta_simd(solver_mem_state, rhs, tmp, data, t_step, 1,
+    update_zeta_simd(decomp, solver_mem_state, rhs, tmp, data, t_step, 1,
                      ZETA_SIMD_LINES);
-    update_zeta_simd(solver_mem_state, rhs, tmp, data, t_step, 2,
+    update_zeta_simd(decomp, solver_mem_state, rhs, tmp, data, t_step, 2,
                      ZETA_SIMD_LINES);
 #else
-    update_zeta(solver_mem_state, rhs, tmp, data, t_step, 0);
-    update_zeta(solver_mem_state, rhs, tmp, data, t_step, 1);
-    update_zeta(solver_mem_state, rhs, tmp, data, t_step, 2);
+    update_zeta(decomp, solver_mem_state, rhs, tmp, data, t_step, 0);
+    update_zeta(decomp, solver_mem_state, rhs, tmp, data, t_step, 1);
+    update_zeta(decomp, solver_mem_state, rhs, tmp, data, t_step, 2);
 #endif
     solver_stats->zeta_sys += time_ns() - start_ns;
 
     // u: compute next update for the three component
     start_ns = time_ns();
 #if defined(USE_SIMD) && SIMD_AVAILABLE
-    update_u_simd(solver_mem_state, rhs, tmp, data, t_step, 0,
+    update_u_simd(decomp, solver_mem_state, rhs, tmp, data, t_step, 0,
                   U_SIMD_LINES);
-    update_u_simd(solver_mem_state, rhs, tmp, data, t_step, 1,
+    update_u_simd(decomp, solver_mem_state, rhs, tmp, data, t_step, 1,
                   U_SIMD_LINES);
-    update_u_simd(solver_mem_state, rhs, tmp, data, t_step, 2,
+    update_u_simd(decomp, solver_mem_state, rhs, tmp, data, t_step, 2,
                   U_SIMD_LINES);
 #else
-    update_u(solver_mem_state, rhs, tmp, data, t_step, 0);
-    update_u(solver_mem_state, rhs, tmp, data, t_step, 1);
-    update_u(solver_mem_state, rhs, tmp, data, t_step, 2);
+    update_u(decomp, solver_mem_state, rhs, tmp, data, t_step, 0);
+    update_u(decomp, solver_mem_state, rhs, tmp, data, t_step, 1);
+    update_u(decomp, solver_mem_state, rhs, tmp, data, t_step, 2);
 #endif
     solver_stats->u_sys += time_ns() - start_ns;
 }

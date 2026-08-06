@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "decomp.h"
 #include "types.h"
 
 void *xmalloc(size_t size);
@@ -24,6 +25,8 @@ static inline uint64_t time_ns(void) {
 #endif
 }
 
-void print_stats(const SolverStats *solver_stats, size_t sample_count);
+void print_stats(const Decomp *d,
+                 const SolverStats *solver_stats,
+                 size_t sample_count);
 
 #endif

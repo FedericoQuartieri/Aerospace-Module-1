@@ -103,23 +103,28 @@ int main(void)
     };
     SolverMemState solver_mem_state;
     SolverStats solver_stats = {0};
+    Decomp decomp;
 
-    solver_init(&solver_mem_state, &data, NULL);
+    decomp_init_serial(&decomp);
+    solver_init(&decomp, &solver_mem_state, &data, NULL);
     
     int write_enabled = 0;
-    solver_solve(&solver_mem_state, &data, &solver_stats, write_enabled);
+    solver_solve(&decomp, &solver_mem_state, &data, &solver_stats,
+                 write_enabled);
 
     const Real velocity_verification_time =
         (Real)STEPS * (Real)DT;
     const Real pressure_verification_time =
         velocity_verification_time - (Real)DT / 2.0;
     const SolverErrorNorms errors =
-        compute_solver_error_norms(&solver_mem_state,
+        compute_solver_error_norms(&decomp,
+                                   &solver_mem_state,
                                    &data,
                                    velocity_verification_time,
                                    pressure_verification_time);
 
-    print_solver_error_norms(&errors,
+    print_solver_error_norms(&decomp,
+                             &errors,
                              velocity_verification_time,
                              pressure_verification_time);
 

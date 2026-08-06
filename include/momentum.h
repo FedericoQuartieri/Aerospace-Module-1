@@ -31,33 +31,39 @@
 
 #endif
 
-void momentum_step(SolverMemState *solver_mem_state,
+void momentum_step(const Decomp *decomp,
+                   SolverMemState *solver_mem_state,
                    Real *restrict rhs,
                    Real *restrict tmp,
                    Data *data,
                    int t_step,
                    SolverStats *solver_stats);
 
-void update_eta(SolverMemState *solver_mem_state,
+void update_eta(const Decomp *d,
+                SolverMemState *solver_mem_state,
                 Real *restrict rhs,
                 Real *restrict tmp,
                 Data *data, int t_step, int v_comp);
-void update_zeta(SolverMemState *solver_mem_state,
+void update_zeta(const Decomp *d,
+                 SolverMemState *solver_mem_state,
                  Real *restrict rhs,
                  Real *restrict tmp,
                  Data *data, int t_step, int v_comp);
-void update_u(SolverMemState *solver_mem_state,
+void update_u(const Decomp *d,
+              SolverMemState *solver_mem_state,
               Real *restrict rhs,
               Real *restrict tmp,
               Data *data, int t_step, int v_comp);
 
 #if defined(USE_SIMD) && SIMD_AVAILABLE
-void update_zeta_simd(SolverMemState *solver_mem_state,
+void update_zeta_simd(const Decomp *d,
+                      SolverMemState *solver_mem_state,
                       Real *restrict rhs,
                       Real *restrict tmp,
                       Data *data, int t_step, int v_comp,
                       int simd_lines);
-void update_u_simd(SolverMemState *solver_mem_state,
+void update_u_simd(const Decomp *d,
+                   SolverMemState *solver_mem_state,
                    Real *restrict rhs,
                    Real *restrict tmp,
                    Data *data, int t_step, int v_comp,

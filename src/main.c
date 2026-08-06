@@ -11,11 +11,14 @@ int main(int argc, char **argv) {
     SolverMemState solver_mem_state;
     Data data = paper_data;
     SolverStats solver_stats = {0};
+    Decomp decomp;
 
-    solver_init(&solver_mem_state, &data, data_name);
+    decomp_init_serial(&decomp);
+    solver_init(&decomp, &solver_mem_state, &data, data_name);
     
     int write_enabled = 0;
-    solver_solve(&solver_mem_state, &data, &solver_stats, write_enabled);
+    solver_solve(&decomp, &solver_mem_state, &data, &solver_stats,
+                 write_enabled);
 
     return 0;
 }

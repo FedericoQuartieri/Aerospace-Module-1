@@ -50,7 +50,7 @@ run_case()
     printf 'Running %-8s N=%-3s DT=%-8s STEPS=%-3s\n' \
         "$study" "$grid" "$dt" "$steps"
 
-    "$compiler" -std=c11 -O3 -Wall -Wextra -I"$root/include" \
+    "$compiler" -std=gnu11 -O3 -Wall -Wextra -I"$root/include" \
         -DWIDTH="$grid" -DHEIGHT="$grid" -DDEPTH="$grid" \
         -DT="$total_time" -DSTEPS="$steps" \
         "$root/test/paper_man.c" "${core_sources[@]}" -lm -o "$executable"

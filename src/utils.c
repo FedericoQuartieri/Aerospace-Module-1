@@ -10,7 +10,9 @@ void *xmalloc(size_t size) {
     return ptr;
 }
 
-void print_stats(const SolverStats *solver_stats, size_t sample_count) {
+void print_stats(const Decomp *d,
+                 const SolverStats *solver_stats,
+                 size_t sample_count) {
     if (sample_count == 0) {
         printf("Solver time stats: no samples\n");
         return;
@@ -42,8 +44,10 @@ void print_stats(const SolverStats *solver_stats, size_t sample_count) {
         solve_steps_ns > 0.0 ? 100.0 / solve_steps_ns : 0.0;
     double solve_steps_avg_ns =
         (double)solver_stats->solve_steps / (double)sample_count;
-    double per_cell_step = (solve_steps_avg_ns / (GRID_CELLS))/10.0;
-    printf("Grid: %d x %d x %d\n", WIDTH, HEIGHT, DEPTH);
+    double local_cells =
+        (double)d->n[0] * (double)d->n[1] * (double)d->n[2];
+    double per_cell_step = (solve_steps_avg_ns / local_cells) / 10.0;
+    printf("Grid: %d x %d x %d\n", d->n[0], d->n[1], d->n[2]);
     printf("Time steps: %zu\n", sample_count);
     printf("Solver time stats (average per time step):\n");
     printf("  eta system:  %.3f ms (%5.1f%%)\n", eta_avg_ms,
