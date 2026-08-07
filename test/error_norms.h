@@ -7,6 +7,7 @@
 #include <stdlib.h>
 
 #include "field.h"
+#include "parallel.h"
 #include "solver.h"
 
 typedef struct ErrorNorms {
@@ -234,6 +235,10 @@ static inline void print_solver_error_norms(const Decomp *d,
                                             Real velocity_time,
                                             Real pressure_time)
 {
+    if (par_rank() != 0) {
+        return;
+    }
+
     printf("\nManufactured-solution error report:\n");
     printf("  Grid: %d x %d x %d\n",
            d->n_global[0], d->n_global[1], d->n_global[2]);

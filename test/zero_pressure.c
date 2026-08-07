@@ -1,4 +1,5 @@
 #include "solver.h"
+#include "parallel.h"
 #include "error_norms.h"
 
 #ifdef USE_FLOAT
@@ -93,6 +94,8 @@ static Real manufactured_unit_porosity(Real x,
 
 int main(void)
 {
+    par_init(NULL, NULL);
+
     /* Manufactured solution corresponding to identically zero pressure. */
     Data data = {
         .name = "Zero pressure paper",
@@ -130,5 +133,6 @@ int main(void)
                              velocity_verification_time,
                              pressure_verification_time);
 
+    par_finalize();
     return 0;
 }

@@ -1,4 +1,5 @@
 #include "solver.h"
+#include "parallel.h"
 
 #define LID_SPEED ((Real)1.0)
 #define FREE_FLUID_PERMEABILITY ((Real)1e30)
@@ -68,6 +69,8 @@ static Real free_fluid_permeability(Real x,
 
 int main(void)
 {
+    par_init(NULL, NULL);
+
     Data data = {
         .name = "Lid-driven cavity",
         .bc_velocity = cavity_boundary_velocity,
@@ -86,5 +89,6 @@ int main(void)
     solver_init(&decomp, &state, &data, NULL);
     solver_solve(&decomp, &state, &data, &stats, write_enabled);
 
+    par_finalize();
     return 0;
 }

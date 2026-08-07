@@ -17,6 +17,7 @@
  * only thing that has to change is how the Decomp is filled in.
  */
 #include "solver.h"
+#include "parallel.h"
 #include "field.h"
 
 static int compare_field(const Decomp *a, const Decomp *b,
@@ -59,6 +60,8 @@ static void describe(const char *label, const Decomp *d) {
 
 int main(void)
 {
+    par_init(NULL, NULL);
+
     Decomp compact;
     Decomp padded;
 
@@ -98,5 +101,6 @@ int main(void)
     printf("\n  %s\n", failed ? "FAILED: layout changes the result"
                               : "PASSED: layout does not change the result");
 
+    par_finalize();
     return failed ? 1 : 0;
 }

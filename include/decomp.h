@@ -1,7 +1,7 @@
 #ifndef DECOMP_H
 #define DECOMP_H
 
-#include <stddef.h>
+#include <stddef.h>   /* size_t, ptrdiff_t */
 
 /*
  * Domain decomposition descriptor.
@@ -40,11 +40,29 @@ typedef struct Decomp {
     size_t base;      /* offset of the first owned cell            */
     int is_first[3];  /* block touches the lower global boundary   */
     int is_last[3];   /* block touches the upper global boundary   */
+    int halo;         /* ghost cells kept on every face            */
     size_t n_cells;   /* elements to allocate for one field        */
 } Decomp;
 
+/*
+ * Share `total` items among `parts` blocks and return the range of block
+ * `index` as [begin, end).  Any leftover is spread one item each over the
+ * first blocks, so the sizes differ by at most one.
+ *
+ * Used both to place a process inside the grid and to cut a grid line into
+ * pieces for the block tridiagonal solve: one rule, one implementation.
+ */
+void decomp_share(int total, int parts, int index, int *begin, int *end);
+
 /* Fill d with the single-block decomposition covering the whole grid. */
 void decomp_init_serial(Decomp *d);
+
+/*
+ * Fill d with the block this process owns, according to the process grid
+ * built by par_topology_init.  With one process it matches
+ * decomp_init_serial.
+ */
+void decomp_init_mpi(Decomp *d);
 
 /*
  * Same block, but allocated with a margin of halo cells on every face, so the
@@ -54,10 +72,16 @@ void decomp_init_serial(Decomp *d);
  */
 void decomp_init_serial_padded(Decomp *d, int halo);
 
-/* Offset of the owned cell (i, j, k), all indices local. */
+/*
+ * Offset of the cell (i, j, k), all indices local.  An index may be -1 or
+ * n[c], which addresses a ghost cell, so the arithmetic is done in a signed
+ * type before turning into an offset.
+ */
 static inline size_t decomp_index(const Decomp *d, int i, int j, int k) {
-    return d->base + (size_t)i * d->stride[0] + (size_t)j * d->stride[1] +
-           (size_t)k * d->stride[2];
+    return (size_t)((ptrdiff_t)d->base +
+                    (ptrdiff_t)i * (ptrdiff_t)d->stride[0] +
+                    (ptrdiff_t)j * (ptrdiff_t)d->stride[1] +
+                    (ptrdiff_t)k * (ptrdiff_t)d->stride[2]);
 }
 
 /* Global index along direction component of the local index i. */

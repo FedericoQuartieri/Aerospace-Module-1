@@ -1,5 +1,6 @@
 /* Three-dimensional channel with a moving spherical Brinkman obstacle. */
 #include "solver.h"
+#include "parallel.h"
 
 #define MAX_STREAMWISE_SPEED ((Real)1.0)
 #define FREE_FLUID_PERMEABILITY ((Real)1e30)
@@ -113,6 +114,8 @@ static Real moving_sphere_permeability(Real x,
 
 int main(void)
 {
+    par_init(NULL, NULL);
+
     Data data = {
         .name = "Channel with moving spherical obstacle",
         .bc_velocity = channel_boundary_velocity,
@@ -131,5 +134,6 @@ int main(void)
     solver_init(&decomp, &state, &data, NULL);
     solver_solve(&decomp, &state, &data, &stats, write_enabled);
 
+    par_finalize();
     return 0;
 }

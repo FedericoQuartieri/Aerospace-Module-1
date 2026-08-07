@@ -1,4 +1,5 @@
 #include "solver.h"
+#include "parallel.h"
 #include "error_norms.h"
 
 #ifdef USE_FLOAT
@@ -91,6 +92,8 @@ static Real manufactured_paper_forcing(Real x,
 
 int main(void)
 {
+    par_init(NULL, NULL);
+
     /* Manufactured solution corresponding to Auteri paper. */
     Data data = {
         .name = "Paper Auteri",
@@ -128,5 +131,6 @@ int main(void)
                              velocity_verification_time,
                              pressure_verification_time);
 
+    par_finalize();
     return 0;
 }

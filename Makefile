@@ -1,8 +1,15 @@
 CC = cc
 CFLAGS = -std=gnu11 -O3 -Wall -Wextra -Iinclude
 SIMD ?= 0
+MPI ?= 0
 ZETA_SIMD_VECTORS ?= 4
 U_SIMD_VECTORS ?= 8
+
+# Build with MPI=1 to compile against MPI and run with mpirun.
+ifeq ($(MPI),1)
+CC = mpicc
+CFLAGS += -DUSE_MPI
+endif
 
 ifeq ($(SIMD),1)
 CFLAGS += -DUSE_SIMD \

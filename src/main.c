@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include "solver.h"
+#include "parallel.h"
 
 int main(int argc, char **argv) {
+    par_init(&argc, &argv);
+
     // Data of bc_velocity and forcing used by the solver
     char *data_name = NULL;
     if(argc == 2) {
@@ -20,5 +23,6 @@ int main(int argc, char **argv) {
     solver_solve(&decomp, &solver_mem_state, &data, &solver_stats,
                  write_enabled);
 
+    par_finalize();
     return 0;
 }

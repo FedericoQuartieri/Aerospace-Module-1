@@ -1,5 +1,6 @@
 #include "utils.h"
 #include "solver.h"
+#include "parallel.h"
 
 void *xmalloc(size_t size) {
     void *ptr = malloc(size);
@@ -13,6 +14,11 @@ void *xmalloc(size_t size) {
 void print_stats(const Decomp *d,
                  const SolverStats *solver_stats,
                  size_t sample_count) {
+    /* Every process would otherwise print its own copy of the report. */
+    if (par_rank() != 0) {
+        return;
+    }
+
     if (sample_count == 0) {
         printf("Solver time stats: no samples\n");
         return;
@@ -48,6 +54,7 @@ void print_stats(const Decomp *d,
         (double)d->n[0] * (double)d->n[1] * (double)d->n[2];
     double per_cell_step = (solve_steps_avg_ns / local_cells) / 10.0;
     printf("Grid: %d x %d x %d\n", d->n[0], d->n[1], d->n[2]);
+    printf("Processes: %d\n", par_size());
     printf("Time steps: %zu\n", sample_count);
     printf("Solver time stats (average per time step):\n");
     printf("  eta system:  %.3f ms (%5.1f%%)\n", eta_avg_ms,
