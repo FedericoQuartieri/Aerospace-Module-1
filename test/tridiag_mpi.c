@@ -59,7 +59,7 @@ static int check(int n, int blocks, int block) {
     int n_local = end - begin;
 
     Real *mine = xmalloc((size_t)n_local * sizeof(Real));
-    schur_solve_mpi(AXIS, n_local, a + begin, b + begin, c + begin,
+    schur_solve_mpi(AXIS, 1, n_local, a + begin, b + begin, c + begin,
                     f + begin, mine);
 
     Real worst = (Real)0;

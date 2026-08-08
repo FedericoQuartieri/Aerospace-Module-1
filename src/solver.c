@@ -3,12 +3,37 @@
 #include "momentum.h"
 #include "pressure.h"
 #include "output.h"
+#include "parallel.h"
+
+/*
+ * Rinfresca l'anello di celle di contorno dei campi che i conti leggono un
+ * passo oltre il proprio blocco: le tre componenti della velocita' e la
+ * pressione estrapolata. Gli altri campi vengono letti solo nella cella in
+ * cui si trovano, quindi non hanno bisogno di niente.
+ */
+static void refresh_velocity_halo(const Decomp *d, SolverMemState *state) {
+    par_exchange_halo(d, state->u.v_x);
+    par_exchange_halo(d, state->u.v_y);
+    par_exchange_halo(d, state->u.v_z);
+}
 
 void solver_init(const Decomp *decomp,
                  SolverMemState *solver_mem_state,
                  Data *data,
                  const char *data_name) {
     (void)data_name;
+
+    /*
+     * Per ora la griglia si divide solo lungo Z: e' l'unica direzione in cui
+     * i sistemi tridiagonali passano dal complemento di Schur. Dividere anche
+     * X o Y darebbe risultati sbagliati in silenzio, quindi meglio fermarsi.
+     */
+    if (decomp->n[0] != decomp->n_global[0] ||
+        decomp->n[1] != decomp->n_global[1]) {
+        fprintf(stderr,
+                "solver: per ora la griglia si divide solo lungo Z\n");
+        exit(1);
+    }
 
     // TODO: Parse data_name and assign the correspondent Data structure,
     // return error if not matched
@@ -60,6 +85,10 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
 
     uint64_t start_ns = time_ns();
     for (int t_step = 1; t_step <= STEPS; t_step++) {
+        /* g_value guarda una cella oltre il blocco in u e pressure_star. */
+        refresh_velocity_halo(decomp, solver_mem_state);
+        par_exchange_halo(decomp, solver_mem_state->pressure_star.v);
+
         if (data->porosity_time_dependent) {
             Real midpoint_step = (Real)t_step - (Real)0.5;
             vectorField_fill(decomp,
@@ -72,6 +101,10 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
         momentum_step(decomp, solver_mem_state, rhs, tmp, data, t_step,
                       solver_stats);
 
+
+        /* compute_div guarda una cella indietro nella velocita' appena
+         * aggiornata. */
+        refresh_velocity_halo(decomp, solver_mem_state);
 
         // Pressure system
         pressure_step(decomp, solver_mem_state, &pressure_buffer, rhs, tmp,

@@ -110,7 +110,10 @@ int main(void)
     SolverStats solver_stats = {0};
     Decomp decomp;
 
-    decomp_init_serial(&decomp);
+    /* {1, 1, 0}: i processi si dispongono a fette lungo Z. */
+    const int process_grid[3] = {1, 1, 0};
+    par_topology_init(process_grid);
+    decomp_init_mpi(&decomp);
     solver_init(&decomp, &solver_mem_state, &data, NULL);
     
     int write_enabled = 0;

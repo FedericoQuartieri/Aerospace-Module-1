@@ -65,6 +65,22 @@ int main(void)
     Decomp compact;
     Decomp padded;
 
+    /*
+     * Questo controllo confronta due disposizioni in memoria dentro un solo
+     * processo: con piu' processi non avrebbe senso, e la griglia 1x1x1 che
+     * chiede non sarebbe nemmeno costruibile.
+     */
+    if (par_size() > 1) {
+        if (par_rank() == 0) {
+            printf("\n  decomp_layout va eseguito con un processo solo\n");
+        }
+        par_finalize();
+        return 0;
+    }
+
+    const int process_grid[3] = {1, 1, 1};
+    par_topology_init(process_grid);
+
     decomp_init_serial(&compact);
     decomp_init_serial_padded(&padded, 1);
 

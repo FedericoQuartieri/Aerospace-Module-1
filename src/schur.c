@@ -7,16 +7,21 @@
 void thomas_solve(int n,
                   const Real *a, const Real *b, const Real *c,
                   const Real *f, Real *x, Real *scratch) {
-    /* Forward elimination: scratch keeps the normalized superdiagonal. */
-    Real denominator = b[0];
+    /*
+     * Forward elimination: scratch keeps the normalized superdiagonal.  The
+     * reciprocal is taken once and multiplied twice, which is one division
+     * instead of two and is what the solver kernels already did inline, so
+     * routing them through here does not change a single bit.
+     */
+    Real inverse = (Real)1 / b[0];
 
-    scratch[0] = c[0] / denominator;
-    x[0] = f[0] / denominator;
+    scratch[0] = c[0] * inverse;
+    x[0] = f[0] * inverse;
 
     for (int i = 1; i < n; i++) {
-        denominator = b[i] - a[i] * scratch[i - 1];
-        scratch[i] = c[i] / denominator;
-        x[i] = (f[i] - a[i] * x[i - 1]) / denominator;
+        inverse = (Real)1 / (b[i] - a[i] * scratch[i - 1]);
+        scratch[i] = c[i] * inverse;
+        x[i] = (f[i] - a[i] * x[i - 1]) * inverse;
     }
 
     /* Back substitution. */
@@ -166,25 +171,28 @@ void schur_solve(int n, int blocks,
 
 /*
  * The distributed form: one block per process instead of one block per slice
- * of a shared array.  The three phases are the same as above, and only the
- * middle one talks to anybody:
+ * of a shared array, and `lines` independent systems solved together.
  *
- *   1. three local Thomas solves                        no communication
- *   2. build and solve the interface system             two small messages
- *   3. recombine the local answer                       no communication
+ * The three phases are the same as above, and only the middle one talks to
+ * anybody:
  *
- * Phase 2 needs, from the process on the right, the three values its first
- * internal point takes in y, Lft and Rgt: that is one exchange of three
- * numbers.  Then each process holds one row of the interface system, and an
- * allgather of four numbers per process gives everybody the whole thing, so
- * everybody solves it and nobody has to broadcast the answer back.
+ *   1. three local Thomas solves per line          no communication
+ *   2. build and solve the interface systems       two messages, for ALL lines
+ *   3. recombine the local answers                 no communication
+ *
+ * Batching matters: the solver calls this once per grid line, and one message
+ * per line would cost far more than the arithmetic it enables.  Doing the
+ * local work for a whole group of lines first, and then exchanging once for
+ * the whole group, turns thousands of tiny messages into one.
+ *
+ * System `l` occupies a[l*n_local] .. a[l*n_local + n_local - 1], and likewise
+ * for b, c, f and x.
  *
  * Solving the interface system on every process duplicates a little work, but
  * it is a system of `blocks - 1` unknowns against blocks of hundreds of
- * points, and it saves a second collective.  It stops paying off only for
- * very large process counts.
+ * points, and it saves a second collective.
  */
-void schur_solve_mpi(int axis, int n_local,
+void schur_solve_mpi(int axis, int lines, int n_local,
                      const Real *a, const Real *b, const Real *c,
                      const Real *f, Real *x) {
     int dims[3];
@@ -196,11 +204,15 @@ void schur_solve_mpi(int axis, int n_local,
     int blocks = dims[axis];
     int p = coords[axis];
 
-    size_t bytes = (size_t)n_local * sizeof(Real);
-    Real *scratch = xmalloc(bytes);
+    size_t line_bytes = (size_t)n_local * sizeof(Real);
+    Real *scratch = xmalloc(line_bytes);
 
     if (blocks < 2) {
-        thomas_solve(n_local, a, b, c, f, x, scratch);
+        for (int l = 0; l < lines; l++) {
+            size_t off = (size_t)l * (size_t)n_local;
+            thomas_solve(n_local, a + off, b + off, c + off,
+                         f + off, x + off, scratch);
+        }
         free(scratch);
         return;
     }
@@ -216,53 +228,83 @@ void schur_solve_mpi(int axis, int n_local,
         exit(1);
     }
 
-    Real *y = xmalloc(bytes);
-    Real *lft = xmalloc(bytes);
-    Real *rgt = xmalloc(bytes);
-    Real *rhs = xmalloc(bytes);
+    size_t total = (size_t)lines * (size_t)n_local;
+    Real *y = xmalloc(total * sizeof(Real));
+    Real *lft = xmalloc(total * sizeof(Real));
+    Real *rgt = xmalloc(total * sizeof(Real));
+    Real *rhs = xmalloc(line_bytes);
 
-    memset(lft, 0, bytes);
-    memset(rgt, 0, bytes);
+    memset(lft, 0, total * sizeof(Real));
+    memset(rgt, 0, total * sizeof(Real));
 
-    /* ---- 1. on my own ---- */
-    thomas_solve(len, a, b, c, f, y, scratch);
+    /* ---- 1. every line on its own ---- */
+    for (int l = 0; l < lines; l++) {
+        size_t off = (size_t)l * (size_t)n_local;
 
-    if (p > 0) {
-        memset(rhs, 0, (size_t)len * sizeof(Real));
-        rhs[0] = a[0];
-        thomas_solve(len, a, b, c, rhs, lft, scratch);
+        thomas_solve(len, a + off, b + off, c + off,
+                     f + off, y + off, scratch);
+
+        if (p > 0) {
+            memset(rhs, 0, (size_t)len * sizeof(Real));
+            rhs[0] = a[off];
+            thomas_solve(len, a + off, b + off, c + off,
+                         rhs, lft + off, scratch);
+        }
+
+        if (has_right) {
+            memset(rhs, 0, (size_t)len * sizeof(Real));
+            rhs[len - 1] = c[off + (size_t)len - 1];
+            thomas_solve(len, a + off, b + off, c + off,
+                         rhs, rgt + off, scratch);
+        }
     }
 
-    if (has_right) {
-        memset(rhs, 0, (size_t)len * sizeof(Real));
-        rhs[len - 1] = c[len - 1];
-        thomas_solve(len, a, b, c, rhs, rgt, scratch);
+    /* ---- 2. one exchange and one collective, for every line at once ---- */
+    Real *mine = xmalloc(3 * (size_t)lines * sizeof(Real));
+    Real *from_right = xmalloc(3 * (size_t)lines * sizeof(Real));
+
+    for (int l = 0; l < lines; l++) {
+        size_t off = (size_t)l * (size_t)n_local;
+
+        mine[3 * l + 0] = y[off];
+        mine[3 * l + 1] = lft[off];
+        mine[3 * l + 2] = rgt[off];
+        from_right[3 * l + 0] = (Real)0;
+        from_right[3 * l + 1] = (Real)0;
+        from_right[3 * l + 2] = (Real)0;
     }
 
-    /* ---- 2. the interface system ---- */
+    par_shift_real(axis, -1, mine, from_right, 3 * lines);
 
-    /* My left neighbour needs what my first internal point is worth. */
-    Real mine[3] = {y[0], lft[0], rgt[0]};
-    Real from_right[3] = {0, 0, 0};
-    par_shift_real(axis, -1, mine, from_right, 3);
+    /* My row of every interface system.  The last process has no interface
+     * and sends harmless identity rows that nobody uses. */
+    Real *row = xmalloc(4 * (size_t)lines * sizeof(Real));
 
-    /* Row of the interface system owned by this process.  The last process
-     * has no interface, and sends a harmless identity row that nobody uses. */
-    Real row[4] = {0, 1, 0, 0};
+    for (int l = 0; l < lines; l++) {
+        size_t off = (size_t)l * (size_t)n_local;
 
-    if (has_right) {
-        int m = n_local - 1;  /* the interface point   */
-        int left = len - 1;   /* my last internal point */
+        row[4 * l + 0] = (Real)0;
+        row[4 * l + 1] = (Real)1;
+        row[4 * l + 2] = (Real)0;
+        row[4 * l + 3] = (Real)0;
 
-        row[0] = -a[m] * lft[left];
-        row[1] = b[m] - a[m] * rgt[left] - c[m] * from_right[1];
-        row[2] = -c[m] * from_right[2];
-        row[3] = f[m] - a[m] * y[left] - c[m] * from_right[0];
+        if (has_right) {
+            size_t m = off + (size_t)n_local - 1;  /* the interface point   */
+            size_t left = off + (size_t)len - 1;   /* my last internal point */
+
+            row[4 * l + 0] = -a[m] * lft[left];
+            row[4 * l + 1] = b[m] - a[m] * rgt[left]
+                             - c[m] * from_right[3 * l + 1];
+            row[4 * l + 2] = -c[m] * from_right[3 * l + 2];
+            row[4 * l + 3] = f[m] - a[m] * y[left]
+                             - c[m] * from_right[3 * l + 0];
+        }
     }
 
-    Real *rows = xmalloc(4 * (size_t)blocks * sizeof(Real));
-    par_line_allgather(axis, row, 4, rows);
+    Real *rows = xmalloc(4 * (size_t)lines * (size_t)blocks * sizeof(Real));
+    par_line_allgather(axis, row, 4 * lines, rows);
 
+    /* ---- 3. every line on its own again ---- */
     int interfaces = blocks - 1;
     Real *ra = xmalloc((size_t)interfaces * sizeof(Real));
     Real *rb = xmalloc((size_t)interfaces * sizeof(Real));
@@ -271,25 +313,31 @@ void schur_solve_mpi(int axis, int n_local,
     Real *rx = xmalloc((size_t)interfaces * sizeof(Real));
     Real *reduced_scratch = xmalloc((size_t)interfaces * sizeof(Real));
 
-    for (int q = 0; q < interfaces; q++) {
-        ra[q] = rows[4 * q + 0];
-        rb[q] = rows[4 * q + 1];
-        rc[q] = rows[4 * q + 2];
-        rf[q] = rows[4 * q + 3];
-    }
+    for (int l = 0; l < lines; l++) {
+        for (int q = 0; q < interfaces; q++) {
+            size_t here = 4 * (size_t)q * (size_t)lines + 4 * (size_t)l;
 
-    thomas_solve(interfaces, ra, rb, rc, rf, rx, reduced_scratch);
+            ra[q] = rows[here + 0];
+            rb[q] = rows[here + 1];
+            rc[q] = rows[here + 2];
+            rf[q] = rows[here + 3];
+        }
 
-    /* ---- 3. on my own again ---- */
-    Real x_left = (p > 0) ? rx[p - 1] : (Real)0;
-    Real x_right = has_right ? rx[p] : (Real)0;
+        thomas_solve(interfaces, ra, rb, rc, rf, rx, reduced_scratch);
 
-    for (int i = 0; i < len; i++) {
-        x[i] = y[i] - x_left * lft[i] - x_right * rgt[i];
-    }
+        Real x_left = (p > 0) ? rx[p - 1] : (Real)0;
+        Real x_right = has_right ? rx[p] : (Real)0;
+        size_t off = (size_t)l * (size_t)n_local;
 
-    if (has_right) {
-        x[n_local - 1] = rx[p];
+        for (int i = 0; i < len; i++) {
+            x[off + (size_t)i] = y[off + (size_t)i]
+                                 - x_left * lft[off + (size_t)i]
+                                 - x_right * rgt[off + (size_t)i];
+        }
+
+        if (has_right) {
+            x[off + (size_t)n_local - 1] = rx[p];
+        }
     }
 
     free(reduced_scratch);
@@ -299,6 +347,9 @@ void schur_solve_mpi(int axis, int n_local,
     free(rb);
     free(ra);
     free(rows);
+    free(row);
+    free(from_right);
+    free(mine);
     free(rhs);
     free(rgt);
     free(lft);

@@ -75,8 +75,10 @@ static inline ErrorNorms compute_error_norms(const Decomp *d,
         }
     }
 
-    error.L1 *= dV;
-    error.L2 = (Real)sqrt((double)(error.L2 * dV));
+    /* Le norme sono somme su tutta la griglia, non solo sul blocco. */
+    error.L1 = par_sum_real(error.L1) * dV;
+    error.L2 = (Real)sqrt((double)(par_sum_real(error.L2) * dV));
+    error.Linf = par_max_real(error.Linf);
 
     return error;
 }
@@ -91,11 +93,12 @@ static inline ErrorNorms compute_pressure_error_norms(const Decomp *d,
 {
     ErrorNorms error = {0.0, 0.0, 0.0};
     const Real dV = (Real)DX * (Real)DY * (Real)DZ;
-    const size_t size = (size_t)d->n[0] * (size_t)d->n[1] * (size_t)d->n[2];
+    const size_t size = (size_t)d->n_global[0] * (size_t)d->n_global[1] *
+                        (size_t)d->n_global[2];
     Real mean_difference = 0.0;
 
-    /* The constant to remove is a property of the whole field, so this sum
-     * will have to become a global reduction once the grid is split. */
+    /* The constant to remove is a property of the whole field, so the sum
+     * runs over every process and is divided by the global cell count. */
     for (int k = 0; k < d->n[2]; k++) {
         for (int j = 0; j < d->n[1]; j++) {
             size_t row = decomp_index(d, 0, j, k);
@@ -105,7 +108,7 @@ static inline ErrorNorms compute_pressure_error_norms(const Decomp *d,
             }
         }
     }
-    mean_difference /= (Real)size;
+    mean_difference = par_sum_real(mean_difference) / (Real)size;
 
     for (int k = 0; k < d->n[2]; k++) {
         for (int j = 0; j < d->n[1]; j++) {
@@ -126,8 +129,9 @@ static inline ErrorNorms compute_pressure_error_norms(const Decomp *d,
         }
     }
 
-    error.L1 *= dV;
-    error.L2 = (Real)sqrt((double)(error.L2 * dV));
+    error.L1 = par_sum_real(error.L1) * dV;
+    error.L2 = (Real)sqrt((double)(par_sum_real(error.L2) * dV));
+    error.Linf = par_max_real(error.Linf);
 
     return error;
 }

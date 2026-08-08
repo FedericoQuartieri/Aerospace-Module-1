@@ -1,4 +1,5 @@
 #include "momentum.h"
+#include "schur.h"
 
 
 /* eta: rhs = u + (DT/beta)*g - eta
@@ -198,13 +199,22 @@ void update_zeta(const Decomp *d,
    }
 }
 
-/* u:
- * rhs = zeta - u
+/*
+ * u: rhs = zeta - u, solved along Z.
+ *
+ * Unlike eta and zeta, this direction is the one the grid is split along, so
+ * the line a process owns is only a piece of the real one.  Instead of running
+ * Thomas on it, the three diagonals and the right-hand side are written out
+ * explicitly and handed to schur_solve_mpi, which stitches the pieces back
+ * together.  With a single process it falls back to plain Thomas, so nothing
+ * changes there.
+ *
+ * The systems are built one XY row at a time: all the lines of a row are
+ * solved together, so the whole row costs one exchange instead of one per
+ * line, and the buffers stay small.
  */
 void update_u(const Decomp *d,
               SolverMemState *solver_mem_state,
-              Real *restrict rhs,
-              Real *restrict tmp,
               Data *data, int t_step, int v_comp) {
     const Real *restrict k_porosity;
     const Real *restrict zeta;
@@ -232,72 +242,84 @@ void update_u(const Decomp *d,
     }
 
     bool same_direction = (v_comp == 2);
+    const int nx = d->n[0];
     const int nz = d->n[2];
+    const int last_global = d->n_global[2] - 1;
     const size_t stride_z = d->stride[2];
+
+    size_t room = (size_t)nx * (size_t)nz * sizeof(Real);
+    Real *lower = xmalloc(room);
+    Real *diagonal = xmalloc(room);
+    Real *upper = xmalloc(room);
+    Real *known = xmalloc(room);
+    Real *increment = xmalloc(room);
 
     for (int j = 0; j < d->n[1]; j++) {
         int gj = decomp_global(d, j, 1);
 
-        for (int i = 0; i < d->n[0]; i++) {
+        for (int i = 0; i < nx; i++) {
             int gi = decomp_global(d, i, 0);
-            size_t off = decomp_index(d, i, j, 0);
+            size_t column = decomp_index(d, i, j, 0);
+            size_t line = (size_t)i * (size_t)nz;
 
-            tmp[0] = 0.0;
-            rhs[0] =
-                bc_left(data->bc_velocity,
-                        gi, gj, decomp_global(d, 0, 2),
-                        t_step, v_comp);
+            for (int k = 0; k < nz; k++) {
+                int gk = decomp_global(d, k, 2);
+                size_t cell = column + (size_t)k * stride_z;
+                size_t at = line + (size_t)k;
+                Real w_i = -gamma_from_k(k_porosity[cell]) * DZ_INVERSE_SQUARE;
 
-            for (int k = 1; k < nz-1; k++) {
-                size_t k_arr = off + (size_t)k * stride_z;
+                if (gk == 0) {
+                    /* Parete inferiore: il valore e' imposto. */
+                    lower[at] = 0.0;
+                    diagonal[at] = 1.0;
+                    upper[at] = 0.0;
+                    known[at] = bc_left(data->bc_velocity, gi, gj, gk,
+                                        t_step, v_comp);
+                } else if (gk == last_global) {
+                    Real right_value =
+                        bc_right(data->bc_velocity, gi, gj, gk,
+                                 t_step, v_comp);
 
-                Real k_i = k_porosity[k_arr];
-                Real w_i =
-                    -gamma_from_k(k_i) * DZ_INVERSE_SQUARE;
-
-                Real norm_coeff =
-                    1.0 / ((1.0 - 2.0 * w_i) - w_i * tmp[k - 1]);
-                tmp[k] = w_i * norm_coeff;
-
-                rhs[k] = zeta[k_arr] - u[k_arr];
-                rhs[k] =
-                    (rhs[k] - w_i * rhs[k - 1]) * norm_coeff;
+                    if (same_direction) {
+                        /* Componente normale alla parete: imposta anch'essa. */
+                        lower[at] = 0.0;
+                        diagonal[at] = 1.0;
+                        upper[at] = 0.0;
+                        known[at] = right_value;
+                    } else {
+                        /* Componente tangente: nodo fantasma eliminato. */
+                        lower[at] = w_i;
+                        diagonal[at] = 1.0 - 3.0 * w_i;
+                        upper[at] = 0.0;
+                        known[at] = zeta[cell] - u[cell]
+                                    - 2.0 * w_i * right_value;
+                    }
+                } else {
+                    lower[at] = w_i;
+                    diagonal[at] = 1.0 - 2.0 * w_i;
+                    upper[at] = w_i;
+                    known[at] = zeta[cell] - u[cell];
+                }
             }
+        }
 
-            // Compute last rhs value
-            size_t k_arr = off + (size_t)(nz-1) * stride_z;
-            Real k_i = k_porosity[k_arr];
-            Real w_i =
-                -gamma_from_k(k_i) * DZ_INVERSE_SQUARE;
+        schur_solve_mpi(2, nx, nz, lower, diagonal, upper, known, increment);
 
-            rhs[nz-1] = zeta[k_arr] - u[k_arr];
-            Real right_value =
-                bc_right(data->bc_velocity,
-                         gi, gj, decomp_global(d, nz-1, 2),
-                         t_step, v_comp);
-            rhs[nz-1] =
-                rhs[nz-1] - 2.0 * w_i * right_value;
+        for (int i = 0; i < nx; i++) {
+            size_t column = decomp_index(d, i, j, 0);
+            size_t line = (size_t)i * (size_t)nz;
 
-            Real norm_coeff =
-                1.0 / ((1.0 - 3.0 * w_i)
-                       - w_i * tmp[nz - 2]);
-            rhs[nz-1] =
-                (rhs[nz-1] - w_i * rhs[nz-2]) * norm_coeff;
-
-            // Last value of rhs depends on same_direction
-            Real up1 =
-                same_direction ? right_value : rhs[nz - 1];
-
-            // Backwards step
-            u[k_arr] += up1;
-            for (int k = nz-2; k >= 0; k--) {
-                k_arr = off + (size_t)k * stride_z;
-                Real up2 = rhs[k] - tmp[k]*up1;
-                u[k_arr] += up2;
-                up1 = up2;
+            for (int k = 0; k < nz; k++) {
+                u[column + (size_t)k * stride_z] += increment[line + (size_t)k];
             }
         }
     }
+
+    free(increment);
+    free(known);
+    free(upper);
+    free(diagonal);
+    free(lower);
 }
 
 void momentum_step(const Decomp *decomp,
@@ -331,17 +353,17 @@ void momentum_step(const Decomp *decomp,
 
     // u: compute next update for the three component
     start_ns = time_ns();
+    for (int v_comp = 0; v_comp < 3; v_comp++) {
 #if defined(USE_SIMD) && SIMD_AVAILABLE
-    update_u_simd(decomp, solver_mem_state, rhs, tmp, data, t_step, 0,
-                  U_SIMD_LINES);
-    update_u_simd(decomp, solver_mem_state, rhs, tmp, data, t_step, 1,
-                  U_SIMD_LINES);
-    update_u_simd(decomp, solver_mem_state, rhs, tmp, data, t_step, 2,
-                  U_SIMD_LINES);
-#else
-    update_u(decomp, solver_mem_state, rhs, tmp, data, t_step, 0);
-    update_u(decomp, solver_mem_state, rhs, tmp, data, t_step, 1);
-    update_u(decomp, solver_mem_state, rhs, tmp, data, t_step, 2);
+        /* La versione vettorizzata risolve la linea intera, quindi vale solo
+         * finche' Z non e' diviso fra piu' processi. */
+        if (decomp->n[2] == decomp->n_global[2]) {
+            update_u_simd(decomp, solver_mem_state, rhs, tmp, data, t_step,
+                          v_comp, U_SIMD_LINES);
+            continue;
+        }
 #endif
+        update_u(decomp, solver_mem_state, data, t_step, v_comp);
+    }
     solver_stats->u_sys += time_ns() - start_ns;
 }

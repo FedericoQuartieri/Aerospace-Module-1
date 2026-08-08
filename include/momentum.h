@@ -51,8 +51,6 @@ void update_zeta(const Decomp *d,
                  Data *data, int t_step, int v_comp);
 void update_u(const Decomp *d,
               SolverMemState *solver_mem_state,
-              Real *restrict rhs,
-              Real *restrict tmp,
               Data *data, int t_step, int v_comp);
 
 #if defined(USE_SIMD) && SIMD_AVAILABLE

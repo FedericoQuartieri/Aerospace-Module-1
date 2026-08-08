@@ -1,4 +1,6 @@
 #include "pressure.h"
+#include "schur.h"
+#include "utils.h"
 
 
 static inline void compute_pressure_rhs_x_line(
@@ -221,74 +223,79 @@ static void compute_phi_low(const Decomp *restrict d,
     }
 }
 
+/*
+ * Terzo passo della pressione, lungo Z: la direzione in cui la griglia e'
+ * divisa.  Come per update_u, i coefficienti vengono scritti esplicitamente e
+ * il sistema passa a schur_solve_mpi, che ricuce i pezzi.
+ *
+ * Le righe agli estremi sono quelle della condizione di Neumann omogenea, e
+ * spettano solo a chi tocca davvero la parete: un processo in mezzo al dominio
+ * usa ovunque la riga interna.
+ */
 static void compute_phi_high(const Decomp *restrict d,
                              const ScalarField *restrict phi_low_field,
-                             ScalarField *restrict phi_high_field,
-                             Real *restrict tmp) {
+                             ScalarField *restrict phi_high_field) {
     const Real *restrict phi_low = phi_low_field->v;
     Real *restrict phi_high = phi_high_field->v;
-    int nx = d->n[0];
-    int ny = d->n[1];
-    int nz = d->n[2];
-    size_t stride_z = d->stride[2];
-    Real w = -(Real)DZ_INVERSE_SQUARE;
-    Real inverse_w = (Real)1 / w;
-    Real inverse_diagonal_left =
-        (Real)1 / ((Real)1 - (Real)2 * w);
-    Real inverse_diagonal_right =
-        prepare_pressure_thomas(tmp, (size_t)nz, w);
 
-    /*
-     * Thomas advances along Z; the two inner loops sweep the XY plane, whose
-     * rows are contiguous, so both passes stay streaming SIMD loops.
-     */
-    for (int j = 0; j < ny; j++) {
-        size_t row = decomp_index(d, 0, j, 0);
+    const int nx = d->n[0];
+    const int nz = d->n[2];
+    const int last_global = d->n_global[2] - 1;
+    const size_t stride_z = d->stride[2];
+    const Real w = -(Real)DZ_INVERSE_SQUARE;
+
+    size_t room = (size_t)nx * (size_t)nz * sizeof(Real);
+    Real *lower = xmalloc(room);
+    Real *diagonal = xmalloc(room);
+    Real *upper = xmalloc(room);
+    Real *known = xmalloc(room);
+    Real *answer = xmalloc(room);
+
+    for (int j = 0; j < d->n[1]; j++) {
         for (int i = 0; i < nx; i++) {
-            phi_high[row + (size_t)i] =
-                phi_low[row + (size_t)i] * inverse_diagonal_left;
+            size_t column = decomp_index(d, i, j, 0);
+            size_t line = (size_t)i * (size_t)nz;
+
+            for (int k = 0; k < nz; k++) {
+                int gk = decomp_global(d, k, 2);
+                size_t at = line + (size_t)k;
+
+                if (gk == 0) {
+                    lower[at] = (Real)0;
+                    diagonal[at] = (Real)1 - (Real)2 * w;
+                    upper[at] = (Real)2 * w;
+                } else if (gk == last_global) {
+                    lower[at] = w;
+                    diagonal[at] = (Real)1 - w;
+                    upper[at] = (Real)0;
+                } else {
+                    lower[at] = w;
+                    diagonal[at] = (Real)1 - (Real)2 * w;
+                    upper[at] = w;
+                }
+
+                known[at] = phi_low[column + (size_t)k * stride_z];
+            }
         }
-    }
 
-    for (int k = 1; k + 1 < nz; k++) {
-        Real inverse_diagonal = tmp[k] * inverse_w;
+        schur_solve_mpi(2, nx, nz, lower, diagonal, upper, known, answer);
 
-        for (int j = 0; j < ny; j++) {
-            size_t row = decomp_index(d, 0, j, k);
-            size_t previous_row = row - stride_z;
+        for (int i = 0; i < nx; i++) {
+            size_t column = decomp_index(d, i, j, 0);
+            size_t line = (size_t)i * (size_t)nz;
 
-            for (int i = 0; i < nx; i++) {
-                phi_high[row + (size_t)i] =
-                    (phi_low[row + (size_t)i] -
-                     w * phi_high[previous_row + (size_t)i]) *
-                    inverse_diagonal;
+            for (int k = 0; k < nz; k++) {
+                phi_high[column + (size_t)k * stride_z] =
+                    answer[line + (size_t)k];
             }
         }
     }
 
-    for (int j = 0; j < ny; j++) {
-        size_t row = decomp_index(d, 0, j, nz - 1);
-        size_t previous_row = row - stride_z;
-
-        for (int i = 0; i < nx; i++) {
-            phi_high[row + (size_t)i] =
-                (phi_low[row + (size_t)i] -
-                 w * phi_high[previous_row + (size_t)i]) *
-                inverse_diagonal_right;
-        }
-    }
-
-    for (int k = nz - 1; k-- > 0;) {
-        for (int j = 0; j < ny; j++) {
-            size_t row = decomp_index(d, 0, j, k);
-            size_t next_row = row + stride_z;
-
-            for (int i = 0; i < nx; i++) {
-                phi_high[row + (size_t)i] -=
-                    tmp[k] * phi_high[next_row + (size_t)i];
-            }
-        }
-    }
+    free(answer);
+    free(known);
+    free(upper);
+    free(diagonal);
+    free(lower);
 }
 
 static void update_pressure(const Decomp *restrict d,
@@ -333,7 +340,7 @@ void pressure_step(const Decomp *decomp,
     start_ns = time_ns();
     /* Swap roles: phi_low is the RHS, pressure_star receives phi_high. */
     compute_phi_high(decomp, pressure_buffer,
-                     &solver_mem_state->pressure_star, tmp);
+                     &solver_mem_state->pressure_star);
     solver_stats->phi_high_sys += time_ns() - start_ns;
 
     start_ns = time_ns();

@@ -111,6 +111,12 @@ long long par_sum_long(long long value) {
     return total;
 }
 
+Real par_sum_real(Real value) {
+    Real total;
+    MPI_Allreduce(&value, &total, 1, PAR_REAL, MPI_SUM, MPI_COMM_WORLD);
+    return total;
+}
+
 Real par_max_real(Real value) {
     Real largest;
     MPI_Allreduce(&value, &largest, 1, PAR_REAL, MPI_MAX, MPI_COMM_WORLD);
@@ -244,6 +250,10 @@ int par_neighbor(int axis, int step) {
 }
 
 long long par_sum_long(long long value) {
+    return value;
+}
+
+Real par_sum_real(Real value) {
     return value;
 }
 

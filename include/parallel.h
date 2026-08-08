@@ -61,7 +61,8 @@ int par_neighbor(int axis, int step);
 /* Somma un intero su tutti i processi e restituisce il totale a tutti. */
 long long par_sum_long(long long value);
 
-/* Massimo su tutti i processi, restituito a tutti. */
+/* Somma e massimo su tutti i processi, restituiti a tutti. */
+Real par_sum_real(Real value);
 Real par_max_real(Real value);
 
 /*

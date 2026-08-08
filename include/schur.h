@@ -32,13 +32,17 @@ void schur_solve(int n, int blocks,
 
 /*
  * The same method, with one block per process along `axis` of the process
- * grid.  Every array holds only this process's n_local points, and the answer
- * matches what thomas_solve would produce for the whole line.
+ * grid, applied to `lines` independent systems at once.  Every array holds
+ * only this process's points, with system l at offset l * n_local, and the
+ * answer matches what thomas_solve would produce for the whole line.
+ *
+ * The lines are solved together so that the whole group costs one exchange
+ * and one collective rather than one per line.
  *
  * With a single process along the axis it falls back to thomas_solve, which
  * is what makes a one-process run reproduce the serial result exactly.
  */
-void schur_solve_mpi(int axis, int n_local,
+void schur_solve_mpi(int axis, int lines, int n_local,
                      const Real *a, const Real *b, const Real *c,
                      const Real *f, Real *x);
 
