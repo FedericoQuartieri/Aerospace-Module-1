@@ -49,6 +49,36 @@ Generate and replace the static plots with, reading from `build/convergence/resu
 ./scripts/plot_convergence.py
 ```
 
+## Parallel run
+
+Build against MPI and run with several processes:
+
+```sh
+make MPI=1
+mpirun -n 8 ./solver
+```
+
+The grid is split into blocks, one per process; `MPI_Dims_create` chooses the
+shape unless the tests are given one on the command line.  The tridiagonal
+solves that cross a block boundary are completed with a Schur complement, so
+the answer does not depend on how many processes are used: `paper_man` prints
+the same error norms, digit for digit, from one process up to eight.
+
+## Scaling study
+
+Measure how much the parallel run gains:
+
+```sh
+./scripts/run_scaling.sh          # strong and weak scaling, results in build/scaling/
+SIMD=0 RESULTS_SUFFIX=_scalar ./scripts/run_scaling.sh
+./scripts/plot_scaling.py         # figure in docs/scaling/
+```
+
+The second run disables the vectorized kernels.  They only apply to directions
+that are not split, so comparing with them enabled measures two things at once.
+
+![Scaling](docs/scaling/scaling.svg)
+
 ## Solver structure
 
 `solver_init` allocates the numerical fields and initializes them through the

@@ -16,8 +16,8 @@ int main(int argc, char **argv) {
     SolverStats solver_stats = {0};
     Decomp decomp;
 
-    /* {1, 1, 0}: i processi si dispongono a fette lungo Z. */
-    const int process_grid[3] = {1, 1, 0};
+    /* Tutti zero: la forma della griglia di processi la sceglie MPI. */
+    const int process_grid[3] = {0, 0, 0};
     par_topology_init(process_grid);
     decomp_init_mpi(&decomp);
     solver_init(&decomp, &solver_mem_state, &data, data_name);

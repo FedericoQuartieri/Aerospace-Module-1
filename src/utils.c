@@ -14,6 +14,14 @@ void *xmalloc(size_t size) {
 void print_stats(const Decomp *d,
                  const SolverStats *solver_stats,
                  size_t sample_count) {
+    /*
+     * Il tempo che conta e' il piu' lento fra i processi: e' quello che
+     * l'utente aspetta. Le riduzioni vanno fatte da tutti, quindi prima del
+     * filtro sul rank, altrimenti gli altri resterebbero in attesa.
+     */
+    long long slowest_ns = par_max_long((long long)solver_stats->solve_steps);
+    long long comm_ns = par_max_long((long long)par_comm_nanoseconds());
+
     /* Every process would otherwise print its own copy of the report. */
     if (par_rank() != 0) {
         return;
@@ -72,5 +80,11 @@ void print_stats(const Decomp *d,
     printf("  pressure:    %.3f ms (%5.1f%%)\n", pressure_update_avg_ms,
            (double)solver_stats->pressure_update * percentage_factor);
     printf("  write file:  %.3f ms\n", wr_output_avg_ms);
+    /* Righe pensate per essere lette anche da uno script. */
+    printf("  wall per step: %.3f ms\n",
+           (double)slowest_ns * ns_to_ms / (double)sample_count);
+    printf("  mpi per step:  %.3f ms (%5.1f%%)\n",
+           (double)comm_ns * ns_to_ms / (double)sample_count,
+           slowest_ns > 0 ? 100.0 * (double)comm_ns / (double)slowest_ns : 0.0);
     printf("  per cell-step: %.3f 1e-8s\n", per_cell_step);
 }

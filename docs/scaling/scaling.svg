@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="400" viewBox="0 0 1180 400">
+<style>
+text{font-family:"DejaVu Sans",sans-serif;fill:#1e293b}
+.titolo{font-size:15px;font-weight:600}
+.sotto{font-size:11px;fill:#64748b}
+.asse{font-size:12px;fill:#475569;text-anchor:middle}
+.tacca-x{font-size:11px;fill:#475569;text-anchor:middle}
+.tacca-y{font-size:11px;fill:#475569;text-anchor:end}
+.legenda{font-size:11px;fill:#334155}
+.valore{font-size:10px;fill:#475569;text-anchor:middle}
+.riquadro{fill:#f8fafc;stroke:#cbd5e1}
+.griglia{stroke:#e2e8f0;stroke-width:1}
+</style>
+<rect width="1180" height="400" fill="white"/>
+<text x="62" y="30" class="titolo">Strong scaling</text>
+<text x="62" y="46" class="sotto">problema fisso 128x128x128</text>
+<rect x="62" y="56" width="285" height="250" class="riquadro"/>
+<line x1="62" y1="306.0" x2="347" y2="306.0" class="griglia"/>
+<text x="54" y="310.0" class="tacca-y">0</text>
+<line x1="62" y1="243.5" x2="347" y2="243.5" class="griglia"/>
+<text x="54" y="247.5" class="tacca-y">2</text>
+<line x1="62" y1="181.0" x2="347" y2="181.0" class="griglia"/>
+<text x="54" y="185.0" class="tacca-y">4</text>
+<line x1="62" y1="118.5" x2="347" y2="118.5" class="griglia"/>
+<text x="54" y="122.5" class="tacca-y">6</text>
+<line x1="62" y1="56.0" x2="347" y2="56.0" class="griglia"/>
+<text x="54" y="60.0" class="tacca-y">8</text>
+<text x="18" y="181.0" class="asse" transform="rotate(-90 18 181.0)">speedup</text>
+<text x="204.5" y="346" class="asse">processi</text>
+<text x="62.0" y="326" class="tacca-x">1</text>
+<text x="157.0" y="326" class="tacca-x">2</text>
+<text x="252.0" y="326" class="tacca-x">4</text>
+<text x="347.0" y="326" class="tacca-x">8</text>
+<path d="M62.0,274.8 L157.0,243.5 L252.0,181.0 L347.0,56.0" fill="none" stroke="#94a3b8" stroke-width="2.2" stroke-dasharray="5,4"/>
+<circle cx="62.0" cy="274.8" r="3.6" fill="#94a3b8"/>
+<circle cx="157.0" cy="243.5" r="3.6" fill="#94a3b8"/>
+<circle cx="252.0" cy="181.0" r="3.6" fill="#94a3b8"/>
+<circle cx="347.0" cy="56.0" r="3.6" fill="#94a3b8"/>
+<path d="M62.0,274.8 L157.0,252.7 L252.0,219.4 L347.0,177.0" fill="none" stroke="#2563eb" stroke-width="2.2" />
+<circle cx="62.0" cy="274.8" r="3.6" fill="#2563eb"/>
+<circle cx="157.0" cy="252.7" r="3.6" fill="#2563eb"/>
+<circle cx="252.0" cy="219.4" r="3.6" fill="#2563eb"/>
+<circle cx="347.0" cy="177.0" r="3.6" fill="#2563eb"/>
+<path d="M62.0,274.8 L157.0,262.4 L252.0,237.5 L347.0,206.5" fill="none" stroke="#e11d48" stroke-width="2.2" />
+<circle cx="62.0" cy="274.8" r="3.6" fill="#e11d48"/>
+<circle cx="157.0" cy="262.4" r="3.6" fill="#e11d48"/>
+<circle cx="252.0" cy="237.5" r="3.6" fill="#e11d48"/>
+<circle cx="347.0" cy="206.5" r="3.6" fill="#e11d48"/>
+<line x1="74" y1="70" x2="100" y2="70" stroke="#94a3b8" stroke-width="2.2" stroke-dasharray="5,4"/>
+<text x="106" y="74" class="legenda">ideale</text>
+<line x1="74" y1="87" x2="100" y2="87" stroke="#2563eb" stroke-width="2.2" />
+<text x="106" y="91" class="legenda">scalare</text>
+<line x1="74" y1="104" x2="100" y2="104" stroke="#e11d48" stroke-width="2.2" />
+<text x="106" y="108" class="legenda">con SIMD</text>
+<text x="422" y="30" class="titolo">Weak scaling</text>
+<text x="422" y="46" class="sotto">64x64x64 per processo</text>
+<rect x="422" y="56" width="285" height="250" class="riquadro"/>
+<line x1="422" y1="306.0" x2="707" y2="306.0" class="griglia"/>
+<text x="414" y="310.0" class="tacca-y">0</text>
+<line x1="422" y1="243.5" x2="707" y2="243.5" class="griglia"/>
+<text x="414" y="247.5" class="tacca-y">25</text>
+<line x1="422" y1="181.0" x2="707" y2="181.0" class="griglia"/>
+<text x="414" y="185.0" class="tacca-y">50</text>
+<line x1="422" y1="118.5" x2="707" y2="118.5" class="griglia"/>
+<text x="414" y="122.5" class="tacca-y">75</text>
+<line x1="422" y1="56.0" x2="707" y2="56.0" class="griglia"/>
+<text x="414" y="60.0" class="tacca-y">100</text>
+<text x="378" y="181.0" class="asse" transform="rotate(-90 378 181.0)">efficienza  %</text>
+<text x="564.5" y="346" class="asse">processi</text>
+<text x="422.0" y="326" class="tacca-x">1</text>
+<text x="517.0" y="326" class="tacca-x">2</text>
+<text x="612.0" y="326" class="tacca-x">4</text>
+<text x="707.0" y="326" class="tacca-x">8</text>
+<path d="M422.0,56.0 L517.0,56.0 L612.0,56.0 L707.0,56.0" fill="none" stroke="#94a3b8" stroke-width="2.2" stroke-dasharray="5,4"/>
+<circle cx="422.0" cy="56.0" r="3.6" fill="#94a3b8"/>
+<circle cx="517.0" cy="56.0" r="3.6" fill="#94a3b8"/>
+<circle cx="612.0" cy="56.0" r="3.6" fill="#94a3b8"/>
+<circle cx="707.0" cy="56.0" r="3.6" fill="#94a3b8"/>
+<path d="M422.0,56.0 L517.0,99.3 L612.0,120.5 L707.0,173.5" fill="none" stroke="#2563eb" stroke-width="2.2" />
+<circle cx="422.0" cy="56.0" r="3.6" fill="#2563eb"/>
+<circle cx="517.0" cy="99.3" r="3.6" fill="#2563eb"/>
+<circle cx="612.0" cy="120.5" r="3.6" fill="#2563eb"/>
+<circle cx="707.0" cy="173.5" r="3.6" fill="#2563eb"/>
+<path d="M422.0,56.0 L517.0,104.0 L612.0,154.5 L707.0,196.8" fill="none" stroke="#e11d48" stroke-width="2.2" />
+<circle cx="422.0" cy="56.0" r="3.6" fill="#e11d48"/>
+<circle cx="517.0" cy="104.0" r="3.6" fill="#e11d48"/>
+<circle cx="612.0" cy="154.5" r="3.6" fill="#e11d48"/>
+<circle cx="707.0" cy="196.8" r="3.6" fill="#e11d48"/>
+<line x1="434" y1="70" x2="460" y2="70" stroke="#94a3b8" stroke-width="2.2" stroke-dasharray="5,4"/>
+<text x="466" y="74" class="legenda">ideale</text>
+<line x1="434" y1="87" x2="460" y2="87" stroke="#2563eb" stroke-width="2.2" />
+<text x="466" y="91" class="legenda">scalare</text>
+<line x1="434" y1="104" x2="460" y2="104" stroke="#e11d48" stroke-width="2.2" />
+<text x="466" y="108" class="legenda">con SIMD</text>
+<text x="782" y="30" class="titolo">Dove va il tempo</text>
+<text x="782" y="46" class="sotto">strong scaling, scalare</text>
+<rect x="782" y="56" width="285" height="250" class="riquadro"/>
+<line x1="782" y1="306.0" x2="1067" y2="306.0" class="griglia"/>
+<text x="774" y="310.0" class="tacca-y">0</text>
+<line x1="782" y1="243.5" x2="1067" y2="243.5" class="griglia"/>
+<text x="774" y="247.5" class="tacca-y">271</text>
+<line x1="782" y1="181.0" x2="1067" y2="181.0" class="griglia"/>
+<text x="774" y="185.0" class="tacca-y">541</text>
+<line x1="782" y1="118.5" x2="1067" y2="118.5" class="griglia"/>
+<text x="774" y="122.5" class="tacca-y">812</text>
+<line x1="782" y1="56.0" x2="1067" y2="56.0" class="griglia"/>
+<text x="774" y="60.0" class="tacca-y">1082</text>
+<text x="738" y="181.0" class="asse" transform="rotate(-90 738 181.0)">ms per passo</text>
+<text x="924.5" y="346" class="asse">processi</text>
+<text x="782.0" y="326" class="tacca-x">1</text>
+<text x="877.0" y="326" class="tacca-x">2</text>
+<text x="972.0" y="326" class="tacca-x">4</text>
+<text x="1067.0" y="326" class="tacca-x">8</text>
+<rect x="765.0" y="88.6" width="34" height="217.4" fill="#2563eb" opacity="0.85"/>
+<rect x="765.0" y="306.0" width="34" height="0.0" fill="#e11d48" opacity="0.9"/>
+<text x="782.0" y="82.6" class="valore">0%</text>
+<rect x="860.0" y="178.6" width="34" height="121.6" fill="#2563eb" opacity="0.85"/>
+<rect x="860.0" y="300.2" width="34" height="5.8" fill="#e11d48" opacity="0.9"/>
+<text x="877.0" y="172.6" class="valore">5%</text>
+<rect x="955.0" y="227.6" width="34" height="72.3" fill="#2563eb" opacity="0.85"/>
+<rect x="955.0" y="299.9" width="34" height="6.1" fill="#e11d48" opacity="0.9"/>
+<text x="972.0" y="221.6" class="valore">8%</text>
+<rect x="1050.0" y="253.3" width="34" height="44.5" fill="#2563eb" opacity="0.85"/>
+<rect x="1050.0" y="297.9" width="34" height="8.1" fill="#e11d48" opacity="0.9"/>
+<text x="1067.0" y="247.3" class="valore">15%</text>
+<line x1="794" y1="70" x2="820" y2="70" stroke="#2563eb" stroke-width="2.2" />
+<text x="826" y="74" class="legenda">calcolo</text>
+<line x1="794" y1="87" x2="820" y2="87" stroke="#e11d48" stroke-width="2.2" />
+<text x="826" y="91" class="legenda">dentro MPI</text>
+</svg>

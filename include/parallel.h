@@ -52,14 +52,31 @@ void par_dims(int dims[3]);
 void par_coords(int coords[3]);
 
 /*
+ * Dove sta il processo `rank`. Serve a chi deve ragionare sui blocchi degli
+ * altri senza chiederglielo: sapendo le coordinate, decomp_share dice da sola
+ * quali celle possiede.
+ */
+void par_coords_of(int rank, int coords[3]);
+
+/*
  * Rank del vicino lungo la direzione `axis` (0 = X, 1 = Y, 2 = Z), con
  * step -1 verso il basso e +1 verso l'alto. Restituisce PAR_NO_NEIGHBOR se
  * da quella parte c'è la parete del dominio.
  */
 int par_neighbor(int axis, int step);
 
-/* Somma un intero su tutti i processi e restituisce il totale a tutti. */
+/* Somma e massimo di un intero su tutti i processi, restituiti a tutti. */
 long long par_sum_long(long long value);
+long long par_max_long(long long value);
+
+/*
+ * Nanosecondi passati finora dentro le chiamate MPI.
+ *
+ * Serve a rispondere alla domanda che conta quando si misura uno scaling:
+ * quanto del tempo se ne va a comunicare invece che a calcolare. Conta solo
+ * il tempo dentro MPI, non quello per preparare i pacchetti.
+ */
+unsigned long long par_comm_nanoseconds(void);
 
 /* Somma e massimo su tutti i processi, restituiti a tutti. */
 Real par_sum_real(Real value);

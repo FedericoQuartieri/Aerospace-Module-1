@@ -1,5 +1,6 @@
 #include "output.h"
 #include "solver.h"
+#include "parallel.h"
 #include "utils.h"
 #include <errno.h>
 #include <stdio.h>
@@ -12,6 +13,9 @@
 #else
 #define VTK_REAL_TYPE "Float64"
 #endif
+
+/* Un pezzo per processo; l'indice .pvti li elenca tutti. */
+#define PIECE_NAME "sol_%04d_p%03d.vti"
 
 /*
  * The written piece covers the cells owned by the caller, expressed in global
@@ -39,8 +43,8 @@ void write_vti_ascii(const Decomp *d,
                      const char *output_directory,
                      int t_step) {
     char filepath[512];
-    snprintf(filepath, sizeof(filepath), "%s/sol_ascii_%04d.vti",
-             output_directory, t_step);
+    snprintf(filepath, sizeof(filepath), "%s/sol_ascii_%04d_p%03d.vti",
+             output_directory, t_step, par_rank());
 
     FILE *fp = fopen(filepath, "w");
     if (!fp) {
@@ -158,8 +162,8 @@ void write_vti_binary(const Decomp *d,
                       const char *output_directory,
                       int t_step) {
     char filepath[512];
-    snprintf(filepath, sizeof(filepath), "%s/sol_%04d.vti",
-             output_directory, t_step);
+    snprintf(filepath, sizeof(filepath), "%s/" PIECE_NAME,
+             output_directory, t_step, par_rank());
 
     /* Binary mode: the appended section holds raw bytes, and on Windows a
      * text-mode stream would rewrite every 0x0A inside them. */
@@ -221,6 +225,72 @@ void write_vti_binary(const Decomp *d,
 
 #undef CHUNK_SIZE
 
+/*
+ * L'indice che tiene insieme i pezzi.
+ *
+ * Nessuno raccoglie i dati: ogni processo scrive il proprio file, e il rank 0
+ * scrive questo elenco di poche righe che dice a ParaView dove sta ciascun
+ * pezzo. Aprendo il .pvti si vede il dominio intero.
+ *
+ * Le posizioni degli altri blocchi non se le fa dire da nessuno: conoscendo la
+ * forma della griglia di processi, decomp_share ricalcola quali celle spettano
+ * a ciascuno con la stessa regola con cui se le sono prese.
+ */
+static void write_pvti(const Decomp *d,
+                       const char *output_directory,
+                       int t_step) {
+    if (par_rank() != 0) {
+        return;
+    }
+
+    char filepath[512];
+    snprintf(filepath, sizeof(filepath), "%s/sol_%04d.pvti",
+             output_directory, t_step);
+
+    FILE *fp = fopen(filepath, "w");
+    if (!fp) {
+        perror("Error opening pvti index");
+        return;
+    }
+
+    int dims[3];
+    par_dims(dims);
+
+    fprintf(fp, "<VTKFile type=\"PImageData\" version=\"1.0\" byte_order=\"LittleEndian\">\n");
+    fprintf(fp, "  <PImageData WholeExtent=\"0 %d 0 %d 0 %d\" GhostLevel=\"0\" Origin=\"0 0 0\" Spacing=\"%.6e %.6e %.6e\">\n",
+            d->n_global[0] - 1, d->n_global[1] - 1, d->n_global[2] - 1,
+            DX, DY, DZ);
+    fprintf(fp, "    <PPointData Scalars=\"pressure\" Vectors=\"velocity\">\n");
+    fprintf(fp, "      <PDataArray type=\"%s\" Name=\"pressure\"/>\n", VTK_REAL_TYPE);
+    fprintf(fp, "      <PDataArray type=\"%s\" Name=\"velocity\" NumberOfComponents=\"3\"/>\n", VTK_REAL_TYPE);
+    fprintf(fp, "      <PDataArray type=\"%s\" Name=\"permeability\" NumberOfComponents=\"3\"/>\n", VTK_REAL_TYPE);
+    fprintf(fp, "    </PPointData>\n");
+
+    for (int rank = 0; rank < par_size(); rank++) {
+        int coords[3];
+        int begin[3];
+        int end[3];
+
+        par_coords_of(rank, coords);
+        for (int c = 0; c < 3; c++) {
+            decomp_share(d->n_global[c], dims[c], coords[c],
+                         &begin[c], &end[c]);
+        }
+
+        char piece[128];
+        snprintf(piece, sizeof(piece), PIECE_NAME, t_step, rank);
+
+        fprintf(fp, "    <Piece Extent=\"%d %d %d %d %d %d\" Source=\"%s\"/>\n",
+                begin[0], end[0] - 1, begin[1], end[1] - 1,
+                begin[2], end[2] - 1, piece);
+    }
+
+    fprintf(fp, "  </PImageData>\n");
+    fprintf(fp, "</VTKFile>\n");
+
+    fclose(fp);
+}
+
 static int make_directory(const char *path) {
     int result;
 
@@ -247,7 +317,8 @@ void write_to_file(const Decomp *d,
         data_name != NULL && data_name[0] != '\0'
             ? data_name
             : fallback_name;
-    char output_directory[512];
+    /* Piu' corta dei buffer che la useranno, cosi' il nome del file ci sta. */
+    char output_directory[256];
     int written = snprintf(output_directory,
                                  sizeof(output_directory),
                                  "output/%s",
@@ -266,4 +337,5 @@ void write_to_file(const Decomp *d,
     // By default, use the high-performance binary writer.
     // Replace with write_vti_ascii(d, solver_mem_state, ...) if human-readable output is preferred.
     write_vti_binary(d, solver_mem_state, output_directory, t_step);
+    write_pvti(d, output_directory, t_step);
 }

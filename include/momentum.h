@@ -39,19 +39,6 @@ void momentum_step(const Decomp *decomp,
                    int t_step,
                    SolverStats *solver_stats);
 
-void update_eta(const Decomp *d,
-                SolverMemState *solver_mem_state,
-                Real *restrict rhs,
-                Real *restrict tmp,
-                Data *data, int t_step, int v_comp);
-void update_zeta(const Decomp *d,
-                 SolverMemState *solver_mem_state,
-                 Real *restrict rhs,
-                 Real *restrict tmp,
-                 Data *data, int t_step, int v_comp);
-void update_u(const Decomp *d,
-              SolverMemState *solver_mem_state,
-              Data *data, int t_step, int v_comp);
 
 #if defined(USE_SIMD) && SIMD_AVAILABLE
 void update_zeta_simd(const Decomp *d,

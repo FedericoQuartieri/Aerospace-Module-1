@@ -7,14 +7,16 @@
 
 /*
  * Rinfresca l'anello di celle di contorno dei campi che i conti leggono un
- * passo oltre il proprio blocco: le tre componenti della velocita' e la
- * pressione estrapolata. Gli altri campi vengono letti solo nella cella in
- * cui si trovano, quindi non hanno bisogno di niente.
+ * passo oltre il proprio blocco.
+ *
+ * g_value calcola tre derivate seconde, una per asse: guarda eta lungo X,
+ * zeta lungo Y e u lungo Z, piu' la pressione estrapolata in tutte e tre.
+ * Gli altri campi vengono letti solo nella cella in cui si trovano.
  */
-static void refresh_velocity_halo(const Decomp *d, SolverMemState *state) {
-    par_exchange_halo(d, state->u.v_x);
-    par_exchange_halo(d, state->u.v_y);
-    par_exchange_halo(d, state->u.v_z);
+static void refresh_vector_halo(const Decomp *d, VectorField *field) {
+    par_exchange_halo(d, field->v_x);
+    par_exchange_halo(d, field->v_y);
+    par_exchange_halo(d, field->v_z);
 }
 
 void solver_init(const Decomp *decomp,
@@ -22,18 +24,6 @@ void solver_init(const Decomp *decomp,
                  Data *data,
                  const char *data_name) {
     (void)data_name;
-
-    /*
-     * Per ora la griglia si divide solo lungo Z: e' l'unica direzione in cui
-     * i sistemi tridiagonali passano dal complemento di Schur. Dividere anche
-     * X o Y darebbe risultati sbagliati in silenzio, quindi meglio fermarsi.
-     */
-    if (decomp->n[0] != decomp->n_global[0] ||
-        decomp->n[1] != decomp->n_global[1]) {
-        fprintf(stderr,
-                "solver: per ora la griglia si divide solo lungo Z\n");
-        exit(1);
-    }
 
     // TODO: Parse data_name and assign the correspondent Data structure,
     // return error if not matched
@@ -85,8 +75,9 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
 
     uint64_t start_ns = time_ns();
     for (int t_step = 1; t_step <= STEPS; t_step++) {
-        /* g_value guarda una cella oltre il blocco in u e pressure_star. */
-        refresh_velocity_halo(decomp, solver_mem_state);
+        refresh_vector_halo(decomp, &solver_mem_state->eta);
+        refresh_vector_halo(decomp, &solver_mem_state->zeta);
+        refresh_vector_halo(decomp, &solver_mem_state->u);
         par_exchange_halo(decomp, solver_mem_state->pressure_star.v);
 
         if (data->porosity_time_dependent) {
@@ -103,8 +94,8 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
 
 
         /* compute_div guarda una cella indietro nella velocita' appena
-         * aggiornata. */
-        refresh_velocity_halo(decomp, solver_mem_state);
+         * aggiornata, su tutti e tre gli assi. */
+        refresh_vector_halo(decomp, &solver_mem_state->u);
 
         // Pressure system
         pressure_step(decomp, solver_mem_state, &pressure_buffer, rhs, tmp,

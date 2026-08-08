@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "solver.h"
 #include "parallel.h"
 #include "error_norms.h"
@@ -90,9 +92,9 @@ static Real manufactured_paper_forcing(Real x,
     }
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
-    par_init(NULL, NULL);
+    par_init(&argc, &argv);
 
     /* Manufactured solution corresponding to Auteri paper. */
     Data data = {
@@ -108,8 +110,14 @@ int main(void)
     SolverStats solver_stats = {0};
     Decomp decomp;
 
-    /* {1, 1, 0}: i processi si dispongono a fette lungo Z. */
-    const int process_grid[3] = {1, 1, 0};
+    /* Tutti zero: la forma della griglia di processi la sceglie MPI.
+       Tre numeri sulla riga di comando la impongono. */
+    int process_grid[3] = {0, 0, 0};
+    if (argc == 4) {
+        for (int c = 0; c < 3; c++) {
+            process_grid[c] = atoi(argv[c + 1]);
+        }
+    }
     par_topology_init(process_grid);
     decomp_init_mpi(&decomp);
     solver_init(&decomp, &solver_mem_state, &data, NULL);

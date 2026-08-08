@@ -56,7 +56,7 @@
 \begin{center}
 {\LARGE\bfseries\color{scuro} Parallelizzazione con MPI del solutore\\[2pt]
 Navier--Stokes--Brinkman}\\[8pt]
-{\large Relazione sulle fasi A e B}\\[10pt]
+{\large Relazione sul lavoro svolto}\\[10pt]
 \end{center}
 
 \hrule
@@ -74,9 +74,10 @@ la griglia in blocchi, assegnarne uno a ciascun processore, e far sì che quando
 a un processore serve un dato che sta a casa del vicino, glielo chieda con un
 messaggio.
 
-Il lavoro è diviso in fasi. Le fasi A e B, descritte qui, \textbf{preparano il
-terreno}: non cambiano ancora il modo in cui il solutore calcola, ma
-costruiscono e verificano uno alla volta tutti i pezzi che serviranno.
+Il lavoro è diviso in sette fasi, dalla A alla G. Le prime due preparano il
+terreno senza cambiare il modo in cui il solutore calcola; le successive
+collegano i pezzi, e alla fine il programma gira davvero su più processori e
+si misura quanto ci si guadagna.
 
 In questa relazione ogni pezzo è mostrato con il codice vero e spiegato subito
 dopo.
@@ -272,7 +273,9 @@ diversi.
 
 La fase B è divisa in quattro passi. Due dei quattro non usano MPI affatto:
 è voluto, e serve a separare la domanda ``la matematica è giusta?'' dalla
-domanda ``la comunicazione è giusta?''.
+domanda ``la comunicazione è giusta?''. Alla fine della fase B tutti i pezzi
+esistono e sono verificati singolarmente, ma il solutore non è ancora
+parallelo: nessuno li ha ancora collegati.
 
 \subsection*{B0 --- Un muro fra MPI e il solutore}
 
@@ -550,13 +553,414 @@ Il conto totale della comunicazione è sorprendentemente piccolo:
 Tutto il resto è calcolo che ciascun processore fa per conto proprio: è
 esattamente ciò che serve perché il parallelo convenga.
 
+\section{Fase C --- Le celle in prestito dal vicino}
+
+\prima{Ogni processo possedeva solo le proprie celle. Ma per calcolare vicino
+al bordo del proprio blocco servono i dati di quello accanto.}
+
+\dopo{Ogni processo alloca un anello di celle in più tutt'intorno, dove tiene
+una copia dell'ultima fila del vicino, e se la fa aggiornare con un messaggio
+prima di usarla.}
+
+Il conto che il solutore fa in ogni cella guarda anche la cella prima e quella
+dopo: è una derivata seconda. Per una cella sul bordo del blocco, ``quella
+dopo'' appartiene al vicino. Le celle in prestito servono a questo, e si
+chiamano \emph{celle fantasma}.
+
+\subsection*{Allocarle è costato una riga}
+
+\begin{lstlisting}
+decomp_set_layout(d, 1);   /* prima era 0: nessun margine */
+\end{lstlisting}
+
+Questo è il ritorno dell'investimento della fase A. Il margine cambia dove
+stanno i dati in memoria -- le righe non sono più contigue, la prima cella non
+è più all'indice zero -- ma tutte le centinaia di calcoli di posizione sparsi
+nel codice passano da \cd{decomp\_index}, che legge quei numeri dalla
+struttura. Non è stato necessario toccarne nemmeno uno.
+
+\subsection*{Lo scambio}
+
+\begin{lstlisting}
+for (int axis = 0; axis < 3; axis++) {
+    int below = par_neighbor(axis, -1);
+    int above = par_neighbor(axis, +1);
+
+    if (below == PAR_NO_NEIGHBOR && above == PAR_NO_NEIGHBOR) {
+        continue;   /* direzione non divisa: niente da scambiare */
+    }
+
+    /* La mia ultima faccia va a chi sta sopra; dal basso arriva la sua. */
+    face_copy(d, field, axis, d->n[axis] - 1, packet, 1);
+    par_shift_real(axis, +1, packet, arrived, face);
+    if (below != PAR_NO_NEIGHBOR) {
+        face_copy(d, field, axis, -1, arrived, 0);
+    }
+
+    /* E specularmente verso il basso. */
+    face_copy(d, field, axis, 0, packet, 1);
+    par_shift_real(axis, -1, packet, arrived, face);
+    if (above != PAR_NO_NEIGHBOR) {
+        face_copy(d, field, axis, d->n[axis], arrived, 0);
+    }
+}
+\end{lstlisting}
+
+\cd{face\_copy} copia una faccia del blocco dentro un pacchetto contiguo, o
+viceversa: impacchetta e scarica. \cd{par\_shift\_real} è la stessa funzione
+già usata nella fase B, quindi non c'è nessuna primitiva MPI nuova.
+
+Due dettagli che vale la pena spiegare.
+
+MPI mette a disposizione i \emph{tipi derivati} proprio per descrivere dati non
+contigui senza copiarli a mano. Non li ho usati perché, come dice la
+documentazione stessa, in mancanza di hardware apposito la libreria fa
+comunque questa identica copia in un'area contigua. Farla a mano costa uguale
+e si legge; in più vale subito per tutte e tre le direzioni.
+
+Non servono gli \emph{angoli}. I conti guardano una cella più in là in
+\emph{una} direzione alla volta, mai in diagonale: bastano le sei facce, non
+serve un secondo giro per gli spigoli.
+
+\subsection*{Quanto si scambia}
+
+Su una griglia $128^3$ divisa fra quattro processi, la faccia da spedire è
+128\,KB contro i 4\,MB del blocco locale: si scambia circa il \textbf{3\%} dei
+dati per poter calcolare il restante 97\% in autonomia. È il rapporto fra
+superficie e volume, ed è la ragione per cui dividere il dominio funziona.
+
+\section{Fase D --- Il primo calcolo davvero parallelo}
+
+\prima{Tutti i pezzi esistevano, ma nessuno li aveva collegati: il solutore
+girava ancora come se fosse solo.}
+
+\dopo{I sistemi lungo Z passano dal complemento di Schur, le celle di contorno
+vengono aggiornate al momento giusto, e il risultato non dipende più da quanti
+processi si usano.}
+
+\subsection*{Scrivere il sistema invece di risolverlo di corsa}
+
+Prima il codice costruiva e risolveva il sistema tridiagonale in un unico
+ciclo, senza mai scrivere da nessuna parte le tre diagonali. Per consegnarlo
+al complemento di Schur bisogna invece scriverle:
+
+\begin{lstlisting}
+if (along == 0) {
+    /* Parete inferiore del dominio: il valore e' imposto. */
+    lower[at] = 0.0;
+    diagonal[at] = 1.0;
+    upper[at] = 0.0;
+    known[at] = bc_left(data->bc_velocity, gi, gj, gk, t_step, v_comp);
+} else if (along < last_global) {
+    lower[at] = w_i;
+    diagonal[at] = 1.0 - 2.0 * w_i;      /* riga interna */
+    upper[at] = w_i;
+    known[at] = rhs;
+} else {
+    ...                                   /* parete superiore */
+}
+\end{lstlisting}
+
+La variabile chiave è \cd{along}: è l'indice \textbf{globale}, cioè la
+posizione della cella nel dominio intero. Un processo in mezzo non ha nessuna
+parete, quindi per lui \cd{along} non vale mai zero e usa ovunque la riga
+interna.
+
+Questo è il punto in cui il quarto tipo di modifica della fase A -- quello
+delle ``pareti fantasma'' -- viene finalmente messo alla prova. Se il test
+fosse rimasto sull'indice locale, ogni processo avrebbe creduto di avere una
+parete al proprio bordo.
+
+\subsection*{Il momento in cui aggiornare le celle di contorno}
+
+\begin{lstlisting}
+for (int t_step = 1; t_step <= STEPS; t_step++) {
+    refresh_vector_halo(decomp, &solver_mem_state->eta);
+    refresh_vector_halo(decomp, &solver_mem_state->zeta);
+    refresh_vector_halo(decomp, &solver_mem_state->u);
+    par_exchange_halo(decomp, solver_mem_state->pressure_star.v);
+
+    momentum_step(...);
+
+    /* La velocita' e' appena cambiata e il passo di pressione la rilegge. */
+    refresh_vector_halo(decomp, &solver_mem_state->u);
+    pressure_step(...);
+}
+\end{lstlisting}
+
+Due soli momenti per passo temporale: all'inizio, e in mezzo dopo che la
+velocità è stata aggiornata. La regola è semplice: si aggiorna un campo quando
+è cambiato e sta per essere riletto oltre il proprio bordo.
+
+\subsection*{Una comunicazione per gruppo di linee, non per linea}
+
+Questa è la scelta di progetto più importante di tutta la fase.
+
+Il solutore chiama il complemento di Schur \emph{una volta per ogni linea della
+griglia}. Su $128^3$ sono circa sedicimila linee. Un messaggio per linea
+significherebbe sedicimila messaggi per ogni risoluzione: costerebbe molto più
+del calcolo che permette di fare.
+
+La soluzione è fare prima tutto il lavoro locale di un intero gruppo di linee,
+e poi scambiare una volta sola per l'intero gruppo:
+
+\begin{lstlisting}
+/* 1. ogni linea per conto suo, nessuna comunicazione */
+for (int l = 0; l < lines; l++) {
+    thomas_solve(len, a + off, b + off, c + off, f + off, y + off, scratch);
+    ...   /* piu' le due funzioni di influenza */
+}
+
+/* 2. una sola volta, per tutte le linee insieme */
+par_shift_real(axis, -1, mine, from_right, 3 * lines);
+par_line_allgather(axis, row, 4 * lines, rows);
+
+/* 3. ogni linea di nuovo per conto suo */
+\end{lstlisting}
+
+Si passa da migliaia di messaggi minuscoli a poche centinaia per passo
+temporale.
+
+\subsection*{Il controllo che chiude la fase}
+
+Il complemento di Schur è un metodo \emph{esatto}: non approssima niente,
+riordina soltanto le stesse operazioni. Quindi il numero di processi non deve
+cambiare il risultato. Il confronto con la versione a un processo solo:
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+& \textbf{un processo} & \textbf{da 1 a 8 processi} \\
+\midrule
+errore su $u_x$ & 5.8196668537e-04 & identico, cifra per cifra \\
+errore su $u_y$ & 5.4026976672e-04 & identico, cifra per cifra \\
+errore su $u_z$ & 2.8691858457e-04 & identico, cifra per cifra \\
+errore su $p$   & 1.9758785661e-01 & identico, cifra per cifra \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+Non era scontato ottenere un'identità \emph{esatta}: cambiando l'ordine delle
+somme in virgola mobile ci si aspetterebbero scarti nelle ultime cifre. Il
+fatto che non ce ne siano conferma che il metodo distribuito fa anche le stesse
+operazioni nello stesso ordine.
+
+\subsection*{Una cosa anticipata dalla fase F}
+
+Al primo tentativo gli errori sembravano \emph{migliorare} aumentando i
+processi. Non era vero: ogni processo calcolava la norma dell'errore solo sul
+proprio blocco, senza sommare quella degli altri. È bastato aggiungere tre
+somme globali, ma senza di esse la fase D non aveva un modo per verificarsi.
+
+\section{Fase E --- Dividere anche nelle altre due direzioni}
+
+\prima{La griglia si divideva solo lungo Z: le altre due direzioni davano
+risultati sbagliati, e il programma si fermava con un messaggio se qualcuno ci
+provava.}
+
+\dopo{Si divide in tutte e tre le direzioni, e la forma della griglia di
+processi la sceglie MPI.}
+
+\subsection*{La scoperta che ha guidato il lavoro}
+
+Servivano le versioni con Schur anche per X e Y. Ma i tre passi sono la
+\textbf{stessa operazione ripetuta su assi diversi} --- ed è esattamente come
+li presenta il corso:
+
+$$(I-\gamma\partial_{xx})\Delta\eta = \xi-\eta^n, \qquad
+  (I-\gamma\partial_{yy})\Delta\zeta = \eta^{n+1}-\zeta^n, \qquad
+  (I-\gamma\partial_{zz})\Delta u = \zeta^{n+1}-u^n$$
+
+Scriverne altre due copie avrebbe voluto dire tre funzioni quasi identiche. Ne
+ho scritta \textbf{una sola}, che prende l'asse come parametro:
+
+\begin{lstlisting}
+/* Le linee corrono lungo `axis`; delle altre due direzioni, `group`
+ * raccoglie le linee risolte insieme, `outer` e' il ciclo esterno. */
+const int group = (axis == 0) ? 1 : 0;
+const int outer = (axis == 2) ? 1 : 2;
+const int length = d->n[axis];
+const int lines  = d->n[group];
+const size_t step = d->stride[axis];
+\end{lstlisting}
+
+\cd{step} è la distanza in memoria fra due celle vicine lungo quell'asse: 1
+lungo X, la larghezza di una riga lungo Y, quella di un piano lungo Z. Prendendola
+dalla struttura, lo stesso ciclo percorre linee in qualunque direzione.
+
+\subsection*{Lo stesso per la pressione}
+
+Anche i tre passi della pressione hanno la \emph{stessa matrice}: cambiano solo
+il campo da cui si legge e quello in cui si scrive. Una funzione sola, e la
+cascata del corso diventa leggibile in cinque righe:
+
+\begin{lstlisting}
+compute_div(decomp, buffer, &solver_mem_state->u);
+pressure_direction(decomp, 0, buffer, star);   /* psi */
+pressure_direction(decomp, 1, star, buffer);   /* phi */
+pressure_direction(decomp, 2, buffer, star);   /* fi  */
+update_pressure(decomp, solver_mem_state);
+\end{lstlisting}
+
+I due campi si scambiano il ruolo a ogni passo, quindi ne bastano due.
+
+\subsection*{Il risultato}
+
+La fase E ha \textbf{tolto} codice invece di aggiungerne:
+
+\begin{center}
+\begin{tabular}{@{}L{5cm}L{4.4cm}L{4.4cm}@{}}
+\toprule
+& \textbf{Prima} & \textbf{Dopo} \\
+\midrule
+Quantità di moto & 3 funzioni, 297 righe & 1 funzione, 150 righe \\
+Pressione & 4 funzioni, 250 righe & 1 funzione, 140 righe \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+E non è servito toccare nulla in \cd{parallel.c}: lo scambio delle celle di
+contorno era già scritto per tutti e tre gli assi fin dalla fase C, e il
+complemento di Schur prende l'asse come parametro fin dalla fase B. Era il
+motivo di quelle scelte.
+
+\section{Fase F --- Scrivere i risultati in parallelo}
+
+\prima{Ogni processo avrebbe scritto il proprio pezzo di dominio in un file con
+lo stesso nome: si sarebbero sovrascritti a vicenda.}
+
+\dopo{Ogni processo scrive il proprio file, e il primo scrive un indice che
+tiene insieme i pezzi.}
+
+L'indice è un file di poche righe che elenca dove sta ciascun pezzo. Aprendo
+quello in ParaView si vede il dominio intero ricomposto:
+
+\begin{lstlisting}
+<PImageData WholeExtent="0 23 0 15 0 11" GhostLevel="0" ...>
+  <Piece Extent="0 7 0 7 0 11"    Source="sol_0005_p000.vti"/>
+  <Piece Extent="0 7 8 15 0 11"   Source="sol_0005_p001.vti"/>
+  <Piece Extent="8 15 0 7 0 11"   Source="sol_0005_p002.vti"/>
+  ...
+\end{lstlisting}
+
+\subsection*{Nessuno raccoglie i dati}
+
+Non c'è nessuna raccolta su un processo solo: sarebbe il collo di bottiglia
+classico, e su griglie grandi significherebbe far transitare gigabyte
+attraverso un unico processo. Ognuno scrive per conto proprio, in parallelo.
+
+E il processo che scrive l'indice \textbf{non chiede a nessuno dove stanno gli
+altri}:
+
+\begin{lstlisting}
+for (int rank = 0; rank < par_size(); rank++) {
+    int coords[3], begin[3], end[3];
+
+    par_coords_of(rank, coords);
+    for (int c = 0; c < 3; c++) {
+        decomp_share(d->n_global[c], dims[c], coords[c], &begin[c], &end[c]);
+    }
+    fprintf(fp, "    <Piece Extent=\"%d %d %d %d %d %d\" Source=\"%s\"/>\n", ...);
+}
+\end{lstlisting}
+
+Conoscendo la forma della griglia di processi, ricalcola i blocchi altrui con
+\cd{decomp\_share}: \textbf{la stessa funzione con cui ciascuno si è preso il
+suo}. Una sola regola usata in due posti, quindi l'indice e i pezzi non possono
+contraddirsi.
+
+\section{Fase G --- Quanto conviene}
+
+Le misure sono state fatte su un portatile con processore AMD Ryzen~7 7435HS:
+\textbf{8 nuclei fisici} (16 con il multithreading) e 7\,GB di memoria. Ogni
+configurazione è stata ripetuta tre volte tenendo il tempo migliore: senza
+ripetizioni il rumore di fondo della macchina rendeva i numeri inaffidabili.
+
+\subsection*{Le due domande}
+
+Lo \emph{strong scaling} chiede: a parità di problema, quanto si accorcia il
+tempo aggiungendo processori? Il \emph{weak scaling} chiede: a parità di lavoro
+per processore, il tempo resta lo stesso mentre il problema cresce?
+
+\begin{center}
+\begin{tabular}{@{}rrrr@{\hskip 2.2em}rrr@{}}
+\toprule
+& \multicolumn{3}{c}{\textbf{Strong} (problema fisso $128^3$)}
+& \multicolumn{3}{c}{\textbf{Weak} ($64^3$ per processo)} \\
+\cmidrule(r){2-4}\cmidrule(l){5-7}
+\textbf{proc.} & tempo/passo & speedup & effic. & tempo/passo & rapporto & effic. \\
+\midrule
+1 & 941 ms & 1.00 & 100\% & 123 ms & 1.00 & 100\% \\
+2 & 551 ms & 1.71 &  85\% & 149 ms & 0.83 &  83\% \\
+4 & 340 ms & 2.77 &  69\% & 166 ms & 0.74 &  74\% \\
+8 & 228 ms & \textbf{4.13} & 52\% & 232 ms & 0.53 & \textbf{53\%} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Da dove viene la perdita: tre misure, non tre ipotesi}
+
+Invece di attribuire la perdita a un generico ``sovraccarico'', l'ho scomposta.
+
+\textbf{Contesa di memoria.} Ho lanciato \textbf{otto copie indipendenti} dello
+stesso problema, senza \emph{nessuna} comunicazione fra loro. Rallentamento:
+\textbf{1{,}35 volte}. È il limite della macchina, non del programma: otto
+nuclei che si contendono un unico canale verso la memoria. Per un codice come
+questo, che sposta molti più dati di quanti conti faccia, è il tetto vero.
+
+\textbf{Il tempo dentro MPI.} Misurato direttamente, con un cronometro attorno
+alle chiamate: al massimo carico sono 37\,ms su 232, cioè circa il
+\textbf{16\%}.
+
+\textbf{La vettorizzazione che si perde.} Questa è la scoperta più
+interessante. Confrontando i singoli stadi a parità di lavoro per processo:
+
+\begin{center}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{stadio} & \textbf{1 processo} & \textbf{8 processi} & \\
+\midrule
+passo lungo X & 61{,}0 ms & 101{,}9 ms & $\times$1{,}7 \\
+passo lungo Y &  3{,}7 ms &  33{,}0 ms & $\times$8{,}9 \\
+passo lungo Z &  3{,}9 ms &  37{,}9 ms & $\times$9{,}6 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+Quasi dieci volte, e non è colpa né di MPI né della memoria. Il progetto
+conteneva già dei nuclei di calcolo \emph{vettorizzati}, che risolvono una
+linea intera in un colpo solo e sono molto veloci. Ma funzionano solo su una
+linea intera: appena una direzione viene divisa fra processi, quella scorciatoia
+non è più utilizzabile e si ricade sulla versione ordinaria.
+
+Con otto processi disposti $2\times2\times2$ tutte e tre le direzioni sono
+divise, quindi la vettorizzazione non si usa mai. Rifacendo lo studio con la
+vettorizzazione spenta ovunque -- confronto alla pari -- lo speedup passa da
+3{,}18 a \textbf{4{,}13}.
+
+\medskip
+Il bilancio a otto processi: circa 35\% contesa di memoria, 16\% comunicazione,
+il resto il costo intrinseco del metodo di Schur, che fa tre risoluzioni locali
+al posto di una.
+
+\subsection*{I grafici}
+
+Le curve sono in \cd{docs/scaling/scaling.svg}, prodotte da
+\cd{scripts/plot\_scaling.py} a partire dai dati di
+\cd{scripts/run\_scaling.sh}. Tre pannelli: lo speedup a confronto con la retta
+ideale, l'efficienza del weak scaling, e le barre che mostrano quanta parte del
+tempo se ne va dentro MPI.
+
 \section{Come abbiamo verificato}
 
 Ogni passo ha il suo controllo automatico, che risponde ``passato'' o
 ``fallito'' invece di stampare numeri da interpretare a occhio.
 
 \begin{center}
-\begin{tabular}{@{}L{3.4cm}L{7.3cm}L{3.7cm}@{}}
+\begin{tabular}{@{}L{3.5cm}L{7.2cm}L{3.5cm}@{}}
 \toprule
 \textbf{Controllo} & \textbf{Che cosa verifica} & \textbf{Esito} \\
 \midrule
@@ -571,49 +975,35 @@ Stessa risposta del metodo sequenziale, 24 configurazioni &
 scarto $\sim 10^{-17}$ \\[4pt]
 Fette dei processori &
 I blocchi coprono la griglia una volta sola &
-passato da 1 a 8 processori \\[4pt]
+zero buchi, zero sovrapposizioni \\[4pt]
 Schur (distribuito) &
 Stessa risposta del sequenziale, con i messaggi &
-scarto $\sim 10^{-17}$ \\
+scarto $\sim 10^{-17}$ \\[4pt]
+Celle di contorno &
+L'anello contiene i dati del vicino, e resta intatto dove c'è la parete &
+zero celle sbagliate \\[4pt]
+\textbf{Numero di processi} &
+\textbf{Stessi errori di soluzione con 1, 2, 3, 4, 6, 8 processi e 8 forme di divisione} &
+\textbf{identici, cifra per cifra} \\[4pt]
+File di uscita &
+I pezzi elencati nell'indice coprono il dominio una volta sola &
+zero buchi, zero sovrapposizioni \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \medskip
-Lo scarto di $10^{-17}$ è la precisione della macchina: non è ``abbastanza
-vicino'', è la stessa soluzione con le somme fatte in ordine diverso. Con un
-solo processore lo scarto è esattamente zero, perché il metodo degenera in
-Thomas puro.
-
-\subsection*{Il controllo che le fette combacino}
-
-Merita una menzione perché è tutto in un numero solo:
-
-\begin{lstlisting}
-static long long owned_index_sum(const Decomp *d) {
-    long long total = 0;
-    for (int k = 0; k < d->n[2]; k++)
-      for (int j = 0; j < d->n[1]; j++)
-        for (int i = 0; i < d->n[0]; i++)
-            total += (long long)decomp_global(d, k, 2) * plane
-                   + (long long)decomp_global(d, j, 1) * d->n_global[0]
-                   + decomp_global(d, i, 0);
-    return total;
-}
-\end{lstlisting}
-
-Ogni processore somma l'``etichetta'' (l'indice globale) delle celle che
-possiede, e il totale su tutti deve valere la somma di tutte le etichette della
-griglia, che si conosce in forma chiusa. Un buco lo abbassa, una sovrapposizione
-lo alza, un blocco spostato lo cambia comunque: tre difetti diversi, una sola
-verifica.
+Il settimo è quello decisivo, ed è stato ripetuto su due problemi di prova, due
+griglie, con e senza vettorizzazione, e con otto forme diverse di divisione fra
+cui i casi che dividono \emph{solo} lungo X e \emph{solo} lungo Y.
 
 \subsection*{Abbiamo verificato anche i controlli stessi}
 
 Un controllo che passa sempre non dimostra niente. Per esserne certi abbiamo
 introdotto di proposito degli errori nel codice, uno alla volta, e verificato
-che venissero scoperti. Su ventiquattro errori introdotti, alla fine tutti sono
-stati scoperti.
+che venissero scoperti. Su \textbf{trentuno} errori introdotti, trenta sono
+stati scoperti; il trentunesimo era un \emph{mutante equivalente}, cioè un
+programma scritto diversamente che calcola però la stessa identica cosa.
 
 Questa verifica ha ripagato subito, perché ha rivelato un difetto \emph{nei
 controlli stessi}. Il calcolo dello scarto massimo era scritto così:
@@ -626,11 +1016,9 @@ if (difference > worst) {
 
 Rompendo di proposito una comunicazione, il risultato diventava ``non
 numerico'' -- il valore che si ottiene, ad esempio, dividendo per zero. Ma per
-quei valori \emph{ogni confronto risulta falso}: \cd{difference > worst} era
-falso, il valore non entrava mai nel massimo, e il controllo dichiarava
-``passato'' su un risultato completamente rotto.
-
-La correzione è invertire il confronto:
+quei valori \emph{ogni confronto risulta falso}: il valore non entrava mai nel
+massimo, e il controllo dichiarava ``passato'' su un risultato completamente
+rotto. La correzione è invertire il confronto:
 
 \begin{lstlisting}
 if (!(difference <= worst)) {
@@ -639,57 +1027,61 @@ if (!(difference <= worst)) {
 \end{lstlisting}
 
 Sui numeri normali le due scritture sono equivalenti; su un valore non numerico
-la seconda risulta vera, quindi il valore diventa il massimo e l'errore emerge.
-Lo stesso difetto era presente anche nella raccolta del massimo fra processori,
-ed è stato corretto allo stesso modo. Riguardava due controlli su cinque.
+la seconda risulta vera, quindi l'errore emerge.
 
-\section{A che punto siamo}
+\section{Costi e limiti, dichiarati}
 
-\textbf{Quello che funziona:} tutti i mattoni del parallelo esistono e sono
-verificati singolarmente. Il programma compila e gira sia in versione seriale
-sia con MPI, con e senza le ottimizzazioni vettoriali già presenti nel progetto,
-senza alcun avviso del compilatore.
+\textbf{Il codice seriale è diventato più lento del 12\%.} Per poter consegnare
+il sistema al complemento di Schur bisogna scrivere le tre diagonali in
+memoria, mentre prima venivano calcolate al volo. È il prezzo della
+parallelizzazione, ed è misurato: da 37{,}5 a 42{,}2 unità di tempo per
+cella-passo.
 
-\textbf{Quello che ancora non succede:} il solutore \emph{non è ancora
-parallelo}. Lanciandolo oggi su quattro processori, ognuno risolve lo stesso
-identico problema per intero, senza parlare con gli altri: quattro volte la
-memoria, nessun guadagno.
+\textbf{La vettorizzazione e la divisione oggi competono.} Ogni direzione
+divisa è una direzione su cui la scorciatoia vettorizzata non si può più usare.
+Non è un difetto nascosto: è un lavoro non ancora fatto, e la strada è nota
+(vettorizzare il percorso di Schur, le cui linee sono già indipendenti fra
+loro).
 
-Questo è voluto. Collegare i pezzi prima di avere gli scambi al contorno
-produrrebbe risultati sbagliati, e sarebbe difficile capire dove.
+\textbf{Il complemento di Schur fa tre risoluzioni locali invece di una}: la
+risposta al carico proprio più le due funzioni di influenza. Per la pressione,
+però, la matrice è costante nel tempo e uguale per tutte le linee: le due
+funzioni di influenza si potrebbero calcolare una volta sola all'avvio. È
+esattamente il ``preprocessing'' descritto a lezione, ed è l'ottimizzazione
+successiva più ovvia.
 
-\section{Prossimi passi}
+\textbf{Un portatile non è la macchina giusta per uno studio di scaling.} Con
+un solo canale verso la memoria, già a otto processi il limite è la banda e non
+il programma. Gli stessi script funzionano senza modifiche su un calcolatore
+con più nodi, dove i numeri sarebbero considerevolmente migliori.
+
+\section{Cosa si potrebbe fare dopo}
 
 \begin{description}[leftmargin=2.2em,style=nextline,itemsep=5pt]
-\item[Fase C --- Celle di contorno] Per calcolare vicino al proprio bordo un
-processore ha bisogno di una fascia sottile di dati del vicino. Si aggiunge un
-bordo di celle ``in prestito'' e lo scambio che le riempie. Si scambia circa il
-3\% dei dati per poter calcolare il restante 97\% in autonomia. Dal lato del
-codice, basterà chiamare \cd{decomp\_set\_layout} con margine uno.
+\item[Vettorizzare il percorso parallelo] È il guadagno più grande a portata di
+mano: recupererebbe il fattore dieci perso sui passi lungo Y e Z quando quelle
+direzioni sono divise.
 
-\item[Fase D --- Primo calcolo davvero parallelo] Si collegano i pezzi. Il
-controllo decisivo: gli stessi errori di soluzione con 1, 2, 4 e 8 processori.
-Poiché il metodo è esatto, il numero di processori non deve cambiare il
-risultato.
+\item[Precalcolare le funzioni di influenza della pressione] La matrice non
+cambia mai: le due risoluzioni in più si farebbero una volta all'avvio invece
+che a ogni passo.
 
-\item[Fase E --- Divisione nelle tre direzioni] Finora la griglia si divide solo
-lungo una direzione. Si estende alle altre due riusando lo stesso codice, con un
-asse diverso.
+\item[Sovrapporre comunicazione e calcolo] MPI permette di avviare un messaggio
+e continuare a calcolare mentre viaggia. Va misurato però se conviene davvero:
+la documentazione stessa avverte che senza una scheda di rete che se ne occupi
+da sola il guadagno spesso non c'è.
 
-\item[Fase F --- Risultati e file di uscita] Alcune quantità, come le norme
-dell'errore, sono somme su tutta la griglia e vanno raccolte da tutti i
-processori. E ogni processore deve scrivere la propria parte del file di uscita.
-
-\item[Fase G --- Misure di prestazione] I grafici che mostrano il guadagno:
-quanto si accorcia il tempo aumentando i processori, e quanto cresce il problema
-affrontabile a parità di tempo per processore.
+\item[Misurare su un calcolatore vero] Gli script sono pronti; servirebbe solo
+una macchina con più nodi per vedere fin dove arriva il metodo.
 \end{description}
 
 \vspace{1em}
 \hrule
 \vspace{0.6em}
-\noindent{\small Le fasi A e B sono completate e verificate. Il lavoro che segue
-si appoggia su pezzi già collaudati singolarmente: quando qualcosa non
-funzionerà, sapremo dove non guardare.}
+\noindent{\small Il solutore gira su più processori, la griglia si divide nelle
+tre direzioni, e il risultato non dipende da quanti processori si usano: la
+stessa soluzione, cifra per cifra, da uno a otto. Ogni pezzo è stato costruito
+e verificato singolarmente prima di essere collegato agli altri, e quando
+qualcosa non funzionava sapevamo dove non guardare.}
 
 \end{document}

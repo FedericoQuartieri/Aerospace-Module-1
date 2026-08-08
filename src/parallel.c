@@ -21,6 +21,13 @@
 #define PAR_REAL MPI_DOUBLE
 #endif
 
+/* Tempo speso dentro MPI, per il rendiconto di fine simulazione. */
+static unsigned long long comm_ns = 0;
+
+unsigned long long par_comm_nanoseconds(void) {
+    return comm_ns;
+}
+
 /* La griglia di processi, creata una volta da par_topology_init. */
 static MPI_Comm cart_comm = MPI_COMM_NULL;
 static int cart_dims[3] = {1, 1, 1};
@@ -93,6 +100,11 @@ void par_coords(int coords[3]) {
     }
 }
 
+void par_coords_of(int rank, int coords[3]) {
+    require_topology();
+    MPI_Cart_coords(cart_comm, rank, 3, coords);
+}
+
 int par_neighbor(int axis, int step) {
     int lower;
     int upper;
@@ -107,19 +119,33 @@ int par_neighbor(int axis, int step) {
 
 long long par_sum_long(long long value) {
     long long total;
+    uint64_t begin = time_ns();
     MPI_Allreduce(&value, &total, 1, MPI_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
+    comm_ns += time_ns() - begin;
     return total;
+}
+
+long long par_max_long(long long value) {
+    long long largest;
+    uint64_t begin = time_ns();
+    MPI_Allreduce(&value, &largest, 1, MPI_LONG_LONG, MPI_MAX, MPI_COMM_WORLD);
+    comm_ns += time_ns() - begin;
+    return largest;
 }
 
 Real par_sum_real(Real value) {
     Real total;
+    uint64_t begin = time_ns();
     MPI_Allreduce(&value, &total, 1, PAR_REAL, MPI_SUM, MPI_COMM_WORLD);
+    comm_ns += time_ns() - begin;
     return total;
 }
 
 Real par_max_real(Real value) {
     Real largest;
+    uint64_t begin = time_ns();
     MPI_Allreduce(&value, &largest, 1, PAR_REAL, MPI_MAX, MPI_COMM_WORLD);
+    comm_ns += time_ns() - begin;
     return largest;
 }
 
@@ -133,15 +159,19 @@ static int mpi_neighbor(int axis, int step) {
 void par_shift_real(int axis, int step,
                     const Real *send, Real *recv, int count) {
     require_topology();
+    uint64_t begin = time_ns();
     MPI_Sendrecv(send, count, PAR_REAL, mpi_neighbor(axis, step), 0,
                  recv, count, PAR_REAL, mpi_neighbor(axis, -step), 0,
                  cart_comm, MPI_STATUS_IGNORE);
+    comm_ns += time_ns() - begin;
 }
 
 void par_line_allgather(int axis, const Real *send, int count, Real *recv) {
     require_topology();
+    uint64_t begin = time_ns();
     MPI_Allgather(send, count, PAR_REAL, recv, count, PAR_REAL,
                   line_comm[axis]);
+    comm_ns += time_ns() - begin;
 }
 
 /*
@@ -243,6 +273,11 @@ void par_coords(int coords[3]) {
     coords[0] = coords[1] = coords[2] = 0;
 }
 
+void par_coords_of(int rank, int coords[3]) {
+    (void)rank;
+    coords[0] = coords[1] = coords[2] = 0;
+}
+
 int par_neighbor(int axis, int step) {
     (void)axis;
     (void)step;
@@ -251,6 +286,14 @@ int par_neighbor(int axis, int step) {
 
 long long par_sum_long(long long value) {
     return value;
+}
+
+long long par_max_long(long long value) {
+    return value;
+}
+
+unsigned long long par_comm_nanoseconds(void) {
+    return 0;   /* senza MPI non si comunica */
 }
 
 Real par_sum_real(Real value) {
