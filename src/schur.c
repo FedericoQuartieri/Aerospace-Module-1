@@ -356,3 +356,226 @@ void schur_solve_mpi(int axis, int lines, int n_local,
     free(y);
     free(scratch);
 }
+
+/*
+ * Preprocessing (Lecture 5, p. 32, step 1).
+ *
+ * Everything here depends on the matrix alone: the two influence functions, the
+ * values the block above contributes to my interface equation, and the
+ * resulting interface system, which every process assembles whole.
+ */
+void schur_plan_init(SchurPlan *plan, int axis, int n,
+                     const Real *a, const Real *b, const Real *c) {
+    int dims[3];
+    int coords[3];
+
+    par_dims(dims);
+    par_coords(coords);
+
+    size_t bytes = (size_t)n * sizeof(Real);
+
+    plan->axis = axis;
+    plan->n = n;
+    plan->blocks = dims[axis];
+    plan->p = coords[axis];
+    plan->has_right = (plan->p < plan->blocks - 1);
+    plan->len = plan->has_right ? n - 1 : n;
+
+    plan->a = xmalloc(bytes);
+    plan->b = xmalloc(bytes);
+    plan->c = xmalloc(bytes);
+    memcpy(plan->a, a, bytes);
+    memcpy(plan->b, b, bytes);
+    memcpy(plan->c, c, bytes);
+
+    plan->lft = NULL;
+    plan->rgt = NULL;
+    plan->ra = NULL;
+    plan->rb = NULL;
+    plan->rc = NULL;
+
+    /* One process along the axis: the runtime is plain Thomas on the whole
+     * line, so there is nothing to prepare. */
+    if (plan->blocks < 2) {
+        return;
+    }
+
+    if (plan->len < 1) {
+        fprintf(stderr,
+                "schur_plan_init: block %d of %d holds only %d points\n",
+                plan->p, plan->blocks, n);
+        exit(1);
+    }
+
+    int len = plan->len;
+
+    plan->lft = xmalloc(bytes);
+    plan->rgt = xmalloc(bytes);
+    memset(plan->lft, 0, bytes);
+    memset(plan->rgt, 0, bytes);
+
+    Real *rhs = xmalloc(bytes);
+    Real *scratch = xmalloc(bytes);
+
+    if (plan->p > 0) {
+        memset(rhs, 0, (size_t)len * sizeof(Real));
+        rhs[0] = a[0];
+        thomas_solve(len, a, b, c, rhs, plan->lft, scratch);
+    }
+
+    if (plan->has_right) {
+        memset(rhs, 0, (size_t)len * sizeof(Real));
+        rhs[len - 1] = c[len - 1];
+        thomas_solve(len, a, b, c, rhs, plan->rgt, scratch);
+    }
+
+    /* My interface equation also reaches the first internal point of the block
+     * above, through that block's own influence functions. */
+    Real mine[2] = { plan->lft[0], plan->rgt[0] };
+    Real above[2] = { (Real)0, (Real)0 };
+
+    par_shift_real(axis, -1, mine, above, 2);
+
+    /* My row of the interface system.  The last process owns no interface and
+     * contributes a harmless identity row that nobody uses. */
+    Real row[3] = { (Real)0, (Real)1, (Real)0 };
+
+    if (plan->has_right) {
+        int m = n - 1;        /* the interface point itself */
+        int left = len - 1;   /* my last internal point     */
+
+        row[0] = -a[m] * plan->lft[left];
+        row[1] = b[m] - a[m] * plan->rgt[left] - c[m] * above[0];
+        row[2] = -c[m] * above[1];
+    }
+
+    int interfaces = plan->blocks - 1;
+    Real *rows = xmalloc(3 * (size_t)plan->blocks * sizeof(Real));
+
+    par_line_allgather(axis, row, 3, rows);
+
+    plan->ra = xmalloc((size_t)interfaces * sizeof(Real));
+    plan->rb = xmalloc((size_t)interfaces * sizeof(Real));
+    plan->rc = xmalloc((size_t)interfaces * sizeof(Real));
+
+    for (int q = 0; q < interfaces; q++) {
+        plan->ra[q] = rows[3 * (size_t)q + 0];
+        plan->rb[q] = rows[3 * (size_t)q + 1];
+        plan->rc[q] = rows[3 * (size_t)q + 2];
+    }
+
+    free(rows);
+    free(scratch);
+    free(rhs);
+}
+
+/*
+ * Runtime (Lecture 5, p. 32, step 2).  Only the right-hand side is new: one
+ * local solve per line, one value per line exchanged and gathered, then the
+ * interface answers are folded back into the local ones.
+ */
+void schur_plan_solve(const SchurPlan *plan, int lines,
+                      const Real *f, Real *x) {
+    const Real *a = plan->a;
+    const Real *b = plan->b;
+    const Real *c = plan->c;
+    const int n = plan->n;
+    const int len = plan->len;
+
+    Real *scratch = xmalloc((size_t)n * sizeof(Real));
+
+    if (plan->blocks < 2) {
+        for (int l = 0; l < lines; l++) {
+            size_t off = (size_t)l * (size_t)n;
+            thomas_solve(n, a, b, c, f + off, x + off, scratch);
+        }
+        free(scratch);
+        return;
+    }
+
+    Real *y = xmalloc((size_t)lines * (size_t)n * sizeof(Real));
+
+    /* ---- 1. every line against its own right-hand side ---- */
+    for (int l = 0; l < lines; l++) {
+        size_t off = (size_t)l * (size_t)n;
+        thomas_solve(len, a, b, c, f + off, y + off, scratch);
+    }
+
+    /* ---- 2. one exchange and one collective, for every line at once ---- */
+    Real *mine = xmalloc((size_t)lines * sizeof(Real));
+    Real *above = xmalloc((size_t)lines * sizeof(Real));
+
+    for (int l = 0; l < lines; l++) {
+        mine[l] = y[(size_t)l * (size_t)n];
+        above[l] = (Real)0;
+    }
+
+    par_shift_real(plan->axis, -1, mine, above, lines);
+
+    Real *rf = xmalloc((size_t)lines * sizeof(Real));
+
+    for (int l = 0; l < lines; l++) {
+        rf[l] = (Real)0;
+
+        if (plan->has_right) {
+            size_t off = (size_t)l * (size_t)n;
+
+            rf[l] = f[off + (size_t)n - 1]
+                    - a[n - 1] * y[off + (size_t)len - 1]
+                    - c[n - 1] * above[l];
+        }
+    }
+
+    Real *rows = xmalloc((size_t)lines * (size_t)plan->blocks * sizeof(Real));
+    par_line_allgather(plan->axis, rf, lines, rows);
+
+    /* ---- 3. every line on its own again ---- */
+    int interfaces = plan->blocks - 1;
+    Real *rline = xmalloc((size_t)interfaces * sizeof(Real));
+    Real *rx = xmalloc((size_t)interfaces * sizeof(Real));
+    Real *reduced_scratch = xmalloc((size_t)interfaces * sizeof(Real));
+
+    for (int l = 0; l < lines; l++) {
+        for (int q = 0; q < interfaces; q++) {
+            rline[q] = rows[(size_t)q * (size_t)lines + (size_t)l];
+        }
+
+        thomas_solve(interfaces, plan->ra, plan->rb, plan->rc,
+                     rline, rx, reduced_scratch);
+
+        Real x_left = (plan->p > 0) ? rx[plan->p - 1] : (Real)0;
+        Real x_right = plan->has_right ? rx[plan->p] : (Real)0;
+        size_t off = (size_t)l * (size_t)n;
+
+        for (int i = 0; i < len; i++) {
+            x[off + (size_t)i] = y[off + (size_t)i]
+                                 - x_left * plan->lft[i]
+                                 - x_right * plan->rgt[i];
+        }
+
+        if (plan->has_right) {
+            x[off + (size_t)n - 1] = rx[plan->p];
+        }
+    }
+
+    free(reduced_scratch);
+    free(rx);
+    free(rline);
+    free(rows);
+    free(rf);
+    free(above);
+    free(mine);
+    free(y);
+    free(scratch);
+}
+
+void schur_plan_free(SchurPlan *plan) {
+    free(plan->rc);
+    free(plan->rb);
+    free(plan->ra);
+    free(plan->rgt);
+    free(plan->lft);
+    free(plan->c);
+    free(plan->b);
+    free(plan->a);
+}

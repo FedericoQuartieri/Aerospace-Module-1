@@ -1,6 +1,7 @@
 #include "solver.h"
 
 #include <math.h>
+#include <string.h>
 
 #ifdef USE_FLOAT
 #define REAL_SIN sinf
@@ -106,5 +107,31 @@ const Data paper_data = {
 };
 
 
-const Data *data_table; // list of Data existing in the solver, needed for parsing
-// const Data zero_pressure_data = {};
+/*
+ * Gli scenari che il solutore sa eseguire, cercati per nome.  Gli altri casi
+ * (cavity, canale, sfera) vivono nei test, che costruiscono il proprio Data
+ * direttamente e non passano da qui.
+ */
+static const Data *const data_table[] = {
+    &paper_data,
+};
+
+const Data *data_by_name(const char *name) {
+    size_t count = sizeof data_table / sizeof data_table[0];
+
+    for (size_t i = 0; i < count; i++) {
+        if (strcmp(data_table[i]->name, name) == 0) {
+            return data_table[i];
+        }
+    }
+
+    return NULL;
+}
+
+void data_print_names(FILE *stream) {
+    size_t count = sizeof data_table / sizeof data_table[0];
+
+    for (size_t i = 0; i < count; i++) {
+        fprintf(stream, "  %s\n", data_table[i]->name);
+    }
+}

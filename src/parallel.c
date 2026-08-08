@@ -37,11 +37,21 @@ static int cart_coords[3] = {0, 0, 0};
  * è il gruppo che si scambia le interfacce nel complemento di Schur. */
 static MPI_Comm line_comm[3];
 
+/* I quattro pacchetti dello scambio degli aloni (due da spedire, due da
+ * ricevere), tenuti da un passo all'altro: le facce hanno sempre la stessa
+ * dimensione, quindi allocarle e liberarle a ogni chiamata era lavoro
+ * ripetuto per niente.  Lo scambio avviene una decina di volte per passo. */
+static Real *halo_packets = NULL;
+static size_t halo_capacity = 0;
+
 void par_init(int *argc, char ***argv) {
     MPI_Init(argc, argv);
 }
 
 void par_finalize(void) {
+    free(halo_packets);
+    halo_packets = NULL;
+    halo_capacity = 0;
     MPI_Finalize();
 }
 
@@ -207,37 +217,80 @@ static void face_copy(const Decomp *d, Real *field, int axis, int slot,
     }
 }
 
+/* Cresce i pacchetti se la faccia più grande non ci sta ancora. */
+static void halo_packets_reserve(size_t face) {
+    if (face <= halo_capacity) {
+        return;
+    }
+
+    free(halo_packets);
+    halo_packets = xmalloc(4 * face * sizeof(Real));
+    halo_capacity = face;
+}
+
+/*
+ * Le due direzioni di un asse non dipendono l'una dall'altra, quindi non c'è
+ * motivo di aspettare la prima per cominciare la seconda: i quattro messaggi
+ * partono tutti e si attende una volta sola alla fine.
+ *
+ * Le ricezioni sono aperte prima delle spedizioni (Lecture MPI, p. 31): così
+ * il messaggio trova già pronto il posto dove andare, e la libreria non deve
+ * parcheggiarlo altrove per poi ricopiarlo.
+ *
+ * Il tag dice il verso di marcia, 0 in su e 1 in giù, così le due ricezioni
+ * aperte insieme non possono raccogliere il messaggio sbagliato.
+ *
+ * N.B. Questo non è sovrapporre comunicazione e calcolo: fra la partenza dei
+ * messaggi e l'attesa non c'è nulla da calcolare, e le slide (p. 29) avvertono
+ * che quella sovrapposizione richiede una scheda di rete che se ne occupi da
+ * sola.  Qui si guadagna perché i due versi viaggiano insieme.
+ */
 void par_exchange_halo(const Decomp *d, Real *field) {
     require_topology();
 
     for (int axis = 0; axis < 3; axis++) {
-        int below = par_neighbor(axis, -1);
-        int above = par_neighbor(axis, +1);
+        int below = mpi_neighbor(axis, -1);
+        int above = mpi_neighbor(axis, +1);
 
-        if (below == PAR_NO_NEIGHBOR && above == PAR_NO_NEIGHBOR) {
+        if (below == MPI_PROC_NULL && above == MPI_PROC_NULL) {
             continue;  /* direzione non divisa: niente da scambiare */
         }
 
         int face = d->n[(axis + 1) % 3] * d->n[(axis + 2) % 3];
-        Real *packet = xmalloc((size_t)face * sizeof(Real));
-        Real *arrived = xmalloc((size_t)face * sizeof(Real));
+        halo_packets_reserve((size_t)face);
 
-        /* La mia ultima faccia va a chi sta sopra; dal basso arriva la sua. */
-        face_copy(d, field, axis, d->n[axis] - 1, packet, 1);
-        par_shift_real(axis, +1, packet, arrived, face);
-        if (below != PAR_NO_NEIGHBOR) {
-            face_copy(d, field, axis, -1, arrived, 0);
+        Real *to_above = halo_packets;
+        Real *to_below = halo_packets + face;
+        Real *from_below = halo_packets + 2 * (size_t)face;
+        Real *from_above = halo_packets + 3 * (size_t)face;
+
+        /* La mia ultima faccia va a chi sta sopra, la prima a chi sta sotto. */
+        face_copy(d, field, axis, d->n[axis] - 1, to_above, 1);
+        face_copy(d, field, axis, 0, to_below, 1);
+
+        MPI_Request wait_for[4];
+        uint64_t begin = time_ns();
+
+        MPI_Irecv(from_below, face, PAR_REAL, below, 0, cart_comm,
+                  &wait_for[0]);
+        MPI_Irecv(from_above, face, PAR_REAL, above, 1, cart_comm,
+                  &wait_for[1]);
+        MPI_Isend(to_above, face, PAR_REAL, above, 0, cart_comm,
+                  &wait_for[2]);
+        MPI_Isend(to_below, face, PAR_REAL, below, 1, cart_comm,
+                  &wait_for[3]);
+
+        MPI_Waitall(4, wait_for, MPI_STATUSES_IGNORE);
+        comm_ns += time_ns() - begin;
+
+        /* Dove il vicino non c'è finisce il dominio: quell'anello resta alle
+         * condizioni al contorno e non va toccato. */
+        if (below != MPI_PROC_NULL) {
+            face_copy(d, field, axis, -1, from_below, 0);
         }
-
-        /* E specularmente verso il basso. */
-        face_copy(d, field, axis, 0, packet, 1);
-        par_shift_real(axis, -1, packet, arrived, face);
-        if (above != PAR_NO_NEIGHBOR) {
-            face_copy(d, field, axis, d->n[axis], arrived, 0);
+        if (above != MPI_PROC_NULL) {
+            face_copy(d, field, axis, d->n[axis], from_above, 0);
         }
-
-        free(arrived);
-        free(packet);
     }
 }
 

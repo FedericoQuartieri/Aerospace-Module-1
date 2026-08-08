@@ -51,8 +51,8 @@ run_case()
         "$study" "$grid" "$dt" "$steps"
 
     "$compiler" -std=gnu11 -O3 -Wall -Wextra -I"$root/include" \
-        -DWIDTH="$grid" -DHEIGHT="$grid" -DDEPTH="$grid" \
-        -DT="$total_time" -DSTEPS="$steps" \
+        -DDEFAULT_WIDTH="$grid" -DDEFAULT_HEIGHT="$grid" -DDEFAULT_DEPTH="$grid" \
+        -DDEFAULT_T="$total_time" -DDEFAULT_STEPS="$steps" \
         "$root/test/paper_man.c" "${core_sources[@]}" -lm -o "$executable"
 
     output="$("$executable")"

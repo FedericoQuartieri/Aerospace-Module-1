@@ -23,10 +23,22 @@ void solver_init(const Decomp *decomp,
                  SolverMemState *solver_mem_state,
                  Data *data,
                  const char *data_name) {
-    (void)data_name;
+    /* Senza nome si tiene lo scenario che il chiamante ha gia' messo in `data`:
+     * e' quello che fanno i test, che costruiscono il proprio. */
+    if (data_name != NULL) {
+        const Data *found = data_by_name(data_name);
 
-    // TODO: Parse data_name and assign the correspondent Data structure,
-    // return error if not matched
+        if (found == NULL) {
+            if (par_rank() == 0) {
+                fprintf(stderr, "Scenario sconosciuto: %s\nDisponibili:\n",
+                        data_name);
+                data_print_names(stderr);
+            }
+            exit(1);
+        }
+
+        *data = *found;
+    }
 
     // Allocate memory
     scalarField_alloc(decomp, &solver_mem_state->pressure);
@@ -68,6 +80,11 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
     ScalarField pressure_buffer;
     scalarField_alloc(decomp, &pressure_buffer);
 
+    /* Le tre matrici della pressione non dipendono dal passo temporale: il
+     * complemento di Schur le prepara adesso, una volta per tutte. */
+    SchurPlan pressure_plan[3];
+    pressure_plans_init(decomp, pressure_plan);
+
     // If write_enabled is set, write the initial state at t=0
     if (write_enabled) {
         write_to_file(decomp, solver_mem_state, data->name, 0);
@@ -98,8 +115,8 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
         refresh_vector_halo(decomp, &solver_mem_state->u);
 
         // Pressure system
-        pressure_step(decomp, solver_mem_state, &pressure_buffer, rhs, tmp,
-                      solver_stats);
+        pressure_step(decomp, solver_mem_state, pressure_plan,
+                      &pressure_buffer, rhs, tmp, solver_stats);
 
         // Write to file
         if (write_enabled) {
@@ -115,6 +132,7 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
     // Print solver time statistics
     print_stats(decomp, solver_stats, (size_t)STEPS);
 
+    pressure_plans_free(pressure_plan);
     free(rhs);
     free(tmp);
     free(pressure_buffer.v);

@@ -46,4 +46,41 @@ void schur_solve_mpi(int axis, int lines, int n_local,
                      const Real *a, const Real *b, const Real *c,
                      const Real *f, Real *x);
 
+/*
+ * The same method, with the preprocessing separated from the runtime
+ * (Lecture 5, p. 32).
+ *
+ * schur_solve_mpi rebuilds everything at every call, which is the only option
+ * when the matrix changes: the momentum systems carry gamma, and gamma follows
+ * the permeability from one cell to the next.  The pressure cascade is the
+ * opposite case.  Its matrix is the same for every line and never changes, so
+ * the two influence functions and the whole interface system depend on nothing
+ * that a time step brings: they are computed once, and only the right-hand
+ * side is left to schur_plan_solve.
+ *
+ * That turns a call from three local Thomas solves per line into one, and the
+ * exchanged data from four values per line into one.
+ */
+typedef struct SchurPlan {
+    int axis;
+    int n;              /* points of this block along axis, interface included */
+    int len;            /* of those, the internal ones                        */
+    int blocks;         /* processes along axis                               */
+    int p;              /* my position among them                            */
+    int has_right;      /* whether my last point is an interface             */
+    Real *a, *b, *c;    /* the block's matrix, one line                      */
+    Real *lft, *rgt;    /* answers to a unit value on either interface       */
+    Real *ra, *rb, *rc; /* the interface system, already assembled           */
+} SchurPlan;
+
+/* Preprocessing: a, b, c describe one line of n points of this block. */
+void schur_plan_init(SchurPlan *plan, int axis, int n,
+                     const Real *a, const Real *b, const Real *c);
+
+/* Runtime: `lines` right-hand sides, system l at offset l * n. */
+void schur_plan_solve(const SchurPlan *plan, int lines,
+                      const Real *f, Real *x);
+
+void schur_plan_free(SchurPlan *plan);
+
 #endif

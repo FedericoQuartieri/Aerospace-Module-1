@@ -55,14 +55,10 @@ void compute_div(const Decomp *restrict d,
 }
 
 /*
- * Un passo della cascata della pressione (Lecture 5, p. 7):
+ * La matrice di una linea della cascata di pressione.
  *
- *   (I - d_xx) psi = -div(u)/dt,  poi  (I - d_yy) phi = psi,
- *                                 poi  (I - d_zz) fi  = phi
- *
- * I tre passi hanno la stessa matrice: cambiano solo l'asse, il campo da cui
- * si legge e quello in cui si scrive. Questa funzione ne fa uno, e la si
- * chiama tre volte.
+ * E' la stessa per tutte le linee dell'asse e non cambia mai nel tempo: ogni
+ * riga dipende solo dalla posizione globale del suo punto.
  *
  * Le righe agli estremi sono quelle della condizione di Neumann omogenea
  * (Lecture 5, pp. 15-16), e spettano solo a chi tocca davvero la parete: un
@@ -70,23 +66,85 @@ void compute_div(const Decomp *restrict d,
  * perche' lo e' la discretizzazione: a sinistra il nodo fantasma dista due
  * mezze celle, a destra una.
  */
-static void pressure_direction(const Decomp *restrict d, int axis,
-                               const Real *restrict source,
-                               Real *restrict target) {
-    const int group = (axis == 0) ? 1 : 0;
-    const int outer = (axis == 2) ? 1 : 2;
+static void pressure_matrix(const Decomp *restrict d, int axis,
+                            Real *restrict a,
+                            Real *restrict b,
+                            Real *restrict c) {
     const int length = d->n[axis];
-    const int lines = d->n[group];
     const int last_global = d->n_global[axis] - 1;
-    const size_t step = d->stride[axis];
     const Real w = (axis == 0) ? -(Real)DX_INVERSE_SQUARE
                  : (axis == 1) ? -(Real)DY_INVERSE_SQUARE
                                : -(Real)DZ_INVERSE_SQUARE;
 
+    for (int t = 0; t < length; t++) {
+        int along = decomp_global(d, t, axis);
+
+        if (along == 0) {
+            a[t] = (Real)0;
+            b[t] = (Real)1 - (Real)2 * w;
+            c[t] = (Real)2 * w;
+        } else if (along == last_global) {
+            a[t] = w;
+            b[t] = (Real)1 - w;
+            c[t] = (Real)0;
+        } else {
+            a[t] = w;
+            b[t] = (Real)1 - (Real)2 * w;
+            c[t] = w;
+        }
+    }
+}
+
+/*
+ * Il preprocessing dei tre assi (Lecture 5, p. 32, punto 1): nessuna delle tre
+ * matrici dipende dal passo temporale, quindi si prepara una volta all'avvio e
+ * durante la simulazione resta da scrivere solo il termine noto.
+ */
+void pressure_plans_init(const Decomp *d, SchurPlan plan[3]) {
+    for (int axis = 0; axis < 3; axis++) {
+        size_t room = (size_t)d->n[axis] * sizeof(Real);
+        Real *a = xmalloc(room);
+        Real *b = xmalloc(room);
+        Real *c = xmalloc(room);
+
+        pressure_matrix(d, axis, a, b, c);
+        schur_plan_init(&plan[axis], axis, d->n[axis], a, b, c);
+
+        free(c);
+        free(b);
+        free(a);
+    }
+}
+
+void pressure_plans_free(SchurPlan plan[3]) {
+    for (int axis = 0; axis < 3; axis++) {
+        schur_plan_free(&plan[axis]);
+    }
+}
+
+/*
+ * Un passo della cascata della pressione (Lecture 5, p. 7):
+ *
+ *   (I - d_xx) psi = -div(u)/dt,  poi  (I - d_yy) phi = psi,
+ *                                 poi  (I - d_zz) fi  = phi
+ *
+ * I tre passi hanno la stessa matrice: cambiano solo l'asse, il campo da cui
+ * si legge e quello in cui si scrive. Questa funzione ne fa uno, e la si
+ * chiama tre volte. La matrice sta gia' in `plan`, qui si scrive il termine
+ * noto e si raccoglie la risposta.
+ */
+static void pressure_direction(const Decomp *restrict d,
+                               const SchurPlan *plan,
+                               const Real *restrict source,
+                               Real *restrict target) {
+    const int axis = plan->axis;
+    const int group = (axis == 0) ? 1 : 0;
+    const int outer = (axis == 2) ? 1 : 2;
+    const int length = d->n[axis];
+    const int lines = d->n[group];
+    const size_t step = d->stride[axis];
+
     size_t room = (size_t)lines * (size_t)length * sizeof(Real);
-    Real *lower = xmalloc(room);
-    Real *diagonal = xmalloc(room);
-    Real *upper = xmalloc(room);
     Real *known = xmalloc(room);
     Real *answer = xmalloc(room);
 
@@ -103,29 +161,11 @@ static void pressure_direction(const Decomp *restrict d, int axis,
             size_t line = (size_t)a * (size_t)length;
 
             for (int t = 0; t < length; t++) {
-                int along = decomp_global(d, t, axis);
-                size_t at = line + (size_t)t;
-
-                if (along == 0) {
-                    lower[at] = (Real)0;
-                    diagonal[at] = (Real)1 - (Real)2 * w;
-                    upper[at] = (Real)2 * w;
-                } else if (along == last_global) {
-                    lower[at] = w;
-                    diagonal[at] = (Real)1 - w;
-                    upper[at] = (Real)0;
-                } else {
-                    lower[at] = w;
-                    diagonal[at] = (Real)1 - (Real)2 * w;
-                    upper[at] = w;
-                }
-
-                known[at] = source[start + (size_t)t * step];
+                known[line + (size_t)t] = source[start + (size_t)t * step];
             }
         }
 
-        schur_solve_mpi(axis, lines, length,
-                        lower, diagonal, upper, known, answer);
+        schur_plan_solve(plan, lines, known, answer);
 
         for (int a = 0; a < lines; a++) {
             cell[group] = a;
@@ -142,9 +182,6 @@ static void pressure_direction(const Decomp *restrict d, int axis,
 
     free(answer);
     free(known);
-    free(upper);
-    free(diagonal);
-    free(lower);
 }
 
 static void update_pressure(const Decomp *restrict d,
@@ -170,6 +207,7 @@ static void update_pressure(const Decomp *restrict d,
 
 void pressure_step(const Decomp *decomp,
                    SolverMemState *solver_mem_state,
+                   const SchurPlan plan[3],
                    ScalarField *pressure_buffer,
                    Real *restrict rhs,
                    Real *restrict tmp,
@@ -184,15 +222,15 @@ void pressure_step(const Decomp *decomp,
     /* I due campi si scambiano il ruolo a ogni passo, cosi' ne bastano due. */
     uint64_t start_ns = time_ns();
     compute_div(decomp, buffer, &solver_mem_state->u);
-    pressure_direction(decomp, 0, buffer, star);      /* psi     */
+    pressure_direction(decomp, &plan[0], buffer, star);   /* psi */
     solver_stats->psi_sys += time_ns() - start_ns;
 
     start_ns = time_ns();
-    pressure_direction(decomp, 1, star, buffer);      /* phi     */
+    pressure_direction(decomp, &plan[1], star, buffer);   /* phi */
     solver_stats->phi_low_sys += time_ns() - start_ns;
 
     start_ns = time_ns();
-    pressure_direction(decomp, 2, buffer, star);      /* fi      */
+    pressure_direction(decomp, &plan[2], buffer, star);   /* fi  */
     solver_stats->phi_high_sys += time_ns() - start_ns;
 
     start_ns = time_ns();

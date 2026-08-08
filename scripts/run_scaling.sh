@@ -68,8 +68,8 @@ run_case()
 
     "$compiler" -std=gnu11 -O3 -Wall -Wextra -I"$root/include" \
         $simd_flags -DUSE_MPI \
-        -DWIDTH="$nx" -DHEIGHT="$ny" -DDEPTH="$nz" \
-        -DT=1e-1 -DSTEPS="$steps" \
+        -DDEFAULT_WIDTH="$nx" -DDEFAULT_HEIGHT="$ny" -DDEFAULT_DEPTH="$nz" \
+        -DDEFAULT_T=1e-1 -DDEFAULT_STEPS="$steps" \
         "$root/test/paper_man.c" "${core_sources[@]}" -lm -o "$executable"
 
     local best_wall="" best_mpi="" output wall mpi
