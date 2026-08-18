@@ -1,319 +1,468 @@
 #include "momentum.h"
 
+static Real *vector_component(VectorField *field, int component) {
+    if (component == 0) return field->v_x;
+    if (component == 1) return field->v_y;
+    return field->v_z;
+}
 
-/* eta: rhs = u + (DT/beta)*g - eta 
- * v_comp = [x:0, y:1, z:2]
- * */
-void update_eta(SolverMemState *solver_mem_state,
-                Real *restrict rhs,
-                Real *restrict tmp,
-                Data *data, int t_step, int v_comp) {
-        
-    const Real *restrict k_porosity;
-    const Real *restrict u;
-    Real *eta;
+static const Real *const_vector_component(const VectorField *field,
+                                          int component) {
+    if (component == 0) return field->v_x;
+    if (component == 1) return field->v_y;
+    return field->v_z;
+}
 
-    switch(v_comp) {
-        case 0:
-            k_porosity = solver_mem_state->k.v_x;
-            u = solver_mem_state->u.v_x;
-            eta = solver_mem_state->eta.v_x;
-            break;
-        case 1:
-            k_porosity = solver_mem_state->k.v_y;
-            u = solver_mem_state->u.v_y;
-            eta = solver_mem_state->eta.v_y;
-            break;
-        case 2:
-            k_porosity = solver_mem_state->k.v_z;
-            u = solver_mem_state->u.v_z;
-            eta = solver_mem_state->eta.v_z;
-            break;
-        default: 
-            fprintf(stderr, "Value of v_comp doesn't exist");
-            exit(1);    
+static size_t axis_line_count(const Domain *domain, int axis) {
+    if (axis == AXIS_X) {
+        return (size_t)domain->local[AXIS_Y] * domain->local[AXIS_Z];
+    }
+    if (axis == AXIS_Y) {
+        return (size_t)domain->local[AXIS_X] * domain->local[AXIS_Z];
+    }
+    return (size_t)domain->local[AXIS_X] * domain->local[AXIS_Y];
+}
+
+static void line_coordinates(const Domain *domain, int axis, size_t line,
+                             int level, int *i, int *j, int *k) {
+    if (axis == AXIS_X) {
+        *i = level;
+        *j = (int)(line % (size_t)domain->local[AXIS_Y]);
+        *k = (int)(line / (size_t)domain->local[AXIS_Y]);
+    } else if (axis == AXIS_Y) {
+        *i = (int)(line % (size_t)domain->local[AXIS_X]);
+        *j = level;
+        *k = (int)(line / (size_t)domain->local[AXIS_X]);
+    } else {
+        *i = (int)(line % (size_t)domain->local[AXIS_X]);
+        *j = (int)(line / (size_t)domain->local[AXIS_X]);
+        *k = level;
+    }
+}
+
+static size_t scratch_index(const PipelineWorkspace *pipeline, int axis,
+                            int component, size_t batch, int level,
+                            int line, int length) {
+    size_t batch_base = (size_t)component * pipeline->component_capacity +
+                        batch * (size_t)length * pipeline->batch_lines;
+
+    /* X keeps each physical row contiguous; Y and Z vectorize across lines. */
+    if (axis == AXIS_X) {
+        return batch_base + (size_t)line * length + (size_t)level;
+    }
+    return batch_base + (size_t)level * pipeline->batch_lines +
+           (size_t)line;
+}
+
+static Real inverse_spacing_square(int axis) {
+    if (axis == AXIS_X) return (Real)DX_INVERSE_SQUARE;
+    if (axis == AXIS_Y) return (Real)DY_INVERSE_SQUARE;
+    return (Real)DZ_INVERSE_SQUARE;
+}
+
+#if defined(USE_SIMD) && SIMD_AVAILABLE
+static SimdReal momentum_weight_simd(SimdReal permeability, int axis) {
+    SimdReal one = simd_set1((Real)1);
+    SimdReal two = simd_set1((Real)2);
+    SimdReal numerator = simd_set1((Real)(DT * NU));
+    SimdReal beta = simd_add(
+        one, simd_div(numerator, simd_mul(two, permeability)));
+    SimdReal gamma = simd_div(numerator, simd_mul(two, beta));
+
+    return simd_mul(gamma, simd_set1(-inverse_spacing_square(axis)));
+}
+
+static int forward_interior_simd(SolverMemState *state, int axis,
+                                 int component, size_t batch,
+                                 size_t first_line, int active,
+                                 int level, int line, int length) {
+    const Domain *domain = &state->domain;
+    PipelineWorkspace *pipeline = &state->pipeline;
+    size_t absolute_line = first_line + (size_t)line;
+    int i, j, k;
+    int global_axis = domain_global_index(domain, level, axis);
+
+    if (global_axis == 0 || global_axis == domain->global[axis] - 1 ||
+        line + SIMD_LANES > active) {
+        return 0;
     }
 
-    bool same_direction = (v_comp == 0);
+    line_coordinates(domain, axis, absolute_line, level, &i, &j, &k);
+    if (i + SIMD_LANES > domain->local[AXIS_X]) {
+        return 0;
+    }
 
-    for (int k = 0; k < DEPTH; k++) {
-        for (int j = 0; j < HEIGHT; j++) {
-            // Row offset index
-            size_t off = (size_t)k * (WIDTH * HEIGHT)
-                             + (size_t)j * WIDTH;
-            
-            // Thomas algorithm Dxx
-            tmp[0] = 0.0;
-            rhs[0] = bc_left(data->bc_velocity, 0, j, k, t_step, v_comp);
-            
-            // Forwards step
-            for (int i = 1; i < WIDTH-1; i++) {
-                Real k_i = k_porosity[off+i];
-                Real w_i = -gamma_from_k(k_i) * DX_INVERSE_SQUARE;
-                
-                Real norm_coeff =
-                    1.0 / ((1.0 - 2.0 * w_i) - w_i * tmp[i - 1]);
-                tmp[i] = w_i * norm_coeff;
-               
-                Real beta_i = beta_from_k(k_i);
-                Real xi_i =
-                    u[off+i] + (DT/beta_i)*g_value(i, j, k, t_step, k_i,
-                                                 solver_mem_state, data,
-                                                 v_comp);
-                rhs[i] = xi_i - eta[off + i];
-                rhs[i] = (rhs[i] - w_i * rhs[i - 1]) * norm_coeff;
+    size_t field_index = domain_index(domain, i, j, k);
+    size_t current = scratch_index(pipeline, axis, component, batch,
+                                   level, line, length);
+    const Real *previous_c;
+    const Real *previous_d;
+    const Real *permeability =
+        const_vector_component(&state->k, component);
+    const Real *source = axis == AXIS_Y
+        ? const_vector_component(&state->eta, component)
+        : const_vector_component(&state->zeta, component);
+    const Real *target = axis == AXIS_Y
+        ? const_vector_component(&state->zeta, component)
+        : const_vector_component(&state->u, component);
+
+    if (level == 0) {
+        previous_c = &pipeline->forward[line];
+        previous_d = &pipeline->forward[active + line];
+    } else {
+        size_t previous = scratch_index(pipeline, axis, component, batch,
+                                        level - 1, line, length);
+        previous_c = &pipeline->c_prime[previous];
+        previous_d = &pipeline->d_prime[previous];
+    }
+
+    SimdReal one = simd_set1((Real)1);
+    SimdReal two = simd_set1((Real)2);
+    SimdReal w = momentum_weight_simd(simd_loadu(&permeability[field_index]),
+                                      axis);
+    SimdReal inverse_diagonal = simd_div(
+        one, simd_sub(simd_sub(one, simd_mul(two, w)),
+                      simd_mul(w, simd_loadu(previous_c))));
+    SimdReal raw_rhs = simd_sub(simd_loadu(&source[field_index]),
+                                simd_loadu(&target[field_index]));
+
+    simd_storeu(&pipeline->c_prime[current],
+                simd_mul(w, inverse_diagonal));
+    simd_storeu(&pipeline->d_prime[current],
+                simd_mul(simd_sub(raw_rhs,
+                                  simd_mul(w, simd_loadu(previous_d))),
+                         inverse_diagonal));
+    return SIMD_LANES;
+}
+#endif
+
+static Real momentum_raw_rhs(SolverMemState *state, const Data *data,
+                             int axis, int component, int t_step,
+                             int i, int j, int k, Real permeability,
+                             size_t field_index) {
+    Real *target;
+    const Real *source;
+
+    if (axis == AXIS_X) {
+        target = vector_component(&state->eta, component);
+        source = const_vector_component(&state->u, component);
+        return source[field_index] +
+               ((Real)DT / beta_from_k(permeability)) *
+                   g_value(i, j, k, t_step, permeability,
+                           state, data, component) -
+               target[field_index];
+    }
+    if (axis == AXIS_Y) {
+        target = vector_component(&state->zeta, component);
+        source = const_vector_component(&state->eta, component);
+    } else {
+        target = vector_component(&state->u, component);
+        source = const_vector_component(&state->zeta, component);
+    }
+    return source[field_index] - target[field_index];
+}
+
+static void eliminate_momentum_point(SolverMemState *state, Data *data,
+                                     int axis, int component, int t_step,
+                                     int i, int j, int k,
+                                     Real previous_c, Real previous_d,
+                                     Real *current_c, Real *current_d) {
+    const Domain *domain = &state->domain;
+    const Real *permeability =
+        const_vector_component(&state->k, component);
+    int global_i = domain_global_index(domain, i, AXIS_X);
+    int global_j = domain_global_index(domain, j, AXIS_Y);
+    int global_k = domain_global_index(domain, k, AXIS_Z);
+    int global_axis = axis == AXIS_X ? global_i :
+                      axis == AXIS_Y ? global_j : global_k;
+    size_t index = domain_index(domain, i, j, k);
+
+    if (global_axis == 0) {
+        *current_c = (Real)0;
+        *current_d = bc_left(data->bc_velocity, global_i, global_j, global_k,
+                             t_step, component);
+        return;
+    }
+
+    Real w = -gamma_from_k(permeability[index]) *
+             inverse_spacing_square(axis);
+    Real raw_rhs = momentum_raw_rhs(state, data, axis, component, t_step,
+                                    i, j, k, permeability[index], index);
+
+    if (global_axis == domain->global[axis] - 1) {
+        Real right = bc_right(data->bc_velocity, global_i, global_j, global_k,
+                              t_step, component);
+
+        *current_c = (Real)0;
+        if (component == axis) {
+            *current_d = right;
+        } else {
+            Real inverse_diagonal = (Real)1 /
+                (((Real)1 - (Real)3 * w) - w * previous_c);
+            *current_d =
+                (raw_rhs - (Real)2 * w * right - w * previous_d) *
+                inverse_diagonal;
+        }
+        return;
+    }
+
+    Real inverse_diagonal = (Real)1 /
+        (((Real)1 - (Real)2 * w) - w * previous_c);
+    *current_c = w * inverse_diagonal;
+    *current_d = (raw_rhs - w * previous_d) * inverse_diagonal;
+}
+
+static void forward_component(SolverMemState *state, Data *data,
+                              int axis, int component, int t_step) {
+    const Domain *domain = &state->domain;
+    PipelineWorkspace *pipeline = &state->pipeline;
+    const int batch_lines = pipeline->batch_lines;
+    const int length = domain->local[axis];
+    const size_t line_count = axis_line_count(domain, axis);
+    const size_t batch_count =
+        (line_count + (size_t)batch_lines - 1) / (size_t)batch_lines;
+    const int tag = 100 + 4 * axis + component;
+
+    for (size_t batch = 0; batch < batch_count; batch++) {
+        size_t first_line = batch * (size_t)batch_lines;
+        int active = (int)(line_count - first_line);
+
+        if (active > batch_lines) active = batch_lines;
+        if (domain->lower[axis] != MPI_PROC_NULL) {
+            MPI_Recv(pipeline->forward, 2 * active, mpi_real_type(),
+                     domain->lower[axis], tag, domain->cart,
+                     MPI_STATUS_IGNORE);
+        }
+
+        if (axis == AXIS_X) {
+            for (int line = 0; line < active; line++) {
+                Real previous_c = domain->lower[axis] == MPI_PROC_NULL
+                    ? (Real)0 : pipeline->forward[line];
+                Real previous_d = domain->lower[axis] == MPI_PROC_NULL
+                    ? (Real)0 : pipeline->forward[active + line];
+
+                for (int level = 0; level < length; level++) {
+                    int i, j, k;
+                    Real current_c, current_d;
+                    size_t index = scratch_index(pipeline, axis, component,
+                                                 batch, level, line, length);
+
+                    line_coordinates(domain, axis, first_line + (size_t)line,
+                                     level, &i, &j, &k);
+                    eliminate_momentum_point(state, data, axis, component,
+                                             t_step, i, j, k,
+                                             previous_c, previous_d,
+                                             &current_c, &current_d);
+                    pipeline->c_prime[index] = current_c;
+                    pipeline->d_prime[index] = current_d;
+                    previous_c = current_c;
+                    previous_d = current_d;
+                }
             }
+        } else {
+            for (int level = 0; level < length; level++) {
+                int line = 0;
+                while (line < active) {
+                    int i, j, k;
+                    Real previous_c, previous_d;
+                    Real current_c, current_d;
 
-            //Compute last rhs value
-            Real k_i = k_porosity[off+WIDTH-1];
-            Real w_i = -gamma_from_k(k_i) * DX_INVERSE_SQUARE;
-            Real beta_i = beta_from_k(k_i);
-            Real xi_i =
-                u[off+WIDTH-1]
-                + (DT/beta_i)*g_value(WIDTH-1, j, k, t_step, k_i,
-                                      solver_mem_state, data, v_comp);
-            rhs[WIDTH-1] = xi_i - eta[off+WIDTH-1];
-            Real right_value =
-                bc_right(data->bc_velocity, WIDTH-1, j, k, t_step, v_comp);
-            rhs[WIDTH-1] = rhs[WIDTH-1] - 2.0 * w_i * right_value;
-            
-            Real norm_coeff =
-                1.0 / ((1.0 - 3.0 * w_i) - w_i * tmp[WIDTH - 2]);
-            rhs[WIDTH-1] = (rhs[WIDTH-1] - w_i*rhs[WIDTH-2]) * norm_coeff;
+#if defined(USE_SIMD) && SIMD_AVAILABLE
+                    int advanced = forward_interior_simd(
+                        state, axis, component, batch, first_line,
+                        active, level, line, length);
+                    if (advanced > 0) {
+                        line += advanced;
+                        continue;
+                    }
+#endif
+                    size_t index = scratch_index(pipeline, axis, component,
+                                                 batch, level, line, length);
 
-            // Last value of rhs depends on same_direction
-            Real up1 = same_direction ? right_value : rhs[WIDTH - 1];
-            
-            // Backwards step
-            eta[off+WIDTH-1] += up1;
-            for (int i = WIDTH-2; i >= 0; i--) {
-                Real up2 = rhs[i] - tmp[i]*up1;
-                eta[off + i] += up2;
-                up1 = up2;
+                    if (level == 0) {
+                        previous_c = domain->lower[axis] == MPI_PROC_NULL
+                            ? (Real)0 : pipeline->forward[line];
+                        previous_d = domain->lower[axis] == MPI_PROC_NULL
+                            ? (Real)0 : pipeline->forward[active + line];
+                    } else {
+                        size_t previous = scratch_index(
+                            pipeline, axis, component, batch,
+                            level - 1, line, length);
+                        previous_c = pipeline->c_prime[previous];
+                        previous_d = pipeline->d_prime[previous];
+                    }
+
+                    line_coordinates(domain, axis, first_line + (size_t)line,
+                                     level, &i, &j, &k);
+                    eliminate_momentum_point(state, data, axis, component,
+                                             t_step, i, j, k,
+                                             previous_c, previous_d,
+                                             &current_c, &current_d);
+                    pipeline->c_prime[index] = current_c;
+                    pipeline->d_prime[index] = current_d;
+                    line++;
+                }
             }
+        }
+
+        if (domain->upper[axis] != MPI_PROC_NULL) {
+            for (int line = 0; line < active; line++) {
+                size_t last = scratch_index(pipeline, axis, component, batch,
+                                            length - 1, line, length);
+                pipeline->forward[line] = pipeline->c_prime[last];
+                pipeline->forward[active + line] = pipeline->d_prime[last];
+            }
+            MPI_Send(pipeline->forward, 2 * active, mpi_real_type(),
+                     domain->upper[axis], tag, domain->cart);
         }
     }
 }
 
-/* zeta:
- * rhs = eta - zeta
- */
-void update_zeta(SolverMemState *solver_mem_state,
-                 Real *restrict rhs,
-                 Real *restrict tmp,
-                 Data *data, int t_step, int v_comp) {
-    const Real *restrict k_porosity;
-    const Real *restrict eta;
-    Real *restrict zeta;
+static void backward_component(SolverMemState *state, int axis,
+                               int component) {
+    const Domain *domain = &state->domain;
+    PipelineWorkspace *pipeline = &state->pipeline;
+    Real *target = axis == AXIS_X
+        ? vector_component(&state->eta, component)
+        : axis == AXIS_Y
+            ? vector_component(&state->zeta, component)
+            : vector_component(&state->u, component);
+    const int batch_lines = pipeline->batch_lines;
+    const int length = domain->local[axis];
+    const size_t line_count = axis_line_count(domain, axis);
+    const size_t batch_count =
+        (line_count + (size_t)batch_lines - 1) / (size_t)batch_lines;
+    const int tag = 200 + 4 * axis + component;
 
-    switch(v_comp) {
-        case 0:
-            k_porosity = solver_mem_state->k.v_x;
-            zeta = solver_mem_state->zeta.v_x;
-            eta = solver_mem_state->eta.v_x;
-            break;
-        case 1:
-            k_porosity = solver_mem_state->k.v_y;
-            zeta = solver_mem_state->zeta.v_y;
-            eta = solver_mem_state->eta.v_y;
-            break;
-        case 2:
-            k_porosity = solver_mem_state->k.v_z;
-            zeta = solver_mem_state->zeta.v_z;
-            eta = solver_mem_state->eta.v_z;
-            break;
-        default: 
-            fprintf(stderr, "Value of v_comp doesn't exist");
-            exit(1);    
-    }
+    for (size_t batch_plus_one = batch_count; batch_plus_one > 0;
+         batch_plus_one--) {
+        size_t batch = batch_plus_one - 1;
+        size_t first_line = batch * (size_t)batch_lines;
+        int active = (int)(line_count - first_line);
 
-   bool same_direction = (v_comp == 1);
+        if (active > batch_lines) active = batch_lines;
+        if (domain->upper[axis] != MPI_PROC_NULL) {
+            MPI_Recv(pipeline->backward, active, mpi_real_type(),
+                     domain->upper[axis], tag, domain->cart,
+                     MPI_STATUS_IGNORE);
+        }
 
-   for (int k = 0; k < DEPTH; k++) {
-       for (int i = 0; i < WIDTH; i++) {
-            size_t off = k * (WIDTH*HEIGHT) + i;
-            
-            tmp[0] = 0.0;
-            rhs[0] = bc_left(data->bc_velocity, i, 0, k, t_step, v_comp);
-            
-            for (int j = 1; j < HEIGHT-1; j++) {
-                size_t j_arr = off + j*WIDTH;
-                
-                Real k_i = k_porosity[j_arr];
-                Real w_i = -gamma_from_k(k_i) * DY_INVERSE_SQUARE;
-                
-                Real norm_coeff =
-                    1.0 / ((1.0 - 2.0 * w_i) - w_i * tmp[j - 1]);
-                tmp[j] = w_i * norm_coeff;
-                
-                rhs[j] = eta[j_arr] - zeta[j_arr];
-                rhs[j] = (rhs[j] - w_i * rhs[j - 1]) * norm_coeff;
+        if (axis == AXIS_X) {
+            for (int line = 0; line < active; line++) {
+                Real next = domain->upper[axis] == MPI_PROC_NULL
+                    ? (Real)0 : pipeline->backward[line];
+
+                for (int level = length - 1; level >= 0; level--) {
+                    int i, j, k;
+                    size_t scratch = scratch_index(
+                        pipeline, axis, component, batch,
+                        level, line, length);
+                    Real solution = pipeline->d_prime[scratch] -
+                                    pipeline->c_prime[scratch] * next;
+
+                    line_coordinates(domain, axis,
+                                     first_line + (size_t)line,
+                                     level, &i, &j, &k);
+                    target[domain_index(domain, i, j, k)] += solution;
+                    next = solution;
+                }
+                pipeline->backward[line] = next;
+            }
+        } else {
+            if (domain->upper[axis] == MPI_PROC_NULL) {
+                for (int line = 0; line < active; line++) {
+                    pipeline->backward[line] = (Real)0;
+                }
             }
 
-             //Compute last rhs value
-            size_t j_arr = off + (HEIGHT-1)*WIDTH;
-            Real k_i = k_porosity[j_arr];
-            Real w_i = -gamma_from_k(k_i) * DY_INVERSE_SQUARE;
-            
-            rhs[HEIGHT-1] = eta[j_arr] - zeta[j_arr];
-            Real right_value =
-                bc_right(data->bc_velocity, i, HEIGHT-1, k, t_step, v_comp);
-            rhs[HEIGHT-1] = rhs[HEIGHT-1] - 2.0 * w_i * right_value;
-            
-            Real norm_coeff =
-                1.0 / ((1.0 - 3.0 * w_i) - w_i * tmp[HEIGHT - 2]);
-            rhs[HEIGHT-1] = (rhs[HEIGHT-1] - w_i*rhs[HEIGHT-2]) * norm_coeff;
+            for (int level = length - 1; level >= 0; level--) {
+                int line = 0;
+                while (line < active) {
+                    int i, j, k;
+                    size_t scratch = scratch_index(
+                        pipeline, axis, component, batch,
+                        level, line, length);
 
-            // Last value of rhs depends on same_direction
-            Real up1 = same_direction ? right_value : rhs[HEIGHT - 1];
-            
-            // Backwards step
-            zeta[j_arr] += up1;
-            for (int j = HEIGHT-2; j >= 0; j--) {
-                j_arr = off + j*WIDTH;
-                Real up2 = rhs[j] - tmp[j]*up1;
-                zeta[j_arr] += up2;
-                up1 = up2;
+                    line_coordinates(domain, axis,
+                                     first_line + (size_t)line,
+                                     level, &i, &j, &k);
+
+#if defined(USE_SIMD) && SIMD_AVAILABLE
+                    if (line + SIMD_LANES <= active &&
+                        i + SIMD_LANES <= domain->local[AXIS_X]) {
+                        SimdReal solution = simd_sub(
+                            simd_loadu(&pipeline->d_prime[scratch]),
+                            simd_mul(simd_loadu(&pipeline->c_prime[scratch]),
+                                     simd_loadu(&pipeline->backward[line])));
+                        size_t field_index = domain_index(domain, i, j, k);
+                        simd_storeu(&target[field_index],
+                                    simd_add(simd_loadu(&target[field_index]),
+                                             solution));
+                        simd_storeu(&pipeline->backward[line], solution);
+                        line += SIMD_LANES;
+                        continue;
+                    }
+#endif
+                    Real solution = pipeline->d_prime[scratch] -
+                                    pipeline->c_prime[scratch] *
+                                        pipeline->backward[line];
+                    target[domain_index(domain, i, j, k)] += solution;
+                    pipeline->backward[line] = solution;
+                    line++;
+                }
             }
-       }
-   }
-}
+        }
 
-/* u:
- * rhs = zeta - u
- */
-void update_u(SolverMemState *solver_mem_state,
-              Real *restrict rhs,
-              Real *restrict tmp,
-              Data *data, int t_step, int v_comp) {
-    const Real *restrict k_porosity;
-    const Real *restrict zeta;
-    Real *restrict u;
-
-    switch(v_comp) {
-        case 0:
-            k_porosity = solver_mem_state->k.v_x;
-            zeta = solver_mem_state->zeta.v_x;
-            u = solver_mem_state->u.v_x;
-            break;
-        case 1:
-            k_porosity = solver_mem_state->k.v_y;
-            zeta = solver_mem_state->zeta.v_y;
-            u = solver_mem_state->u.v_y;
-            break;
-        case 2:
-            k_porosity = solver_mem_state->k.v_z;
-            zeta = solver_mem_state->zeta.v_z;
-            u = solver_mem_state->u.v_z;
-            break;
-        default:
-            fprintf(stderr, "Value of v_comp doesn't exist");
-            exit(1);
-    }
-
-    bool same_direction = (v_comp == 2);
-    size_t plane_size = (size_t)WIDTH * HEIGHT;
-
-    for (int j = 0; j < HEIGHT; j++) {
-        for (int i = 0; i < WIDTH; i++) {
-            size_t off = (size_t)j * WIDTH + i;
-
-            tmp[0] = 0.0;
-            rhs[0] =
-                bc_left(data->bc_velocity, i, j, 0, t_step, v_comp);
-
-            for (int k = 1; k < DEPTH-1; k++) {
-                size_t k_arr = off + (size_t)k * plane_size;
-
-                Real k_i = k_porosity[k_arr];
-                Real w_i =
-                    -gamma_from_k(k_i) * DZ_INVERSE_SQUARE;
-
-                Real norm_coeff =
-                    1.0 / ((1.0 - 2.0 * w_i) - w_i * tmp[k - 1]);
-                tmp[k] = w_i * norm_coeff;
-
-                rhs[k] = zeta[k_arr] - u[k_arr];
-                rhs[k] =
-                    (rhs[k] - w_i * rhs[k - 1]) * norm_coeff;
-            }
-
-            // Compute last rhs value
-            size_t k_arr = off + (size_t)(DEPTH-1) * plane_size;
-            Real k_i = k_porosity[k_arr];
-            Real w_i =
-                -gamma_from_k(k_i) * DZ_INVERSE_SQUARE;
-
-            rhs[DEPTH-1] = zeta[k_arr] - u[k_arr];
-            Real right_value =
-                bc_right(data->bc_velocity, i, j, DEPTH-1,
-                         t_step, v_comp);
-            rhs[DEPTH-1] =
-                rhs[DEPTH-1] - 2.0 * w_i * right_value;
-
-            Real norm_coeff =
-                1.0 / ((1.0 - 3.0 * w_i)
-                       - w_i * tmp[DEPTH - 2]);
-            rhs[DEPTH-1] =
-                (rhs[DEPTH-1] - w_i * rhs[DEPTH-2]) * norm_coeff;
-
-            // Last value of rhs depends on same_direction
-            Real up1 =
-                same_direction ? right_value : rhs[DEPTH - 1];
-
-            // Backwards step
-            u[k_arr] += up1;
-            for (int k = DEPTH-2; k >= 0; k--) {
-                k_arr = off + (size_t)k * plane_size;
-                Real up2 = rhs[k] - tmp[k]*up1;
-                u[k_arr] += up2;
-                up1 = up2;
-            }
+        if (domain->lower[axis] != MPI_PROC_NULL) {
+            MPI_Send(pipeline->backward, active, mpi_real_type(),
+                     domain->lower[axis], tag, domain->cart);
         }
     }
 }
 
-void momentum_step(SolverMemState *solver_mem_state,
-                   Real *restrict rhs,
-                   Real *restrict tmp,
-                   Data *data, int t_step, SolverStats *solver_stats) {
-    
-    // eta: compute next update for the three component
-    uint64_t start_ns = time_ns();
-    update_eta(solver_mem_state, rhs, tmp, data, t_step, 0);
-    update_eta(solver_mem_state, rhs, tmp, data, t_step, 1);
-    update_eta(solver_mem_state, rhs, tmp, data, t_step, 2);
-    solver_stats->eta_sys += time_ns() - start_ns;
+static void solve_momentum_direction(SolverMemState *state, Data *data,
+                                     int axis, int t_step) {
+    for (int component = 0; component < 3; component++) {
+        forward_component(state, data, axis, component, t_step);
+    }
+    for (int component = 2; component >= 0; component--) {
+        backward_component(state, axis, component);
+    }
+}
 
-    // zeta: compute next update for the three component
-    start_ns = time_ns();
-#if defined(USE_SIMD) && SIMD_AVAILABLE
-    update_zeta_simd(solver_mem_state, rhs, tmp, data, t_step, 0,
-                     ZETA_SIMD_LINES);
-    update_zeta_simd(solver_mem_state, rhs, tmp, data, t_step, 1,
-                     ZETA_SIMD_LINES);
-    update_zeta_simd(solver_mem_state, rhs, tmp, data, t_step, 2,
-                     ZETA_SIMD_LINES);
-#else
-    update_zeta(solver_mem_state, rhs, tmp, data, t_step, 0);
-    update_zeta(solver_mem_state, rhs, tmp, data, t_step, 1);
-    update_zeta(solver_mem_state, rhs, tmp, data, t_step, 2);
-#endif
-    solver_stats->zeta_sys += time_ns() - start_ns;
+static void exchange_momentum_source_halos(SolverMemState *state) {
+    Domain *domain = &state->domain;
 
-    // u: compute next update for the three component
+    for (int component = 0; component < 3; component++) {
+        domain_exchange_halo(domain, vector_component(&state->eta, component),
+                             AXIS_X);
+        domain_exchange_halo(domain, vector_component(&state->zeta, component),
+                             AXIS_Y);
+        domain_exchange_halo(domain, vector_component(&state->u, component),
+                             AXIS_Z);
+    }
+    for (int axis = 0; axis < AXIS_COUNT; axis++) {
+        domain_exchange_halo(domain, state->pressure_star.v, axis);
+    }
+}
+
+void momentum_step(SolverMemState *state, Data *data, int t_step,
+                   SolverStats *stats) {
+    uint64_t start_ns;
+
     start_ns = time_ns();
-#if defined(USE_SIMD) && SIMD_AVAILABLE
-    update_u_simd(solver_mem_state, rhs, tmp, data, t_step, 0,
-                  U_SIMD_LINES);
-    update_u_simd(solver_mem_state, rhs, tmp, data, t_step, 1,
-                  U_SIMD_LINES);
-    update_u_simd(solver_mem_state, rhs, tmp, data, t_step, 2,
-                  U_SIMD_LINES);
-#else
-    update_u(solver_mem_state, rhs, tmp, data, t_step, 0);
-    update_u(solver_mem_state, rhs, tmp, data, t_step, 1);
-    update_u(solver_mem_state, rhs, tmp, data, t_step, 2);
-#endif
-    solver_stats->u_sys += time_ns() - start_ns;
+    exchange_momentum_source_halos(state);
+    stats->momentum_halo += time_ns() - start_ns;
+
+    start_ns = time_ns();
+    solve_momentum_direction(state, data, AXIS_X, t_step);
+    stats->eta_sys += time_ns() - start_ns;
+
+    start_ns = time_ns();
+    solve_momentum_direction(state, data, AXIS_Y, t_step);
+    stats->zeta_sys += time_ns() - start_ns;
+
+    start_ns = time_ns();
+    solve_momentum_direction(state, data, AXIS_Z, t_step);
+    stats->u_sys += time_ns() - start_ns;
 }

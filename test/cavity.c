@@ -66,14 +66,14 @@ static Real free_fluid_permeability(Real x,
     return FREE_FLUID_PERMEABILITY;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+    MPI_Init(&argc, &argv);
     Data data = {
         .name = "Lid-driven cavity",
         .bc_velocity = cavity_boundary_velocity,
         .forcing_fn = zero_vector,
         .porosity_fn = free_fluid_permeability,
-        .porosity_time_dependent = 0,
         .velocity_fn = zero_vector,
         .pressure_fn = zero_pressure,
     };
@@ -83,6 +83,9 @@ int main(void)
 
     solver_init(&state, &data, NULL);
     solver_solve(&state, &data, &stats, write_enabled);
+
+    solver_destroy(&state);
+    MPI_Finalize();
 
     return 0;
 }

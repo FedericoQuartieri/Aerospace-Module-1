@@ -244,18 +244,19 @@ static inline Real upper_second_derivative(const Real *restrict field,
 Real g_value(int i, int j, int k, int t_step, Real k_i,
              const SolverMemState *solver_mem_state,
              const Data *data, int component) {
-    size_t plane_size = (size_t)WIDTH * HEIGHT;
-    size_t index = (size_t)k * plane_size +
-                         (size_t)j * WIDTH +
-                         (size_t)i;
+    const Domain *domain = &solver_mem_state->domain;
+    int global_i = domain_global_index(domain, i, AXIS_X);
+    int global_j = domain_global_index(domain, j, AXIS_Y);
+    int global_k = domain_global_index(domain, k, AXIS_Z);
+    size_t index = domain_index(domain, i, j, k);
     Real forcing_time = ((Real)t_step - 0.5) * (Real)DT;
     Real velocity_time = ((Real)t_step - 1.0) * (Real)DT;
     Real upper_x = ((Real)WIDTH - 0.5) * (Real)DX;
     Real upper_y = ((Real)HEIGHT - 0.5) * (Real)DY;
     Real upper_z = ((Real)DEPTH - 0.5) * (Real)DZ;
-    Real x = (Real)i * (Real)DX;
-    Real y = (Real)j * (Real)DY;
-    Real z = (Real)k * (Real)DZ;
+    Real x = (Real)global_i * (Real)DX;
+    Real y = (Real)global_j * (Real)DY;
+    Real z = (Real)global_k * (Real)DZ;
     const Real *restrict eta;
     const Real *restrict zeta;
     const Real *restrict velocity;
@@ -267,9 +268,9 @@ Real g_value(int i, int j, int k, int t_step, Real k_i,
 
     switch (component) {
         case 0:
-            if (i < 1 || i >= WIDTH - 1 ||
-                j < 1 || j >= HEIGHT ||
-                k < 1 || k >= DEPTH) {
+            if (global_i < 1 || global_i >= WIDTH - 1 ||
+                global_j < 1 || global_j >= HEIGHT ||
+                global_k < 1 || global_k >= DEPTH) {
                 return 0.0;
             }
 
@@ -283,29 +284,30 @@ Real g_value(int i, int j, int k, int t_step, Real k_i,
                 (Real)DX_INVERSE;
             laplacian_x = interior_second_derivative(
                 eta, index, 1, (Real)DX_INVERSE_SQUARE);
-            laplacian_y = (j == HEIGHT - 1)
+            laplacian_y = (global_j == HEIGHT - 1)
                 ? upper_second_derivative(
-                      zeta, index, WIDTH,
+                      zeta, index, domain->stride_y,
                       data->bc_velocity(x, upper_y, z,
                                         velocity_time, component),
                       (Real)DY_INVERSE_SQUARE)
                 : interior_second_derivative(
-                      zeta, index, WIDTH, (Real)DY_INVERSE_SQUARE);
-            laplacian_z = (k == DEPTH - 1)
+                      zeta, index, domain->stride_y,
+                      (Real)DY_INVERSE_SQUARE);
+            laplacian_z = (global_k == DEPTH - 1)
                 ? upper_second_derivative(
-                      velocity, index, plane_size,
+                      velocity, index, domain->stride_z,
                       data->bc_velocity(x, y, upper_z,
                                         velocity_time, component),
                       (Real)DZ_INVERSE_SQUARE)
                 : interior_second_derivative(
-                      velocity, index, plane_size,
+                      velocity, index, domain->stride_z,
                       (Real)DZ_INVERSE_SQUARE);
             break;
 
         case 1:
-            if (i < 1 || i >= WIDTH ||
-                j < 1 || j >= HEIGHT - 1 ||
-                k < 1 || k >= DEPTH) {
+            if (global_i < 1 || global_i >= WIDTH ||
+                global_j < 1 || global_j >= HEIGHT - 1 ||
+                global_k < 1 || global_k >= DEPTH) {
                 return 0.0;
             }
 
@@ -315,9 +317,9 @@ Real g_value(int i, int j, int k, int t_step, Real k_i,
             y += (Real)DY / 2.0;
 
             pressure_gradient =
-                (pressure[index + WIDTH] - pressure[index]) *
+                (pressure[index + domain->stride_y] - pressure[index]) *
                 (Real)DY_INVERSE;
-            laplacian_x = (i == WIDTH - 1)
+            laplacian_x = (global_i == WIDTH - 1)
                 ? upper_second_derivative(
                       eta, index, 1,
                       data->bc_velocity(upper_x, y, z,
@@ -326,22 +328,23 @@ Real g_value(int i, int j, int k, int t_step, Real k_i,
                 : interior_second_derivative(
                       eta, index, 1, (Real)DX_INVERSE_SQUARE);
             laplacian_y = interior_second_derivative(
-                zeta, index, WIDTH, (Real)DY_INVERSE_SQUARE);
-            laplacian_z = (k == DEPTH - 1)
+                zeta, index, domain->stride_y,
+                (Real)DY_INVERSE_SQUARE);
+            laplacian_z = (global_k == DEPTH - 1)
                 ? upper_second_derivative(
-                      velocity, index, plane_size,
+                      velocity, index, domain->stride_z,
                       data->bc_velocity(x, y, upper_z,
                                         velocity_time, component),
                       (Real)DZ_INVERSE_SQUARE)
                 : interior_second_derivative(
-                      velocity, index, plane_size,
+                      velocity, index, domain->stride_z,
                       (Real)DZ_INVERSE_SQUARE);
             break;
 
         case 2:
-            if (i < 1 || i >= WIDTH ||
-                j < 1 || j >= HEIGHT ||
-                k < 1 || k >= DEPTH - 1) {
+            if (global_i < 1 || global_i >= WIDTH ||
+                global_j < 1 || global_j >= HEIGHT ||
+                global_k < 1 || global_k >= DEPTH - 1) {
                 return 0.0;
             }
 
@@ -351,9 +354,9 @@ Real g_value(int i, int j, int k, int t_step, Real k_i,
             z += (Real)DZ / 2.0;
 
             pressure_gradient =
-                (pressure[index + plane_size] - pressure[index]) *
+                (pressure[index + domain->stride_z] - pressure[index]) *
                 (Real)DZ_INVERSE;
-            laplacian_x = (i == WIDTH - 1)
+            laplacian_x = (global_i == WIDTH - 1)
                 ? upper_second_derivative(
                       eta, index, 1,
                       data->bc_velocity(upper_x, y, z,
@@ -361,16 +364,17 @@ Real g_value(int i, int j, int k, int t_step, Real k_i,
                       (Real)DX_INVERSE_SQUARE)
                 : interior_second_derivative(
                       eta, index, 1, (Real)DX_INVERSE_SQUARE);
-            laplacian_y = (j == HEIGHT - 1)
+            laplacian_y = (global_j == HEIGHT - 1)
                 ? upper_second_derivative(
-                      zeta, index, WIDTH,
+                      zeta, index, domain->stride_y,
                       data->bc_velocity(x, upper_y, z,
                                         velocity_time, component),
                       (Real)DY_INVERSE_SQUARE)
                 : interior_second_derivative(
-                      zeta, index, WIDTH, (Real)DY_INVERSE_SQUARE);
+                      zeta, index, domain->stride_y,
+                      (Real)DY_INVERSE_SQUARE);
             laplacian_z = interior_second_derivative(
-                velocity, index, plane_size,
+                velocity, index, domain->stride_z,
                 (Real)DZ_INVERSE_SQUARE);
             break;
 

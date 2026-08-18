@@ -6,8 +6,11 @@ root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 build_dir="$root/build/convergence"
 raw_file="$build_dir/.raw.csv"
 results_file="$build_dir/results.csv"
-executable="$build_dir/paper_man"
-compiler="${CC:-cc}"
+#executable="$build_dir/paper_man"
+executable="$build_dir/constant_forcing"
+compiler="${MPICC:-mpicc}"
+launcher="${MPIRUN:-mpirun}"
+mpi_np="${MPI_NP:-4}"
 
 # Each configuration contains: grid size, dt, total time.
 spatial_configs=(
@@ -53,9 +56,9 @@ run_case()
     "$compiler" -std=c11 -O3 -Wall -Wextra -I"$root/include" \
         -DWIDTH="$grid" -DHEIGHT="$grid" -DDEPTH="$grid" \
         -DT="$total_time" -DSTEPS="$steps" \
-        "$root/test/paper_man.c" "${core_sources[@]}" -lm -o "$executable"
+        "$root/test/constant_forcing.c" "${core_sources[@]}" -lm -o "$executable"
 
-    output="$("$executable")"
+    output="$("$launcher" -np "$mpi_np" "$executable")"
     h="$(awk -v n="$grid" \
         'BEGIN { printf "%.17g", atan2(0, -1) / (n - 0.5) }')"
 

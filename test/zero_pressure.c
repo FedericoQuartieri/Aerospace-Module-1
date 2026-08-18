@@ -91,15 +91,16 @@ static Real manufactured_unit_porosity(Real x,
     return 1.0;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+    MPI_Init(&argc, &argv);
+
     /* Manufactured solution corresponding to identically zero pressure. */
     Data data = {
         .name = "Zero pressure paper",
         .bc_velocity = manufactured_zero_velocity,
         .forcing_fn = manufactured_zero_forcing,
         .porosity_fn = manufactured_unit_porosity,
-        .porosity_time_dependent = 0,
         .velocity_fn = manufactured_zero_velocity,
         .pressure_fn = manufactured_zero_pressure,
     };
@@ -111,19 +112,17 @@ int main(void)
     int write_enabled = 0;
     solver_solve(&solver_mem_state, &data, &solver_stats, write_enabled);
 
-    const Real velocity_verification_time =
-        (Real)STEPS * (Real)DT;
-    const Real pressure_verification_time =
-        velocity_verification_time - (Real)DT / 2.0;
-    const SolverErrorNorms errors =
-        compute_solver_error_norms(&solver_mem_state,
+    const Real velocity_verification_time = (Real)STEPS * (Real)DT;
+    const Real pressure_verification_time = velocity_verification_time - (Real)DT / 2.0;
+    const SolverErrorNorms errors = compute_solver_error_norms(&solver_mem_state,
                                    &data,
                                    velocity_verification_time,
                                    pressure_verification_time);
 
-    print_solver_error_norms(&errors,
-                             velocity_verification_time,
-                             pressure_verification_time);
+    print_solver_error_norms(&errors, velocity_verification_time, pressure_verification_time);
 
+    solver_destroy(&solver_mem_state);
+
+    MPI_Finalize();
     return 0;
 }

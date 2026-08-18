@@ -1,133 +1,109 @@
-# Navier Stokes Brinkman Equation Solver
+# Navier–Stokes–Brinkman Solver
 
+## Build and run
 
-## Build
-
-Compile the main `solver` executable:
+Build the default executable with MPI and run it with any process
+count :
 
 ```sh
 make solver
+mpirun -np 4 ./solver
 ```
 
-Enable the explicit SIMD momentum kernels with independently tunable blocks of SIMD vectors:
+The number of independent tridiagonal lines sent in each pipeline message is tunable:
 
 ```sh
-make SIMD=1 ZETA_SIMD_VECTORS=4 U_SIMD_VECTORS=8
+make PIPELINE_BATCH_LINES=128
 ```
 
-Compile all tests:
+The default is 64 lines. Enable the explicit SIMD kernels used by the batched
+Y and Z momentum sweeps with:
+
+```sh
+make SIMD=1
+```
+
+`Real` is `double` by default and becomes `float` with `-DUSE_FLOAT`.
+
+## Tests
+
+Compile every test with:
 
 ```sh
 make tests
 ```
 
-The test executables are created in `build/tests/` and can be run separately:
+The manufactured-solution test can be run with :
 
 ```sh
-./build/tests/paper_man
-./build/tests/moving_sphere
-./build/tests/channel_obstacle
+mpirun -np 4 ./build/tests/paper_man
+mpirun -np 4 ./build/tests/constant_forcing_man
 ```
 
 ## Convergence study
 
-Run the spatial and temporal convergence tests:
+Run the spatial and temporal studies with:
 
 ```sh
 ./scripts/run_convergence.sh
 ```
-
-Errors and convergence rates are written to `build/convergence/results.csv`.
+Results are written to
+`build/convergence/results.csv`.
 
 ![Velocity convergence](docs/convergence/velocity.svg)
 
 ![Pressure convergence](docs/convergence/pressure.svg)
 
-Generate and replace the static plots with, reading from `build/convergence/results.csv`:
-
-```sh
-./scripts/plot_convergence.py
-```
-
 ## Solver structure
 
-`solver_init` allocates the numerical fields and initializes them through the
-functions stored in `Data`. Then, `solver_solve` advances the solution for
-`STEPS` time steps:
+The solver state has the following lifetime:
 
 ```text
+MPI_Init
+    |
 solver_init
+    +-- create the Cartesian domain and halo datatypes
+    +-- allocate and initialize persistent numerical fields
+    +-- allocate the reusable Thomas pipeline workspace
     |
-    v
-time-step loop
-    |
-    +-- momentum_step
-    |      +-- eta: solve along X
-    |      +-- zeta: solve along Y
-    |      +-- u: solve along Z
-    |
-    +-- pressure_step
-           +-- psi
-           +-- phi_low
-           +-- phi_high
-           +-- pressure update
-```
-
-The momentum systems are solved one direction at a time with the Thomas
-algorithm for tridiagonal matrices. The pressure correction is similarly
-factorized into three directional solves. `momentum.c` and `pressure.c`
-implement these two stages, while `physics.c`, `field.c`, and `data.c` provide
-the physical terms, field utilities, and problem definition.
-
-## Types
-
-`Real` is the scalar type used by every numerical field. It is `double` by
-default and becomes `float` when the code is compiled with `-DUSE_FLOAT`.
-
-```text
-ScalarField                         VectorField
-+------------------+                +------------------+
-| Real *v          |                | Real *v_x        | --> [x0][x1]...[xN]
-+------------------+                | Real *v_y        | --> [y0][y1]...[yN]
-                                    | Real *v_z        | --> [z0][z1]...[zN]
-                                    +------------------+
-```
-
-The main structures are:
-
-```text
-Data
-+-- name                      scenario name used for output
-+-- bc_velocity()             boundary velocity
-+-- forcing_fn()              forcing term
-+-- porosity_fn()             porosity field
-+-- porosity_time_dependent   boolean
-+-- velocity_fn()             initial/exact velocity
-+-- pressure_fn()             initial/exact pressure
-
-SolverMemState
-+-- eta, zeta, u, k           VectorField
-+-- pressure, pressure_star   ScalarField
-
-SolverStats
-+-- execution times for the solver stages, stored in nanoseconds
-```
-
-Function pointers in `Data` keep the numerical solver independent from a
-specific physical test case. `SolverMemState` groups all
-fields that must remain available between time steps.
-
-## Memory management
-
-```text
-solver_init
-    +-- allocate persistent fields
-        +-- 4 VectorField = 12 full-grid arrays
-        +-- 2 ScalarField =  2 full-grid arrays
-
 solver_solve
-    +-- allocate pressure_buffer   1 full-grid temporary array
-    +-- allocate rhs and tmp       2 reusable line/block buffers
-    +-- run all time steps
-    +-- free pressure_buffer, rhs, and tmp
+    +-- allocate one temporary pressure field
+    +-- advance all time steps
+    +-- gather timing statistics and free the temporary field
+    |
+solver_destroy
+    +-- free fields and pipeline storage
+    +-- destroy halo datatypes and the Cartesian communicator
+    |
+MPI_Finalize
 ```
+
+Each time step contains three directional momentum stages and three
+directional pressure stages:
+
+```text
+halo exchange for eta/X, zeta/Y, u/Z and pressure_star/X,Y,Z
+    |
+    +-- eta:  batched Thomas pipeline along X
+    +-- zeta: batched Thomas pipeline along Y
+    +-- u:    batched Thomas pipeline along Z
+    |
+halo exchange of u_x, u_y and u_z for divergence
+    |
+    +-- psi:      batched Thomas pipeline along X
+    +-- phi_low:  batched Thomas pipeline along Y
+    +-- phi_high: batched Thomas pipeline along Z
+    +-- pressure update
+```
+
+For every momentum direction the complete forward phase is performed in
+component order `v_x`, `v_y`, `v_z`. The backward phase then processes
+`v_z`, `v_y`, `v_x`. Within a component, each batch is sent immediately to
+the next Cartesian neighbour, allowing adjacent blocks to work concurrently.
+
+The forward interface contains the last reduced `(c', d')` pair for every
+line in the batch. The backward interface contains the first solution value
+owned by the block on the right. Only ranks on physical domain boundaries
+apply the physical boundary conditions.
+Each rank must retain its local reduced coefficients until the backward phase arrives.
+

@@ -39,15 +39,13 @@ static Real manufactured_porosity(Real x,
                                    Real t,
                                    int component)
 {
+    (void)t;
     (void)component;
 
-    /*
-     * Smooth space- and time-dependent Brinkman permeability.  Since the
-     * trigonometric product belongs to [-1, 1], K stays in [0.55, 0.95].
-     */
+    /* Smooth spatial Brinkman permeability */
     return (Real)0.75 +
            (Real)0.20 * REAL_SIN(x) * REAL_COS(y) *
-           REAL_SIN(z) * REAL_COS(t);
+           REAL_SIN(z);
 }
 
 
@@ -89,15 +87,16 @@ static Real manufactured_paper_forcing(Real x,
     }
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+    MPI_Init(&argc, &argv);
+
     /* Manufactured solution corresponding to Auteri paper. */
     Data data = {
         .name = "Paper Auteri",
         .bc_velocity = manufactured_paper_velocity,
         .forcing_fn = manufactured_paper_forcing,
         .porosity_fn = manufactured_porosity,
-        .porosity_time_dependent = 1,
         .velocity_fn = manufactured_paper_velocity,
         .pressure_fn = manufactured_paper_pressure,
     };
@@ -109,19 +108,17 @@ int main(void)
     int write_enabled = 0;
     solver_solve(&solver_mem_state, &data, &solver_stats, write_enabled);
 
-    const Real velocity_verification_time =
-        (Real)STEPS * (Real)DT;
-    const Real pressure_verification_time =
-        velocity_verification_time - (Real)DT / 2.0;
-    const SolverErrorNorms errors =
-        compute_solver_error_norms(&solver_mem_state,
-                                   &data,
-                                   velocity_verification_time,
-                                   pressure_verification_time);
+    const Real velocity_verification_time = (Real)STEPS * (Real)DT;
+    const Real pressure_verification_time = velocity_verification_time - (Real)DT / 2.0;
+    const SolverErrorNorms errors = compute_solver_error_norms(&solver_mem_state, 
+                                                               &data,
+                                                               velocity_verification_time,
+                                                               pressure_verification_time);
 
-    print_solver_error_norms(&errors,
-                             velocity_verification_time,
-                             pressure_verification_time);
+    print_solver_error_norms(&errors, velocity_verification_time, pressure_verification_time);
 
+    solver_destroy(&solver_mem_state);
+
+    MPI_Finalize();
     return 0;
 }

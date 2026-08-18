@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include "types.h"
 #include "physics.h"
+#include "parallel.h"
 #include "utils.h"
 
 /*
@@ -14,15 +15,15 @@
  *   cc ... -DWIDTH=32 -DHEIGHT=32 -DDEPTH=32 -DT=1.0 -DSTEPS=100
  */
 #ifndef WIDTH
-#define WIDTH 256 
+#define WIDTH 128
 #endif
 
 #ifndef HEIGHT
-#define HEIGHT 256
+#define HEIGHT 128
 #endif
 
 #ifndef DEPTH
-#define DEPTH 256
+#define DEPTH 128
 #endif
 
 #define GRID_CELLS ((size_t)WIDTH * (size_t)HEIGHT * (size_t)DEPTH)
@@ -56,22 +57,36 @@
 #endif
 
 #ifndef STEPS
-#define STEPS 200
+#define STEPS 100
 #endif
 
 #define DT ((Real)(T) / (Real)(STEPS))
 #define WR_FREQ 5
 // Kinematic viscosity
-#define NU 1.0
+#define NU 5.0
 
+#ifndef PIPELINE_BATCH_LINES
+#define PIPELINE_BATCH_LINES 64
+#endif
+
+typedef struct PipelineWorkspace {
+    int batch_lines;
+    size_t component_capacity;
+    Real *c_prime;
+    Real *d_prime;
+    Real *forward;
+    Real *backward;
+} PipelineWorkspace;
 
 typedef struct SolverMemState {
+    Domain domain;
     VectorField eta;
     VectorField zeta;
     VectorField u;
     VectorField k;
     ScalarField pressure;
     ScalarField pressure_star;
+    PipelineWorkspace pipeline;
 } SolverMemState;
 
 extern const Data paper_data;
@@ -84,5 +99,7 @@ void solver_solve(SolverMemState *solver_mem_state,
                   Data *data,
                   SolverStats *solver_stats,
                   int write_enabled);
+
+void solver_destroy(SolverMemState *solver_mem_state);
 
 #endif
