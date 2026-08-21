@@ -11,14 +11,14 @@ enum { AXIS_X = 0, AXIS_Y = 1, AXIS_Z = 2, AXIS_COUNT = 3 };
 typedef struct Domain {
     MPI_Comm cart;
     int rank;
-    int size;
-    int dims[AXIS_COUNT];
-    int coords[AXIS_COUNT];
-    int lower[AXIS_COUNT];
+    int size; // Mpi process count
+    int dims[AXIS_COUNT]; // Mpi process for each direction
+    int coords[AXIS_COUNT]; // Coord of the process in the grid
+    int lower[AXIS_COUNT]; // Neighbour process rank
     int upper[AXIS_COUNT];
-    int global[AXIS_COUNT];
-    int local[AXIS_COUNT];
-    int start[AXIS_COUNT];
+    int global[AXIS_COUNT]; // Dimension of the problem
+    int local[AXIS_COUNT]; // Dimension handle by the process
+    int start[AXIS_COUNT]; // Global index of the first cell 
     size_t stride_y;
     size_t stride_z;
     size_t owned_cells;

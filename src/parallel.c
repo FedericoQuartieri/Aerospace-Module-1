@@ -72,8 +72,7 @@ void domain_init(Domain *domain, const int global[AXIS_COUNT]) {
     domain->dims[1] = 0;
     domain->dims[2] = 0;
     MPI_Dims_create(domain->size, AXIS_COUNT, domain->dims);
-    MPI_Cart_create(MPI_COMM_WORLD, AXIS_COUNT, domain->dims,
-                    periods, 0, &domain->cart);
+    MPI_Cart_create(MPI_COMM_WORLD, AXIS_COUNT, domain->dims, periods, 0, &domain->cart);
     MPI_Comm_rank(domain->cart, &domain->rank);
     MPI_Cart_coords(domain->cart, domain->rank, AXIS_COUNT, domain->coords);
 
@@ -88,14 +87,13 @@ void domain_init(Domain *domain, const int global[AXIS_COUNT]) {
                        &domain->lower[axis], &domain->upper[axis]);
     }
 
+    /* Takes into account the halo cells (2 per direction) */
     domain->stride_y = (size_t)domain->local[AXIS_X] + 2;
-    domain->stride_z = domain->stride_y *
-                       ((size_t)domain->local[AXIS_Y] + 2);
+    domain->stride_z = domain->stride_y * ((size_t)domain->local[AXIS_Y] + 2);
     domain->owned_cells = (size_t)domain->local[AXIS_X] *
                           (size_t)domain->local[AXIS_Y] *
                           (size_t)domain->local[AXIS_Z];
-    domain->allocated_cells = domain->stride_z *
-                              ((size_t)domain->local[AXIS_Z] + 2);
+    domain->allocated_cells = domain->stride_z * ((size_t)domain->local[AXIS_Z] + 2);
     create_halo_types(domain);
 }
 

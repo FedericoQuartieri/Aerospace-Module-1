@@ -63,7 +63,7 @@
 #define DT ((Real)(T) / (Real)(STEPS))
 #define WR_FREQ 5
 // Kinematic viscosity
-#define NU 5.0
+#define NU 0.01
 
 #ifndef PIPELINE_BATCH_LINES
 #define PIPELINE_BATCH_LINES 64
