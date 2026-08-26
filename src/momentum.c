@@ -1,6 +1,7 @@
 #include "momentum.h"
 #include "schur.h"
 #include "utils.h"
+#include "workers.h"
 
 /*
  * I tre passi della quantita' di moto sono la stessa operazione ripetuta su
@@ -73,19 +74,41 @@ static void momentum_direction(const Decomp *d,
     const int last_global = d->n_global[axis] - 1;
     const size_t step = d->stride[axis];
 
-    size_t room = (size_t)lines * (size_t)length * sizeof(Real);
-    Real *lower = xmalloc(room);
-    Real *diagonal = xmalloc(room);
-    Real *upper = xmalloc(room);
-    Real *known = xmalloc(room);
-    Real *increment = xmalloc(room);
+    const int planes = d->n[outer];
+    const size_t line_room = (size_t)lines * (size_t)length;
 
-    int cell[3];
+    /*
+     * I piani sono indipendenti, ma i cinque array di lavoro no: ogni thread
+     * che ne prende uno deve avere i propri.  Sono allocati in un blocco solo,
+     * cinque per slot, e ogni slot appartiene a un thread per tutta la durata
+     * del ciclo.
+     *
+     * I piani si possono spartire solo se lungo questo asse il processo tiene
+     * tutta la linea: altrimenti ogni gruppo passa da schur_solve_mpi, che
+     * comunica, e le collettive vanno tutte nello stesso ordine su tutti i
+     * processi.  In quel caso i thread si spartiscono le linee dentro il
+     * piano, dove non si comunica affatto.
+     */
+    const bool whole_axis = (d->n[axis] == d->n_global[axis]);
+    const int slots = workers_slots(whole_axis, planes);
+    const bool split_lines = (slots < 2) && workers_many();
 
-    for (int b = 0; b < d->n[outer]; b++) {
-        cell[outer] = b;
+    Real *pool = xmalloc((size_t)slots * 5 * line_room * sizeof(Real));
 
+    WORKERS_PARALLEL_FOR(slots > 1)
+    for (int b = 0; b < planes; b++) {
+        Real *slot = pool + (size_t)workers_slot(slots) * 5 * line_room;
+        Real *restrict lower = slot;
+        Real *restrict diagonal = slot + line_room;
+        Real *restrict upper = slot + 2 * line_room;
+        Real *restrict known = slot + 3 * line_room;
+        Real *restrict increment = slot + 4 * line_room;
+
+        WORKERS_PARALLEL_FOR(split_lines)
         for (int a = 0; a < lines; a++) {
+            int cell[3];
+
+            cell[outer] = b;
             cell[group] = a;
             cell[axis] = 0;
 
@@ -151,7 +174,11 @@ static void momentum_direction(const Decomp *d,
         schur_solve_mpi(axis, lines, length,
                         lower, diagonal, upper, known, increment);
 
+        WORKERS_PARALLEL_FOR(split_lines)
         for (int a = 0; a < lines; a++) {
+            int cell[3];
+
+            cell[outer] = b;
             cell[group] = a;
             cell[axis] = 0;
 
@@ -164,11 +191,7 @@ static void momentum_direction(const Decomp *d,
         }
     }
 
-    free(increment);
-    free(known);
-    free(upper);
-    free(diagonal);
-    free(lower);
+    free(pool);
 }
 
 void momentum_step(const Decomp *decomp,

@@ -45,7 +45,30 @@ static Real *halo_packets = NULL;
 static size_t halo_capacity = 0;
 
 void par_init(int *argc, char ***argv) {
+#ifdef USE_OMP
+    /*
+     * I thread non chiamano mai MPI: le collettive del complemento di Schur e
+     * lo scambio degli aloni stanno fuori dalle regioni parallele, e le fa il
+     * thread principale.  FUNNELED e' esattamente questa promessa, ed e' il
+     * livello che ogni implementazione fornisce senza prendere lock interni.
+     */
+    int provided = MPI_THREAD_SINGLE;
+
+    MPI_Init_thread(argc, argv, MPI_THREAD_FUNNELED, &provided);
+
+    if (provided < MPI_THREAD_FUNNELED) {
+        int rank = 0;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        if (rank == 0) {
+            fprintf(stderr,
+                    "questa MPI si ferma a MPI_THREAD_SINGLE: "
+                    "ricompila senza OMP=1\n");
+        }
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+#else
     MPI_Init(argc, argv);
+#endif
 }
 
 void par_finalize(void) {

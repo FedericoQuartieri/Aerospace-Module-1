@@ -1,6 +1,7 @@
 #include "pressure.h"
 #include "schur.h"
 #include "utils.h"
+#include "workers.h"
 
 /*
  * Divergenza della velocita', divisa per il passo temporale: e' il termine
@@ -23,6 +24,7 @@ void compute_div(const Decomp *restrict d,
     const Real y_factor = -(Real)DY_INVERSE / (Real)DT;
     const Real z_factor = -(Real)DZ_INVERSE / (Real)DT;
 
+    WORKERS_PARALLEL_FOR(workers_many())
     for (int k = 0; k < d->n[2]; k++) {
         int gk = decomp_global(d, k, 2);
 
@@ -144,16 +146,28 @@ static void pressure_direction(const Decomp *restrict d,
     const int lines = d->n[group];
     const size_t step = d->stride[axis];
 
-    size_t room = (size_t)lines * (size_t)length * sizeof(Real);
-    Real *known = xmalloc(room);
-    Real *answer = xmalloc(room);
+    const int planes = d->n[outer];
+    const size_t line_room = (size_t)lines * (size_t)length;
 
-    int cell[3];
+    /* Stessa spartizione della quantita' di moto: un piano per thread finche'
+     * l'asse e' tutto qui, le linee del piano quando invece si comunica. */
+    const bool whole_axis = (d->n[axis] == d->n_global[axis]);
+    const int slots = workers_slots(whole_axis, planes);
+    const bool split_lines = (slots < 2) && workers_many();
 
-    for (int b = 0; b < d->n[outer]; b++) {
-        cell[outer] = b;
+    Real *pool = xmalloc((size_t)slots * 2 * line_room * sizeof(Real));
 
+    WORKERS_PARALLEL_FOR(slots > 1)
+    for (int b = 0; b < planes; b++) {
+        Real *slot = pool + (size_t)workers_slot(slots) * 2 * line_room;
+        Real *restrict known = slot;
+        Real *restrict answer = slot + line_room;
+
+        WORKERS_PARALLEL_FOR(split_lines)
         for (int a = 0; a < lines; a++) {
+            int cell[3];
+
+            cell[outer] = b;
             cell[group] = a;
             cell[axis] = 0;
 
@@ -167,7 +181,11 @@ static void pressure_direction(const Decomp *restrict d,
 
         schur_plan_solve(plan, lines, known, answer);
 
+        WORKERS_PARALLEL_FOR(split_lines)
         for (int a = 0; a < lines; a++) {
+            int cell[3];
+
+            cell[outer] = b;
             cell[group] = a;
             cell[axis] = 0;
 
@@ -180,8 +198,7 @@ static void pressure_direction(const Decomp *restrict d,
         }
     }
 
-    free(answer);
-    free(known);
+    free(pool);
 }
 
 static void update_pressure(const Decomp *restrict d,
@@ -189,6 +206,7 @@ static void update_pressure(const Decomp *restrict d,
     Real *restrict pressure = solver_mem_state->pressure.v;
     Real *restrict phi_high = solver_mem_state->pressure_star.v;
 
+    WORKERS_PARALLEL_FOR(workers_many())
     for (int k = 0; k < d->n[2]; k++) {
         for (int j = 0; j < d->n[1]; j++) {
             size_t row = decomp_index(d, 0, j, k);

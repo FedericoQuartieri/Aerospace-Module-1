@@ -31,6 +31,21 @@
 
 #endif
 
+/*
+ * Quanto scratch consuma un kernel SIMD in una passata: una linea intera
+ * dell'asse piu' lungo, per il numero di linee che porta avanti insieme.
+ *
+ * Sta qui perche' lo devono sapere in due: chi alloca (solver_solve) e chi
+ * indicizza per thread (i kernel).  Se le due formule divergessero, i thread
+ * si scriverebbero addosso, quindi la formula e' una sola.
+ */
+static inline size_t momentum_scratch_slice(const Decomp *d) {
+    int big = d->n[0] > d->n[1] ? d->n[0] : d->n[1];
+
+    big = big > d->n[2] ? big : d->n[2];
+    return (size_t)big * MOMENTUM_SIMD_MAX_LINES;
+}
+
 void momentum_step(const Decomp *decomp,
                    SolverMemState *solver_mem_state,
                    Real *restrict rhs,

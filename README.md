@@ -64,13 +64,41 @@ solves that cross a block boundary are completed with a Schur complement, so
 the answer does not depend on how many processes are used: `paper_man` prints
 the same error norms, digit for digit, from one process up to eight.
 
+## Threads
+
+Build with OpenMP to spread the lines of each block over the cores of one
+machine:
+
+```sh
+make OMP=1 SIMD=1
+OMP_NUM_THREADS=4 ./solver
+```
+
+A thread takes whole lines, never part of one, so every sum keeps the order it
+had before: the answer is the same digit for digit as with a single thread, the
+same way it is across processes, and `paper_man` checks both.
+
+Threads compose with MPI.  `--bind-to none` is needed because `mpirun`
+otherwise pins each process to one core, which its threads then share:
+
+```sh
+make MPI=1 OMP=1 SIMD=1
+OMP_NUM_THREADS=4 mpirun --bind-to none -n 2 ./solver
+```
+
+The two are not interchangeable.  A process takes a block, and a direction that
+gets split loses the vectorized kernels and turns one local Thomas solve into
+three; a thread takes lines, which stay independent however the domain is cut.
+The `hybrid` study of the scaling script measures where the balance falls.
+
 ## Scaling study
 
 Measure how much the parallel run gains:
 
 ```sh
-./scripts/run_scaling.sh          # strong and weak scaling, results in build/scaling/
+./scripts/run_scaling.sh          # strong, weak and hybrid, results in build/scaling/
 SIMD=0 RESULTS_SUFFIX=_scalar ./scripts/run_scaling.sh
+HYBRID=0 ./scripts/run_scaling.sh # skip the hybrid study
 ./scripts/plot_scaling.py         # figure in docs/scaling/
 ```
 
@@ -157,7 +185,7 @@ solver_init
 
 solver_solve
     +-- allocate pressure_buffer   1 full-grid temporary array
-    +-- allocate rhs and tmp       2 reusable line/block buffers
+    +-- allocate rhs and tmp       2 reusable line/block buffers per thread
     +-- run all time steps
     +-- free pressure_buffer, rhs, and tmp
 ```

@@ -12,6 +12,13 @@
 #           misura piu' onesta: il limite vero e' la banda di memoria, e lo
 #           strong scaling la satura in fretta su una macchina sola.
 #
+#   hybrid  a parita' di core occupati, conviene di piu' spenderli in processi
+#           o in thread? La domanda non e' oziosa: i processi dividono il
+#           dominio, e appena una direzione e' divisa i kernel SIMD spariscono
+#           e il complemento di Schur passa da una risoluzione locale a tre.
+#           I thread dividono le linee, che sono indipendenti comunque, quindi
+#           non pagano ne' l'una ne' l'altra cosa.
+#
 # Ogni riga contiene il numero di processi, la forma della griglia di
 # processi, la griglia globale, il tempo per passo e la quota passata dentro
 # MPI. I risultati finiscono in build/scaling/results.csv.
@@ -48,6 +55,22 @@ weak_configs=(
     "8 : 2 2 2 : 128 128 128"
 )
 
+# Stessa griglia e stesso numero di core, spartiti diversamente fra processi e
+# thread. Le righe con un processo solo tengono ogni direzione intera: la SIMD
+# resta viva e Schur non ha interfacce da ricucire.
+hybrid_configs=(
+    "1 x 1 : 1 1 1 : 128 128 128"
+    "1 x 2 : 1 1 1 : 128 128 128"
+    "2 x 1 : 1 1 2 : 128 128 128"
+    "1 x 4 : 1 1 1 : 128 128 128"
+    "2 x 2 : 1 1 2 : 128 128 128"
+    "4 x 1 : 1 2 2 : 128 128 128"
+    "1 x 8 : 1 1 1 : 128 128 128"
+    "2 x 4 : 1 1 2 : 128 128 128"
+    "4 x 2 : 1 2 2 : 128 128 128"
+    "8 x 1 : 2 2 2 : 128 128 128"
+)
+
 core_sources=()
 for source in "$root"/src/*.c; do
     [[ "$(basename -- "$source")" == "main.c" ]] || core_sources+=("$source")
@@ -55,26 +78,39 @@ done
 
 mkdir -p "$build_dir"
 trap 'rm -f "$executable"' EXIT
-printf '%s\n' 'study,procs,px,py,pz,nx,ny,nz,steps,wall_ms,mpi_ms' > "$results"
+printf '%s\n' 'study,procs,threads,px,py,pz,nx,ny,nz,steps,wall_ms,mpi_ms' \
+    > "$results"
 
 run_case()
 {
-    local study="$1" procs="$2" shape="$3" grid="$4"
+    local study="$1" procs="$2" threads="$3" shape="$4" grid="$5"
     read -r px py pz <<< "$shape"
     read -r nx ny nz <<< "$grid"
 
-    printf 'Running %-6s procs=%-2s shape=%sx%sx%s grid=%sx%sx%s\n' \
-        "$study" "$procs" "$px" "$py" "$pz" "$nx" "$ny" "$nz"
+    printf 'Running %-6s procs=%-2s threads=%-2s shape=%sx%sx%s grid=%sx%sx%s\n' \
+        "$study" "$procs" "$threads" "$px" "$py" "$pz" "$nx" "$ny" "$nz"
+
+    # Il ramo a thread si compila solo quando serve: la build OpenMP costa un
+    # punto percentuale anche a un thread solo, e le due misure vanno tenute
+    # separate.
+    local omp_flags=""
+    [[ "$threads" -gt 1 ]] && omp_flags="-fopenmp -DUSE_OMP"
 
     "$compiler" -std=gnu11 -O3 -Wall -Wextra -I"$root/include" \
-        $simd_flags -DUSE_MPI \
+        $simd_flags $omp_flags -DUSE_MPI \
         -DDEFAULT_WIDTH="$nx" -DDEFAULT_HEIGHT="$ny" -DDEFAULT_DEPTH="$nz" \
         -DDEFAULT_T=1e-1 -DDEFAULT_STEPS="$steps" \
         "$root/test/paper_man.c" "${core_sources[@]}" -lm -o "$executable"
 
+    # --bind-to none e' obbligatorio, non un dettaglio: per default mpirun
+    # inchioda ogni processo a un core solo, e i thread di quel processo se lo
+    # spartiscono invece di prendersene uno a testa.  Senza questa opzione la
+    # colonna dei thread misura zero guadagno e la misura non dice niente.
     local best_wall="" best_mpi="" output wall mpi
     for ((run = 0; run < repeats; run++)); do
-        output="$(mpirun --oversubscribe -n "$procs" "$executable" \
+        output="$(OMP_NUM_THREADS="$threads" \
+                  mpirun --oversubscribe --bind-to none \
+                  -n "$procs" "$executable" \
                   "$px" "$py" "$pz")"
         wall="$(awk '/wall per step:/ {print $4}' <<< "$output")"
         mpi="$(awk '/mpi per step:/  {print $4}' <<< "$output")"
@@ -87,18 +123,29 @@ run_case()
     done
     printf '    migliore di %s: %s ms\n' "$repeats" "$best_wall"
 
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
-        "$study" "$procs" "$px" "$py" "$pz" "$nx" "$ny" "$nz" "$steps" \
-        "$best_wall" "$best_mpi" >> "$results"
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+        "$study" "$procs" "$threads" "$px" "$py" "$pz" \
+        "$nx" "$ny" "$nz" "$steps" "$best_wall" "$best_mpi" >> "$results"
 }
 
 for study in strong weak; do
     declare -n configs="${study}_configs"
     for config in "${configs[@]}"; do
         IFS=':' read -r procs shape grid <<< "$config"
-        run_case "$study" "${procs// /}" "$(echo "$shape")" "$(echo "$grid")"
+        run_case "$study" "${procs// /}" 1 "$(echo "$shape")" "$(echo "$grid")"
     done
 done
+
+# Lo studio ibrido si salta con HYBRID=0: senza OpenMP nel compilatore le sue
+# righe non si possono compilare.
+if [[ "${HYBRID:-1}" != "0" ]]; then
+    for config in "${hybrid_configs[@]}"; do
+        IFS=':' read -r spec shape grid <<< "$config"
+        read -r procs _ threads <<< "$spec"
+        run_case hybrid "$procs" "$threads" \
+            "$(echo "$shape")" "$(echo "$grid")"
+    done
+fi
 
 printf '\nRisultati in %s\n\n' "$results"
 
@@ -110,16 +157,17 @@ NR == 1 { next }
 {
     if ($1 != study) {
         study = $1
-        base = $10
+        base = $11
         printf "\n%s scaling\n", study
-        printf "  %-6s %-9s %-13s %11s %11s %9s %9s\n",
-               "procs", "forma", "griglia", "wall/passo", "mpi/passo",
-               (study == "strong" ? "speedup" : "t1/tP"), "effic."
+        printf "  %-9s %-9s %-13s %11s %11s %9s %9s\n",
+               "proc x th", "forma", "griglia", "wall/passo", "mpi/passo",
+               (study == "weak" ? "t1/tP" : "speedup"), "effic."
     }
-    ratio = base / $10
-    efficiency = (study == "strong") ? ratio / $2 : ratio
-    printf "  %-6s %-9s %-13s %8.1f ms %8.1f ms %9.2f %8.0f%%\n",
-           $2, $3 "x" $4 "x" $5, $6 "x" $7 "x" $8, $10, $11,
+    cores = $2 * $3
+    ratio = base / $11
+    efficiency = (study == "weak") ? ratio : ratio / cores
+    printf "  %-9s %-9s %-13s %8.1f ms %8.1f ms %9.2f %8.0f%%\n",
+           $2 " x " $3, $4 "x" $5 "x" $6, $7 "x" $8 "x" $9, $11, $12,
            ratio, 100 * efficiency
 }
 ' "$results"

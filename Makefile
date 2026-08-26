@@ -2,6 +2,7 @@ CC = cc
 CFLAGS = -std=gnu11 -O3 -Wall -Wextra -Iinclude
 SIMD ?= 0
 MPI ?= 0
+OMP ?= 0
 ZETA_SIMD_VECTORS ?= 4
 U_SIMD_VECTORS ?= 8
 
@@ -9,6 +10,13 @@ U_SIMD_VECTORS ?= 8
 ifeq ($(MPI),1)
 CC = mpicc
 CFLAGS += -DUSE_MPI
+endif
+
+# Build with OMP=1 to spread the independent lines over the cores of one
+# machine.  It composes with MPI=1: the processes divide the domain, the
+# threads divide the lines of each block.
+ifeq ($(OMP),1)
+CFLAGS += -fopenmp -DUSE_OMP
 endif
 
 ifeq ($(SIMD),1)

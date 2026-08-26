@@ -1,4 +1,5 @@
 #include "momentum.h"
+#include "workers.h"
 
 
 #if defined(USE_SIMD) && SIMD_AVAILABLE
@@ -150,8 +151,8 @@ static void update_u_scalar_tail(const Decomp *restrict d,
 /* Solve Dyy along y, assigning adjacent independent x lines to SIMD lanes. */
 void update_zeta_simd(const Decomp *d,
                       SolverMemState *solver_mem_state,
-                      Real *restrict rhs,
-                      Real *restrict tmp,
+                      Real *restrict rhs_pool,
+                      Real *restrict tmp_pool,
                       Data *data, int t_step, int v_comp,
                       int simd_lines) {
     const Real *restrict k_porosity;
@@ -191,7 +192,15 @@ void update_zeta_simd(const Decomp *d,
     SimdReal negative_inverse_square =
         simd_set1((Real)-DY_INVERSE_SQUARE);
 
+    /* I piani k sono indipendenti; gli scratch no, quindi ogni thread prende
+     * la propria fetta di quelli che solver_solve ha allocato in fila. */
+    const size_t slice = momentum_scratch_slice(d);
+    const int slots = workers_slots(true, d->n[2]);
+
+    WORKERS_PARALLEL_FOR(slots > 1)
     for (int k = 0; k < d->n[2]; k++) {
+        Real *restrict rhs = rhs_pool + (size_t)workers_slot(slots) * slice;
+        Real *restrict tmp = tmp_pool + (size_t)workers_slot(slots) * slice;
         int i = 0;
         const int gk = decomp_global(d, k, 2);
 
@@ -345,8 +354,8 @@ void update_zeta_simd(const Decomp *d,
 /* Solve Dzz along z, assigning adjacent independent x lines to SIMD lanes. */
 void update_u_simd(const Decomp *d,
                    SolverMemState *solver_mem_state,
-                   Real *restrict rhs,
-                   Real *restrict tmp,
+                   Real *restrict rhs_pool,
+                   Real *restrict tmp_pool,
                    Data *data, int t_step, int v_comp,
                    int simd_lines) {
     const Real *restrict k_porosity;
@@ -386,7 +395,13 @@ void update_u_simd(const Decomp *d,
     SimdReal negative_inverse_square =
         simd_set1((Real)-DZ_INVERSE_SQUARE);
 
+    const size_t slice = momentum_scratch_slice(d);
+    const int slots = workers_slots(true, d->n[1]);
+
+    WORKERS_PARALLEL_FOR(slots > 1)
     for (int j = 0; j < d->n[1]; j++) {
+        Real *restrict rhs = rhs_pool + (size_t)workers_slot(slots) * slice;
+        Real *restrict tmp = tmp_pool + (size_t)workers_slot(slots) * slice;
         int i = 0;
         const int gj = decomp_global(d, j, 1);
 

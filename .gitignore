@@ -2,3 +2,5 @@
 /build/
 /output/
 /solver
+.vscode/
+CMakeFiles/

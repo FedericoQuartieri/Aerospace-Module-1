@@ -1,6 +1,7 @@
 #include "utils.h"
 #include "solver.h"
 #include "parallel.h"
+#include "workers.h"
 
 void *xmalloc(size_t size) {
     void *ptr = malloc(size);
@@ -63,6 +64,9 @@ void print_stats(const Decomp *d,
     double per_cell_step = (solve_steps_avg_ns / local_cells) / 10.0;
     printf("Grid: %d x %d x %d\n", d->n[0], d->n[1], d->n[2]);
     printf("Processes: %d\n", par_size());
+    /* Ranghi e thread insieme: una misura senza entrambi i numeri non si sa
+     * confrontare con nessun'altra. */
+    printf("Threads per process: %d\n", workers_available());
     printf("Time steps: %zu\n", sample_count);
     printf("Solver time stats (average per time step):\n");
     printf("  eta system:  %.3f ms (%5.1f%%)\n", eta_avg_ms,

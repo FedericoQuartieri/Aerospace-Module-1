@@ -4,6 +4,7 @@
 #include "pressure.h"
 #include "output.h"
 #include "parallel.h"
+#include "workers.h"
 
 /*
  * Rinfresca l'anello di celle di contorno dei campi che i conti leggono un
@@ -66,13 +67,15 @@ void solver_init(const Decomp *decomp,
 void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
                   Data *data, SolverStats *solver_stats,
                   int write_enabled) {
-    // The scalar solvers use one grid line. SIMD momentum stores several
-    // independent lines interleaved in the same reusable buffers.
-    size_t big_dim = (size_t)((decomp->n[0] > decomp->n[1])
-                                  ? decomp->n[0] : decomp->n[1]);
-    big_dim = (big_dim > (size_t)decomp->n[2]) ? big_dim
-                                               : (size_t)decomp->n[2];
-    size_t scratch_size = big_dim * MOMENTUM_SIMD_MAX_LINES;
+    /*
+     * The scalar solvers use one grid line. SIMD momentum stores several
+     * independent lines interleaved in the same reusable buffers.
+     *
+     * Una copia per thread, una dietro l'altra: i kernel si prendono la
+     * propria con momentum_scratch_slice, che e' la stessa formula usata qui.
+     */
+    size_t scratch_size =
+        momentum_scratch_slice(decomp) * (size_t)workers_available();
     Real *restrict rhs = xmalloc(scratch_size * sizeof(Real));
     Real *restrict tmp = xmalloc(scratch_size * sizeof(Real));
 
