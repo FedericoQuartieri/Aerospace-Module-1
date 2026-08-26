@@ -8,6 +8,11 @@ raw_file="$build_dir/.raw.csv"
 results_file="$build_dir/results.csv"
 executable="$build_dir/paper_man"
 compiler="${CC:-cc}"
+# Flag aggiuntivi per il compilatore, vuoti per default: cosi' una corsa senza
+# EXTRA_CFLAGS si comporta esattamente come prima. Servono sul cluster, dove
+# senza SIMD e senza thread la griglia 256^3 dello studio temporale non
+# finirebbe dentro nessun walltime ragionevole.
+extra_cflags="${EXTRA_CFLAGS:-}"
 
 # Each configuration contains: grid size, dt, total time.
 spatial_configs=(
@@ -50,7 +55,9 @@ run_case()
     printf 'Running %-8s N=%-3s DT=%-8s STEPS=%-3s\n' \
         "$study" "$grid" "$dt" "$steps"
 
-    "$compiler" -std=gnu11 -O3 -Wall -Wextra -I"$root/include" \
+    # $extra_cflags non quotato apposta: e' una lista di flag da spezzare
+    # sugli spazi, e la scrive solo chi lancia lo script.
+    "$compiler" -std=gnu11 -O3 -Wall -Wextra -I"$root/include" $extra_cflags \
         -DDEFAULT_WIDTH="$grid" -DDEFAULT_HEIGHT="$grid" -DDEFAULT_DEPTH="$grid" \
         -DDEFAULT_T="$total_time" -DDEFAULT_STEPS="$steps" \
         "$root/test/paper_man.c" "${core_sources[@]}" -lm -o "$executable"
