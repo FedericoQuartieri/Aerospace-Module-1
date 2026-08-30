@@ -4,3 +4,5 @@
 /solver
 .vscode/
 CMakeFiles/
+*.md
+!README.md

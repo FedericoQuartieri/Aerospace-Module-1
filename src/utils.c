@@ -54,9 +54,29 @@ void print_stats(const Decomp *d,
     double wr_output_avg_ms =
         (double)solver_stats->wr_output * ns_to_ms /
         (double)sample_count;
+    double porosity_fill_avg_ms =
+        (double)solver_stats->porosity_fill * ns_to_ms /
+        (double)sample_count;
     double solve_steps_ns = (double)solver_stats->solve_steps;
     double percentage_factor =
         solve_steps_ns > 0.0 ? 100.0 / solve_steps_ns : 0.0;
+    /*
+     * Il totale meno la somma di tutti gli stadi. Se non e' vicino a zero,
+     * c'e' lavoro che nessuno sta cronometrando, e cercare il collo di
+     * bottiglia fra gli stadi elencati e' cercare dove la luce e' accesa.
+     */
+    double stages_ns =
+        (double)solver_stats->eta_sys +
+        (double)solver_stats->zeta_sys +
+        (double)solver_stats->u_sys +
+        (double)solver_stats->psi_sys +
+        (double)solver_stats->phi_low_sys +
+        (double)solver_stats->phi_high_sys +
+        (double)solver_stats->pressure_update +
+        (double)solver_stats->porosity_fill;
+    double unaccounted_ns = solve_steps_ns - stages_ns;
+    double unaccounted_avg_ms =
+        unaccounted_ns * ns_to_ms / (double)sample_count;
     double solve_steps_avg_ns =
         (double)solver_stats->solve_steps / (double)sample_count;
     double local_cells =
@@ -83,7 +103,19 @@ void print_stats(const Decomp *d,
            (double)solver_stats->phi_high_sys * percentage_factor);
     printf("  pressure:    %.3f ms (%5.1f%%)\n", pressure_update_avg_ms,
            (double)solver_stats->pressure_update * percentage_factor);
+    printf("  porosity:    %.3f ms (%5.1f%%)\n", porosity_fill_avg_ms,
+           (double)solver_stats->porosity_fill * percentage_factor);
     printf("  write file:  %.3f ms\n", wr_output_avg_ms);
+    /*
+     * Quanto del passo non e' attribuito a nessuno stadio.
+     *
+     * E' una riga di controllo, non una misura: finche' non e' vicina a zero,
+     * qualunque conclusione su quale stadio sia lento riguarda solo la parte
+     * cronometrata. Il riempimento della permeabilita' e' rimasto fuori dai
+     * conti per tutto il tempo, e da solo valeva fino a due terzi del passo.
+     */
+    printf("  non contato: %.3f ms (%5.1f%%)\n",
+           unaccounted_avg_ms, unaccounted_ns * percentage_factor);
     /* Righe pensate per essere lette anche da uno script. */
     printf("  wall per step: %.3f ms\n",
            (double)slowest_ns * ns_to_ms / (double)sample_count);
