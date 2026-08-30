@@ -44,6 +44,15 @@ typedef struct SolverStats {
     uint64_t phi_low_sys;
     uint64_t phi_high_sys;
     uint64_t pressure_update;
+    /*
+     * Il riempimento della permeabilita', quando dipende dal tempo.
+     *
+     * Non era cronometrato, e per questo era invisibile: la somma degli stadi
+     * non faceva il totale e nessuno lo controllava. Su 256^3 mancava un
+     * quarto del passo a un thread e quasi due terzi a cinquantasei, ed era
+     * quello a fissare il tetto dello speedup mentre lo si cercava altrove.
+     */
+    uint64_t porosity_fill;
     uint64_t solve_steps;
     uint64_t wr_output;
 } SolverStats;

@@ -32,6 +32,21 @@
 #define WORKERS_PARALLEL_FOR(cond) \
     WORKERS_PRAGMA(omp parallel for schedule(static) if (cond))
 
+/*
+ * La stessa cosa, ma spartendo due cicli annidati invece di uno.
+ *
+ * Serve dove il ciclo esterno da solo puo' avere meno iterazioni dei thread.
+ * Riempire un campo scorre i piani lungo Z, e quando MPI divide proprio quella
+ * direzione un blocco puo' averne una manciata: con 56 thread e 4 piani
+ * cinquantadue thread non riceverebbero niente. Collassando i due cicli si
+ * spartiscono le righe, che sono sempre abbastanza.
+ *
+ * I due cicli devono essere perfettamente annidati -- niente fra la graffa del
+ * primo e il `for' del secondo -- altrimenti collapse non si applica.
+ */
+#define WORKERS_PARALLEL_FOR_2(cond) \
+    WORKERS_PRAGMA(omp parallel for schedule(static) collapse(2) if (cond))
+
 static inline int workers_available(void) { return omp_get_max_threads(); }
 static inline int workers_id(void) { return omp_get_thread_num(); }
 
@@ -40,6 +55,7 @@ static inline int workers_id(void) { return omp_get_thread_num(); }
 /* Senza OpenMP la condizione non la legge nessuno, ma va comunque consumata:
  * cosi' chi la calcola non deve scusarsi con il compilatore di non usarla. */
 #define WORKERS_PARALLEL_FOR(cond) (void)(cond);
+#define WORKERS_PARALLEL_FOR_2(cond) (void)(cond);
 
 static inline int workers_available(void) { return 1; }
 static inline int workers_id(void) { return 0; }

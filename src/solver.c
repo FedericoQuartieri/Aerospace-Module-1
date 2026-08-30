@@ -101,11 +101,13 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
         par_exchange_halo(decomp, solver_mem_state->pressure_star.v);
 
         if (data->porosity_time_dependent) {
+            uint64_t fill_start = time_ns();
             Real midpoint_step = (Real)t_step - (Real)0.5;
             vectorField_fill(decomp,
                              &solver_mem_state->k,
                              data->porosity_fn,
                              midpoint_step);
+            solver_stats->porosity_fill += time_ns() - fill_start;
         }
 
         // Momentum system
