@@ -1,4 +1,5 @@
 #include "momentum.h"
+#include "momentum_row.h"
 #include "schur.h"
 #include "utils.h"
 #include "workers.h"
@@ -23,44 +24,22 @@
 static void momentum_direction(const Decomp *d,
                                SolverMemState *solver_mem_state,
                                Data *data, int t_step, int v_comp, int axis) {
-    const Real *restrict k_porosity;
-    const Real *restrict source;
-    Real *restrict target;
+    /*
+     * La fisica di un punto sta in momentum_row.h, che e' condiviso con
+     * l'altro backend: qui si fissa la linea una volta e poi si chiede la
+     * riga cella per cella.  La riga non arriva mai in memoria, la funzione
+     * e' inline.
+     */
+    const MomentumLine mline =
+        momentum_line(d, solver_mem_state, data, t_step, v_comp, axis);
 
-    /* eta parte da u, zeta parte da eta, u parte da zeta. */
-    const VectorField *from = (axis == 0) ? &solver_mem_state->u
-                            : (axis == 1) ? &solver_mem_state->eta
-                                          : &solver_mem_state->zeta;
+    /* Lo stadio di arrivo, in scrittura: il riporto ci si somma alla fine. */
     VectorField *to = (axis == 0) ? &solver_mem_state->eta
                     : (axis == 1) ? &solver_mem_state->zeta
                                   : &solver_mem_state->u;
-
-    switch (v_comp) {
-        case 0:
-            k_porosity = solver_mem_state->k.v_x;
-            source = from->v_x;
-            target = to->v_x;
-            break;
-        case 1:
-            k_porosity = solver_mem_state->k.v_y;
-            source = from->v_y;
-            target = to->v_y;
-            break;
-        case 2:
-            k_porosity = solver_mem_state->k.v_z;
-            source = from->v_z;
-            target = to->v_z;
-            break;
-        default:
-            fprintf(stderr, "Value of v_comp doesn't exist");
-            exit(1);
-    }
-
-    const Real inverse_square = (axis == 0) ? (Real)DX_INVERSE_SQUARE
-                              : (axis == 1) ? (Real)DY_INVERSE_SQUARE
-                                            : (Real)DZ_INVERSE_SQUARE;
-    /* Componente normale alla parete: il valore al bordo e' imposto. */
-    const bool same_direction = (v_comp == axis);
+    Real *target = (v_comp == 0) ? to->v_x
+                 : (v_comp == 1) ? to->v_y
+                                 : to->v_z;
 
     /*
      * Le linee corrono lungo `axis`; delle altre due direzioni, `group`
@@ -71,7 +50,6 @@ static void momentum_direction(const Decomp *d,
     const int outer = (axis == 2) ? 1 : 2;
     const int length = d->n[axis];
     const int lines = d->n[group];
-    const int last_global = d->n_global[axis] - 1;
     const size_t step = d->stride[axis];
 
     const int planes = d->n[outer];
@@ -118,56 +96,14 @@ static void momentum_direction(const Decomp *d,
             for (int t = 0; t < length; t++) {
                 cell[axis] = t;
 
-                int gi = decomp_global(d, cell[0], 0);
-                int gj = decomp_global(d, cell[1], 1);
-                int gk = decomp_global(d, cell[2], 2);
-                int along = decomp_global(d, t, axis);
-
                 size_t here = start + (size_t)t * step;
                 size_t at = line + (size_t)t;
-                Real k_i = k_porosity[here];
-                Real w_i = -gamma_from_k(k_i) * inverse_square;
+                MomentumRow row = momentum_row(&mline, cell, here);
 
-                if (along == 0) {
-                    /* Parete inferiore del dominio: valore imposto. */
-                    lower[at] = 0.0;
-                    diagonal[at] = 1.0;
-                    upper[at] = 0.0;
-                    known[at] = bc_left(data->bc_velocity, gi, gj, gk,
-                                        t_step, v_comp);
-                    continue;
-                }
-
-                Real rhs = source[here] - target[here];
-
-                /* Solo il primo passo porta il termine fisico g. */
-                if (axis == 0) {
-                    rhs += (DT / beta_from_k(k_i)) *
-                           g_value(d, cell[0], cell[1], cell[2], t_step, k_i,
-                                   solver_mem_state, data, v_comp);
-                }
-
-                if (along < last_global) {
-                    lower[at] = w_i;
-                    diagonal[at] = 1.0 - 2.0 * w_i;
-                    upper[at] = w_i;
-                    known[at] = rhs;
-                } else if (same_direction) {
-                    lower[at] = 0.0;
-                    diagonal[at] = 1.0;
-                    upper[at] = 0.0;
-                    known[at] = bc_right(data->bc_velocity, gi, gj, gk,
-                                         t_step, v_comp);
-                } else {
-                    /* Parete superiore, componente tangente: nodo fantasma
-                     * eliminato con la condizione al contorno. */
-                    Real right_value = bc_right(data->bc_velocity, gi, gj, gk,
-                                                t_step, v_comp);
-                    lower[at] = w_i;
-                    diagonal[at] = 1.0 - 3.0 * w_i;
-                    upper[at] = 0.0;
-                    known[at] = rhs - 2.0 * w_i * right_value;
-                }
+                lower[at] = row.a;
+                diagonal[at] = row.b;
+                upper[at] = row.c;
+                known[at] = row.f;
             }
         }
 
