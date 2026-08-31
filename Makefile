@@ -3,8 +3,38 @@ CFLAGS = -std=gnu11 -O3 -Wall -Wextra -Iinclude
 SIMD ?= 0
 MPI ?= 0
 OMP ?= 0
+TRIDIAG ?= schur
 ZETA_SIMD_VECTORS ?= 4
 U_SIMD_VECTORS ?= 8
+
+# TRIDIAG picks how a grid line split across processes is solved.  It is a
+# different question from MPI/OMP/SIMD, which decide whether the line is split
+# at all, whether threads help inside a block, and how wide the kernels are:
+# the four options compose.
+#
+#   schur     Schur complement.  Three local Thomas solves per line, one
+#             exchange and one collective per group of lines.
+#   pipeline  Pipelined Thomas.  One local solve per line, the wait hidden by
+#             sending many independent lines through the processes in batches.
+#
+# The choice is a directory, not a chain of #ifdef: only one backend is ever
+# compiled, so the two cannot silently drift into each other.
+ifeq ($(filter $(TRIDIAG),schur pipeline),)
+$(error TRIDIAG must be schur or pipeline, not '$(TRIDIAG)')
+endif
+
+ifeq ($(TRIDIAG),schur)
+CFLAGS += -DTRIDIAG_SCHUR
+endif
+
+# Not wired up yet: the sources under src/tridiag/pipeline still speak
+# Domain and the compile-time WIDTH/HEIGHT macros, and have not been ported
+# to Decomp and the runtime `sim` parameters.  Failing here with a sentence
+# beats failing later with a page of compiler errors.
+ifeq ($(TRIDIAG),pipeline)
+$(error TRIDIAG=pipeline is not ported yet: src/tridiag/pipeline still uses \
+Domain and the WIDTH/HEIGHT macros instead of Decomp and sim)
+endif
 
 # Build with MPI=1 to compile against MPI and run with mpirun.
 ifeq ($(MPI),1)
@@ -30,9 +60,13 @@ endif
 endif
 
 TARGET = solver
+# src/*.c is the shared solver; the tridiagonal backend comes from its own
+# directory.  src/*.c does not reach into subdirectories, so exactly one
+# backend is compiled and never both.
 # simd_example.c documents the previous prototype and is not part of the solver.
-SOURCES = $(filter-out src/simd_example.c,$(wildcard src/*.c))
-HEADERS = $(wildcard include/*.h)
+SOURCES = $(filter-out src/simd_example.c,$(wildcard src/*.c)) \
+	$(wildcard src/tridiag/$(TRIDIAG)/*.c)
+HEADERS = $(wildcard include/*.h) $(wildcard include/*/*.h)
 
 TEST_DIR = test
 TEST_BIN_DIR = build/tests
