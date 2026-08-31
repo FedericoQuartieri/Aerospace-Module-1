@@ -46,14 +46,7 @@ static inline size_t momentum_scratch_slice(const Decomp *d) {
     return (size_t)big * MOMENTUM_SIMD_MAX_LINES;
 }
 
-void momentum_step(const Decomp *decomp,
-                   SolverMemState *solver_mem_state,
-                   Real *restrict rhs,
-                   Real *restrict tmp,
-                   Data *data,
-                   int t_step,
-                   SolverStats *solver_stats);
-
+/* momentum_step e' dichiarata in backend.h: e' l'interfaccia condivisa. */
 
 #if defined(USE_SIMD) && SIMD_AVAILABLE
 void update_zeta_simd(const Decomp *d,

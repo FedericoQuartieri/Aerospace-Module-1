@@ -1,7 +1,6 @@
 #include "solver.h"
 #include "field.h"
-#include "momentum.h"
-#include "pressure.h"
+#include "backend.h"
 #include "output.h"
 #include "parallel.h"
 #include "workers.h"
@@ -67,26 +66,13 @@ void solver_init(const Decomp *decomp,
 void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
                   Data *data, SolverStats *solver_stats,
                   int write_enabled) {
-    /*
-     * The scalar solvers use one grid line. SIMD momentum stores several
-     * independent lines interleaved in the same reusable buffers.
-     *
-     * Una copia per thread, una dietro l'altra: i kernel si prendono la
-     * propria con momentum_scratch_slice, che e' la stessa formula usata qui.
-     */
-    size_t scratch_size =
-        momentum_scratch_slice(decomp) * (size_t)workers_available();
-    Real *restrict rhs = xmalloc(scratch_size * sizeof(Real));
-    Real *restrict tmp = xmalloc(scratch_size * sizeof(Real));
-
     // Used for the pressure_step, this buffer and pressure_star are sufficient to solve it
     ScalarField pressure_buffer;
     scalarField_alloc(decomp, &pressure_buffer);
 
-    /* Le tre matrici della pressione non dipendono dal passo temporale: il
-     * complemento di Schur le prepara adesso, una volta per tutte. */
-    SchurPlan pressure_plan[3];
-    pressure_plans_init(decomp, pressure_plan);
+    /* Lo scratch che serve al backend tridiagonale lo alloca lui: da qui e'
+     * un puntatore opaco, e quale dei due sia non si vede. */
+    backend_init(decomp, solver_mem_state);
 
     // If write_enabled is set, write the initial state at t=0
     if (write_enabled) {
@@ -111,8 +97,7 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
         }
 
         // Momentum system
-        momentum_step(decomp, solver_mem_state, rhs, tmp, data, t_step,
-                      solver_stats);
+        momentum_step(decomp, solver_mem_state, data, t_step, solver_stats);
 
 
         /* compute_div guarda una cella indietro nella velocita' appena
@@ -120,8 +105,8 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
         refresh_vector_halo(decomp, &solver_mem_state->u);
 
         // Pressure system
-        pressure_step(decomp, solver_mem_state, pressure_plan,
-                      &pressure_buffer, rhs, tmp, solver_stats);
+        pressure_step(decomp, solver_mem_state, &pressure_buffer,
+                      solver_stats);
 
         // Write to file
         if (write_enabled) {
@@ -137,8 +122,6 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
     // Print solver time statistics
     print_stats(decomp, solver_stats, (size_t)STEPS);
 
-    pressure_plans_free(pressure_plan);
-    free(rhs);
-    free(tmp);
+    backend_free(solver_mem_state);
     free(pressure_buffer.v);
 }

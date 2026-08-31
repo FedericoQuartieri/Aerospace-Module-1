@@ -101,6 +101,16 @@ typedef struct SolverMemState {
     VectorField k;
     ScalarField pressure;
     ScalarField pressure_star;
+    /*
+     * Lo scratch del backend tridiagonale, opaco per tutto il resto.
+     *
+     * I due backend hanno bisogno di cose diverse e incompatibili -- Schur dei
+     * buffer SIMD e delle tre matrici della pressione gia' fattorizzate, il
+     * pipelined Thomas dei suoi c' e d' su tutto il blocco -- e nessuno dei due
+     * tipi deve arrivare fin qui.  Lo alloca backend_init, lo libera
+     * backend_free, e in mezzo lo tocca solo chi sa cos'e'.
+     */
+    void *backend;
 } SolverMemState;
 
 extern const Data paper_data;

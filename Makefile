@@ -27,6 +27,10 @@ ifeq ($(TRIDIAG),schur)
 CFLAGS += -DTRIDIAG_SCHUR
 endif
 
+# The backend's own headers are private to its directory: include/ holds only
+# what the shared solver is allowed to know.
+CFLAGS += -Isrc/tridiag/$(TRIDIAG)
+
 # Not wired up yet: the sources under src/tridiag/pipeline still speak
 # Domain and the compile-time WIDTH/HEIGHT macros, and have not been ported
 # to Decomp and the runtime `sim` parameters.  Failing here with a sentence
@@ -66,14 +70,18 @@ TARGET = solver
 # simd_example.c documents the previous prototype and is not part of the solver.
 SOURCES = $(filter-out src/simd_example.c,$(wildcard src/*.c)) \
 	$(wildcard src/tridiag/$(TRIDIAG)/*.c)
-HEADERS = $(wildcard include/*.h) $(wildcard include/*/*.h)
+HEADERS = $(wildcard include/*.h) $(wildcard include/*/*.h) \
+	$(wildcard src/tridiag/$(TRIDIAG)/*.h)
 
 TEST_DIR = test
 TEST_BIN_DIR = build/tests
-TEST_SOURCES = $(wildcard $(TEST_DIR)/*.c)
+# Tests that exercise the backend directly live with it, so selecting a
+# backend selects its tests too and never tries to link the other one's.
+TEST_SOURCES = $(wildcard $(TEST_DIR)/*.c) \
+	$(wildcard $(TEST_DIR)/tridiag/$(TRIDIAG)/*.c)
 TEST_HEADERS = $(wildcard $(TEST_DIR)/*.h)
 CORE_SOURCES = $(filter-out src/main.c,$(SOURCES))
-TEST_TARGETS = $(patsubst $(TEST_DIR)/%.c,$(TEST_BIN_DIR)/%,$(TEST_SOURCES))
+TEST_TARGETS = $(patsubst %.c,$(TEST_BIN_DIR)/%,$(notdir $(TEST_SOURCES)))
 CHANNEL_CFLAGS = -DDEFAULT_LX=2.0 -DDEFAULT_LY=1.0 -DDEFAULT_LZ=1.0 \
 	-DDEFAULT_WIDTH=192 -DDEFAULT_HEIGHT=96 -DDEFAULT_DEPTH=96
 
@@ -87,6 +95,13 @@ test: tests
 $(TEST_BIN_DIR)/channel_obstacle $(TEST_BIN_DIR)/moving_sphere: CFLAGS += $(CHANNEL_CFLAGS)
 
 $(TEST_BIN_DIR)/%: $(TEST_DIR)/%.c $(CORE_SOURCES) $(HEADERS) $(TEST_HEADERS) Makefile
+	mkdir -p $(TEST_BIN_DIR)
+	$(CC) $(CFLAGS) $< $(CORE_SOURCES) -o $@ -lm
+
+# The same recipe for the tests that live with their backend.  Two rules
+# rather than a vpath: make picks whichever prerequisite actually exists, and
+# a missing test fails loudly instead of being silently searched for elsewhere.
+$(TEST_BIN_DIR)/%: $(TEST_DIR)/tridiag/$(TRIDIAG)/%.c $(CORE_SOURCES) $(HEADERS) $(TEST_HEADERS) Makefile
 	mkdir -p $(TEST_BIN_DIR)
 	$(CC) $(CFLAGS) $< $(CORE_SOURCES) -o $@ -lm
 

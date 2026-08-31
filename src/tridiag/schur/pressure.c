@@ -1,4 +1,6 @@
 #include "pressure.h"
+#include "backend.h"
+#include "backend_schur.h"
 #include "schur.h"
 #include "utils.h"
 #include "workers.h"
@@ -225,14 +227,11 @@ static void update_pressure(const Decomp *restrict d,
 
 void pressure_step(const Decomp *decomp,
                    SolverMemState *solver_mem_state,
-                   const SchurPlan plan[3],
                    ScalarField *pressure_buffer,
-                   Real *restrict rhs,
-                   Real *restrict tmp,
                    SolverStats *solver_stats)
 {
-    (void)rhs;
-    (void)tmp;
+    const SchurBackend *backend = solver_mem_state->backend;
+    const SchurPlan *plan = backend->pressure_plan;
 
     Real *buffer = pressure_buffer->v;
     Real *star = solver_mem_state->pressure_star.v;
