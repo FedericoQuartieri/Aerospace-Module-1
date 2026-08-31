@@ -1,4 +1,7 @@
+#include <stdlib.h>
+
 #include "solver.h"
+#include "parallel.h"
 #include "error_norms.h"
 
 #ifdef USE_FLOAT
@@ -94,34 +97,51 @@ static Real manufactured_constant_permeability(Real x,
 
 int main(int argc, char **argv)
 {
-    MPI_Init(&argc, &argv);
+    par_init(&argc, &argv);
 
     Data data = {
         .name = "Constant forcing sine",
         .bc_velocity = manufactured_velocity,
         .forcing_fn = manufactured_constant_forcing,
         .porosity_fn = manufactured_constant_permeability,
+        .porosity_time_dependent = 0,
         .velocity_fn = manufactured_velocity,
         .pressure_fn = manufactured_pressure,
     };
     SolverMemState solver_mem_state;
     SolverStats solver_stats = {0};
+    Decomp decomp;
     const int write_enabled = 0;
 
-    solver_init(&solver_mem_state, &data, NULL);
-    solver_solve(&solver_mem_state, &data, &solver_stats, write_enabled);
+    /* Tutti zero: la forma della griglia di processi la sceglie MPI.
+       Tre numeri sulla riga di comando la impongono. */
+    int process_grid[3] = {0, 0, 0};
+    if (argc == 4) {
+        for (int c = 0; c < 3; c++) {
+            process_grid[c] = atoi(argv[c + 1]);
+        }
+    }
+    par_topology_init(process_grid);
+    decomp_init_mpi(&decomp);
+    solver_init(&decomp, &solver_mem_state, &data, NULL);
+    solver_solve(&decomp, &solver_mem_state, &data, &solver_stats,
+                 write_enabled);
 
     const Real velocity_verification_time = (Real)STEPS * (Real)DT;
-    const Real pressure_verification_time = velocity_verification_time - (Real)DT / (Real)2;
-    const SolverErrorNorms errors = compute_solver_error_norms(&solver_mem_state,
+    const Real pressure_verification_time =
+        velocity_verification_time - (Real)DT / (Real)2;
+    const SolverErrorNorms errors =
+        compute_solver_error_norms(&decomp,
+                                   &solver_mem_state,
                                    &data,
                                    velocity_verification_time,
                                    pressure_verification_time);
 
-    print_solver_error_norms(&errors, velocity_verification_time, pressure_verification_time);
+    print_solver_error_norms(&decomp,
+                             &errors,
+                             velocity_verification_time,
+                             pressure_verification_time);
 
-    solver_destroy(&solver_mem_state);
-    MPI_Finalize();
-
+    par_finalize();
     return 0;
 }

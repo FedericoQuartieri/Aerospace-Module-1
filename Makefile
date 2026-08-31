@@ -4,6 +4,7 @@ SIMD ?= 0
 MPI ?= 0
 OMP ?= 0
 TRIDIAG ?= schur
+PIPELINE_BATCH_LINES ?= 64
 ZETA_SIMD_VECTORS ?= 4
 U_SIMD_VECTORS ?= 8
 
@@ -27,18 +28,13 @@ ifeq ($(TRIDIAG),schur)
 CFLAGS += -DTRIDIAG_SCHUR
 endif
 
+ifeq ($(TRIDIAG),pipeline)
+CFLAGS += -DTRIDIAG_PIPELINE -DPIPELINE_BATCH_LINES=$(PIPELINE_BATCH_LINES)
+endif
+
 # The backend's own headers are private to its directory: include/ holds only
 # what the shared solver is allowed to know.
 CFLAGS += -Isrc/tridiag/$(TRIDIAG)
-
-# Not wired up yet: the sources under src/tridiag/pipeline still speak
-# Domain and the compile-time WIDTH/HEIGHT macros, and have not been ported
-# to Decomp and the runtime `sim` parameters.  Failing here with a sentence
-# beats failing later with a page of compiler errors.
-ifeq ($(TRIDIAG),pipeline)
-$(error TRIDIAG=pipeline is not ported yet: src/tridiag/pipeline still uses \
-Domain and the WIDTH/HEIGHT macros instead of Decomp and sim)
-endif
 
 # Build with MPI=1 to compile against MPI and run with mpirun.
 ifeq ($(MPI),1)

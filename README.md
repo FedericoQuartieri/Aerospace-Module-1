@@ -116,11 +116,27 @@ The choice is a directory — `src/tridiag/$(TRIDIAG)/` — not a chain of
 drift into each other.  The physics they share lives in
 `include/momentum_row.h`: one copy of the formulas, two memory layouts.
 
-`TRIDIAG=pipeline` does not build yet.  The sources under
-`src/tridiag/pipeline/` are the ones merged from the `pipeline` branch and
-still speak `Domain` and the compile-time `WIDTH`/`HEIGHT` macros instead of
-`Decomp` and the runtime `sim` parameters; the Makefile stops with a message
-saying so rather than with a page of compiler errors.
+Both give the same answer, digit for digit, and the same answer the serial
+solver gives: `paper_man` and `zero_pressure` print identical error norms
+under either backend from one process up to eight.  That is the property to
+check first after touching either one.
+
+`PIPELINE_BATCH_LINES` (default 64) sets how many lines travel together.  It
+is the pipeline's one tuning knob: small batches fill the pipeline sooner but
+send more messages, large ones the opposite.
+
+Two things the pipeline backend does not do yet, both measurable rather than
+structural:
+
+  - **No SIMD.**  `SIMD=1` still vectorizes nothing inside it.  The scratch
+    layout is already the one that makes it possible -- for Y and Z
+    consecutive lines are adjacent in memory, so the kernels would vectorize
+    *across* lines and keep working even when that direction is split, which
+    is exactly what the Schur path cannot do.  The kernel is missing, not the
+    layout.
+  - **No threads.**  `OMP=1` speeds up the shared parts but not the sweeps.
+    Inside a batch the lines are independent, so the room is there; the chain
+    of sends and receives has to stay in batch order.
 
 ## Scaling study
 
