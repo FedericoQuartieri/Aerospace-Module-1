@@ -19,12 +19,6 @@ void compute_div(const Decomp *restrict d,
 void pressure_plans_init(const Decomp *d, SchurPlan plan[3]);
 void pressure_plans_free(SchurPlan plan[3]);
 
-void pressure_step(const Decomp *decomp,
-                   SolverMemState *solver_mem_state,
-                   const SchurPlan plan[3],
-                   ScalarField *pressure_buffer,
-                   Real *restrict rhs,
-                   Real *restrict tmp,
-                   SolverStats *solver_stats);
+/* pressure_step e' dichiarata in backend.h: e' l'interfaccia condivisa. */
 
 #endif

@@ -1,4 +1,6 @@
 #include "momentum.h"
+#include "backend.h"
+#include "backend_schur.h"
 #include "momentum_row.h"
 #include "schur.h"
 #include "utils.h"
@@ -132,9 +134,11 @@ static void momentum_direction(const Decomp *d,
 
 void momentum_step(const Decomp *decomp,
                    SolverMemState *solver_mem_state,
-                   Real *restrict rhs,
-                   Real *restrict tmp,
                    Data *data, int t_step, SolverStats *solver_stats) {
+    SchurBackend *backend = solver_mem_state->backend;
+    Real *restrict rhs = backend->rhs;
+    Real *restrict tmp = backend->tmp;
+
     (void)rhs;
     (void)tmp;
 

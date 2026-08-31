@@ -95,6 +95,25 @@ void par_shift_real(int axis, int step,
                     const Real *send, Real *recv, int count);
 
 /*
+ * Send e receive separate verso il vicino in direzione `step` lungo `axis`.
+ *
+ * par_shift_real non basta a tutti: uno scambio simmetrico presuppone che i
+ * due processi affacciati abbiano entrambi qualcosa da dirsi nello stesso
+ * istante.  In una catena non e' cosi': il pipelined Thomas riceve dal
+ * vicino di sotto, lavora, e solo dopo manda a quello di sopra.  Le due meta'
+ * vanno separate perche' in mezzo c'e' il calcolo, ed e' proprio quello che
+ * tiene occupati gli altri processi mentre aspettano.
+ *
+ * `tag` distingue i messaggi che viaggiano insieme sulla stessa coppia di
+ * vicini: nella pipeline sono l'asse, la componente e il verso della passata.
+ * Dove il vicino non c'e' non succede niente, e `recv` resta com'era.
+ *
+ * Sono bloccanti di proposito: e' l'attesa a scandire la pipeline.
+ */
+void par_send_real(int axis, int step, const Real *send, int count, int tag);
+void par_recv_real(int axis, int step, Real *recv, int count, int tag);
+
+/*
  * Raccoglie `count` numeri da ognuno dei processi allineati lungo `axis` e
  * consegna a tutti il vettore completo, ordinato per posizione lungo l'asse.
  * `recv` deve avere spazio per count * (processi lungo axis) numeri.

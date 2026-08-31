@@ -199,6 +199,21 @@ void par_shift_real(int axis, int step,
     comm_ns += time_ns() - begin;
 }
 
+void par_send_real(int axis, int step, const Real *send, int count, int tag) {
+    require_topology();
+    uint64_t begin = time_ns();
+    MPI_Send(send, count, PAR_REAL, mpi_neighbor(axis, step), tag, cart_comm);
+    comm_ns += time_ns() - begin;
+}
+
+void par_recv_real(int axis, int step, Real *recv, int count, int tag) {
+    require_topology();
+    uint64_t begin = time_ns();
+    MPI_Recv(recv, count, PAR_REAL, mpi_neighbor(axis, step), tag, cart_comm,
+             MPI_STATUS_IGNORE);
+    comm_ns += time_ns() - begin;
+}
+
 void par_line_allgather(int axis, const Real *send, int count, Real *recv) {
     require_topology();
     uint64_t begin = time_ns();
@@ -388,6 +403,24 @@ void par_shift_real(int axis, int step,
     (void)send;
     (void)recv;
     (void)count;
+}
+
+void par_send_real(int axis, int step, const Real *send, int count, int tag) {
+    /* Nessun vicino: non c'e' nessuno a cui mandare. */
+    (void)axis;
+    (void)step;
+    (void)send;
+    (void)count;
+    (void)tag;
+}
+
+void par_recv_real(int axis, int step, Real *recv, int count, int tag) {
+    /* Nessun vicino: chi chiama tiene quello che aveva messo in recv. */
+    (void)axis;
+    (void)step;
+    (void)recv;
+    (void)count;
+    (void)tag;
 }
 
 void par_line_allgather(int axis, const Real *send, int count, Real *recv) {
