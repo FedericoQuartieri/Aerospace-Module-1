@@ -60,9 +60,10 @@ mpirun -n 8 ./solver
 
 The grid is split into blocks, one per process; `MPI_Dims_create` chooses the
 shape unless the tests are given one on the command line.  The tridiagonal
-solves that cross a block boundary are completed with a Schur complement, so
-the answer does not depend on how many processes are used: `paper_man` prints
-the same error norms, digit for digit, from one process up to eight.
+solves that cross a block boundary are completed by the backend `TRIDIAG`
+selects, a Schur complement by default, so the answer does not depend on how
+many processes are used: `paper_man` prints the same error norms, digit for
+digit, from one process up to eight.
 
 ## Threads
 
@@ -90,6 +91,36 @@ The two are not interchangeable.  A process takes a block, and a direction that
 gets split loses the vectorized kernels and turns one local Thomas solve into
 three; a thread takes lines, which stay independent however the domain is cut.
 The `hybrid` study of the scaling script measures where the balance falls.
+
+## Tridiagonal backend
+
+`TRIDIAG` picks *how* a grid line that has been split across processes is
+solved.  It is a different question from `MPI`, `OMP` and `SIMD`, which decide
+whether the line is split at all, whether threads help inside a block, and how
+wide the kernels are.  The four compose.
+
+```sh
+make TRIDIAG=schur MPI=1 OMP=1 SIMD=1     # the default
+```
+
+| value | method | cost |
+|---|---|---|
+| `schur` | Schur complement | three local Thomas solves per line; one exchange and one collective per group of lines |
+| `pipeline` | pipelined Thomas | one local solve per line; the wait is hidden by sending many independent lines through the processes in batches |
+
+Schur pays in arithmetic, the pipeline pays in latency.  The pipeline wins when
+there are many more lines than processes, which is the normal case.
+
+The choice is a directory — `src/tridiag/$(TRIDIAG)/` — not a chain of
+`#ifdef`, so exactly one backend is ever compiled and the two cannot silently
+drift into each other.  The physics they share lives in
+`include/momentum_row.h`: one copy of the formulas, two memory layouts.
+
+`TRIDIAG=pipeline` does not build yet.  The sources under
+`src/tridiag/pipeline/` are the ones merged from the `pipeline` branch and
+still speak `Domain` and the compile-time `WIDTH`/`HEIGHT` macros instead of
+`Decomp` and the runtime `sim` parameters; the Makefile stops with a message
+saying so rather than with a page of compiler errors.
 
 ## Scaling study
 
