@@ -74,8 +74,11 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
      * un puntatore opaco, e quale dei due sia non si vede. */
     backend_init(decomp, solver_mem_state);
 
-    // If write_enabled is set, write the initial state at t=0
+    /* La scrittura riporta la velocita' dai punti staggered ai nodi, e sul
+     * confine fra due blocchi la media chiede la cella appena oltre: l'anello
+     * di contorno va aggiornato prima di ogni dump, non solo prima dei conti. */
     if (write_enabled) {
+        refresh_vector_halo(decomp, &solver_mem_state->u);
         write_to_file(decomp, solver_mem_state, data->name, 0);
     }
 
@@ -112,6 +115,9 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
         if (write_enabled) {
             if (t_step % WR_FREQ == 0) {
                 uint64_t wr_start = time_ns();
+                /* pressure_step ha appena corretto u: l'anello di contorno
+                 * porta ancora i valori di prima della proiezione. */
+                refresh_vector_halo(decomp, &solver_mem_state->u);
                 write_to_file(decomp, solver_mem_state, data->name, t_step);
                 solver_stats->wr_output += time_ns() - wr_start;
             }

@@ -34,6 +34,62 @@ static void write_extents(FILE *fp, const Decomp *d) {
 }
 
 /*
+ * Le componenti della velocita' vivono su griglia staggered (MAC): rispetto al
+ * nodo (i, j, k) dove sta la pressione, v_x e' mezza cella avanti lungo X, v_y
+ * lungo Y e v_z lungo Z -- e' quello che fa vectorField_fill chiamando
+ * staggered_physical_coord sulla direzione della componente.
+ *
+ * Il formato ImageData pero' dichiara un solo Origin per tutti gli array di
+ * punti, quindi scrivere le tre componenti grezze dello stesso indice come un
+ * vettore mette insieme tre valori presi in tre posti diversi: il modulo che ne
+ * esce non e' il modulo di nessuna velocita' reale, e sbaglia di O(h) anche
+ * quando il campo e' esatto.  Prima di scrivere si riportano quindi tutte e tre
+ * sul nodo centrato, lo stesso dove sta gia' la pressione.
+ *
+ *   nodo(i) = ( v[i-1] + v[i] ) / 2      v[i-1] sta in (i-0.5)h, v[i] in (i+0.5)h
+ *
+ * Sul muro inferiore del dominio il vicino in (-0.5)h non esiste: si estrapola
+ * dai due nodi staggered piu' vicini, che resta del secondo ordine come la
+ * media.
+ *
+ *   nodo(0) = 1.5 * v[0] - 0.5 * v[1]
+ *
+ * Al confine fra due blocchi il vicino invece c'e', e sta nel ghost layer che
+ * solver.c aggiorna subito prima di scrivere: li' si usa la media, cosi' il
+ * campo scritto non ha cuciture e non dipende da come la griglia e' spartita.
+ */
+enum node_rule {
+    NODE_AVERAGE,      /* il vicino indietro esiste: media dei due */
+    NODE_EXTRAPOLATE,  /* muro inferiore: estrapola dai due in avanti */
+    NODE_RAW           /* blocco spesso una cella: non c'e' altro da usare */
+};
+
+static Real node_value(const Real *restrict component, size_t index,
+                       ptrdiff_t step, enum node_rule rule) {
+    switch (rule) {
+    case NODE_EXTRAPOLATE:
+        return (Real)1.5 * component[index] -
+               (Real)0.5 * component[(size_t)((ptrdiff_t)index + step)];
+    case NODE_RAW:
+        return component[index];
+    default:
+        return (Real)0.5 * (component[(size_t)((ptrdiff_t)index - step)] +
+                            component[index]);
+    }
+}
+
+/* Quale regola vale per l'indice `i` lungo `axis`. */
+static enum node_rule rule_for(const Decomp *d, int axis, int i) {
+    if (i > 0) {
+        return NODE_AVERAGE;
+    }
+    if (!d->is_first[axis]) {
+        return NODE_AVERAGE;   /* i - 1 e' il ghost, riempito dall'halo */
+    }
+    return (d->n[axis] > 1) ? NODE_EXTRAPOLATE : NODE_RAW;
+}
+
+/*
  * 1. STANDARD ASCII OUTPUT
  * Plain and human-readable format inside the <DataArray format="ascii"> tag.
  * Ideal for debugging, quick verification, or small grid sizes.
@@ -75,13 +131,20 @@ void write_vti_ascii(const Decomp *d,
     fprintf(fp, "        <DataArray type=\"%s\" Name=\"velocity\" NumberOfComponents=\"3\" format=\"ascii\">\n          ", VTK_REAL_TYPE);
     written = 0;
     for (int k = 0; k < d->n[2]; k++) {
+        enum node_rule rule_z = rule_for(d, 2, k);
         for (int j = 0; j < d->n[1]; j++) {
+            enum node_rule rule_y = rule_for(d, 1, j);
             size_t row = decomp_index(d, 0, j, k);
             for (int i = 0; i < d->n[0]; i++) {
+                enum node_rule rule_x = rule_for(d, 0, i);
                 size_t index = row + (size_t)i;
-                fprintf(fp, "%g %g %g ", solver_mem_state->u.v_x[index],
-                                         solver_mem_state->u.v_y[index],
-                                         solver_mem_state->u.v_z[index]);
+                fprintf(fp, "%g %g %g ",
+                        node_value(solver_mem_state->u.v_x, index,
+                                   (ptrdiff_t)d->stride[0], rule_x),
+                        node_value(solver_mem_state->u.v_y, index,
+                                   (ptrdiff_t)d->stride[1], rule_y),
+                        node_value(solver_mem_state->u.v_z, index,
+                                   (ptrdiff_t)d->stride[2], rule_z));
                 if (++written % 8 == 0) fprintf(fp, "\n          ");
             }
         }
@@ -124,7 +187,54 @@ void write_vti_ascii(const Decomp *d,
  */
 #define CHUNK_SIZE 1024
 
-/* Interleave three component arrays into the appended data block. */
+/*
+ * Interleave three component arrays into the appended data block, riportando
+ * ogni componente dal proprio punto staggered al nodo centrato.
+ */
+static void write_velocity_block(FILE *fp,
+                                 const Decomp *d,
+                                 const Real *restrict cx,
+                                 const Real *restrict cy,
+                                 const Real *restrict cz) {
+    Real vec_buf[3 * CHUNK_SIZE];
+    size_t filled = 0;
+    ptrdiff_t step_x = (ptrdiff_t)d->stride[0];
+    ptrdiff_t step_y = (ptrdiff_t)d->stride[1];
+    ptrdiff_t step_z = (ptrdiff_t)d->stride[2];
+
+    for (int k = 0; k < d->n[2]; k++) {
+        enum node_rule rule_z = rule_for(d, 2, k);
+
+        for (int j = 0; j < d->n[1]; j++) {
+            enum node_rule rule_y = rule_for(d, 1, j);
+            size_t row = decomp_index(d, 0, j, k);
+
+            for (int i = 0; i < d->n[0]; i++) {
+                enum node_rule rule_x = rule_for(d, 0, i);
+                size_t index = row + (size_t)i;
+
+                vec_buf[3 * filled + 0] = node_value(cx, index, step_x, rule_x);
+                vec_buf[3 * filled + 1] = node_value(cy, index, step_y, rule_y);
+                vec_buf[3 * filled + 2] = node_value(cz, index, step_z, rule_z);
+
+                if (++filled == CHUNK_SIZE) {
+                    fwrite(vec_buf, sizeof(Real), 3 * filled, fp);
+                    filled = 0;
+                }
+            }
+        }
+    }
+
+    if (filled > 0) {
+        fwrite(vec_buf, sizeof(Real), 3 * filled, fp);
+    }
+}
+
+/*
+ * La permeabilita' e' staggered come la velocita', ma resta grezza: e' una
+ * proprieta' del materiale, spesso un indicatore netto di ostacolo, e mediarla
+ * ne sfumerebbe il bordo.  Meglio mezza cella di scarto che un contorno finto.
+ */
 static void write_vector_block(FILE *fp,
                                const Decomp *d,
                                const Real *restrict cx,
@@ -208,8 +318,8 @@ void write_vti_binary(const Decomp *d,
 
     // 2. Write binary velocity: block size header + chunked SoA -> AoS interleaving
     fwrite(&bytes_u, sizeof(uint64_t), 1, fp);
-    write_vector_block(fp, d, solver_mem_state->u.v_x,
-                       solver_mem_state->u.v_y, solver_mem_state->u.v_z);
+    write_velocity_block(fp, d, solver_mem_state->u.v_x,
+                         solver_mem_state->u.v_y, solver_mem_state->u.v_z);
 
     // 3. Write permeability: block size header + chunked SoA -> AoS
     fwrite(&bytes_k, sizeof(uint64_t), 1, fp);
