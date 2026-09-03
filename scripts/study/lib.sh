@@ -159,15 +159,31 @@ study_machine()
 {
     STUDY_SOCKETS=$(lscpu | awk -F: '/^Socket\(s\)/ {gsub(/ /,"",$2); print $2}')
     STUDY_PER_SOCKET=$(lscpu | awk -F: '/^Core\(s\) per socket/ {gsub(/ /,"",$2); print $2}')
-    : "${STUDY_SOCKETS:=1}" "${STUDY_PER_SOCKET:=$(nproc)}"
+    : "${STUDY_SOCKETS:=1}" "${STUDY_PER_SOCKET:=1}"
+
+    # Quante CPU ha il nodo, e quante ne ha date a noi. Non sono la stessa
+    # cosa e distinguerle e' tutto:
+    #
+    #   nproc --all      le CPU del nodo, sempre, qualunque cosa ci abbiano dato
+    #   NCPUS            quelle che PBS ha assegnato a questo job
+    #   nproc            NON e' affidabile qui: rispetta OMP_NUM_THREADS, che
+    #                    PBS imposta al numero di CPU del chunk, e su un nodo
+    #                    da 112 CPU con 7 assegnate rispondeva 7 -- numero
+    #                    giusto per caso e per il motivo sbagliato.
+    #   Cpus_allowed     su questo cluster vale 0-111 anche quando le CPU
+    #                    concesse sono 7: la maschera di affinita' non e'
+    #                    ristretta, quindi da sola non dice se il nodo e' nostro.
+    local node_logical="$(nproc --all)"
+    STUDY_LOGICAL="${NCPUS:-$node_logical}"
     STUDY_PHYSICAL=$(( STUDY_SOCKETS * STUDY_PER_SOCKET ))
-    STUDY_LOGICAL=$(nproc)
+    [[ "$STUDY_LOGICAL" -lt "$STUDY_PHYSICAL" ]] && STUDY_PHYSICAL="$STUDY_LOGICAL"
 
     echo "=== macchina ==="
-    printf 'nodo:          %s\n' "$(hostname)"
+    printf 'nodo:          %s\n' "$(hostname -s)"
     printf 'socket:        %s\n' "$STUDY_SOCKETS"
-    printf 'core fisici:   %s\n' "$STUDY_PHYSICAL"
-    printf 'cpu logiche:   %s\n' "$STUDY_LOGICAL"
+    printf 'cpu del nodo:  %s logiche, %s core fisici\n' \
+        "$node_logical" "$(( STUDY_SOCKETS * STUDY_PER_SOCKET ))"
+    printf 'cpu concesse:  %s\n' "$STUDY_LOGICAL"
     printf 'nodi NUMA:     %s\n' \
         "$(find /sys/devices/system/node -maxdepth 1 -name 'node[0-9]*' 2>/dev/null | wc -l)"
     printf 'memoria:       %s\n' "$(awk '/MemTotal/ {printf "%.0f GB", $2/1048576}' /proc/meminfo)"
@@ -178,18 +194,16 @@ study_machine()
     # Il nodo e' davvero tutto nostro? Su questo cluster la risposta e' stata
     # no due volte su tre, e le misure raccolte in quei casi erano inservibili
     # senza che niente nell'output lo dicesse.
-    local allowed
-    allowed="$(awk '/Cpus_allowed_list/ {print $2}' /proc/self/status)"
-    printf 'cpu concesse:  %s' "$allowed"
-    if [[ "$allowed" == "0-$(( STUDY_LOGICAL - 1 ))" ]]; then
-        printf '   (nodo intero)\n'
+    if [[ "$STUDY_LOGICAL" -ge "$node_logical" ]]; then
         STUDY_EXCLUSIVE=1
+        printf 'esclusivo:     si\n'
     else
         STUDY_EXCLUSIVE=0
-        printf '\n\n  ATTENZIONE: non hai tutto il nodo. Le misure che seguono\n'
-        printf '  sono contaminate dai job dei vicini e non vanno usate.\n'
+        printf '\n  ATTENZIONE: hai %s CPU su %s. Le misure che seguono sono\n' \
+            "$STUDY_LOGICAL" "$node_logical"
+        printf '  contaminate dai job dei vicini e non vanno usate per i tempi.\n'
         printf '  Serve:  qsub -q scalability -l select=1:ncpus=%s\n\n' \
-            "$STUDY_LOGICAL"
+            "$node_logical"
     fi
     echo
 }

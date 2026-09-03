@@ -83,7 +83,7 @@ fi
 
 echo "=== via 1: componenti di lancio disponibili ==="
 if command -v ompi_info > /dev/null; then
-    plm="$(ompi_info --param plm all 2>/dev/null | awk -F: '/MCA plm:/ {print $3}' | tr -d ' ' | sort -u | paste -sd, -)"
+    plm="$(ompi_info 2>/dev/null | grep -i 'MCA plm' | sed 's/.*MCA plm: *//;s/ .*//' | sort -u | paste -sd, -)"
     echo "  plm: $plm"
     case "$plm" in
         *tm*) printf '  plm tm c\x27e\x27: PBS puo\x27 avviare i processi da solo.\n' ;;
@@ -91,6 +91,23 @@ if command -v ompi_info > /dev/null; then
     esac
 else
     echo "  ompi_info non disponibile"
+fi
+echo
+
+# L'Open MPI di sistema quasi mai e' compilato col supporto PBS. Se il sito ne
+# ha un altro a moduli, spesso quello ce l'ha, e sarebbe l'unica delle quattro
+# vie che si apre senza passare dagli amministratori.
+echo "=== via 1b: esiste un altro MPI, con plm tm dentro? ==="
+if [[ -r /etc/profile.d/modules.sh ]]; then
+    # `module' e' una funzione di shell: in uno script non interattivo va
+    # caricata a mano, altrimenti "command not found" e sembra che non ci sia.
+    source /etc/profile.d/modules.sh 2> /dev/null || true
+fi
+if command -v module > /dev/null 2>&1 || declare -F module > /dev/null; then
+    module avail 2>&1 | grep -i -E "mpi|mpich|intel" | sed 's/^/  /' | head -20
+    echo "  (per ciascuno:  module load <nome> && ompi_info | grep 'MCA plm')"
+else
+    echo "  nessun sistema di moduli visibile"
 fi
 echo
 
@@ -110,7 +127,10 @@ echo
 echo "=== via 3: pbs_tmrsh ==="
 tm_ok=0
 if command -v pbs_tmrsh > /dev/null; then
-    other="$(sort -u "$PBS_NODEFILE" | grep -v "^$(hostname)$" | head -1)"
+    # `hostname' qui e' il FQDN (cpu02.mate.polimi.it) mentre il nodefile ha i
+    # nomi corti: confrontarli senza normalizzare sceglieva il nodo LOCALE, e
+    # un pbs_tmrsh verso se stessi riesce sempre senza dimostrare niente.
+    other="$(sort -u "$PBS_NODEFILE" | grep -vx "$(hostname -s)" | head -1)"
     if [[ -n "$other" ]] && timeout 30 pbs_tmrsh "$other" true 2>&1 | tee "$STUDY_OUT/tmrsh.log"; then
         echo "  pbs_tmrsh verso $other: ok"
         tm_ok=1
@@ -122,17 +142,54 @@ else
 fi
 echo
 
-# La prova che conta: un mpirun banale che deve solo stampare i nomi degli host.
+# La prova che conta: un mpirun banale che deve solo stampare i nomi degli host,
+# e che va tentato in tutti i modi in cui questo Open MPI puo' avviare processi
+# altrove. Il default e' ssh; ma quando `plm tm' non e' compilato dentro e ssh
+# fra i compute e' chiuso, resta la terza via -- dire a Open MPI di usare
+# pbs_tmrsh come agente remoto al posto di ssh. E' PBS stesso ad avviare il
+# processo, quindi non serve nessuna chiave.
 echo "=== prova di lancio ==="
 launch_ok=0
-if timeout 120 "${MPIRUN:-mpirun}" --hostfile "$PBS_NODEFILE" --map-by node \
-        -n "$nodes" hostname > "$STUDY_OUT/launch.log" 2>&1; then
-    sort -u "$STUDY_OUT/launch.log" | sed 's/^/  /'
+launch_opts=""
+
+try_launch()
+{
+    local nome="$1" opts="$2" log="$STUDY_OUT/launch-${nome// /_}.log"
+
+    printf '  %-28s ' "$nome"
+    if ! timeout 120 "${MPIRUN:-mpirun}" --hostfile "$PBS_NODEFILE" \
+            --map-by node $opts -n "$nodes" hostname > "$log" 2>&1; then
+        echo "fallito"
+        return 1
+    fi
+    # Riuscire non basta: se tutti i rank sono finiti sullo stesso nodo, il
+    # lancio "funziona" e non sta attraversando niente.
+    local distinct
+    distinct="$(sort -u "$log" | grep -c "^cpu\|^gpu" || true)"
+    if [[ "$distinct" -lt 2 ]]; then
+        echo "riuscito ma su un nodo solo"
+        return 1
+    fi
+    echo "ok, $distinct nodi"
+    return 0
+}
+
+if try_launch "ssh (default)" ""; then
     launch_ok=1
-    echo "  il lancio multi-nodo funziona"
-else
-    echo "  fallito:"
-    sed 's/^/    /' "$STUDY_OUT/launch.log" | head -12
+elif try_launch "pbs_tmrsh" "--mca plm_rsh_agent pbs_tmrsh"; then
+    launch_ok=1
+    launch_opts="--mca plm_rsh_agent pbs_tmrsh"
+elif [[ -n "$(command -v pbs_tmrsh || true)" ]] && \
+     try_launch "pbs_tmrsh (percorso pieno)" \
+                "--mca plm_rsh_agent $(command -v pbs_tmrsh)"; then
+    launch_ok=1
+    launch_opts="--mca plm_rsh_agent $(command -v pbs_tmrsh)"
+fi
+
+if [[ "$launch_ok" -eq 1 ]]; then
+    echo "  nodi raggiunti:"
+    sort -u "$STUDY_OUT"/launch-*.log 2>/dev/null | grep "^cpu\|^gpu" | sed 's/^/    /'
+    [[ -n "$launch_opts" ]] && echo "  serve:  mpirun $launch_opts"
 fi
 echo
 
@@ -158,7 +215,7 @@ echo "    (coda 'cpu', nodi non esclusivi: i tempi sono indicativi, le norme no)
 
 # Il piazzamento di questa fase non e' quello delle altre: un rank per nodo,
 # scelto dall'hostfile che PBS ha scritto.
-export PLACEMENT_OVERRIDE="--hostfile $PBS_NODEFILE --map-by node --bind-to none"
+export PLACEMENT_OVERRIDE="--hostfile $PBS_NODEFILE --map-by node --bind-to none $launch_opts"
 CASE_GRID="$GRID"
 CASE_STEPS="$STEPS"
 CASE_SIMD=1
