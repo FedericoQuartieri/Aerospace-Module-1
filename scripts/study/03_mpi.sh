@@ -2,7 +2,7 @@
 #PBS -N nsb-03-mpi
 #PBS -q scalability
 #PBS -l select=1:ncpus=112
-#PBS -l walltime=06:00:00
+#PBS -l walltime=00:30:00
 #PBS -j oe
 #
 # Fase 3 -- i processi da soli: un thread per rank, dominio diviso davvero.
@@ -51,7 +51,7 @@ CASE_THREADS=1
 CASE_OMP=0
 CASE_MPI=1
 CASE_REPEATS="${REPEATS:-2}"
-CASE_TIMEOUT="${CASE_TIMEOUT:-2400}"
+CASE_TIMEOUT="${CASE_TIMEOUT:-900}"
 
 for n in $GRIDS; do
     steps="${STEPS:-10}"

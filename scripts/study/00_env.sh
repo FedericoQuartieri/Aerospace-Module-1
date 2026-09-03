@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #PBS -N nsb-00-env
-#PBS -q scalability
-#PBS -l select=1:ncpus=112
-#PBS -l walltime=00:40:00
+#PBS -q cpu
+#PBS -l select=1:ncpus=28
+#PBS -l walltime=02:00:00
 #PBS -j oe
 #
 # Fase 0 -- la macchina, i binari, e la sola cosa che rende sensato tutto il
@@ -23,12 +23,25 @@
 # varianti che le fasi successive useranno, cosi' un errore di compilazione
 # esce adesso e non a meta' della notte.
 #
+# Coda `cpu' e non `scalability', al contrario di tutte le fasi che misurano.
+# Qui non si cronometra niente: si confrontano cifre, e le cifre non cambiano
+# se il nodo ha altri job addosso o se i processi sono in sovrannumero rispetto
+# alle CPU concesse. In cambio si prende il walltime lungo, e le fasi che
+# misurano non restano in coda dietro a questa per il nodo esclusivo.
+#
 #   qsub scripts/study/00_env.sh
 #   ./scripts/study/00_env.sh          in locale, per provare
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/lib.sh"
 
 cd "${PBS_O_WORKDIR:-$STUDY_ROOT}"
+
+# La 00 non si ri-sottomette da sola: le altre fasi dipendono dalla sua
+# riuscita con -W depend=afterok, e devono partire quando ha finito davvero.
+# Se il budget non le basta, il messaggio in fondo dice di rilanciarla.
+STUDY_CHAINABLE=0
+STUDY_BUDGET="${STUDY_BUDGET:-6000}"
+
 study_begin 00_env
 study_machine
 
@@ -98,7 +111,7 @@ CASE_GRID="${GRID:-64 64 64}"
 CASE_STEPS="${STEPS:-5}"
 CASE_REPEATS=1
 CASE_NORMS=1
-CASE_TIMEOUT="${CASE_TIMEOUT:-300}"
+CASE_TIMEOUT="${CASE_TIMEOUT:-900}"
 RANKS="${RANKS:-1 2 4 8}"
 THREADS="${THREADS:-1 4}"
 SIMD_MODES="${SIMD_MODES:-0 1}"

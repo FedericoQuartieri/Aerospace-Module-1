@@ -2,7 +2,7 @@
 #PBS -N nsb-07-weak
 #PBS -q scalability
 #PBS -l select=1:ncpus=112
-#PBS -l walltime=06:00:00
+#PBS -l walltime=00:30:00
 #PBS -j oe
 #
 # Fase 7 -- weak scaling: il lavoro per unita' di calcolo resta lo stesso e
@@ -41,7 +41,7 @@ CASE_SIMD=1
 CASE_MPI=1
 CASE_STEPS="$STEPS"
 CASE_REPEATS="${REPEATS:-2}"
-CASE_TIMEOUT="${CASE_TIMEOUT:-2400}"
+CASE_TIMEOUT="${CASE_TIMEOUT:-900}"
 
 # La griglia globale di n unita' e' il blocco per unita' moltiplicato per la
 # forma: cosi' ogni processo riceve esattamente PER_RANK^3 celle, che e' la

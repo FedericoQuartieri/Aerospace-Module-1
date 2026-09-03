@@ -24,6 +24,14 @@
 #   binari in cache   compilare e' l'unica cosa che non si vuole ripetere: una
 #                variante (backend, simd, omp, mpi, batch) si costruisce una
 #                volta e resta in build/study/bin.
+#
+#   budget       la coda `scalability' concede 30 minuti per job
+#                (resources_max.walltime = 00:30:00) e lo studio ne vuole molte
+#                di piu'. Ogni fase lavora quindi a budget: quando il tempo
+#                utile e' finito smette PRIMA di essere uccisa -- cosi' il caso
+#                in corso non viene troncato a meta' -- e si ri-sottomette da
+#                sola per continuare. Un walltime scaduto non perde niente e
+#                non richiede nessun intervento.
 
 set -euo pipefail
 
@@ -51,6 +59,20 @@ study_begin()
     STUDY_CASES=0
     STUDY_SKIPPED=0
     STUDY_FAILED=0
+    STUDY_PENDING=0
+    STUDY_OUT_OF_TIME=0
+    # Lavoro utile per job. Il resto del walltime serve alla compilazione, al
+    # riepilogo e al margine per chiudere il caso in corso senza essere uccisi
+    # nel mezzo: una misura troncata dal walltime non finisce nel CSV, e il
+    # tempo speso a produrla e' perso.
+    STUDY_BUDGET="${STUDY_BUDGET:-1500}"
+    STUDY_CHAIN="${STUDY_CHAIN:-1}"
+    STUDY_CHAIN_MAX="${STUDY_CHAIN_MAX:-80}"
+    # Le fasi che si ri-sottomettono da sole. La 00 e la 09 no: la prima
+    # perche' le altre dipendono dalla sua riuscita e devono partire quando ha
+    # finito davvero, la seconda perche' o funziona in un minuto o non
+    # funziona affatto.
+    STUDY_CHAINABLE="${STUDY_CHAINABLE:-1}"
 
     mkdir -p "$STUDY_OUT" "$STUDY_BIN"
 
@@ -69,6 +91,8 @@ study_begin()
     echo "fase $STUDY_PHASE -- $(date '+%Y-%m-%d %H:%M:%S')"
     echo "==============================================================="
     echo "risultati: $STUDY_CSV"
+    printf 'budget:    %d min di lavoro utile (job %d della catena)\n' \
+        $(( STUDY_BUDGET / 60 )) "$STUDY_CHAIN"
     [[ "${DRY_RUN:-0}" == "1" ]] && echo "DRY_RUN=1: elenco i casi, non eseguo"
     echo
 }
@@ -85,6 +109,46 @@ study_end()
         $(( elapsed / 3600 )) $(( elapsed % 3600 / 60 )) $(( elapsed % 60 ))
     echo "csv: $STUDY_CSV"
     echo "log: $STUDY_LOG"
+
+    if [[ "$STUDY_OUT_OF_TIME" -eq 0 ]]; then
+        [[ "${DRY_RUN:-0}" == "1" ]] || echo "la fase e' completa."
+        return 0
+    fi
+
+    printf 'restano %d casi: il budget di questo job e\x27 finito.\n' \
+        "$STUDY_PENDING"
+    study_resubmit
+}
+
+# Continuare da soli, invece di chiedere a qualcuno di ri-sottomettere ogni
+# mezz'ora. Il numero della catena viaggia con il job e la limita: se qualcosa
+# va storto in modo ripetibile, lo studio si ferma da solo invece di riempire
+# la coda.
+study_resubmit()
+{
+    local script="$STUDY_ROOT/scripts/study/$STUDY_PHASE.sh"
+
+    if [[ "${AUTO_RESUBMIT:-$STUDY_CHAINABLE}" != "1" ]]; then
+        echo "ri-sottomissione disattivata: rilancia con  qsub $script"
+        return 0
+    fi
+    if [[ "$STUDY_CHAIN" -ge "$STUDY_CHAIN_MAX" ]]; then
+        echo "catena arrivata a $STUDY_CHAIN job: mi fermo qui per prudenza."
+        echo "se e' normale, rilancia con  STUDY_CHAIN=1 qsub $script"
+        return 0
+    fi
+    if ! command -v qsub > /dev/null || [[ -z "${PBS_JOBID:-}" ]]; then
+        echo "fuori da PBS: rilancia con  ./scripts/study/$STUDY_PHASE.sh"
+        return 0
+    fi
+
+    local next
+    if next="$(qsub -V -v "STUDY_CHAIN=$(( STUDY_CHAIN + 1 ))" "$script" 2>&1)"; then
+        echo "continua nel job $next"
+    else
+        echo "ri-sottomissione fallita: $next"
+        echo "rilancia a mano con  qsub $script"
+    fi
 }
 
 # ------------------------------------------------------------------ macchina
@@ -286,6 +350,19 @@ study_case()
         return 0
     fi
 
+    # Il tempo che resta decide se questo caso si comincia. Cominciarne uno che
+    # non fa in tempo a finire vuol dire farsi uccidere dal walltime nel mezzo:
+    # la misura non finisce nel CSV e il tempo e' buttato.
+    local remaining=$(( STUDY_BUDGET - ( $(date +%s) - STUDY_STARTED ) ))
+    if [[ "${DRY_RUN:-0}" != "1" && "$remaining" -lt "${CASE_MIN_TIME:-90}" ]]; then
+        if [[ "$STUDY_OUT_OF_TIME" -eq 0 ]]; then
+            printf '  budget finito: i casi che restano vanno al prossimo job\n'
+            STUDY_OUT_OF_TIME=1
+        fi
+        STUDY_PENDING=$(( STUDY_PENDING + 1 ))
+        return 0
+    fi
+
     printf '  %-34s ' "$label"
 
     if [[ "${DRY_RUN:-0}" == "1" ]]; then
@@ -318,6 +395,11 @@ study_case()
     local repeat out line wall
     started="$(date +%s)"
 
+    # Nessun caso puo' durare piu' del budget che resta: oltre quello lo
+    # ucciderebbe comunque il walltime, e senza lasciare traccia.
+    local case_timeout="${CASE_TIMEOUT:-1500}"
+    [[ "$remaining" -lt "$case_timeout" ]] && case_timeout="$remaining"
+
     # Un binario senza MPI non si lancia con mpirun: si esegue e basta,
     # inchiodato a un core solo perche' il caso seriale e' un riferimento e
     # non deve migrare fra i socket a meta' misura.
@@ -347,7 +429,7 @@ study_case()
                OMP_PLACES="${OMP_PLACES:-cores}" \
                OMP_PROC_BIND="$STUDY_OMP_BIND" \
                BENCH_NORMS="$norms" \
-               timeout --kill-after=30 "${CASE_TIMEOUT:-1800}" \
+               timeout --kill-after=30 "$case_timeout" \
                "${command[@]}" 2>&1)"
         local code=$?
         set -e

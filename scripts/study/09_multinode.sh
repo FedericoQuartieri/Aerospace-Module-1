@@ -40,6 +40,12 @@
 source "$(dirname -- "${BASH_SOURCE[0]}")/lib.sh"
 
 cd "${PBS_O_WORKDIR:-$STUDY_ROOT}"
+
+# La 09 non si ri-sottomette da sola: o le tre vie sono aperte e misura in
+# pochi minuti, o sono chiuse ed esce subito. Ripetere non cambierebbe niente.
+STUDY_CHAINABLE=0
+STUDY_BUDGET="${STUDY_BUDGET:-3000}"
+
 study_begin 09_multinode
 study_machine
 

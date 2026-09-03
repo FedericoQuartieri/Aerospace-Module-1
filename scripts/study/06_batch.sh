@@ -2,7 +2,7 @@
 #PBS -N nsb-06-batch
 #PBS -q scalability
 #PBS -l select=1:ncpus=112
-#PBS -l walltime=06:00:00
+#PBS -l walltime=00:30:00
 #PBS -j oe
 #
 # Fase 6 -- PIPELINE_BATCH_LINES, l'unica manopola della pipeline, mai misurata.
@@ -52,7 +52,7 @@ CASE_SIMD=1
 CASE_GRID="$GRID"
 CASE_STEPS="$STEPS"
 CASE_REPEATS="${REPEATS:-2}"
-CASE_TIMEOUT="${CASE_TIMEOUT:-2400}"
+CASE_TIMEOUT="${CASE_TIMEOUT:-900}"
 
 for ranks in $RANKS; do
     shape="$(study_auto_shape "$ranks")"
