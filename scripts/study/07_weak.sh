@@ -27,9 +27,20 @@
 #   qsub scripts/study/07_weak.sh
 #   PER_RANK=96 qsub scripts/study/07_weak.sh
 
-source "$(dirname -- "${BASH_SOURCE[0]}")/lib.sh"
+# PBS non esegue questo file dove sta: ne mette una COPIA nella propria
+# directory di spool e lancia quella. $BASH_SOURCE punta li', quindi non dice
+# niente su dove sia il repo -- a dirlo e' PBS_O_WORKDIR, la directory da cui
+# si e' fatto qsub. Cercare lib.sh accanto allo script funziona da riga di
+# comando e fallisce dentro un job, prima ancora che esista un log in cui
+# vederlo.
+cd "${PBS_O_WORKDIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)}" || exit 1
 
-cd "${PBS_O_WORKDIR:-$STUDY_ROOT}"
+if [[ ! -f scripts/study/lib.sh ]]; then
+    echo "qsub va fatto dalla radice del repo; qui sono in $PWD" >&2
+    exit 1
+fi
+
+source scripts/study/lib.sh
 study_begin 07_weak
 study_machine
 
