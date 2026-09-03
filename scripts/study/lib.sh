@@ -248,6 +248,7 @@ study_placement()
     : "${STUDY_SOCKETS:=1}" "${STUDY_LOGICAL:=$(nproc)}"
     STUDY_MPI_OPTS=()
     STUDY_OMP_BIND="close"
+    STUDY_OMP_WAIT="active"
     STUDY_NOTE=""
 
     if [[ "$ranks" -eq 1 ]]; then
@@ -276,6 +277,12 @@ study_placement()
         # con gli altri, e la nota nel CSV lo dice.
         STUDY_MPI_OPTS=(--oversubscribe --bind-to none)
         STUDY_NOTE="${STUDY_NOTE:+$STUDY_NOTE; }in sovrannumero, senza binding"
+        # Con piu' thread che core, l'attesa attiva di OpenMP brucia i core
+        # contendendoli a chi sta lavorando: un caso in sovrannumero puo'
+        # rallentare di ordini di grandezza invece che linearmente. `passive'
+        # li fa dormire. Vale solo qui: dove la misura conta, l'attesa attiva
+        # e' quella giusta.
+        STUDY_OMP_WAIT="passive"
     fi
 
     # Una fase che sa meglio come vanno piazzati i processi -- il multi-nodo,
@@ -414,7 +421,7 @@ study_case()
     else
         command=("${MPIRUN:-mpirun}" "${STUDY_MPI_OPTS[@]}"
                  -x OMP_NUM_THREADS -x OMP_PLACES -x OMP_PROC_BIND
-                 -x BENCH_NORMS
+                 -x OMP_WAIT_POLICY -x BENCH_NORMS
                  -n "$ranks")
         # Il wrapper sta fra mpirun e l'eseguibile: e' ogni rank a doverne
         # ereditare i vincoli, non il lanciatore.
@@ -428,6 +435,7 @@ study_case()
         out="$(OMP_NUM_THREADS="$threads" \
                OMP_PLACES="${OMP_PLACES:-cores}" \
                OMP_PROC_BIND="$STUDY_OMP_BIND" \
+               OMP_WAIT_POLICY="$STUDY_OMP_WAIT" \
                BENCH_NORMS="$norms" \
                timeout --kill-after=30 "$case_timeout" \
                "${command[@]}" 2>&1)"
