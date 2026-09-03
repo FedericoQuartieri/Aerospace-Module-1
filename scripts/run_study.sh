@@ -8,6 +8,7 @@
 #   ./scripts/run_study.sh dry             elenca i casi senza eseguirli
 #   ./scripts/run_study.sh merge           unisce i CSV e disegna i grafici
 #   ./scripts/run_study.sh status          a che punto sono le fasi
+#   ./scripts/run_study.sh probe           cosa concede ogni coda, misurato
 #
 # La fase 00 va sempre per prima e da sola: verifica che tutte le varianti
 # diano la stessa risposta -- se non e' cosi', i tempi delle altre fasi
@@ -91,6 +92,7 @@ submit)
     done
 
     first=""
+    rejected=0
     for phase in "${phases[@]}"; do
         script="$phases_dir/$phase.sh"
         deps=()
@@ -99,11 +101,25 @@ submit)
         if [[ "$phase" != 00_env && -n "$first" ]]; then
             deps=(-W "depend=afterok:$first")
         fi
-        id="$(qsub "${qsub_opts[@]}" "${deps[@]}" "$script")"
+        # Un rifiuto di PBS riguarda una fase sola -- di solito una risorsa
+        # che quella coda non concede -- e non e' un motivo per non sottomettere
+        # le altre. Prima si fermava qui, e sembrava che fosse fallito tutto.
+        if ! id="$(qsub "${qsub_opts[@]}" "${deps[@]}" "$script" 2>&1)"; then
+            printf '  %-14s RIFIUTATO: %s\n' "$phase" "$(head -1 <<< "$id")"
+            rejected=$(( rejected + 1 ))
+            continue
+        fi
         printf '  %-14s %s\n' "$phase" "$id"
         [[ "$phase" == 00_env ]] && first="$id"
     done
     echo
+    if [[ "$rejected" -gt 0 ]]; then
+        echo "  $rejected fasi rifiutate da PBS. Quasi sempre e' il walltime o"
+        echo "  le CPU chieste: ./scripts/run_study.sh probe  dice cosa concede"
+        echo "  ogni coda, e le direttive #PBS in testa allo script si possono"
+        echo "  scavalcare da riga di comando (qsub -l walltime=... script)."
+        echo
+    fi
     echo "  qstat -u \"\$USER\"    per seguirle"
     echo "  i risultati arrivano in build/study/<fase>/results.csv"
     ;;
@@ -146,6 +162,46 @@ merge)
     if [[ -x "$root/scripts/plot_study.py" ]]; then
         "$root/scripts/plot_study.py" "$out"
     fi
+    ;;
+
+probe)
+    # Cosa concede davvero ogni coda, misurato invece che dedotto: si
+    # sottomettono job minuscoli e si guarda quale viene accettato. Quelli che
+    # passano vengono cancellati subito -- non devono girare, solo essere
+    # accettati.
+    command -v qsub > /dev/null || { echo "qsub non c'e'" >&2; exit 1; }
+    for queue in ${QUEUES:-scalability cpu}; do
+        echo "coda $queue"
+        printf '  cpu per job:  '
+        found=""
+        for n in 112 56 28 14 7 1; do
+            if id="$(echo /bin/true | qsub -q "$queue" -l "select=1:ncpus=$n" \
+                     -l walltime=00:05:00 -N probe 2>&1)"; then
+                found="$n"
+                qdel "$id" > /dev/null 2>&1 || true
+                break
+            fi
+        done
+        if [[ -n "$found" ]]; then
+            echo "select=1:ncpus=$found accettato"
+        else
+            echo "nemmeno 1 cpu accettata -- $(head -1 <<< "${id:-}")"
+            continue
+        fi
+        printf '  walltime:     '
+        for w in 48:00:00 24:00:00 08:00:00 02:00:00 00:30:00 00:10:00; do
+            if id="$(echo /bin/true | qsub -q "$queue" -l "select=1:ncpus=$found" \
+                     -l "walltime=$w" -N probe 2>&1)"; then
+                echo "$w accettato"
+                qdel "$id" > /dev/null 2>&1 || true
+                break
+            fi
+        done
+    done
+    echo
+    echo "  Le fasi che misurano vogliono il nodo intero: se la coda esclusiva"
+    echo "  concede meno CPU di quelle del nodo, la domanda centrale dello"
+    echo "  studio (56 core spesi in modi diversi) non si puo' porre."
     ;;
 
 status)

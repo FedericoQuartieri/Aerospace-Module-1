@@ -68,6 +68,7 @@ echo
 
 echo "=== compilazione delle varianti ==="
 build_failures=0
+verdict=0
 for backend in schur pipeline; do
     for simd in 0 1; do
         for omp in 0 1; do
@@ -100,8 +101,9 @@ echo
 
 if [[ "$build_failures" -gt 0 ]]; then
     echo "  $build_failures varianti non compilano: le fasi successive"
-    echo "  lasceranno righe con status=build."
+    echo "  lascerebbero righe con status=build. Meglio fermarsi qui."
     echo
+    verdict=2
 fi
 
 # ----------------------------------------------------------------- coerenza
@@ -185,8 +187,20 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
             }
             printf "\n  Finche\x27 questo non torna, i tempi delle altre fasi\n"
             printf "  confrontano programmi diversi. Non proseguire.\n"
+            exit 3
         }
-    }' "$STUDY_CSV"
+    }' "$STUDY_CSV" || verdict=$?
 fi
 
 study_end
+
+# L'uscita non e' un dettaglio: le altre fasi sono sottomesse con
+# `-W depend=afterok', quindi PBS le lascia partire solo se questa finisce
+# bene. Un verdetto negativo che uscisse con 0 farebbe partire lo studio sopra
+# a un solutore che non da' la stessa risposta, ed e' esattamente il caso in
+# cui non deve partire.
+if [[ "$verdict" -ne 0 ]]; then
+    echo
+    echo "esco con $verdict: le fasi che dipendono da questa non partiranno."
+fi
+exit "$verdict"
