@@ -2,7 +2,7 @@
 #PBS -N nsb-02-threads
 #PBS -q scalability
 #PBS -l select=1:ncpus=112
-#PBS -l walltime=04:00:00
+#PBS -l walltime=00:30:00
 #PBS -j oe
 #
 # Fase 2 -- i thread da soli: un processo, niente dominio diviso.
@@ -53,7 +53,7 @@ CASE_SIMD=1
 CASE_OMP=1
 CASE_MPI=1
 CASE_REPEATS="${REPEATS:-2}"
-CASE_TIMEOUT="${CASE_TIMEOUT:-2400}"
+CASE_TIMEOUT="${CASE_TIMEOUT:-900}"
 
 for n in $GRIDS; do
     steps="${STEPS:-10}"

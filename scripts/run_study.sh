@@ -17,6 +17,13 @@
 # ognuna chiede un nodo intero, quindi PBS non le mettera' mai sulla stessa
 # macchina a disturbarsi.
 #
+# La coda `scalability' concede 30 minuti per job (resources_max.walltime =
+# 00:30:00) e lo studio ne vuole molte di piu'. Non serve fare niente: ogni
+# fase lavora a budget, smette prima di essere uccisa e si ri-sottomette da
+# sola finche' non ha finito. `status' dice a che punto e'. Sottomettere di
+# nuovo una fase gia' in corso non fa danni -- i casi gia' misurati vengono
+# saltati -- quindi `submit' vale anche come "continua".
+#
 # Variabili utili, passate cosi':
 #
 #   GRIDS=128 REPEATS=1 ./scripts/run_study.sh submit 03
@@ -27,6 +34,9 @@
 # chi preferisce, ma i valori non possono contenere spazi.
 #
 #   FRESH=1     ricomincia da capo invece di riprendere
+#   STUDY_BUDGET=1500  secondi di lavoro utile per job: 25 dei 30 minuti
+#               concessi, il resto e' margine per chiudere il caso in corso
+#   AUTO_RESUBMIT=0    non ri-sottomettersi, fermarsi a budget finito
 #   DRY_RUN=1   elenca i casi e non esegue niente
 #   REPEATS     ripetizioni per caso (default 2, si tiene la migliore)
 #   STEPS       passi temporali per caso

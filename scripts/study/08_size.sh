@@ -2,7 +2,7 @@
 #PBS -N nsb-08-size
 #PBS -q scalability
 #PBS -l select=1:ncpus=112
-#PBS -l walltime=06:00:00
+#PBS -l walltime=00:30:00
 #PBS -j oe
 #
 # Fase 8 -- la taglia del problema, a risorse fisse.
@@ -46,7 +46,7 @@ CASE_SIMD=1
 CASE_MPI=1
 CASE_STEPS="$STEPS"
 CASE_REPEATS="${REPEATS:-2}"
-CASE_TIMEOUT="${CASE_TIMEOUT:-3000}"
+CASE_TIMEOUT="${CASE_TIMEOUT:-900}"
 
 full="$STUDY_PHYSICAL"
 shape_full="$(study_auto_shape "$full")"

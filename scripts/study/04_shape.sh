@@ -2,7 +2,7 @@
 #PBS -N nsb-04-shape
 #PBS -q scalability
 #PBS -l select=1:ncpus=112
-#PBS -l walltime=04:00:00
+#PBS -l walltime=00:30:00
 #PBS -j oe
 #
 # Fase 4 -- quale asse viene diviso, a parita' di tutto il resto.
@@ -49,7 +49,7 @@ CASE_SIMD=1
 CASE_GRID="$GRID"
 CASE_STEPS="$STEPS"
 CASE_REPEATS="${REPEATS:-2}"
-CASE_TIMEOUT="${CASE_TIMEOUT:-2400}"
+CASE_TIMEOUT="${CASE_TIMEOUT:-900}"
 
 # Per ogni conteggio di rank: i tre casi degeneri (un asse solo diviso, uno per
 # asse) piu' le disposizioni intermedie. I degeneri isolano l'effetto di un

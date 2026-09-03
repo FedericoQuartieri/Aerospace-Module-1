@@ -2,7 +2,7 @@
 #PBS -N nsb-01-ceiling
 #PBS -q scalability
 #PBS -l select=1:ncpus=112
-#PBS -l walltime=02:00:00
+#PBS -l walltime=00:30:00
 #PBS -j oe
 #
 # Fase 1 -- i tetti, e il costo di ogni pezzo della build a un core solo.
@@ -116,7 +116,7 @@ echo
 # ------------------------------------------------- costo dei quattro flag a 1
 
 CASE_REPEATS="${REPEATS:-3}"
-CASE_TIMEOUT="${CASE_TIMEOUT:-1800}"
+CASE_TIMEOUT="${CASE_TIMEOUT:-900}"
 CASE_RANKS=1
 CASE_THREADS=1
 

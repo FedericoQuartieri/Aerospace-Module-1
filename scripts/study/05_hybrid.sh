@@ -2,7 +2,7 @@
 #PBS -N nsb-05-hybrid
 #PBS -q scalability
 #PBS -l select=1:ncpus=112
-#PBS -l walltime=08:00:00
+#PBS -l walltime=00:30:00
 #PBS -j oe
 #
 # Fase 5 -- gli stessi core, spesi in processi o in thread.
@@ -48,7 +48,7 @@ PRODUCTS="${PRODUCTS:-28 56 112}"
 CASE_SIMD=1
 CASE_OMP=1
 CASE_MPI=1
-CASE_TIMEOUT="${CASE_TIMEOUT:-3600}"
+CASE_TIMEOUT="${CASE_TIMEOUT:-900}"
 
 # rank x thread per ogni prodotto. Sono tutte le fattorizzazioni sensate: le
 # estremita' e tutto quello che c'e' in mezzo, perche' e' proprio il centro
