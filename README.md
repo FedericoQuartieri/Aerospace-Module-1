@@ -154,6 +154,32 @@ that are not split, so comparing with them enabled measures two things at once.
 
 ![Scaling](docs/scaling/scaling.svg)
 
+### The full study
+
+`scripts/study/` holds a ten-phase study that varies the three kinds of
+parallelism together -- which backend solves a split line, how many processes,
+how many threads -- and the parameters of each: the shape of the process grid,
+`PIPELINE_BATCH_LINES`, `SIMD`, the grid size.  Every phase is a separate PBS
+job that asks one question and appends to a CSV with the same 33 columns, so
+the results concatenate.
+
+```sh
+./scripts/run_study.sh submit          # every phase, with its dependencies
+./scripts/run_study.sh submit 03 05    # only some
+./scripts/run_study.sh status          # how far along they are
+./scripts/run_study.sh merge           # merge the CSVs, draw the figures
+```
+
+Results resume: a phase writes one row at a time and skips what it already
+did, so a job killed by the walltime is re-submitted rather than restarted.
+`STUDY.md` describes what each phase asks and what would falsify its
+prediction.
+
+The measurements run `test/bench.c`, which is the only binary that reads the
+grid from a configuration file *and* takes the shape of the process grid on the
+command line: which axis gets split is a variable of the study rather than
+whatever `MPI_Dims_create` chose.
+
 ## Solver structure
 
 `solver_init` allocates the numerical fields and initializes them through the
