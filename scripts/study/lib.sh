@@ -143,7 +143,9 @@ study_resubmit()
     fi
 
     local next
-    if next="$(qsub -V -v "STUDY_CHAIN=$(( STUDY_CHAIN + 1 ))" "$script" 2>&1)"; then
+    mkdir -p "$STUDY_BASE/pbs"
+    if next="$(qsub -V -o "$STUDY_BASE/pbs/" \
+                    -v "STUDY_CHAIN=$(( STUDY_CHAIN + 1 ))" "$script" 2>&1)"; then
         echo "continua nel job $next"
     else
         echo "ri-sottomissione fallita: $next"

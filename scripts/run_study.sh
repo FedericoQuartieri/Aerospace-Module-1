@@ -85,7 +85,12 @@ submit)
     # -V passa tutto l'ambiente al job. PBS ha anche -v con una lista di
     # coppie, ma non sopravvive ai valori con spazi, e GRIDS="128 256" ne ha.
     # Cosi' basta esportare prima:  GRIDS=128 ./scripts/run_study.sh submit
-    qsub_opts=(-V)
+    # Su questo sito il file .o<jobid> di PBS non arriva ne' nella directory di
+    # sottomissione ne' nella home. Dirgli dove metterlo e' l'unico modo di
+    # vedere un job che muore PRIMA di aprire il proprio log -- che e'
+    # esattamente quando serve vederlo.
+    mkdir -p "$root/build/study/pbs"
+    qsub_opts=(-V -o "$root/build/study/pbs/")
     [[ -n "${WALLTIME:-}" ]] && qsub_opts+=(-l "walltime=$WALLTIME")
     for pair in ${STUDY_ENV:-}; do
         export "${pair?}"
