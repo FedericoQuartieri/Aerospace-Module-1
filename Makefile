@@ -5,6 +5,7 @@ SIMD ?= 0
 MPI ?= 0
 OMP ?= 0
 TRIDIAG ?= schur
+OMP_SPLIT ?= auto
 PIPELINE_BATCH_LINES ?= 64
 ZETA_SIMD_VECTORS ?= 4
 U_SIMD_VECTORS ?= 8
@@ -42,6 +43,14 @@ endif
 # what the shared solver is allowed to know.
 override CPPFLAGS += -Isrc/tridiag/$(TRIDIAG)
 
+VALID_OMP_SPLITS = auto planes lines serial
+ifneq ($(words $(OMP_SPLIT)),1)
+$(error OMP_SPLIT must contain exactly one value)
+endif
+ifeq ($(filter $(OMP_SPLIT),$(VALID_OMP_SPLITS)),)
+$(error OMP_SPLIT must be one of: $(VALID_OMP_SPLITS))
+endif
+
 # Build with MPI=1 to compile against MPI and run with mpirun.
 ifeq ($(MPI),1)
 CC = mpicc
@@ -54,6 +63,36 @@ endif
 ifeq ($(OMP),1)
 CFLAGS += -fopenmp
 override CPPFLAGS += -DUSE_OMP
+endif
+
+# Benchmark-only override for comparing the two OpenMP work-sharing layouts.
+# The forced builds deliberately exclude MPI and SIMD so both executables run
+# the same scalar kernels over the same complete, local lines.  Only the schur
+# backend reads the policy: the pipeline one has its own loop structure, so a
+# forced split there would compile and measure nothing.
+ifneq ($(OMP_SPLIT),auto)
+ifneq ($(OMP),1)
+$(error OMP_SPLIT=$(OMP_SPLIT) requires OMP=1)
+endif
+ifneq ($(MPI),0)
+$(error OMP_SPLIT=$(OMP_SPLIT) requires MPI=0)
+endif
+ifneq ($(SIMD),0)
+$(error OMP_SPLIT=$(OMP_SPLIT) requires SIMD=0)
+endif
+ifneq ($(TRIDIAG),schur)
+$(error OMP_SPLIT=$(OMP_SPLIT) requires TRIDIAG=schur)
+endif
+endif
+
+ifeq ($(OMP_SPLIT),planes)
+override CPPFLAGS += -DWORKERS_LINE_POLICY=WORKERS_LINE_POLICY_PLANES
+endif
+ifeq ($(OMP_SPLIT),lines)
+override CPPFLAGS += -DWORKERS_LINE_POLICY=WORKERS_LINE_POLICY_LINES
+endif
+ifeq ($(OMP_SPLIT),serial)
+override CPPFLAGS += -DWORKERS_LINE_POLICY=WORKERS_LINE_POLICY_SERIAL
 endif
 
 ifeq ($(SIMD),1)
