@@ -135,6 +135,60 @@ void pressure_plans_free(SchurPlan plan[3]) {
  * chiama tre volte. La matrice sta gia' in `plan`, qui si scrive il termine
  * noto e si raccoglie la risposta.
  */
+/*
+ * Il contesto di una linea di pressione. Stessa ragione della gemella in
+ * momentum.c: il corpo e' percorso da due strutture di cicli diverse, e
+ * ripeterlo in due punti sarebbe il modo piu' facile per farle divergere.
+ */
+typedef struct {
+    const Decomp *d;
+    const Real *source;
+    Real *target;
+    int axis;
+    int group;
+    int outer;
+    int length;
+    size_t step;
+} PressureLines;
+
+/* Raccoglie il termine noto di UNA linea, dal campo alla forma di lavoro. */
+static void pressure_gather_line(const PressureLines *pl, int b, int a,
+                                 Real *restrict known) {
+    const Real *restrict source = pl->source;
+    const int length = pl->length;
+    int cell[3];
+
+    cell[pl->outer] = b;
+    cell[pl->group] = a;
+    cell[pl->axis] = 0;
+
+    size_t start = decomp_index(pl->d, cell[0], cell[1], cell[2]);
+    size_t line = (size_t)a * (size_t)length;
+
+    for (int t = 0; t < length; t++) {
+        known[line + (size_t)t] = source[start + (size_t)t * pl->step];
+    }
+}
+
+/* Riporta la soluzione di UNA linea nel campo di arrivo. */
+static void pressure_scatter_line(const PressureLines *pl, int b, int a,
+                                  const Real *restrict answer) {
+    Real *restrict target = pl->target;
+    const int length = pl->length;
+    int cell[3];
+
+    cell[pl->outer] = b;
+    cell[pl->group] = a;
+    cell[pl->axis] = 0;
+
+    size_t start = decomp_index(pl->d, cell[0], cell[1], cell[2]);
+    size_t line = (size_t)a * (size_t)length;
+
+    for (int t = 0; t < length; t++) {
+        target[start + (size_t)t * pl->step] = answer[line + (size_t)t];
+    }
+}
+
 static void pressure_direction(const Decomp *restrict d,
                                const SchurPlan *plan,
                                const Real *restrict source,
@@ -155,45 +209,60 @@ static void pressure_direction(const Decomp *restrict d,
     const int slots = workers_slots(whole_axis, planes);
     const bool split_lines = (slots < 2) && workers_many();
 
+    const PressureLines pl = {
+        .d = d,
+        .source = source,
+        .target = target,
+        .axis = axis,
+        .group = group,
+        .outer = outer,
+        .length = length,
+        .step = step,
+    };
+
     Real *pool = xmalloc((size_t)slots * 2 * line_room * sizeof(Real));
 
-    WORKERS_PARALLEL_FOR(slots > 1)
-    for (int b = 0; b < planes; b++) {
-        Real *slot = pool + (size_t)workers_slot(slots) * 2 * line_room;
-        Real *restrict known = slot;
-        Real *restrict answer = slot + line_room;
+    if (split_lines) {
+        /* Un team solo per l'intera direzione invece di due per piano: la
+         * stessa correzione di momentum.c, per la stessa ragione misurata. */
+        Real *restrict known = pool;
+        Real *restrict answer = pool + line_room;
 
-        WORKERS_PARALLEL_FOR(split_lines)
-        for (int a = 0; a < lines; a++) {
-            int cell[3];
+        WORKERS_PARALLEL(true)
+        {
+            for (int b = 0; b < planes; b++) {
+                WORKERS_FOR
+                for (int a = 0; a < lines; a++) {
+                    pressure_gather_line(&pl, b, a, known);
+                }
 
-            cell[outer] = b;
-            cell[group] = a;
-            cell[axis] = 0;
+                WORKERS_MASTER
+                schur_plan_solve(plan, lines, known, answer);
 
-            size_t start = decomp_index(d, cell[0], cell[1], cell[2]);
-            size_t line = (size_t)a * (size_t)length;
+                /* WORKERS_MASTER non ha barriera propria. */
+                WORKERS_BARRIER
 
-            for (int t = 0; t < length; t++) {
-                known[line + (size_t)t] = source[start + (size_t)t * step];
+                WORKERS_FOR
+                for (int a = 0; a < lines; a++) {
+                    pressure_scatter_line(&pl, b, a, answer);
+                }
             }
         }
+    } else {
+        WORKERS_PARALLEL_FOR(slots > 1)
+        for (int b = 0; b < planes; b++) {
+            Real *slot = pool + (size_t)workers_slot(slots) * 2 * line_room;
+            Real *restrict known = slot;
+            Real *restrict answer = slot + line_room;
 
-        schur_plan_solve(plan, lines, known, answer);
+            for (int a = 0; a < lines; a++) {
+                pressure_gather_line(&pl, b, a, known);
+            }
 
-        WORKERS_PARALLEL_FOR(split_lines)
-        for (int a = 0; a < lines; a++) {
-            int cell[3];
+            schur_plan_solve(plan, lines, known, answer);
 
-            cell[outer] = b;
-            cell[group] = a;
-            cell[axis] = 0;
-
-            size_t start = decomp_index(d, cell[0], cell[1], cell[2]);
-            size_t line = (size_t)a * (size_t)length;
-
-            for (int t = 0; t < length; t++) {
-                target[start + (size_t)t * step] = answer[line + (size_t)t];
+            for (int a = 0; a < lines; a++) {
+                pressure_scatter_line(&pl, b, a, answer);
             }
         }
     }

@@ -20,6 +20,137 @@
  * spezzate. Le linee di uno stesso gruppo vengono risolte insieme, cosi' il
  * gruppo costa una comunicazione invece di una per linea.
  */
+/*
+ * Il contesto di una linea: quello che il corpo del ciclo deve sapere e che
+ * non cambia da una linea all'altra.
+ *
+ * Serve perche' lo stesso corpo e' ora percorso da due strutture di cicli
+ * diverse -- una che sparisce i piani fra i thread, una che sparisce le linee
+ * dentro il piano -- e ripetere quindici argomenti in due punti sarebbe il
+ * modo piu' facile per farle divergere senza accorgersene.
+ */
+typedef struct {
+    const Decomp *d;
+    SolverMemState *solver_mem_state;
+    Data *data;
+    const Real *k_porosity;
+    const Real *source;
+    Real *target;
+    Real inverse_square;
+    bool same_direction;
+    int t_step;
+    int v_comp;
+    int axis;
+    int group;
+    int outer;
+    int length;
+    int last_global;
+    size_t step;
+} MomentumLines;
+
+/*
+ * Scrive nelle tre diagonali e nel termine noto il sistema di UNA linea.
+ *
+ * I puntatori caldi vengono ripresi in locale con `restrict': attraverso la
+ * struttura il compilatore perderebbe la garanzia di non aliasing che aveva
+ * quando il corpo stava dentro al ciclo, e con essa la vettorizzazione.
+ */
+static void momentum_assemble_line(const MomentumLines *ml, int b, int a,
+                                   Real *restrict lower,
+                                   Real *restrict diagonal,
+                                   Real *restrict upper,
+                                   Real *restrict known) {
+    const Decomp *restrict d = ml->d;
+    const Real *restrict k_porosity = ml->k_porosity;
+    const Real *restrict source = ml->source;
+    const Real *restrict target = ml->target;
+    const int axis = ml->axis;
+    const int length = ml->length;
+    int cell[3];
+
+    cell[ml->outer] = b;
+    cell[ml->group] = a;
+    cell[axis] = 0;
+
+    size_t start = decomp_index(d, cell[0], cell[1], cell[2]);
+    size_t line = (size_t)a * (size_t)length;
+
+    for (int t = 0; t < length; t++) {
+        cell[axis] = t;
+
+        int gi = decomp_global(d, cell[0], 0);
+        int gj = decomp_global(d, cell[1], 1);
+        int gk = decomp_global(d, cell[2], 2);
+        int along = decomp_global(d, t, axis);
+
+        size_t here = start + (size_t)t * ml->step;
+        size_t at = line + (size_t)t;
+        Real k_i = k_porosity[here];
+        Real w_i = -gamma_from_k(k_i) * ml->inverse_square;
+
+        if (along == 0) {
+            /* Parete inferiore del dominio: valore imposto. */
+            lower[at] = 0.0;
+            diagonal[at] = 1.0;
+            upper[at] = 0.0;
+            known[at] = bc_left(ml->data->bc_velocity, gi, gj, gk,
+                                ml->t_step, ml->v_comp);
+            continue;
+        }
+
+        Real rhs = source[here] - target[here];
+
+        /* Solo il primo passo porta il termine fisico g. */
+        if (axis == 0) {
+            rhs += (DT / beta_from_k(k_i)) *
+                   g_value(d, cell[0], cell[1], cell[2], ml->t_step, k_i,
+                           ml->solver_mem_state, ml->data, ml->v_comp);
+        }
+
+        if (along < ml->last_global) {
+            lower[at] = w_i;
+            diagonal[at] = 1.0 - 2.0 * w_i;
+            upper[at] = w_i;
+            known[at] = rhs;
+        } else if (ml->same_direction) {
+            lower[at] = 0.0;
+            diagonal[at] = 1.0;
+            upper[at] = 0.0;
+            known[at] = bc_right(ml->data->bc_velocity, gi, gj, gk,
+                                 ml->t_step, ml->v_comp);
+        } else {
+            /* Parete superiore, componente tangente: nodo fantasma
+             * eliminato con la condizione al contorno. */
+            Real right_value = bc_right(ml->data->bc_velocity, gi, gj, gk,
+                                        ml->t_step, ml->v_comp);
+            lower[at] = w_i;
+            diagonal[at] = 1.0 - 3.0 * w_i;
+            upper[at] = 0.0;
+            known[at] = rhs - 2.0 * w_i * right_value;
+        }
+    }
+}
+
+/* Somma al campo di arrivo il riporto di UNA linea. */
+static void momentum_writeback_line(const MomentumLines *ml, int b, int a,
+                                    const Real *restrict increment) {
+    const Decomp *restrict d = ml->d;
+    Real *restrict target = ml->target;
+    const int length = ml->length;
+    int cell[3];
+
+    cell[ml->outer] = b;
+    cell[ml->group] = a;
+    cell[ml->axis] = 0;
+
+    size_t start = decomp_index(d, cell[0], cell[1], cell[2]);
+    size_t line = (size_t)a * (size_t)length;
+
+    for (int t = 0; t < length; t++) {
+        target[start + (size_t)t * ml->step] += increment[line + (size_t)t];
+    }
+}
+
 static void momentum_direction(const Decomp *d,
                                SolverMemState *solver_mem_state,
                                Data *data, int t_step, int v_comp, int axis) {
@@ -93,100 +224,101 @@ static void momentum_direction(const Decomp *d,
     const int slots = workers_slots(whole_axis, planes);
     const bool split_lines = (slots < 2) && workers_many();
 
+    const MomentumLines ml = {
+        .d = d,
+        .solver_mem_state = solver_mem_state,
+        .data = data,
+        .k_porosity = k_porosity,
+        .source = source,
+        .target = target,
+        .inverse_square = inverse_square,
+        .same_direction = same_direction,
+        .t_step = t_step,
+        .v_comp = v_comp,
+        .axis = axis,
+        .group = group,
+        .outer = outer,
+        .length = length,
+        .last_global = last_global,
+        .step = step,
+    };
+
     Real *pool = xmalloc((size_t)slots * 5 * line_room * sizeof(Real));
 
-    WORKERS_PARALLEL_FOR(slots > 1)
-    for (int b = 0; b < planes; b++) {
-        Real *slot = pool + (size_t)workers_slot(slots) * 5 * line_room;
-        Real *restrict lower = slot;
-        Real *restrict diagonal = slot + line_room;
-        Real *restrict upper = slot + 2 * line_room;
-        Real *restrict known = slot + 3 * line_room;
-        Real *restrict increment = slot + 4 * line_room;
+    if (split_lines) {
+        /*
+         * Asse diviso fra processi. I piani devono andare in fila, perche'
+         * ognuno passa da una collettiva e le collettive vanno nello stesso
+         * ordine su tutti i processi; a spartirsi sono le linee dentro il
+         * piano, dove non si comunica affatto.
+         *
+         * Il team si apre UNA volta, qui fuori dal ciclo sui piani. Prima se
+         * ne apriva uno per ciascuno dei due cicli interni, cioe' due per
+         * piano: a 256^3 con quattro processi facevano circa 4100 aperture
+         * per passo temporale, ed erano quelle il costo dominante -- misurato,
+         * non dedotto. A rank fissi, con lavoro MPI identico riga per riga, il
+         * passo andava da 1295 ms con un thread a 5094 con quattordici.
+         *
+         * Restano tre barriere per piano, ma una barriera dentro un team gia'
+         * vivo e' un'altra cosa dal crearlo e distruggerlo.
+         */
+        Real *restrict lower = pool;
+        Real *restrict diagonal = pool + line_room;
+        Real *restrict upper = pool + 2 * line_room;
+        Real *restrict known = pool + 3 * line_room;
+        Real *restrict increment = pool + 4 * line_room;
 
-        WORKERS_PARALLEL_FOR(split_lines)
-        for (int a = 0; a < lines; a++) {
-            int cell[3];
-
-            cell[outer] = b;
-            cell[group] = a;
-            cell[axis] = 0;
-
-            size_t start = decomp_index(d, cell[0], cell[1], cell[2]);
-            size_t line = (size_t)a * (size_t)length;
-
-            for (int t = 0; t < length; t++) {
-                cell[axis] = t;
-
-                int gi = decomp_global(d, cell[0], 0);
-                int gj = decomp_global(d, cell[1], 1);
-                int gk = decomp_global(d, cell[2], 2);
-                int along = decomp_global(d, t, axis);
-
-                size_t here = start + (size_t)t * step;
-                size_t at = line + (size_t)t;
-                Real k_i = k_porosity[here];
-                Real w_i = -gamma_from_k(k_i) * inverse_square;
-
-                if (along == 0) {
-                    /* Parete inferiore del dominio: valore imposto. */
-                    lower[at] = 0.0;
-                    diagonal[at] = 1.0;
-                    upper[at] = 0.0;
-                    known[at] = bc_left(data->bc_velocity, gi, gj, gk,
-                                        t_step, v_comp);
-                    continue;
+        WORKERS_PARALLEL(true)
+        {
+            for (int b = 0; b < planes; b++) {
+                WORKERS_FOR
+                for (int a = 0; a < lines; a++) {
+                    momentum_assemble_line(&ml, b, a,
+                                           lower, diagonal, upper, known);
                 }
+                /* Barriera implicita di WORKERS_FOR: il sistema e' completo. */
 
-                Real rhs = source[here] - target[here];
+                WORKERS_MASTER
+                schur_solve_mpi(axis, lines, length,
+                                lower, diagonal, upper, known, increment);
 
-                /* Solo il primo passo porta il termine fisico g. */
-                if (axis == 0) {
-                    rhs += (DT / beta_from_k(k_i)) *
-                           g_value(d, cell[0], cell[1], cell[2], t_step, k_i,
-                                   solver_mem_state, data, v_comp);
-                }
+                /* WORKERS_MASTER non ha barriera propria: senza questa gli
+                 * altri thread leggerebbero `increment' mentre il master lo
+                 * sta ancora scrivendo. */
+                WORKERS_BARRIER
 
-                if (along < last_global) {
-                    lower[at] = w_i;
-                    diagonal[at] = 1.0 - 2.0 * w_i;
-                    upper[at] = w_i;
-                    known[at] = rhs;
-                } else if (same_direction) {
-                    lower[at] = 0.0;
-                    diagonal[at] = 1.0;
-                    upper[at] = 0.0;
-                    known[at] = bc_right(data->bc_velocity, gi, gj, gk,
-                                         t_step, v_comp);
-                } else {
-                    /* Parete superiore, componente tangente: nodo fantasma
-                     * eliminato con la condizione al contorno. */
-                    Real right_value = bc_right(data->bc_velocity, gi, gj, gk,
-                                                t_step, v_comp);
-                    lower[at] = w_i;
-                    diagonal[at] = 1.0 - 3.0 * w_i;
-                    upper[at] = 0.0;
-                    known[at] = rhs - 2.0 * w_i * right_value;
+                WORKERS_FOR
+                for (int a = 0; a < lines; a++) {
+                    momentum_writeback_line(&ml, b, a, increment);
                 }
             }
         }
+    } else {
+        /*
+         * Asse tutto locale, oppure un thread solo: i piani sono indipendenti
+         * e si spartiscono direttamente, un team per l'intera direzione. Qui
+         * ogni thread ha bisogno dei propri array di lavoro, ed e' per questo
+         * che il pool ha piu' di uno slot. Questa strada non cambia.
+         */
+        WORKERS_PARALLEL_FOR(slots > 1)
+        for (int b = 0; b < planes; b++) {
+            Real *slot = pool + (size_t)workers_slot(slots) * 5 * line_room;
+            Real *restrict lower = slot;
+            Real *restrict diagonal = slot + line_room;
+            Real *restrict upper = slot + 2 * line_room;
+            Real *restrict known = slot + 3 * line_room;
+            Real *restrict increment = slot + 4 * line_room;
 
-        schur_solve_mpi(axis, lines, length,
-                        lower, diagonal, upper, known, increment);
+            for (int a = 0; a < lines; a++) {
+                momentum_assemble_line(&ml, b, a,
+                                       lower, diagonal, upper, known);
+            }
 
-        WORKERS_PARALLEL_FOR(split_lines)
-        for (int a = 0; a < lines; a++) {
-            int cell[3];
+            schur_solve_mpi(axis, lines, length,
+                            lower, diagonal, upper, known, increment);
 
-            cell[outer] = b;
-            cell[group] = a;
-            cell[axis] = 0;
-
-            size_t start = decomp_index(d, cell[0], cell[1], cell[2]);
-            size_t line = (size_t)a * (size_t)length;
-
-            for (int t = 0; t < length; t++) {
-                target[start + (size_t)t * step] += increment[line + (size_t)t];
+            for (int a = 0; a < lines; a++) {
+                momentum_writeback_line(&ml, b, a, increment);
             }
         }
     }
