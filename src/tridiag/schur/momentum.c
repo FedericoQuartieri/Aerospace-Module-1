@@ -23,6 +23,82 @@
  * spezzate. Le linee di uno stesso gruppo vengono risolte insieme, cosi' il
  * gruppo costa una comunicazione invece di una per linea.
  */
+/*
+ * Il contesto di una linea: quello che il corpo del ciclo deve sapere e che non
+ * cambia da una linea all'altra.
+ *
+ * Serve perche' lo stesso corpo e' ora percorso da due strutture di cicli
+ * diverse -- una che sparisce i piani fra i thread, una che sparisce le linee
+ * dentro il piano -- e ripetere gli stessi argomenti in due punti sarebbe il
+ * modo piu' facile per farle divergere senza accorgersene.
+ *
+ * La fisica non e' qui dentro: sta in `mline`, cioe' in momentum_row.h, che e'
+ * condiviso con l'altro backend. Questa struttura porta solo la geometria.
+ */
+typedef struct {
+    const MomentumLine *mline;
+    const Decomp *d;
+    Real *target;
+    int axis;
+    int group;
+    int outer;
+    int length;
+    size_t step;
+} MomentumLines;
+
+/* Scrive nelle tre diagonali e nel termine noto il sistema di UNA linea. */
+static void momentum_assemble_line(const MomentumLines *ml, int b, int a,
+                                   Real *restrict lower,
+                                   Real *restrict diagonal,
+                                   Real *restrict upper,
+                                   Real *restrict known) {
+    const Decomp *restrict d = ml->d;
+    const int axis = ml->axis;
+    const int length = ml->length;
+    int cell[3];
+
+    cell[ml->outer] = b;
+    cell[ml->group] = a;
+    cell[axis] = 0;
+
+    size_t start = decomp_index(d, cell[0], cell[1], cell[2]);
+    size_t line = (size_t)a * (size_t)length;
+
+    for (int t = 0; t < length; t++) {
+        cell[axis] = t;
+
+        size_t here = start + (size_t)t * ml->step;
+        size_t at = line + (size_t)t;
+        MomentumRow row = momentum_row(ml->mline, cell, here);
+
+        lower[at] = row.a;
+        diagonal[at] = row.b;
+        upper[at] = row.c;
+        known[at] = row.f;
+    }
+}
+
+/* Somma al campo di arrivo il riporto di UNA linea. */
+static void momentum_writeback_line(const MomentumLines *ml, int b, int a,
+                                    const Real *restrict increment) {
+    const Decomp *restrict d = ml->d;
+    Real *restrict target = ml->target;
+    const int axis = ml->axis;
+    const int length = ml->length;
+    int cell[3];
+
+    cell[ml->outer] = b;
+    cell[ml->group] = a;
+    cell[axis] = 0;
+
+    size_t start = decomp_index(d, cell[0], cell[1], cell[2]);
+    size_t line = (size_t)a * (size_t)length;
+
+    for (int t = 0; t < length; t++) {
+        target[start + (size_t)t * ml->step] += increment[line + (size_t)t];
+    }
+}
+
 static void momentum_direction(const Decomp *d,
                                SolverMemState *solver_mem_state,
                                Data *data, int t_step, int v_comp, int axis) {
@@ -73,58 +149,93 @@ static void momentum_direction(const Decomp *d,
     const int slots = workers_slots(whole_axis, planes);
     const bool split_lines = (slots < 2) && workers_many();
 
+    const MomentumLines ml = {
+        .mline = &mline,
+        .d = d,
+        .target = target,
+        .axis = axis,
+        .group = group,
+        .outer = outer,
+        .length = length,
+        .step = step,
+    };
+
     Real *pool = xmalloc((size_t)slots * 5 * line_room * sizeof(Real));
 
-    WORKERS_PARALLEL_FOR(slots > 1)
-    for (int b = 0; b < planes; b++) {
-        Real *slot = pool + (size_t)workers_slot(slots) * 5 * line_room;
-        Real *restrict lower = slot;
-        Real *restrict diagonal = slot + line_room;
-        Real *restrict upper = slot + 2 * line_room;
-        Real *restrict known = slot + 3 * line_room;
-        Real *restrict increment = slot + 4 * line_room;
+    if (split_lines) {
+        /*
+         * Asse diviso fra processi. I piani devono andare in fila, perche'
+         * ognuno passa da una collettiva e le collettive vanno nello stesso
+         * ordine su tutti i processi; a spartirsi sono le linee dentro il
+         * piano, dove non si comunica affatto.
+         *
+         * Il team si apre UNA volta, qui fuori dal ciclo sui piani. Prima se
+         * ne apriva uno per ciascuno dei due cicli interni, cioe' due per
+         * piano: a 256^3 con quattro processi facevano circa 4100 aperture
+         * per passo temporale, ed erano quelle il costo dominante -- misurato,
+         * non dedotto. A rank fissi, con lavoro MPI identico riga per riga, il
+         * passo andava da 1295 ms con un thread a 5094 con quattordici.
+         *
+         * Restano tre barriere per piano, ma una barriera dentro un team gia'
+         * vivo e' un'altra cosa dal crearlo e distruggerlo.
+         */
+        Real *restrict lower = pool;
+        Real *restrict diagonal = pool + line_room;
+        Real *restrict upper = pool + 2 * line_room;
+        Real *restrict known = pool + 3 * line_room;
+        Real *restrict increment = pool + 4 * line_room;
 
-        WORKERS_PARALLEL_FOR(split_lines)
-        for (int a = 0; a < lines; a++) {
-            int cell[3];
+        WORKERS_PARALLEL(true)
+        {
+            for (int b = 0; b < planes; b++) {
+                WORKERS_FOR
+                for (int a = 0; a < lines; a++) {
+                    momentum_assemble_line(&ml, b, a,
+                                           lower, diagonal, upper, known);
+                }
+                /* Barriera implicita di WORKERS_FOR: il sistema e' completo. */
 
-            cell[outer] = b;
-            cell[group] = a;
-            cell[axis] = 0;
+                WORKERS_MASTER
+                schur_solve_mpi(axis, lines, length,
+                                lower, diagonal, upper, known, increment);
 
-            size_t start = decomp_index(d, cell[0], cell[1], cell[2]);
-            size_t line = (size_t)a * (size_t)length;
+                /* WORKERS_MASTER non ha barriera propria: senza questa gli
+                 * altri thread leggerebbero `increment' mentre il master lo
+                 * sta ancora scrivendo. */
+                WORKERS_BARRIER
 
-            for (int t = 0; t < length; t++) {
-                cell[axis] = t;
-
-                size_t here = start + (size_t)t * step;
-                size_t at = line + (size_t)t;
-                MomentumRow row = momentum_row(&mline, cell, here);
-
-                lower[at] = row.a;
-                diagonal[at] = row.b;
-                upper[at] = row.c;
-                known[at] = row.f;
+                WORKERS_FOR
+                for (int a = 0; a < lines; a++) {
+                    momentum_writeback_line(&ml, b, a, increment);
+                }
             }
         }
+    } else {
+        /*
+         * Asse tutto locale, oppure un thread solo: i piani sono indipendenti
+         * e si spartiscono direttamente, un team per l'intera direzione. Qui
+         * ogni thread ha bisogno dei propri array di lavoro, ed e' per questo
+         * che il pool ha piu' di uno slot.
+         */
+        WORKERS_PARALLEL_FOR(slots > 1)
+        for (int b = 0; b < planes; b++) {
+            Real *slot = pool + (size_t)workers_slot(slots) * 5 * line_room;
+            Real *restrict lower = slot;
+            Real *restrict diagonal = slot + line_room;
+            Real *restrict upper = slot + 2 * line_room;
+            Real *restrict known = slot + 3 * line_room;
+            Real *restrict increment = slot + 4 * line_room;
 
-        schur_solve_mpi(axis, lines, length,
-                        lower, diagonal, upper, known, increment);
+            for (int a = 0; a < lines; a++) {
+                momentum_assemble_line(&ml, b, a,
+                                       lower, diagonal, upper, known);
+            }
 
-        WORKERS_PARALLEL_FOR(split_lines)
-        for (int a = 0; a < lines; a++) {
-            int cell[3];
+            schur_solve_mpi(axis, lines, length,
+                            lower, diagonal, upper, known, increment);
 
-            cell[outer] = b;
-            cell[group] = a;
-            cell[axis] = 0;
-
-            size_t start = decomp_index(d, cell[0], cell[1], cell[2]);
-            size_t line = (size_t)a * (size_t)length;
-
-            for (int t = 0; t < length; t++) {
-                target[start + (size_t)t * step] += increment[line + (size_t)t];
+            for (int a = 0; a < lines; a++) {
+                momentum_writeback_line(&ml, b, a, increment);
             }
         }
     }
