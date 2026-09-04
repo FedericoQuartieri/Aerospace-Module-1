@@ -65,6 +65,11 @@ study_begin()
 
     if [[ "${FRESH:-0}" == "1" ]]; then
         rm -f "$STUDY_CSV" "$STUDY_KEYS" "$STUDY_OUT/chain.count"
+        echo "FRESH=1: ricomincio da capo, i risultati precedenti sono cancellati"
+        # E soltanto per questo job: la ri-sottomissione passa l'ambiente con
+        # `qsub -V', e un FRESH ereditato farebbe cancellare a ogni anello
+        # della catena quello che l'anello prima ha appena misurato.
+        export FRESH=0
     fi
 
     # Lavoro utile per job. Il resto del walltime serve alla compilazione, al
