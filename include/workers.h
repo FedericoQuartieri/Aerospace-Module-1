@@ -4,6 +4,48 @@
 #include <stdbool.h>
 
 /*
+ * Politica usata dai solver a linee. AUTO e' il comportamento normale;
+ * PLANES, LINES e SERIAL esistono soltanto per confrontare le due strutture
+ * di cicli (e il controllo senza entrambe) a parita' di problema, con un
+ * processo e senza i kernel SIMD.
+ *
+ * I valori simbolici permettono di compilare, per esempio, con
+ *   -DWORKERS_LINE_POLICY=WORKERS_LINE_POLICY_LINES
+ * senza lasciare numeri magici negli script di misura.
+ */
+/* Si parte da 1: nel preprocessore un identificatore sconosciuto vale 0,
+ * quindi un nome scritto male deve cadere nel controllo qui sotto. */
+#define WORKERS_LINE_POLICY_AUTO   1
+#define WORKERS_LINE_POLICY_PLANES 2
+#define WORKERS_LINE_POLICY_LINES  3
+#define WORKERS_LINE_POLICY_SERIAL 4
+
+#ifndef WORKERS_LINE_POLICY
+#define WORKERS_LINE_POLICY WORKERS_LINE_POLICY_AUTO
+#endif
+
+#if WORKERS_LINE_POLICY != WORKERS_LINE_POLICY_AUTO && \
+    WORKERS_LINE_POLICY != WORKERS_LINE_POLICY_PLANES && \
+    WORKERS_LINE_POLICY != WORKERS_LINE_POLICY_LINES && \
+    WORKERS_LINE_POLICY != WORKERS_LINE_POLICY_SERIAL
+#error "WORKERS_LINE_POLICY must be AUTO, PLANES, LINES or SERIAL"
+#endif
+
+/* Una politica forzata e' un esperimento locale, non una modalita' del
+ * solutore distribuito. PLANES non e' sicuro quando una direzione attraversa
+ * piu' rank; SIMD, invece, scavalcherebbe questa scelta lungo Y e Z e renderebbe
+ * il confronto incompleto. */
+#if WORKERS_LINE_POLICY != WORKERS_LINE_POLICY_AUTO && !defined(USE_OMP)
+#error "a forced WORKERS_LINE_POLICY requires USE_OMP"
+#endif
+#if WORKERS_LINE_POLICY != WORKERS_LINE_POLICY_AUTO && defined(USE_MPI)
+#error "a forced WORKERS_LINE_POLICY is only valid without USE_MPI"
+#endif
+#if WORKERS_LINE_POLICY != WORKERS_LINE_POLICY_AUTO && defined(USE_SIMD)
+#error "a forced WORKERS_LINE_POLICY is only valid without USE_SIMD"
+#endif
+
+/*
  * I thread di calcolo, e il poco che serve per non doverli nominare ovunque.
  *
  * Il parallelismo a memoria condivisa di questo solutore ha una sola forma:
@@ -115,6 +157,58 @@ static inline int workers_slots(int allowed, int items) {
     }
     workers = workers_available();
     return workers < items ? workers : items;
+}
+
+/*
+ * Le due cose non possono essere scelte separatamente: spartendo i piani
+ * serve uno scratch slot per ciascun thread attivo; spartendo le linee tutti
+ * lavorano su porzioni disgiunte di un solo slot condiviso.
+ */
+typedef struct {
+    int slots;
+    bool split_lines;
+} WorkersLineSchedule;
+
+static inline WorkersLineSchedule workers_line_schedule(bool planes_allowed,
+                                                         int planes) {
+    WorkersLineSchedule schedule;
+
+#if WORKERS_LINE_POLICY == WORKERS_LINE_POLICY_PLANES
+    (void)planes_allowed;
+    schedule.slots = workers_slots(true, planes);
+    schedule.split_lines = false;
+#elif WORKERS_LINE_POLICY == WORKERS_LINE_POLICY_LINES
+    (void)planes_allowed;
+    (void)planes;
+    schedule.slots = 1;
+    /* Forza davvero il ramo LINES anche con OMP_NUM_THREADS=1: quel punto e'
+     * il controllo del costo strutturale delle due implementazioni. */
+    schedule.split_lines = true;
+#elif WORKERS_LINE_POLICY == WORKERS_LINE_POLICY_SERIAL
+    (void)planes_allowed;
+    (void)planes;
+    /* Controllo del valore del ramo LINES: il resto del solutore conserva i
+     * thread, ma i solver direzionali percorrono i piani in serie. */
+    schedule.slots = 1;
+    schedule.split_lines = false;
+#else
+    schedule.slots = workers_slots(planes_allowed, planes);
+    schedule.split_lines = (schedule.slots < 2) && workers_many();
+#endif
+
+    return schedule;
+}
+
+static inline const char *workers_line_policy_name(void) {
+#if WORKERS_LINE_POLICY == WORKERS_LINE_POLICY_PLANES
+    return "planes";
+#elif WORKERS_LINE_POLICY == WORKERS_LINE_POLICY_LINES
+    return "lines";
+#elif WORKERS_LINE_POLICY == WORKERS_LINE_POLICY_SERIAL
+    return "serial";
+#else
+    return "auto";
+#endif
 }
 
 /* Lo slot di chi chiama, valido anche fuori da una regione parallela. */

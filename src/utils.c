@@ -128,6 +128,7 @@ void print_stats(const Decomp *d,
     if (report_pipeline_batch_lines() > 0) {
         printf("Pipeline batch lines: %d\n", report_pipeline_batch_lines());
     }
+    printf("Directional policy: %s\n", workers_line_policy_name());
     printf("Time steps: %zu\n", sample_count);
     printf("Solver time stats (max per rank, average per time step):\n");
     printf("  eta system:  %.3f ms (%5.1f%%)\n", eta_avg_ms,
