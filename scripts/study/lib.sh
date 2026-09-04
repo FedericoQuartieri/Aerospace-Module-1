@@ -61,24 +61,30 @@ study_begin()
     STUDY_FAILED=0
     STUDY_PENDING=0
     STUDY_OUT_OF_TIME=0
+    mkdir -p "$STUDY_OUT" "$STUDY_BIN"
+
+    if [[ "${FRESH:-0}" == "1" ]]; then
+        rm -f "$STUDY_CSV" "$STUDY_KEYS" "$STUDY_OUT/chain.count"
+    fi
+
     # Lavoro utile per job. Il resto del walltime serve alla compilazione, al
     # riepilogo e al margine per chiudere il caso in corso senza essere uccisi
     # nel mezzo: una misura troncata dal walltime non finisce nel CSV, e il
     # tempo speso a produrla e' perso.
     STUDY_BUDGET="${STUDY_BUDGET:-1500}"
-    STUDY_CHAIN="${STUDY_CHAIN:-1}"
-    STUDY_CHAIN_MAX="${STUDY_CHAIN_MAX:-80}"
+    # Il numero del job nella catena si tiene in un file, non nell'ambiente:
+    # passandolo con `qsub -v STUDY_CHAIN=n+1' insieme a `-V', quest'ultimo
+    # riesportava il valore vecchio sopra il nuovo e il contatore restava
+    # fermo a 2 per sempre -- quindi il tetto non scattava e la catena non
+    # finiva mai. Un file, letto dopo FRESH, non ha questo problema.
+    STUDY_CHAIN=$(( $(cat "$STUDY_OUT/chain.count" 2> /dev/null || echo 0) + 1 ))
+    echo "$STUDY_CHAIN" > "$STUDY_OUT/chain.count"
+    STUDY_CHAIN_MAX="${STUDY_CHAIN_MAX:-40}"
     # Le fasi che si ri-sottomettono da sole. La 00 e la 09 no: la prima
     # perche' le altre dipendono dalla sua riuscita e devono partire quando ha
     # finito davvero, la seconda perche' o funziona in un minuto o non
     # funziona affatto.
     STUDY_CHAINABLE="${STUDY_CHAINABLE:-1}"
-
-    mkdir -p "$STUDY_OUT" "$STUDY_BIN"
-
-    if [[ "${FRESH:-0}" == "1" ]]; then
-        rm -f "$STUDY_CSV" "$STUDY_KEYS"
-    fi
     [[ -f "$STUDY_CSV" ]] || printf '%s\n' "$STUDY_HEADER" > "$STUDY_CSV"
     touch "$STUDY_KEYS"
 
@@ -117,6 +123,17 @@ study_end()
 
     printf 'restano %d casi: il budget di questo job e\x27 finito.\n' \
         "$STUDY_PENDING"
+
+    # Se questo job non ha concluso nemmeno un caso, il prossimo si
+    # comporterebbe identico: stessa coda, stesso primo caso, stesso esito.
+    # Meglio fermarsi e dirlo che ripetere il ciclo -- e' esattamente cosi'
+    # che due casi in timeout hanno occupato 31 job di fila.
+    if [[ "$STUDY_CASES" -eq 0 && "$STUDY_FAILED" -eq 0 ]]; then
+        echo "questo job non ha concluso nessun caso: mi fermo invece di"
+        echo "ripetere lo stesso ciclo. Guarda il log qui sopra e rilancia"
+        echo "a mano quando sai perche'."
+        return 0
+    fi
     study_resubmit
 }
 
@@ -144,8 +161,7 @@ study_resubmit()
 
     local next
     mkdir -p "$STUDY_BASE/pbs"
-    if next="$(qsub -V -o "$STUDY_BASE/pbs/" \
-                    -v "STUDY_CHAIN=$(( STUDY_CHAIN + 1 ))" "$script" 2>&1)"; then
+    if next="$(qsub -V -o "$STUDY_BASE/pbs/" "$script" 2>&1)"; then
         echo "continua nel job $next"
     else
         echo "ri-sottomissione fallita: $next"
@@ -282,9 +298,18 @@ study_placement()
         STUDY_MPI_OPTS=(--map-by "ppr:$(( ranks / STUDY_SOCKETS )):socket:PE=$threads"
                         --bind-to core)
     else
-        STUDY_MPI_OPTS=(--bind-to none)
-        STUDY_OMP_BIND="spread"
-        STUDY_NOTE="piazzamento non controllato ($ranks rank su $STUDY_SOCKETS socket)"
+        # Un numero di rank che non si divide fra i socket non puo' avere un
+        # gruppo per socket. La risposta NON e' --bind-to none: cosi' ogni
+        # rank vede tutti i core della macchina e ci sparge i suoi thread,
+        # quelli di rank diversi finiscono sugli stessi core e si contendono
+        # a vicenda mentre girano in attesa attiva. Misurato: 7x4 sulla
+        # pipeline dava 4708 ms con il 93% del tempo dentro MPI, e le due
+        # configurazioni schur corrispondenti non finivano affatto.
+        #
+        # `slot:PE=n' da' a ciascun rank n core distinti qualunque sia il
+        # numero di rank: si perde la localita' NUMA, non la sanita' mentale.
+        STUDY_MPI_OPTS=(--map-by "slot:PE=$threads" --bind-to core)
+        STUDY_NOTE="$ranks rank non si dividono fra $STUDY_SOCKETS socket: niente localita' NUMA"
     fi
 
     if [[ $(( ranks * threads )) -gt "$STUDY_LOGICAL" ]]; then
@@ -367,7 +392,7 @@ study_case()
     # casi con la stessa chiave sono lo stesso caso.
     local key="$STUDY_PHASE|$label|$backend|$batch|$simd|$omp|$mpi|$ranks|$threads|$nx|$ny|$nz|$steps|${shape// /-}|${wrap// /-}|$bind"
 
-    if [[ "${RESUME:-1}" == "1" ]] && grep -qxF "$key" "$STUDY_KEYS"; then
+    if [[ "${RESUME:-1}" == "1" ]] && study_already_done "$key"; then
         STUDY_SKIPPED=$(( STUDY_SKIPPED + 1 ))
         printf '  %-34s gia\x27 fatto\n' "$label"
         return 0
@@ -492,6 +517,13 @@ study_case()
         study_record "$label" "$backend" "$batch" "$simd" "$omp" "$mpi" \
             "$ranks" "$threads" "$nx" "$ny" "$nz" "$steps" "" \
             "$status" "$note"
+        # Anche un caso andato male e' un caso concluso: senza questa riga
+        # ogni job della catena lo ritenta, spende tutto il budget nello
+        # stesso timeout e non arriva mai ai casi dopo. E' successo: due casi
+        # hanno consumato 31 job di fila senza far progredire niente.
+        # RETRY_FAILED=1 li rimette in gioco, quando si e' cambiato qualcosa
+        # che potrebbe farli riuscire.
+        study_done "$key" "$status"
         printf '%s (%ds)\n' "$status" "$seconds"
         return 0
     fi
@@ -499,8 +531,7 @@ study_case()
     study_record "$label" "$backend" "$batch" "$simd" "$omp" "$mpi" \
         "$ranks" "$threads" "$nx" "$ny" "$nz" "$steps" "$best_line" \
         ok "$note"
-    printf '%s' "$key" >> "$STUDY_KEYS"
-    printf '\n' >> "$STUDY_KEYS"
+    study_done "$key"
     STUDY_CASES=$(( STUDY_CASES + 1 ))
 
     local shape_out untimed rss
@@ -557,6 +588,23 @@ study_record()
         "$STUDY_PHASE" "$label" "$backend" "$batch" "$simd" "$omp" "$mpi" \
         "$ranks" "$threads" "$nx" "$ny" "$nz" "$steps" "$measured" \
         "$status" "${note//,/;}" >> "$STUDY_CSV"
+}
+
+# Un caso concluso -- riuscito o no -- lascia la sua chiave, cosi' la ripresa
+# lo salta. Le chiavi dei casi falliti portano un marcatore, perche' con
+# RETRY_FAILED=1 si possano ritentare senza rifare anche quelli riusciti.
+study_done()
+{
+    local marker=""
+    [[ "${2:-ok}" == "ok" ]] || marker="!"
+    printf '%s%s\n' "$marker" "$1" >> "$STUDY_KEYS"
+}
+
+study_already_done()
+{
+    grep -qxF "$1" "$STUDY_KEYS" && return 0
+    [[ "${RETRY_FAILED:-0}" == "1" ]] && return 1
+    grep -qxF "!$1" "$STUDY_KEYS"
 }
 
 # Le due forme di griglia di processi che questo studio usa piu' spesso.
