@@ -221,8 +221,10 @@ static void momentum_direction(const Decomp *d,
      * piano, dove non si comunica affatto.
      */
     const bool whole_axis = (d->n[axis] == d->n_global[axis]);
-    const int slots = workers_slots(whole_axis, planes);
-    const bool split_lines = (slots < 2) && workers_many();
+    const WorkersLineSchedule schedule =
+        workers_line_schedule(whole_axis, planes);
+    const int slots = schedule.slots;
+    const bool split_lines = schedule.split_lines;
 
     const MomentumLines ml = {
         .d = d,
@@ -255,8 +257,8 @@ static void momentum_direction(const Decomp *d,
          * Il team si apre UNA volta, qui fuori dal ciclo sui piani. Prima se
          * ne apriva uno per ciascuno dei due cicli interni, cioe' due per
          * piano: a 256^3 con quattro processi facevano circa 4100 aperture
-         * per passo temporale, ed erano quelle il costo dominante -- misurato,
-         * non dedotto. A rank fissi, con lavoro MPI identico riga per riga, il
+         * per passo temporale, ed erano quelle il costo dominante.
+         * A rank fissi, con lavoro MPI identico riga per riga, il
          * passo andava da 1295 ms con un thread a 5094 con quattordici.
          *
          * Restano tre barriere per piano, ma una barriera dentro un team gia'
