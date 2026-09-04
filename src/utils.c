@@ -87,6 +87,7 @@ void print_stats(const Decomp *d,
     /* Ranghi e thread insieme: una misura senza entrambi i numeri non si sa
      * confrontare con nessun'altra. */
     printf("Threads per process: %d\n", workers_available());
+    printf("Directional policy: %s\n", workers_line_policy_name());
     printf("Time steps: %zu\n", sample_count);
     printf("Solver time stats (average per time step):\n");
     printf("  eta system:  %.3f ms (%5.1f%%)\n", eta_avg_ms,

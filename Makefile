@@ -3,8 +3,17 @@ CFLAGS = -std=gnu11 -O3 -Wall -Wextra -Iinclude
 SIMD ?= 0
 MPI ?= 0
 OMP ?= 0
+OMP_SPLIT ?= auto
 ZETA_SIMD_VECTORS ?= 4
 U_SIMD_VECTORS ?= 8
+
+VALID_OMP_SPLITS = auto planes lines serial
+ifneq ($(words $(OMP_SPLIT)),1)
+$(error OMP_SPLIT must contain exactly one value)
+endif
+ifeq ($(filter $(OMP_SPLIT),$(VALID_OMP_SPLITS)),)
+$(error OMP_SPLIT must be one of: $(VALID_OMP_SPLITS))
+endif
 
 # Build with MPI=1 to compile against MPI and run with mpirun.
 ifeq ($(MPI),1)
@@ -17,6 +26,31 @@ endif
 # threads divide the lines of each block.
 ifeq ($(OMP),1)
 CFLAGS += -fopenmp -DUSE_OMP
+endif
+
+# Benchmark-only override for comparing the two OpenMP work-sharing layouts.
+# The forced builds deliberately exclude MPI and SIMD so both executables run
+# the same scalar kernels over the same complete, local lines.
+ifneq ($(OMP_SPLIT),auto)
+ifneq ($(OMP),1)
+$(error OMP_SPLIT=$(OMP_SPLIT) requires OMP=1)
+endif
+ifneq ($(MPI),0)
+$(error OMP_SPLIT=$(OMP_SPLIT) requires MPI=0)
+endif
+ifneq ($(SIMD),0)
+$(error OMP_SPLIT=$(OMP_SPLIT) requires SIMD=0)
+endif
+endif
+
+ifeq ($(OMP_SPLIT),planes)
+CFLAGS += -DWORKERS_LINE_POLICY=WORKERS_LINE_POLICY_PLANES
+endif
+ifeq ($(OMP_SPLIT),lines)
+CFLAGS += -DWORKERS_LINE_POLICY=WORKERS_LINE_POLICY_LINES
+endif
+ifeq ($(OMP_SPLIT),serial)
+CFLAGS += -DWORKERS_LINE_POLICY=WORKERS_LINE_POLICY_SERIAL
 endif
 
 ifeq ($(SIMD),1)

@@ -206,8 +206,10 @@ static void pressure_direction(const Decomp *restrict d,
     /* Stessa spartizione della quantita' di moto: un piano per thread finche'
      * l'asse e' tutto qui, le linee del piano quando invece si comunica. */
     const bool whole_axis = (d->n[axis] == d->n_global[axis]);
-    const int slots = workers_slots(whole_axis, planes);
-    const bool split_lines = (slots < 2) && workers_many();
+    const WorkersLineSchedule schedule =
+        workers_line_schedule(whole_axis, planes);
+    const int slots = schedule.slots;
+    const bool split_lines = schedule.split_lines;
 
     const PressureLines pl = {
         .d = d,
