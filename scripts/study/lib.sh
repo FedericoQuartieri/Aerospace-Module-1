@@ -277,7 +277,22 @@ study_placement()
 {
     local ranks="$1" threads="$2"
 
-    : "${STUDY_SOCKETS:=1}" "${STUDY_LOGICAL:=$(nproc)}"
+    : "${STUDY_SOCKETS:=1}" "${STUDY_LOGICAL:=$(nproc)}" "${STUDY_PHYSICAL:=1}"
+
+    # Oltre i core fisici si entra nell'SMT, e li' il conto di Open MPI cambia:
+    # `PE=n' chiede n *cpu*, e per default un cpu e' un core. Con 56 core
+    # fisici, 2 rank x 56 thread ne chiedono 112 e il lancio viene rifiutato
+    # ("binding more processes than cpus on a resource"): e' cosi' che sono
+    # fallite tutte le configurazioni a prodotto 112. Con --use-hwthread-cpus
+    # un cpu diventa un thread hardware, e i 112 ci sono.
+    local units=$(( ranks * threads ))
+    local smt=()
+    local bind_unit=core
+    if [[ "$units" -gt "$STUDY_PHYSICAL" && "$units" -le "$STUDY_LOGICAL" ]]; then
+        smt=(--use-hwthread-cpus)
+        bind_unit=hwthread
+    fi
+
     STUDY_MPI_OPTS=()
     STUDY_OMP_BIND="close"
     STUDY_OMP_WAIT="active"
@@ -290,13 +305,20 @@ study_placement()
         STUDY_MPI_OPTS=(--bind-to none)
         STUDY_OMP_BIND="spread"
     elif [[ "$threads" -eq 1 ]]; then
-        STUDY_MPI_OPTS=(--map-by core --bind-to core)
+        STUDY_MPI_OPTS=("${smt[@]}" --map-by "$bind_unit" --bind-to "$bind_unit")
+        # Un thread solo: OpenMP non deve legare niente. Lasciare
+        # OMP_PROC_BIND=close con 56 rank e' costato fra 1.7x e 2.3x --
+        # ogni rank interpreta OMP_PLACES sulla topologia globale e ci
+        # ri-lega sopra il proprio thread principale, disfacendo il
+        # piazzamento che mpirun aveva appena fatto.
+        STUDY_OMP_BIND="false"
     elif [[ $(( ranks % STUDY_SOCKETS )) -eq 0 ]]; then
         # Un gruppo di rank per socket, e i thread di ciascuno dentro il
         # proprio socket: senza questo i thread di rank diversi si mescolano
         # sui due socket e si misura quel disastro invece del dominio diviso.
-        STUDY_MPI_OPTS=(--map-by "ppr:$(( ranks / STUDY_SOCKETS )):socket:PE=$threads"
-                        --bind-to core)
+        STUDY_MPI_OPTS=("${smt[@]}"
+                        --map-by "ppr:$(( ranks / STUDY_SOCKETS )):socket:PE=$threads"
+                        --bind-to "$bind_unit")
     else
         # Un numero di rank che non si divide fra i socket non puo' avere un
         # gruppo per socket. La risposta NON e' --bind-to none: cosi' ogni
@@ -308,7 +330,7 @@ study_placement()
         #
         # `slot:PE=n' da' a ciascun rank n core distinti qualunque sia il
         # numero di rank: si perde la localita' NUMA, non la sanita' mentale.
-        STUDY_MPI_OPTS=(--map-by "slot:PE=$threads" --bind-to core)
+        STUDY_MPI_OPTS=("${smt[@]}" --map-by "slot:PE=$threads" --bind-to "$bind_unit")
         STUDY_NOTE="$ranks rank non si dividono fra $STUDY_SOCKETS socket: niente localita' NUMA"
     fi
 
