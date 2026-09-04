@@ -91,6 +91,20 @@ gets split loses the vectorized kernels and turns one local Thomas solve into
 three; a thread takes lines, which stay independent however the domain is cut.
 The `hybrid` study of the scaling script measures where the balance falls.
 
+For an MPI-free A/B benchmark of the two OpenMP loop layouts, build the scalar
+solver with an explicit policy:
+
+```sh
+make -B OMP=1 SIMD=0 MPI=0 OMP_SPLIT=planes
+make -B OMP=1 SIMD=0 MPI=0 OMP_SPLIT=lines
+make -B OMP=1 SIMD=0 MPI=0 OMP_SPLIT=serial  # directional-solver control
+```
+
+Forced policies intentionally reject MPI and SIMD builds: planes are not a
+valid forced choice across MPI collectives, while SIMD would bypass the scalar
+line solver along two directions and make the comparison incomplete.  The
+cluster-ready comparison is `scripts/run_plane_vs_lines.sh`.
+
 ## Scaling study
 
 Measure how much the parallel run gains:
