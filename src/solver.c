@@ -19,6 +19,21 @@ static void refresh_vector_halo(const Decomp *d, VectorField *field) {
     par_exchange_halo(d, field->v_z);
 }
 
+/*
+ * Chi ha un vicino sopra scrive anche il primo piano di celle del vicino, che
+ * legge dall'anello di contorno: senza quel piano condiviso i pezzi del file
+ * .pvti lascerebbero scoperta una fila di celle a ogni interfaccia.
+ *
+ * L'anello va quindi aggiornato subito prima di scrivere: la pressione e' stata
+ * appena riscritta senza scambio, la permeabilita' non ne fa mai, e al passo
+ * zero non ne e' ancora avvenuto nessuno.
+ */
+static void refresh_before_write(const Decomp *d, SolverMemState *state) {
+    par_exchange_halo(d, state->pressure.v);
+    refresh_vector_halo(d, &state->u);
+    refresh_vector_halo(d, &state->k);
+}
+
 void solver_init(const Decomp *decomp,
                  SolverMemState *solver_mem_state,
                  Data *data,
@@ -87,16 +102,20 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
 
     // If write_enabled is set, write the initial state at t=0
     if (write_enabled) {
+        refresh_before_write(decomp, solver_mem_state);
         write_to_file(decomp, solver_mem_state, data->name, 0);
     }
 
     uint64_t start_ns = time_ns();
+    //N.B. il loop parte da t=1, perché il passo t=0 è già stato scritto sopra
     for (int t_step = 1; t_step <= STEPS; t_step++) {
+        //viene riaggiornato l'anello di contorno per i 4 valori necessari a g
         refresh_vector_halo(decomp, &solver_mem_state->eta);
         refresh_vector_halo(decomp, &solver_mem_state->zeta);
         refresh_vector_halo(decomp, &solver_mem_state->u);
         par_exchange_halo(decomp, solver_mem_state->pressure_star.v);
 
+        //se la porosità dipende dal tempo, la aggiorna a metà passo temporale
         if (data->porosity_time_dependent) {
             Real midpoint_step = (Real)t_step - (Real)0.5;
             vectorField_fill(decomp,
@@ -106,27 +125,37 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
         }
 
         // Momentum system
+        //aggiorna la velocità e la pressione_star, usando i valori di pressione e porosità correnti
         momentum_step(decomp, solver_mem_state, rhs, tmp, data, t_step,
                       solver_stats);
 
 
         /* compute_div guarda una cella indietro nella velocita' appena
-         * aggiornata, su tutti e tre gli assi. */
+         * aggiornata, su tutti e tre gli assi. altrimenti la divergenza
+         * sul bordo basso del blocco sarebbe vecchia di un passo
+         */
+        //aggiorna l'anello di contorno della velocità, per il passo successivo
         refresh_vector_halo(decomp, &solver_mem_state->u);
 
         // Pressure system
+        //aggiorna la pressione, usando i valori di velocità e porosità correnti
         pressure_step(decomp, solver_mem_state, pressure_plan,
                       &pressure_buffer, rhs, tmp, solver_stats);
 
         // Write to file
+        //scrive su file i valori correnti di velocità, pressione e porosità,
+        // se write_enabled è settato
         if (write_enabled) {
             if (t_step % WR_FREQ == 0) {
                 uint64_t wr_start = time_ns();
+                refresh_before_write(decomp, solver_mem_state);
                 write_to_file(decomp, solver_mem_state, data->name, t_step);
                 solver_stats->wr_output += time_ns() - wr_start;
             }
         }
     }
+
+    // aggiorna il tempo totale di esecuzione del solver, sottraendo il tempo speso per scrivere su file
     solver_stats->solve_steps = (time_ns() - start_ns) - solver_stats->wr_output;
 
     // Print solver time statistics

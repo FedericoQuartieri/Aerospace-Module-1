@@ -197,13 +197,22 @@ static void face_copy(const Decomp *d, Real *field, int axis, int slot,
                       Real *packet, int packing) {
     int first = (axis + 1) % 3;
     int second = (axis + 2) % 3;
+    int halo = d->halo;
     int cell[3];
     size_t position = 0;
 
+    /*
+     * La faccia comprende anche l'anello nelle due direzioni trasverse.  Serve
+     * per le celle di spigolo, che appartengono a un vicino in diagonale e che
+     * nessuno scambio raggiungerebbe altrimenti: facendo gli assi in ordine,
+     * X riempie il proprio anello, Y lo rispedisce insieme al suo, e Z chiude
+     * anche i vertici.  Il solutore non legge mai in diagonale, ma la
+     * scrittura dei file sì, sulle facce che condivide con i vicini.
+     */
     cell[axis] = slot;
-    for (int b = 0; b < d->n[second]; b++) {
+    for (int b = -halo; b < d->n[second] + halo; b++) {
         cell[second] = b;
-        for (int a = 0; a < d->n[first]; a++) {
+        for (int a = -halo; a < d->n[first] + halo; a++) {
             cell[first] = a;
             size_t offset = decomp_index(d, cell[0], cell[1], cell[2]);
 
@@ -256,7 +265,8 @@ void par_exchange_halo(const Decomp *d, Real *field) {
             continue;  /* direzione non divisa: niente da scambiare */
         }
 
-        int face = d->n[(axis + 1) % 3] * d->n[(axis + 2) % 3];
+        int face = (d->n[(axis + 1) % 3] + 2 * d->halo) *
+                   (d->n[(axis + 2) % 3] + 2 * d->halo);
         halo_packets_reserve((size_t)face);
 
         Real *to_above = halo_packets;

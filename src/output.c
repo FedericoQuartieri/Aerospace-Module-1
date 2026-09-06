@@ -20,17 +20,36 @@
 /*
  * The written piece covers the cells owned by the caller, expressed in global
  * indices, while WholeExtent always describes the full grid.  With a single
- * block the two coincide; once the grid is split each process can write its
- * own piece of the same dataset without changing anything else here.
+ * block the two coincide.
+ *
+ * Quanti punti in piu' scrivere su ogni faccia superiore: uno dove c'e' un
+ * vicino, nessuno dove finisce il dominio.
+ *
+ * Nei file ImageData di VTK l'extent conta i punti, e la cella fra due blocchi
+ * sta fra l'ultimo punto dell'uno e il primo dell'altro: se i pezzi si toccano
+ * senza sovrapporsi, quella fila di celle non appartiene a nessuno e ParaView
+ * si rifiuta di rimontare il dominio.  I pezzi adiacenti devono percio'
+ * condividere un punto.  Il valore da scrivere e' gia' in casa: e' quello che
+ * il vicino ha mandato nell'anello di contorno.
  */
+static void write_overlap(const Decomp *d, int extra[3]) {
+    for (int c = 0; c < 3; c++) {
+        extra[c] = d->is_last[c] ? 0 : 1;
+    }
+}
+
 static void write_extents(FILE *fp, const Decomp *d) {
+    int extra[3];
+
+    write_overlap(d, extra);
+
     fprintf(fp, "  <ImageData WholeExtent=\"0 %d 0 %d 0 %d\" Origin=\"0 0 0\" Spacing=\"%.6e %.6e %.6e\">\n",
             d->n_global[0] - 1, d->n_global[1] - 1, d->n_global[2] - 1,
             DX, DY, DZ);
     fprintf(fp, "    <Piece Extent=\"%d %d %d %d %d %d\">\n",
-            d->start[0], d->start[0] + d->n[0] - 1,
-            d->start[1], d->start[1] + d->n[1] - 1,
-            d->start[2], d->start[2] + d->n[2] - 1);
+            d->start[0], d->start[0] + d->n[0] - 1 + extra[0],
+            d->start[1], d->start[1] + d->n[1] - 1 + extra[1],
+            d->start[2], d->start[2] + d->n[2] - 1 + extra[2]);
 }
 
 /*
@@ -46,6 +65,9 @@ void write_vti_ascii(const Decomp *d,
     snprintf(filepath, sizeof(filepath), "%s/sol_ascii_%04d_p%03d.vti",
              output_directory, t_step, par_rank());
 
+    int extra[3];
+    write_overlap(d, extra);
+
     FILE *fp = fopen(filepath, "w");
     if (!fp) {
         perror("Error opening ASCII output file");
@@ -60,10 +82,10 @@ void write_vti_ascii(const Decomp *d,
     // Write pressure
     fprintf(fp, "        <DataArray type=\"%s\" Name=\"pressure\" format=\"ascii\">\n          ", VTK_REAL_TYPE);
     size_t written = 0;
-    for (int k = 0; k < d->n[2]; k++) {
-        for (int j = 0; j < d->n[1]; j++) {
+    for (int k = 0; k < d->n[2] + extra[2]; k++) {
+        for (int j = 0; j < d->n[1] + extra[1]; j++) {
             size_t row = decomp_index(d, 0, j, k);
-            for (int i = 0; i < d->n[0]; i++) {
+            for (int i = 0; i < d->n[0] + extra[0]; i++) {
                 fprintf(fp, "%g ", solver_mem_state->pressure.v[row + (size_t)i]);
                 if (++written % 16 == 0) fprintf(fp, "\n          ");
             }
@@ -74,10 +96,10 @@ void write_vti_ascii(const Decomp *d,
     // Write velocity (interleaving u_x, u_y, u_z for each node)
     fprintf(fp, "        <DataArray type=\"%s\" Name=\"velocity\" NumberOfComponents=\"3\" format=\"ascii\">\n          ", VTK_REAL_TYPE);
     written = 0;
-    for (int k = 0; k < d->n[2]; k++) {
-        for (int j = 0; j < d->n[1]; j++) {
+    for (int k = 0; k < d->n[2] + extra[2]; k++) {
+        for (int j = 0; j < d->n[1] + extra[1]; j++) {
             size_t row = decomp_index(d, 0, j, k);
-            for (int i = 0; i < d->n[0]; i++) {
+            for (int i = 0; i < d->n[0] + extra[0]; i++) {
                 size_t index = row + (size_t)i;
                 fprintf(fp, "%g %g %g ", solver_mem_state->u.v_x[index],
                                          solver_mem_state->u.v_y[index],
@@ -91,10 +113,10 @@ void write_vti_ascii(const Decomp *d,
     // Write Brinkman permeability (interleaving K_x, K_y, K_z)
     fprintf(fp, "        <DataArray type=\"%s\" Name=\"permeability\" NumberOfComponents=\"3\" format=\"ascii\">\n          ", VTK_REAL_TYPE);
     written = 0;
-    for (int k = 0; k < d->n[2]; k++) {
-        for (int j = 0; j < d->n[1]; j++) {
+    for (int k = 0; k < d->n[2] + extra[2]; k++) {
+        for (int j = 0; j < d->n[1] + extra[1]; j++) {
             size_t row = decomp_index(d, 0, j, k);
-            for (int i = 0; i < d->n[0]; i++) {
+            for (int i = 0; i < d->n[0] + extra[0]; i++) {
                 size_t index = row + (size_t)i;
                 fprintf(fp, "%g %g %g ", solver_mem_state->k.v_x[index],
                                          solver_mem_state->k.v_y[index],
@@ -132,12 +154,15 @@ static void write_vector_block(FILE *fp,
                                const Real *restrict cz) {
     Real vec_buf[3 * CHUNK_SIZE];
     size_t filled = 0;
+    int extra[3];
 
-    for (int k = 0; k < d->n[2]; k++) {
-        for (int j = 0; j < d->n[1]; j++) {
+    write_overlap(d, extra);
+
+    for (int k = 0; k < d->n[2] + extra[2]; k++) {
+        for (int j = 0; j < d->n[1] + extra[1]; j++) {
             size_t row = decomp_index(d, 0, j, k);
 
-            for (int i = 0; i < d->n[0]; i++) {
+            for (int i = 0; i < d->n[0] + extra[0]; i++) {
                 size_t index = row + (size_t)i;
 
                 vec_buf[3 * filled + 0] = cx[index];
@@ -173,7 +198,12 @@ void write_vti_binary(const Decomp *d,
         return;
     }
 
-    size_t local_cells = (size_t)d->n[0] * (size_t)d->n[1] * (size_t)d->n[2];
+    int extra[3];
+    write_overlap(d, extra);
+
+    size_t local_cells = (size_t)(d->n[0] + extra[0]) *
+                         (size_t)(d->n[1] + extra[1]) *
+                         (size_t)(d->n[2] + extra[2]);
 
     // Calculate byte offsets for the AppendedData section.
     // Each appended block starts with a uint64_t header indicating the block size in bytes.
@@ -198,11 +228,11 @@ void write_vti_binary(const Decomp *d,
 
     // 1. Write binary pressure: block size header + row-by-row dump
     fwrite(&bytes_p, sizeof(uint64_t), 1, fp);
-    for (int k = 0; k < d->n[2]; k++) {
-        for (int j = 0; j < d->n[1]; j++) {
+    for (int k = 0; k < d->n[2] + extra[2]; k++) {
+        for (int j = 0; j < d->n[1] + extra[1]; j++) {
             size_t row = decomp_index(d, 0, j, k);
             fwrite(solver_mem_state->pressure.v + row, sizeof(Real),
-                   (size_t)d->n[0], fp);
+                   (size_t)(d->n[0] + extra[0]), fp);
         }
     }
 
@@ -275,6 +305,10 @@ static void write_pvti(const Decomp *d,
         for (int c = 0; c < 3; c++) {
             decomp_share(d->n_global[c], dims[c], coords[c],
                          &begin[c], &end[c]);
+            /* Come write_overlap, per un rank qualsiasi. */
+            if (coords[c] != dims[c] - 1) {
+                end[c]++;
+            }
         }
 
         char piece[128];

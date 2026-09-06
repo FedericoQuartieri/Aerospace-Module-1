@@ -82,6 +82,7 @@ static void momentum_direction(const Decomp *d,
 
     int cell[3];
 
+    // Tre cicli annidati: b (outer) → a (group) → t (lungo l'asse)
     for (int b = 0; b < d->n[outer]; b++) {
         cell[outer] = b;
 
@@ -89,7 +90,10 @@ static void momentum_direction(const Decomp *d,
             cell[group] = a;
             cell[axis] = 0;
 
+            //inizio linea di memoria
             size_t start = decomp_index(d, cell[0], cell[1], cell[2]);
+
+            //inizio linea nei buffer
             size_t line = (size_t)a * (size_t)length;
 
             for (int t = 0; t < length; t++) {
@@ -105,8 +109,8 @@ static void momentum_direction(const Decomp *d,
                 Real k_i = k_porosity[here];
                 Real w_i = -gamma_from_k(k_i) * inverse_square;
 
+                //Parete inferiore del dominio
                 if (along == 0) {
-                    /* Parete inferiore del dominio: valore imposto. */
                     lower[at] = 0.0;
                     diagonal[at] = 1.0;
                     upper[at] = 0.0;
@@ -192,6 +196,8 @@ void momentum_step(const Decomp *decomp,
     start_ns = time_ns();
     for (int v_comp = 0; v_comp < 3; v_comp++) {
 #if defined(USE_SIMD) && SIMD_AVAILABLE
+        //questa condizione nell'if significa che l'asse y non
+        // è diviso in più processi, quindi si può usare la versione SIMD
         if (decomp->n[1] == decomp->n_global[1]) {
             update_zeta_simd(decomp, solver_mem_state, rhs, tmp, data, t_step,
                              v_comp, ZETA_SIMD_LINES);

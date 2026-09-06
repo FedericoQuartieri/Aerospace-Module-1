@@ -13,7 +13,7 @@
 
 
 /* In this example, the bc_velocity concide with the paper function, but in general 
- * it could be not known, tha's why we have two functions: bc_velocity and velocity_fn (t=0)
+ * it could be not known, that's why we have two functions: bc_velocity and velocity_fn (t=0)
  * */
 static Real paper_bc_velocity(Real x, Real y, Real z, Real t, int component)
 {

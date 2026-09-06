@@ -201,8 +201,8 @@ void schur_solve_mpi(int axis, int lines, int n_local,
     par_dims(dims);
     par_coords(coords);
 
-    int blocks = dims[axis];
-    int p = coords[axis];
+    int blocks = dims[axis]; //blocks = numero di processi lungo l'asse
+    int p = coords[axis]; //p = indice del processo lungo l'asse
 
     size_t line_bytes = (size_t)n_local * sizeof(Real);
     Real *scratch = xmalloc(line_bytes);
@@ -260,7 +260,11 @@ void schur_solve_mpi(int axis, int lines, int n_local,
     }
 
     /* ---- 2. one exchange and one collective, for every line at once ---- */
+    
+    // Buffer per i dati del processo corrente
     Real *mine = xmalloc(3 * (size_t)lines * sizeof(Real));
+
+    // Buffer per i dati ricevuti dal processo a destra
     Real *from_right = xmalloc(3 * (size_t)lines * sizeof(Real));
 
     for (int l = 0; l < lines; l++) {
@@ -274,6 +278,13 @@ void schur_solve_mpi(int axis, int lines, int n_local,
         from_right[3 * l + 2] = (Real)0;
     }
 
+    // shift dei dati verso il processo a sinistra e ricezione
+    // dei dati dal processo a destra, sarebbe un MPI_Sendrecv 
+    // ed è un solo messaggio di dimensione 3*lines, invece di uno per linea,
+    // l'ultimo blocco non ha un vicino a destra ma MPI_Sendrecv lo gestisce
+    // correttamente con MPI_PROC_NULL, ovvero la ricezione non fa niente,
+    // allo stesso modo il primo blocco non ha un vicino a sinistra
+    // e la send non fa niente
     par_shift_real(axis, -1, mine, from_right, 3 * lines);
 
     /* My row of every interface system.  The last process has no interface
@@ -302,6 +313,10 @@ void schur_solve_mpi(int axis, int lines, int n_local,
     }
 
     Real *rows = xmalloc(4 * (size_t)lines * (size_t)blocks * sizeof(Real));
+
+    // allgather: ovvero tutti i processi inviano il proprio row 
+    //e ricevono tutti i row degli altri processi
+    // in rows ci saranno tutti i row dei processi, in ordine di rank
     par_line_allgather(axis, row, 4 * lines, rows);
 
     /* ---- 3. every line on its own again ---- */
@@ -315,6 +330,9 @@ void schur_solve_mpi(int axis, int lines, int n_local,
 
     for (int l = 0; l < lines; l++) {
         for (int q = 0; q < interfaces; q++) {
+
+            //here è l'indice del primo elemento della riga q della 
+            // matrice ridotta, per la linea l
             size_t here = 4 * (size_t)q * (size_t)lines + 4 * (size_t)l;
 
             ra[q] = rows[here + 0];
