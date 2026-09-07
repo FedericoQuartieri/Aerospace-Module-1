@@ -15,27 +15,35 @@ static Real spacing_from_component(int component) {
     }
 }
 
+// calcola beta in base alla permeaabilità k, secondo la formula beta = 1 + (DT * NU) / (2 * k)
 Real beta_from_k(Real k) {
     return 1.0 + (DT * NU) / (2.0 * k);
 }
 
+// calcola gamma in base alla permeaabilità k, secondo la formula gamma = (DT * NU) / (2 * beta)
 Real gamma_from_k(Real k) {
     Real beta = beta_from_k(k);
     return (DT * NU) / (2.0 * beta);
 }
 
+//ritorna il tempo fisico corrispondente al passo temporale t_step, secondo la formula t = t_step * DT
 Real time_physical_coord(Real t_step) {
     return t_step * (Real)DT;
 }
 
+//ritorna la coordinata fisica centrata di un punto con indice index e componente component, secondo la formula x = index * spacing
 Real centered_physical_coord(int index, int component) {
     return (Real)index * spacing_from_component(component);
 }
 
+//ritorna la coordinata fisica sfalsata di 0.5 di un punto con indice index e componente component, secondo la formula x = (index + 0.5) * spacing
 Real staggered_physical_coord(int index, int component) {
     return ((Real)index + 0.5) * spacing_from_component(component);
 }
 
+//se il passo temporale è 0, ritorna il valore della funzione di velocità al tempo t,
+// altrimenti ritorna la differenza tra il valore della funzione di velocità
+// al tempo t e il valore della funzione di velocità al tempo t - DT
 static inline Real boundary_increment(VectorFunction bc_velocity,
                                       Real x, Real y, Real z,
                                       Real t, int t_step, int component) {
@@ -47,13 +55,15 @@ static inline Real boundary_increment(VectorFunction bc_velocity,
 }
 
 /*
- * Return the boundary increment u(t_step) - u(t_step - 1).
- * On a lower face, the normal component is reconstructed from the
- * divergence-free constraint; tangential components are sampled directly.
- * At lower edges and corners the prescribed staggered value has priority.
+ * Restituisce l'incremento al bordo u(t_step) - u(t_step - 1).
+ * Su una faccia inferiore, la componente normale viene ricostruita dal
+ * vincolo di divergenza nulla; le componenti tangenziali vengono campionate
+ * direttamente. Sui bordi inferiori e negli angoli ha la precedenza il
+ * valore sfalsato prescritto.
  *
- * i, j, k are global indices, so the face tests below select the physical
- * boundary of the domain rather than the edge of a process block.
+ * i, j, k sono indici globali, quindi i test sulle facce sottostanti
+ * selezionano il bordo fisico del dominio anziché il bordo di un blocco di
+ * processo.
  */
 Real bc_left(VectorFunction bc_velocity,
              int i, int j, int k, int t_step, int component) {
@@ -64,12 +74,16 @@ Real bc_left(VectorFunction bc_velocity,
     Real vx = x + (Real)DX / 2.0;
     Real vy = y + (Real)DY / 2.0;
     Real vz = z + (Real)DZ / 2.0;
+
+    //vale 0 se il punto è interno, 1 se è su una faccia, 
+    //2 se è su uno spigolo, 3 se è su un vertice
     int lower_face_count = (i == 0) + (j == 0) + (k == 0);
 
     if ((unsigned int)component > 2U) {
         fprintf(stderr, "Invalid vector component: %d\n", component);
         exit(1);
     }
+    // 0 => non fa nulla
     if (lower_face_count == 0) {
         return 0.0;
     }
@@ -78,6 +92,8 @@ Real bc_left(VectorFunction bc_velocity,
     boundary_increment(bc_velocity, (px), (py), (pz), \
                        t, t_step, (comp))
 
+    // lower_face_count > 1 significa che il punto è su uno spigolo o un vertice, quindi
+    // si fa un incremento in base alla componente normale della velocità, che ha la precedenza sulle altre
     if (lower_face_count > 1) {
         switch (component) {
             case 0:
@@ -215,7 +231,7 @@ Real bc_right(VectorFunction bc_velocity,
     return 0.0;
 }
 
-
+//ritorna la derivata seconda a 3 punti standard, secondo la formula (f(x - h) - 2 * f(x) + f(x + h)) / (h^2)
 static inline Real interior_second_derivative(const Real *restrict field,
                                               size_t index,
                                               size_t stride,
@@ -225,6 +241,7 @@ static inline Real interior_second_derivative(const Real *restrict field,
             field[index + stride]) * inverse_spacing_square;
 }
 
+//ritorna la derivata seconda a 3 punti con condizione al contorno, secondo la formula (f(x - h) - 3 * f(x) + 2 * boundary_value) / (h^2)
 static inline Real upper_second_derivative(const Real *restrict field,
                                            size_t index,
                                            size_t stride,
@@ -256,14 +273,21 @@ Real g_value(const Decomp *d,
      * The support of g and the ghost-value reconstruction below are properties
      * of the physical boundary, so both are decided on the global indices.
      */
+    //gi, gj, gk sono gli indici globali del punto (i, j, k)
     int gi = decomp_global(d, i, 0);
     int gj = decomp_global(d, j, 1);
     int gk = decomp_global(d, k, 2);
+
+    //per la forzante è t_step - 1/2, per la velocità è t_step - 1
     Real forcing_time = ((Real)t_step - 0.5) * (Real)DT;
     Real velocity_time = ((Real)t_step - 1.0) * (Real)DT;
+    
+    //upper_x, upper_y, upper_z sono le coordinate fisiche del bordo superiore del dominio
     Real upper_x = ((Real)d->n_global[0] - 0.5) * (Real)DX;
     Real upper_y = ((Real)d->n_global[1] - 0.5) * (Real)DY;
     Real upper_z = ((Real)d->n_global[2] - 0.5) * (Real)DZ;
+
+    //x, y, z sono le coordinate fisiche del punto (gi, gj, gk)
     Real x = (Real)gi * (Real)DX;
     Real y = (Real)gj * (Real)DY;
     Real z = (Real)gk * (Real)DZ;
@@ -275,9 +299,15 @@ Real g_value(const Decomp *d,
     Real laplacian_x;
     Real laplacian_y;
     Real laplacian_z;
-
+    
+    //case 0: v_x, case 1: v_y, case 2: v_z
     switch (component) {
         case 0:
+
+        //se il punto è su una faccia inferiore o su una faccia superiore,
+        // ritorna 0 perché il valore della velocità lì è imposto dalle bc,
+        // quindi non c'è bisogno di calcolare g, la stessa cosa vale,
+        // per il case 1 e 2
             if (gi < 1 || gi >= d->n_global[0] - 1 ||
                 gj < 1 || gj >= d->n_global[1] ||
                 gk < 1 || gk >= d->n_global[2]) {
