@@ -1,0 +1,31 @@
+# Parametri della simulazione, letti all'avvio da ./solver.
+#
+#   mpirun -n 8 ./solver config.txt paper_data
+#
+# Ogni chiave e' opzionale: quelle che ometti restano al valore di default
+# scelto a compilazione.  Le righe vuote e quelle che cominciano per '#' sono
+# commenti.  Una chiave sconosciuta o un valore fuori posto fermano il
+# programma indicando file e numero di riga.
+
+# --- griglia ---------------------------------------------------------------
+width  = 64
+height = 64
+depth  = 64
+
+# --- dominio fisico --------------------------------------------------------
+lx = 3.141592653589793
+ly = 3.141592653589793
+lz = 3.141592653589793
+
+# --- tempo -----------------------------------------------------------------
+# dt viene ricavato: dt = t_end / steps
+t_end = 0.25
+steps = 50
+
+# --- fisica ----------------------------------------------------------------
+nu = 1.0
+
+# --- output ----------------------------------------------------------------
+# Ogni quanti passi scrivere.  Oggi ./solver non scrive comunque nulla:
+# vedi la nota sul flag di scrittura.
+wr_freq = 5
