@@ -1,9 +1,30 @@
 #include "backend.h"
 #include "backend_pipeline.h"
+#include "parallel.h"
 #include "pressure_common.h"
 #include "utils.h"
 
+#include <stdint.h>
 #include <stdlib.h>
+
+static void pipeline_size_overflow(const char *what) {
+    if (par_rank() == 0) {
+        fprintf(stderr, "pipeline: dimensione troppo grande per %s\n", what);
+    }
+    par_abort(1);
+}
+
+static size_t checked_mul(size_t a, size_t b, const char *what) {
+    if (a != 0 && b > SIZE_MAX / a) {
+        pipeline_size_overflow(what);
+    }
+
+    return a * b;
+}
+
+static Real *xmalloc_real_array(size_t count, const char *what) {
+    return xmalloc(checked_mul(count, sizeof(Real), what));
+}
 
 /*
  * Quanti elementi di c'/d' servono per una componente lungo `axis`.
@@ -15,9 +36,11 @@
 static size_t axis_capacity(const Decomp *d, int axis, int batch_lines) {
     size_t line_count = pipeline_line_count(d, axis);
     size_t batch_count =
-        (line_count + (size_t)batch_lines - 1) / (size_t)batch_lines;
+        (line_count - 1) / (size_t)batch_lines + 1;
+    size_t padded_lines =
+        checked_mul(batch_count, (size_t)batch_lines, "batch di linee");
 
-    return batch_count * (size_t)batch_lines * (size_t)d->n[axis];
+    return checked_mul(padded_lines, (size_t)d->n[axis], "scratch per asse");
 }
 
 void backend_init(const Decomp *d, SolverMemState *solver_mem_state) {
@@ -45,19 +68,27 @@ void backend_init(const Decomp *d, SolverMemState *solver_mem_state) {
      * per linea invece di una.
      */
     backend->component_capacity = capacity;
-    backend->c_prime = xmalloc(3 * capacity * sizeof(Real));
-    backend->d_prime = xmalloc(3 * capacity * sizeof(Real));
+    backend->c_prime =
+        xmalloc_real_array(checked_mul(3, capacity, "c'"), "c'");
+    backend->d_prime =
+        xmalloc_real_array(checked_mul(3, capacity, "d'"), "d'");
     backend->forward =
-        xmalloc(2 * (size_t)backend->batch_lines * sizeof(Real));
-    backend->backward = xmalloc((size_t)backend->batch_lines * sizeof(Real));
+        xmalloc_real_array(checked_mul(2,
+                                       (size_t)backend->batch_lines,
+                                       "giunzioni avanti"),
+                           "giunzioni avanti");
+    backend->backward =
+        xmalloc_real_array((size_t)backend->batch_lines,
+                           "giunzioni indietro");
 
     /* La matrice della pressione non cambia mai: si scrive una volta qui. */
     for (int axis = 0; axis < 3; axis++) {
-        size_t room = (size_t)d->n[axis] * sizeof(Real);
-
-        backend->matrix_a[axis] = xmalloc(room);
-        backend->matrix_b[axis] = xmalloc(room);
-        backend->matrix_c[axis] = xmalloc(room);
+        backend->matrix_a[axis] =
+            xmalloc_real_array((size_t)d->n[axis], "matrice pressione a");
+        backend->matrix_b[axis] =
+            xmalloc_real_array((size_t)d->n[axis], "matrice pressione b");
+        backend->matrix_c[axis] =
+            xmalloc_real_array((size_t)d->n[axis], "matrice pressione c");
         pressure_matrix(d, axis, backend->matrix_a[axis],
                         backend->matrix_b[axis], backend->matrix_c[axis]);
     }

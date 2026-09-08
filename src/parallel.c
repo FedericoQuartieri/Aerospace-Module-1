@@ -78,6 +78,10 @@ void par_finalize(void) {
     MPI_Finalize();
 }
 
+void par_abort(int code) {
+    MPI_Abort(MPI_COMM_WORLD, code);
+}
+
 int par_rank(void) {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -342,6 +346,10 @@ void par_init(int *argc, char ***argv) {
 }
 
 void par_finalize(void) {
+}
+
+void par_abort(int code) {
+    exit(code);
 }
 
 int par_rank(void) {

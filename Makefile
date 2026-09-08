@@ -1,5 +1,6 @@
 CC = cc
-CFLAGS = -std=gnu11 -O3 -Wall -Wextra -Iinclude
+CFLAGS = -std=gnu11 -O3 -Wall -Wextra
+CPPFLAGS =
 SIMD ?= 0
 MPI ?= 0
 OMP ?= 0
@@ -24,33 +25,39 @@ ifeq ($(filter $(TRIDIAG),schur pipeline),)
 $(error TRIDIAG must be schur or pipeline, not '$(TRIDIAG)')
 endif
 
+override CPPFLAGS += -Iinclude
+
 ifeq ($(TRIDIAG),schur)
-CFLAGS += -DTRIDIAG_SCHUR
+override CPPFLAGS += -DTRIDIAG_SCHUR
 endif
 
 ifeq ($(TRIDIAG),pipeline)
-CFLAGS += -DTRIDIAG_PIPELINE -DPIPELINE_BATCH_LINES=$(PIPELINE_BATCH_LINES)
+ifeq ($(shell expr "$(PIPELINE_BATCH_LINES)" : '[1-9][0-9]*$$'),0)
+$(error PIPELINE_BATCH_LINES must be one positive integer, not '$(PIPELINE_BATCH_LINES)')
+endif
+override CPPFLAGS += -DTRIDIAG_PIPELINE -DPIPELINE_BATCH_LINES=$(PIPELINE_BATCH_LINES)
 endif
 
 # The backend's own headers are private to its directory: include/ holds only
 # what the shared solver is allowed to know.
-CFLAGS += -Isrc/tridiag/$(TRIDIAG)
+override CPPFLAGS += -Isrc/tridiag/$(TRIDIAG)
 
 # Build with MPI=1 to compile against MPI and run with mpirun.
 ifeq ($(MPI),1)
 CC = mpicc
-CFLAGS += -DUSE_MPI
+override CPPFLAGS += -DUSE_MPI
 endif
 
 # Build with OMP=1 to spread the independent lines over the cores of one
 # machine.  It composes with MPI=1: the processes divide the domain, the
 # threads divide the lines of each block.
 ifeq ($(OMP),1)
-CFLAGS += -fopenmp -DUSE_OMP
+CFLAGS += -fopenmp
+override CPPFLAGS += -DUSE_OMP
 endif
 
 ifeq ($(SIMD),1)
-CFLAGS += -DUSE_SIMD \
+override CPPFLAGS += -DUSE_SIMD \
 	-DZETA_SIMD_VECTORS=$(ZETA_SIMD_VECTORS) \
 	-DU_SIMD_VECTORS=$(U_SIMD_VECTORS)
 HOST_ARCH := $(shell uname -m)
@@ -58,6 +65,9 @@ ifneq ($(filter x86_64 amd64,$(HOST_ARCH)),)
 CFLAGS += -mavx2
 endif
 endif
+
+CFLAGS += $(EXTRA_CFLAGS)
+override CPPFLAGS += $(EXTRA_CPPFLAGS)
 
 TARGET = solver
 # src/*.c is the shared solver; the tridiagonal backend comes from its own
@@ -78,28 +88,28 @@ TEST_SOURCES = $(wildcard $(TEST_DIR)/*.c) \
 TEST_HEADERS = $(wildcard $(TEST_DIR)/*.h)
 CORE_SOURCES = $(filter-out src/main.c,$(SOURCES))
 TEST_TARGETS = $(patsubst %.c,$(TEST_BIN_DIR)/%,$(notdir $(TEST_SOURCES)))
-CHANNEL_CFLAGS = -DDEFAULT_LX=2.0 -DDEFAULT_LY=1.0 -DDEFAULT_LZ=1.0 \
+CHANNEL_CPPFLAGS = -DDEFAULT_LX=2.0 -DDEFAULT_LY=1.0 -DDEFAULT_LZ=1.0 \
 	-DDEFAULT_WIDTH=192 -DDEFAULT_HEIGHT=96 -DDEFAULT_DEPTH=96
 
 $(TARGET): $(SOURCES) $(HEADERS)
-	$(CC) $(CFLAGS) $(SOURCES) -o $(TARGET) -lm
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCES) -o $(TARGET) -lm
 
 tests: $(TEST_TARGETS)
 
 test: tests
 
-$(TEST_BIN_DIR)/channel_obstacle $(TEST_BIN_DIR)/moving_sphere: CFLAGS += $(CHANNEL_CFLAGS)
+$(TEST_BIN_DIR)/channel_obstacle $(TEST_BIN_DIR)/moving_sphere: override CPPFLAGS += $(CHANNEL_CPPFLAGS)
 
 $(TEST_BIN_DIR)/%: $(TEST_DIR)/%.c $(CORE_SOURCES) $(HEADERS) $(TEST_HEADERS) Makefile
 	mkdir -p $(TEST_BIN_DIR)
-	$(CC) $(CFLAGS) $< $(CORE_SOURCES) -o $@ -lm
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(CORE_SOURCES) -o $@ -lm
 
 # The same recipe for the tests that live with their backend.  Two rules
 # rather than a vpath: make picks whichever prerequisite actually exists, and
 # a missing test fails loudly instead of being silently searched for elsewhere.
 $(TEST_BIN_DIR)/%: $(TEST_DIR)/tridiag/$(TRIDIAG)/%.c $(CORE_SOURCES) $(HEADERS) $(TEST_HEADERS) Makefile
 	mkdir -p $(TEST_BIN_DIR)
-	$(CC) $(CFLAGS) $< $(CORE_SOURCES) -o $@ -lm
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(CORE_SOURCES) -o $@ -lm
 
 clean:
 	rm -f $(TARGET) $(TEST_TARGETS)

@@ -14,17 +14,17 @@
  * paralleli.
  *
  * Senza -DUSE_MPI le funzioni qui sotto sono stub che descrivono un processo
- * solo, quindi il programma seriale non paga niente.
- *
- * Per ora dicono soltanto chi siamo e quanti siamo: la griglia non è ancora
- * divisa, perciò lanciare più processi risolve più volte lo stesso problema.
- * La divisione arriva quando decomp_init imparerà a dare a ciascuno la sua
- * fetta.
+ * solo, quindi il programma seriale non paga niente. Con MPI attivo, invece,
+ * par_topology_init e decomp_init_mpi dividono davvero la griglia in blocchi:
+ * il resto del solutore vede soltanto il proprio Decomp locale.
  */
 
 /* Avvia e chiude MPI. argc e argv possono essere NULL. */
 void par_init(int *argc, char ***argv);
 void par_finalize(void);
+
+/* Ferma tutti i processi con lo stesso codice d'errore. */
+void par_abort(int code);
 
 /* Numero di questo processo, da 0 a par_size() - 1. */
 int par_rank(void);

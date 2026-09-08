@@ -34,7 +34,7 @@ void solver_init(const Decomp *decomp,
                         data_name);
                 data_print_names(stderr);
             }
-            exit(1);
+            par_abort(1);
         }
 
         *data = *found;

@@ -15,6 +15,13 @@ Enable the explicit SIMD momentum kernels with independently tunable blocks of S
 make SIMD=1 ZETA_SIMD_VECTORS=4 U_SIMD_VECTORS=8
 ```
 
+Use `EXTRA_CFLAGS` and `EXTRA_CPPFLAGS` for local overrides without replacing
+the backend flags that the Makefile adds:
+
+```sh
+make TRIDIAG=pipeline EXTRA_CPPFLAGS="-DDEFAULT_WIDTH=32 -DDEFAULT_STEPS=10"
+```
+
 Compile all tests:
 
 ```sh
@@ -28,6 +35,9 @@ The test executables are created in `build/tests/` and can be run separately:
 ./build/tests/moving_sphere
 ./build/tests/channel_obstacle
 ```
+
+The manufactured tests return a non-zero status when their L2 norms cross
+conservative regression thresholds, so they can be used directly in scripts.
 
 ## Convergence study
 
@@ -64,6 +74,19 @@ solves that cross a block boundary are completed by the backend `TRIDIAG`
 selects, a Schur complement by default, so the answer does not depend on how
 many processes are used: `paper_man` prints the same error norms, digit for
 digit, from one process up to eight.
+
+The solver accepts an optional configuration file and scenario name:
+
+```sh
+./solver
+./solver config.txt paper_data
+./solver config.txt zero_pressure
+./solver config.txt constant_forcing
+```
+
+`paper_data` is the default.  `zero_pressure` and `constant_forcing` mirror
+the manufactured cases used by the tests, so a backend can be checked from the
+normal solver entry point too.
 
 ## Threads
 
@@ -120,6 +143,17 @@ Both give the same answer, digit for digit, and the same answer the serial
 solver gives: `paper_man` and `zero_pressure` print identical error norms
 under either backend from one process up to eight.  That is the property to
 check first after touching either one.
+
+For a quick local backend check, run:
+
+```sh
+./scripts/check_pipeline.sh
+```
+
+It builds Schur once, rebuilds the pipeline with several
+`PIPELINE_BATCH_LINES` values, runs `paper_man`, `zero_pressure` and
+`constant_forcing_man`, and diffs only the L2-error lines.  Use
+`GRID`, `STEPS` and `PIPELINE_BATCHES` to make the check larger or broader.
 
 `PIPELINE_BATCH_LINES` (default 64) sets how many lines travel together.  It
 is the pipeline's one tuning knob: small batches fill the pipeline sooner but
