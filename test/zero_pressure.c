@@ -135,7 +135,9 @@ int main(void)
                              &errors,
                              velocity_verification_time,
                              pressure_verification_time);
+    const int failed =
+        check_solver_error_norms(&errors, (Real)0.5, (Real)1.0);
 
     par_finalize();
-    return 0;
+    return failed ? 1 : 0;
 }

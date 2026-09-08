@@ -141,7 +141,9 @@ int main(int argc, char **argv)
                              &errors,
                              velocity_verification_time,
                              pressure_verification_time);
+    const int failed =
+        check_solver_error_norms(&errors, (Real)1.0, (Real)8.0);
 
     par_finalize();
-    return 0;
+    return failed ? 1 : 0;
 }

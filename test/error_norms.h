@@ -258,4 +258,25 @@ static inline void print_solver_error_norms(const Decomp *d,
     printf("  L2 error p:   %.10e\n", (double)errors->pressure.L2);
 }
 
+static inline int check_solver_error_norms(const SolverErrorNorms *errors,
+                                           Real max_velocity_l2,
+                                           Real max_pressure_l2)
+{
+    const int local_failed =
+        !(errors->velocity_x.L2 <= max_velocity_l2) ||
+        !(errors->velocity_y.L2 <= max_velocity_l2) ||
+        !(errors->velocity_z.L2 <= max_velocity_l2) ||
+        !(errors->pressure.L2 <= max_pressure_l2);
+    const int failed = par_sum_long(local_failed) != 0;
+
+    if (par_rank() == 0) {
+        printf("  thresholds: |u|_L2 <= %.2e, |p|_L2 <= %.2e  %s\n",
+               (double)max_velocity_l2,
+               (double)max_pressure_l2,
+               failed ? "FAILED" : "ok");
+    }
+
+    return failed;
+}
+
 #endif
