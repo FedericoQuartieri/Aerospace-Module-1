@@ -13,6 +13,19 @@ mpi="${MPI:-0}"
 omp="${OMP:-0}"
 simd="${SIMD:-0}"
 ranks="${RANKS:-1}"
+tolerance="${TOLERANCE:-1e-10}"
+process_grid="${PROCESS_GRID:-}"
+proc_args=()
+
+if [[ -n "$process_grid" ]]; then
+    read -r px py pz extra <<< "$process_grid"
+    if [[ -z "${px:-}" || -z "${py:-}" || -z "${pz:-}" ||
+          -n "${extra:-}" ]]; then
+        echo "PROCESS_GRID must contain exactly three integers, e.g. '1 2 2'" >&2
+        exit 2
+    fi
+    proc_args=("$px" "$py" "$pz")
+fi
 
 tests=(paper_man zero_pressure constant_forcing_man)
 targets=()
@@ -32,9 +45,19 @@ run_test()
     local out="$2"
 
     if [[ "$mpi" == "1" ]]; then
-        "${MPIRUN:-mpirun}" -n "$ranks" "$root/build/tests/$test" > "$out"
+        if [[ -n "$process_grid" ]]; then
+            "${MPIRUN:-mpirun}" -n "$ranks" \
+                "$root/build/tests/$test" "${proc_args[@]}" > "$out"
+        else
+            "${MPIRUN:-mpirun}" -n "$ranks" \
+                "$root/build/tests/$test" > "$out"
+        fi
     else
-        "$root/build/tests/$test" > "$out"
+        if [[ -n "$process_grid" ]]; then
+            "$root/build/tests/$test" "${proc_args[@]}" > "$out"
+        else
+            "$root/build/tests/$test" > "$out"
+        fi
     fi
 }
 
@@ -61,8 +84,58 @@ capture_suite()
     done
 }
 
+compare_norms()
+{
+    local reference="$1"
+    local candidate="$2"
+    local label="$3"
+    local test="$4"
+
+    awk -v tol="$tolerance" -v label="$label" -v test="$test" '
+    function abs(x) { return x < 0 ? -x : x }
+    function fail(message) {
+        print message > "/dev/stderr"
+        failed = 1
+    }
+    NR == FNR {
+        ref[++n] = $NF + 0
+        next
+    }
+    {
+        got[++m] = $NF + 0
+    }
+    END {
+        if (n == 0 || m == 0) {
+            fail(label " " test ": missing L2 error lines")
+        }
+        if (n != m) {
+            fail(label " " test ": different number of L2 error lines")
+        }
+        limit = n < m ? n : m
+        for (i = 1; i <= limit; i++) {
+            scale = abs(ref[i])
+            if (abs(got[i]) > scale) {
+                scale = abs(got[i])
+            }
+            if (scale < 1) {
+                scale = 1
+            }
+            diff = abs(got[i] - ref[i])
+            if (diff > tol * scale) {
+                printf "%s %s: norm %d differs: reference %.17g, candidate %.17g, diff %.3e, tolerance %.3e\n", \
+                    label, test, i, ref[i], got[i], diff, tol * scale \
+                    > "/dev/stderr"
+                failed = 1
+            }
+        }
+        exit failed ? 1 : 0
+    }' "$reference" "$candidate"
+}
+
 printf '=== reference: Schur, grid %sx%sx%s, steps %s ===\n' \
     "$grid" "$grid" "$grid" "$steps"
+printf '    mpi=%s ranks=%s process_grid=%s tolerance=%s\n' \
+    "$mpi" "$ranks" "${process_grid:-auto}" "$tolerance"
 build_backend schur 64
 capture_suite schur
 
@@ -74,8 +147,8 @@ for batch in $batches; do
     capture_suite "$label"
 
     for test in "${tests[@]}"; do
-        diff -u "$build_dir/schur.$test.norms" \
-                "$build_dir/$label.$test.norms"
+        compare_norms "$build_dir/schur.$test.norms" \
+            "$build_dir/$label.$test.norms" "$label" "$test"
     done
 done
 

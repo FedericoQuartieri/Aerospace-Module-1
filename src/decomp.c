@@ -2,6 +2,8 @@
 #include "parallel.h"
 #include "solver.h"
 
+#include <stdio.h>
+
 void decomp_share(int total, int parts, int index, int *begin, int *end) {
     int share = total / parts;
     int leftover = total % parts;
@@ -63,10 +65,13 @@ void decomp_init_mpi(Decomp *d) {
 
     for (int c = 0; c < 3; c++) {
         if (dims[c] > d->n_global[c]) {
-            fprintf(stderr,
-                    "decomp_init_mpi: %d processes along direction %d but "
-                    "only %d cells\n", dims[c], c, d->n_global[c]);
-            exit(1);
+            if (par_rank() == 0) {
+                fprintf(stderr,
+                        "decomp_init_mpi: %d processes along direction %d "
+                        "but only %d cells\n",
+                        dims[c], c, d->n_global[c]);
+            }
+            par_abort(1);
         }
 
         int begin;

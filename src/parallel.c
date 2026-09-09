@@ -8,6 +8,7 @@
 #include "parallel.h"
 #include "utils.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -168,6 +169,29 @@ long long par_max_long(long long value) {
     MPI_Allreduce(&value, &largest, 1, MPI_LONG_LONG, MPI_MAX, MPI_COMM_WORLD);
     comm_ns += time_ns() - begin;
     return largest;
+}
+
+int par_rank_of_max_long(long long value) {
+    struct {
+        long value;
+        int rank;
+    } here, global;
+
+    if (value > LONG_MAX) {
+        here.value = LONG_MAX;
+    } else if (value < LONG_MIN) {
+        here.value = LONG_MIN;
+    } else {
+        here.value = (long)value;
+    }
+    here.rank = par_rank();
+
+    uint64_t begin = time_ns();
+    MPI_Allreduce(&here, &global, 1, MPI_LONG_INT, MPI_MAXLOC,
+                  MPI_COMM_WORLD);
+    comm_ns += time_ns() - begin;
+
+    return global.rank;
 }
 
 Real par_sum_real(Real value) {
@@ -389,6 +413,11 @@ long long par_sum_long(long long value) {
 
 long long par_max_long(long long value) {
     return value;
+}
+
+int par_rank_of_max_long(long long value) {
+    (void)value;
+    return 0;
 }
 
 unsigned long long par_comm_nanoseconds(void) {

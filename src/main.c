@@ -1,13 +1,15 @@
 #include <stdio.h>
-#include <string.h>
 #include "solver.h"
 #include "parallel.h"
 
 static void usage(const char *program) {
     fprintf(stderr,
-            "uso: %s [file-di-configurazione] [scenario]\n"
+            "uso: %s [scenario]\n"
+            "     %s [file-di-configurazione] [scenario]\n"
             "\nSenza argomenti usa i valori di default e lo scenario "
-            "`paper_data`.\nScenari disponibili:\n", program);
+            "`paper_data`.\nCon un solo argomento, se il nome e' uno scenario "
+            "lo esegue; altrimenti lo legge come file di configurazione.\n"
+            "Scenari disponibili:\n", program, program);
     data_print_names(stderr);
 }
 
@@ -22,16 +24,28 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    const char *config_path = NULL;
+    const char *data_name = NULL;
+
+    if (argc == 2) {
+        if (data_by_name(argv[1]) != NULL) {
+            data_name = argv[1];
+        } else {
+            config_path = argv[1];
+        }
+    } else if (argc == 3) {
+        config_path = argv[1];
+        data_name = argv[2];
+    }
+
     /*
      * La configurazione va letta prima di decomp_init_mpi, che e' il primo a
      * chiedere quanto e' grande la griglia.  La leggono tutti i processi: e' un
      * file di poche righe, e cosi' nessuno deve spedire i parametri agli altri.
      */
-    if (argc >= 2) {
-        params_load(argv[1]);
+    if (config_path != NULL) {
+        params_load(config_path);
     }
-
-    const char *data_name = (argc == 3) ? argv[2] : NULL;
 
     SolverMemState solver_mem_state;
     Data data = paper_data;

@@ -98,6 +98,9 @@ tests: $(TEST_TARGETS)
 
 test: tests
 
+check:
+	./scripts/check_pipeline.sh
+
 $(TEST_BIN_DIR)/channel_obstacle $(TEST_BIN_DIR)/moving_sphere: override CPPFLAGS += $(CHANNEL_CPPFLAGS)
 
 $(TEST_BIN_DIR)/%: $(TEST_DIR)/%.c $(CORE_SOURCES) $(HEADERS) $(TEST_HEADERS) Makefile
@@ -114,4 +117,4 @@ $(TEST_BIN_DIR)/%: $(TEST_DIR)/tridiag/$(TRIDIAG)/%.c $(CORE_SOURCES) $(HEADERS)
 clean:
 	rm -f $(TARGET) $(TEST_TARGETS)
 
-.PHONY: clean test tests
+.PHONY: check clean test tests
