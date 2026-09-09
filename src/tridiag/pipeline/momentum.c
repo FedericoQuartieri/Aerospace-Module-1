@@ -3,6 +3,7 @@
 #include "momentum_row.h"
 #include "parallel.h"
 #include "utils.h"
+#include "workers.h"
 
 #include <stdbool.h>
 
@@ -72,35 +73,49 @@ static void forward_component(const Decomp *d, SolverMemState *state,
             par_recv_real(axis, -1, backend->forward, 2 * active, tag);
         }
 
-        for (int level = 0; level < length; level++) {
-            for (int line = 0; line < active; line++) {
-                int cell[3];
-                Real previous_c;
-                Real previous_d;
+        /*
+         * Dentro un batch le linee non si parlano: l'unica dipendenza e'
+         * lungo `level` nella stessa linea.  Per questo i thread spartiscono
+         * le linee a ogni livello, mentre la recv e la send restano fuori dal
+         * team e mantengono identico l'ordine dei messaggi MPI.
+         */
+        WORKERS_PARALLEL(workers_many() && active > 1)
+        {
+            for (int level = 0; level < length; level++) {
+                WORKERS_FOR
+                for (int line = 0; line < active; line++) {
+                    int cell[3];
+                    Real previous_c;
+                    Real previous_d;
 
-                if (level == 0) {
-                    previous_c = has_lower ? backend->forward[line] : (Real)0;
-                    previous_d = has_lower ? backend->forward[active + line]
-                                           : (Real)0;
-                } else {
-                    size_t before = pipeline_scratch(backend, axis, component,
-                                                     batch, level - 1, line,
-                                                     length);
-                    previous_c = backend->c_prime[before];
-                    previous_d = backend->d_prime[before];
+                    if (level == 0) {
+                        previous_c =
+                            has_lower ? backend->forward[line] : (Real)0;
+                        previous_d =
+                            has_lower ? backend->forward[active + line]
+                                      : (Real)0;
+                    } else {
+                        size_t before =
+                            pipeline_scratch(backend, axis, component,
+                                             batch, level - 1, line, length);
+                        previous_c = backend->c_prime[before];
+                        previous_d = backend->d_prime[before];
+                    }
+
+                    pipeline_cell(d, axis, first_line + (size_t)line, level,
+                                  cell);
+
+                    size_t here = decomp_index(d, cell[0], cell[1], cell[2]);
+                    MomentumRow row = momentum_row(&line_ctx, cell, here);
+                    Real inverse_diagonal =
+                        (Real)1 / (row.b - row.a * previous_c);
+                    size_t at = pipeline_scratch(backend, axis, component,
+                                                 batch, level, line, length);
+
+                    backend->c_prime[at] = row.c * inverse_diagonal;
+                    backend->d_prime[at] =
+                        (row.f - row.a * previous_d) * inverse_diagonal;
                 }
-
-                pipeline_cell(d, axis, first_line + (size_t)line, level, cell);
-
-                size_t here = decomp_index(d, cell[0], cell[1], cell[2]);
-                MomentumRow row = momentum_row(&line_ctx, cell, here);
-                Real inverse_diagonal = (Real)1 / (row.b - row.a * previous_c);
-                size_t at = pipeline_scratch(backend, axis, component, batch,
-                                             level, line, length);
-
-                backend->c_prime[at] = row.c * inverse_diagonal;
-                backend->d_prime[at] =
-                    (row.f - row.a * previous_d) * inverse_diagonal;
             }
         }
 
@@ -153,17 +168,24 @@ static void backward_component(const Decomp *d, SolverMemState *state,
             }
         }
 
-        for (int level = length - 1; level >= 0; level--) {
-            for (int line = 0; line < active; line++) {
-                int cell[3];
-                size_t at = pipeline_scratch(backend, axis, component, batch,
-                                             level, line, length);
-                Real solution = backend->d_prime[at] -
-                                backend->c_prime[at] * backend->backward[line];
+        WORKERS_PARALLEL(workers_many() && active > 1)
+        {
+            for (int level = length - 1; level >= 0; level--) {
+                WORKERS_FOR
+                for (int line = 0; line < active; line++) {
+                    int cell[3];
+                    size_t at = pipeline_scratch(backend, axis, component,
+                                                 batch, level, line, length);
+                    Real solution =
+                        backend->d_prime[at] -
+                        backend->c_prime[at] * backend->backward[line];
 
-                pipeline_cell(d, axis, first_line + (size_t)line, level, cell);
-                target[decomp_index(d, cell[0], cell[1], cell[2])] += solution;
-                backend->backward[line] = solution;
+                    pipeline_cell(d, axis, first_line + (size_t)line, level,
+                                  cell);
+                    target[decomp_index(d, cell[0], cell[1], cell[2])] +=
+                        solution;
+                    backend->backward[line] = solution;
+                }
             }
         }
 

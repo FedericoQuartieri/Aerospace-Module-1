@@ -69,6 +69,9 @@ int par_neighbor(int axis, int step);
 long long par_sum_long(long long value);
 long long par_max_long(long long value);
 
+/* Rank che possiede il massimo valore; in caso di pari sceglie il più basso. */
+int par_rank_of_max_long(long long value);
+
 /*
  * Nanosecondi passati finora dentro le chiamate MPI.
  *

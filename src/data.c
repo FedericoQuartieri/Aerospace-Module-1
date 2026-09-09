@@ -89,7 +89,7 @@ static Real paper_velocity_fn(Real x, Real y, Real z, Real t, int component) {
      }
 }
 
-/* Exact pressure values at t = 1/2 */ // TODO:Should I set t = 1/2 ?
+/* Exact pressure value at the physical time passed by the caller. */
 static Real paper_pressure_fn(Real x, Real y, Real z, Real t) {
     return - 3.0f * NU * REAL_COS(x) * REAL_COS(t + y) * REAL_COS(z);
 }

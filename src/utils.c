@@ -46,6 +46,7 @@ void print_stats(const Decomp *d,
         (long long)d->n[0] * (long long)d->n[1] * (long long)d->n[2];
 
     long long slowest_ns = par_max_long(local_solve_steps);
+    int slowest_rank = par_rank_of_max_long(local_solve_steps);
     long long eta_ns = par_max_long((long long)solver_stats->eta_sys);
     long long zeta_ns = par_max_long((long long)solver_stats->zeta_sys);
     long long u_ns = par_max_long((long long)solver_stats->u_sys);
@@ -119,6 +120,7 @@ void print_stats(const Decomp *d,
     printf("Local block: %d x %d x %d\n", d->n[0], d->n[1], d->n[2]);
     printf("Processes: %d\n", par_size());
     printf("Process grid: %d x %d x %d\n", dims[0], dims[1], dims[2]);
+    printf("Critical rank: %d\n", slowest_rank);
     /* Ranghi e thread insieme: una misura senza entrambi i numeri non si sa
      * confrontare con nessun'altra. */
     printf("Threads per process: %d\n", workers_available());
@@ -161,5 +163,5 @@ void print_stats(const Decomp *d,
     printf("  mpi per step:  %.3f ms (%5.1f%%)\n",
            (double)comm_ns * ns_to_ms / (double)sample_count,
            slowest_ns > 0 ? 100.0 * (double)comm_ns / (double)slowest_ns : 0.0);
-    printf("  per local cell-step: %.3f 1e-8s\n", per_cell_step);
+    printf("  per cell-step: %.3f 1e-8s\n", per_cell_step);
 }

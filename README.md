@@ -38,6 +38,11 @@ The test executables are created in `build/tests/` and can be run separately:
 
 The manufactured tests return a non-zero status when their L2 norms cross
 conservative regression thresholds, so they can be used directly in scripts.
+Run the fast backend equivalence check with:
+
+```sh
+make check
+```
 
 ## Convergence study
 
@@ -79,6 +84,7 @@ The solver accepts an optional configuration file and scenario name:
 
 ```sh
 ./solver
+./solver zero_pressure
 ./solver config.txt paper_data
 ./solver config.txt zero_pressure
 ./solver config.txt constant_forcing
@@ -86,7 +92,9 @@ The solver accepts an optional configuration file and scenario name:
 
 `paper_data` is the default.  `zero_pressure` and `constant_forcing` mirror
 the manufactured cases used by the tests, so a backend can be checked from the
-normal solver entry point too.
+normal solver entry point too.  With one argument the solver first checks
+whether it is a known scenario name; if it is not, it treats it as a
+configuration file.
 
 ## Threads
 
@@ -152,15 +160,16 @@ For a quick local backend check, run:
 
 It builds Schur once, rebuilds the pipeline with several
 `PIPELINE_BATCH_LINES` values, runs `paper_man`, `zero_pressure` and
-`constant_forcing_man`, and diffs only the L2-error lines.  Use
-`GRID`, `STEPS` and `PIPELINE_BATCHES` to make the check larger or broader.
+`constant_forcing_man`, and compares the L2-error values numerically.  Use
+`GRID`, `STEPS`, `PIPELINE_BATCHES` and `TOLERANCE` to make the check larger
+or broader.  With MPI enabled, `RANKS` controls `mpirun -n` and
+`PROCESS_GRID="px py pz"` passes the decomposition shape to the tests.
 
 `PIPELINE_BATCH_LINES` (default 64) sets how many lines travel together.  It
 is the pipeline's one tuning knob: small batches fill the pipeline sooner but
 send more messages, large ones the opposite.
 
-Two things the pipeline backend does not do yet, both measurable rather than
-structural:
+One thing the pipeline backend does not do yet:
 
   - **No SIMD.**  `SIMD=1` still vectorizes nothing inside it.  The scratch
     layout is already the one that makes it possible -- for Y and Z
@@ -168,9 +177,11 @@ structural:
     *across* lines and keep working even when that direction is split, which
     is exactly what the Schur path cannot do.  The kernel is missing, not the
     layout.
-  - **No threads.**  `OMP=1` speeds up the shared parts but not the sweeps.
-    Inside a batch the lines are independent, so the room is there; the chain
-    of sends and receives has to stay in batch order.
+
+`OMP=1` does split the pipeline sweeps now: MPI messages still happen in the
+same batch order, while the independent lines inside each batch are shared
+among the threads.  This preserves the Thomas dependency along each line and
+keeps MPI calls outside the OpenMP regions.
 
 ## Scaling study
 

@@ -3,6 +3,7 @@
 #include "parallel.h"
 #include "pressure_common.h"
 #include "utils.h"
+#include "workers.h"
 
 #include <stdbool.h>
 
@@ -49,35 +50,48 @@ static void pressure_forward(const Decomp *d, PipelineBackend *backend,
             par_recv_real(axis, -1, backend->forward, 2 * active, tag);
         }
 
-        for (int level = 0; level < length; level++) {
-            for (int line = 0; line < active; line++) {
-                int cell[3];
-                Real previous_c;
-                Real previous_d;
+        /*
+         * Anche qui la dipendenza e' solo lungo la singola linea: i thread
+         * spartiscono le linee del batch e si sincronizzano implicitamente a
+         * ogni livello prima che il successivo legga c'/d' appena scritti.
+         */
+        WORKERS_PARALLEL(workers_many() && active > 1)
+        {
+            for (int level = 0; level < length; level++) {
+                WORKERS_FOR
+                for (int line = 0; line < active; line++) {
+                    int cell[3];
+                    Real previous_c;
+                    Real previous_d;
 
-                if (level == 0) {
-                    previous_c = has_lower ? backend->forward[line] : (Real)0;
-                    previous_d = has_lower ? backend->forward[active + line]
-                                           : (Real)0;
-                } else {
-                    size_t before = pipeline_scratch(backend, axis, 0, batch,
-                                                     level - 1, line, length);
-                    previous_c = backend->c_prime[before];
-                    previous_d = backend->d_prime[before];
+                    if (level == 0) {
+                        previous_c =
+                            has_lower ? backend->forward[line] : (Real)0;
+                        previous_d =
+                            has_lower ? backend->forward[active + line]
+                                      : (Real)0;
+                    } else {
+                        size_t before =
+                            pipeline_scratch(backend, axis, 0, batch,
+                                             level - 1, line, length);
+                        previous_c = backend->c_prime[before];
+                        previous_d = backend->d_prime[before];
+                    }
+
+                    pipeline_cell(d, axis, first_line + (size_t)line, level,
+                                  cell);
+
+                    size_t here = decomp_index(d, cell[0], cell[1], cell[2]);
+                    Real inverse_diagonal =
+                        (Real)1 / (row_b[level] - row_a[level] * previous_c);
+                    size_t at = pipeline_scratch(backend, axis, 0, batch,
+                                                 level, line, length);
+
+                    backend->c_prime[at] = row_c[level] * inverse_diagonal;
+                    backend->d_prime[at] =
+                        (source[here] - row_a[level] * previous_d) *
+                        inverse_diagonal;
                 }
-
-                pipeline_cell(d, axis, first_line + (size_t)line, level, cell);
-
-                size_t here = decomp_index(d, cell[0], cell[1], cell[2]);
-                Real inverse_diagonal =
-                    (Real)1 / (row_b[level] - row_a[level] * previous_c);
-                size_t at = pipeline_scratch(backend, axis, 0, batch, level,
-                                             line, length);
-
-                backend->c_prime[at] = row_c[level] * inverse_diagonal;
-                backend->d_prime[at] =
-                    (source[here] - row_a[level] * previous_d) *
-                    inverse_diagonal;
             }
         }
 
@@ -121,19 +135,26 @@ static void pressure_backward(const Decomp *d, PipelineBackend *backend,
             }
         }
 
-        for (int level = length - 1; level >= 0; level--) {
-            for (int line = 0; line < active; line++) {
-                int cell[3];
-                size_t at = pipeline_scratch(backend, axis, 0, batch, level,
-                                             line, length);
-                Real solution = backend->d_prime[at] -
-                                backend->c_prime[at] * backend->backward[line];
+        WORKERS_PARALLEL(workers_many() && active > 1)
+        {
+            for (int level = length - 1; level >= 0; level--) {
+                WORKERS_FOR
+                for (int line = 0; line < active; line++) {
+                    int cell[3];
+                    size_t at = pipeline_scratch(backend, axis, 0, batch,
+                                                 level, line, length);
+                    Real solution =
+                        backend->d_prime[at] -
+                        backend->c_prime[at] * backend->backward[line];
 
-                pipeline_cell(d, axis, first_line + (size_t)line, level, cell);
-                /* La pressione assegna, la quantita' di moto sommava: qui la
-                 * soluzione e' il campo, non un incremento. */
-                target[decomp_index(d, cell[0], cell[1], cell[2])] = solution;
-                backend->backward[line] = solution;
+                    pipeline_cell(d, axis, first_line + (size_t)line, level,
+                                  cell);
+                    /* La pressione assegna, la quantita' di moto sommava: qui
+                     * la soluzione e' il campo, non un incremento. */
+                    target[decomp_index(d, cell[0], cell[1], cell[2])] =
+                        solution;
+                    backend->backward[line] = solution;
+                }
             }
         }
 
