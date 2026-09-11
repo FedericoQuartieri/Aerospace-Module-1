@@ -9,3 +9,4 @@ data/
 !README.md
 /Fede_md/
 /data/
+__pycache__/

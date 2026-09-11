@@ -45,12 +45,25 @@ typedef struct {
      * per ogni passo: si riempiono una volta e i thread le leggono e basta.
      */
     const Real *abscissa;
+    /*
+     * Dove ogni thread somma i nanosecondi che spende a preparare g.
+     *
+     * Un contatore per thread e non uno solo: due thread che incrementano la
+     * stessa variabile la corrompono, e una sola protetta da atomica
+     * costerebbe piu' della cosa che misura. Sono distanziati di una linea di
+     * cache perche' contatori vicini si rimpallano fra i core, e quello che
+     * si finirebbe per misurare e' il rimpallo.
+     */
+    uint64_t *conto;
     int axis;
     int group;
     int outer;
     int length;
     size_t step;
 } MomentumLines;
+
+/* Un contatore per thread, distanziati di una linea di cache. */
+#define CONTO_PASSO 8
 
 /*
  * Scrive nelle tre diagonali e nel termine noto il sistema di UNA linea.
@@ -96,10 +109,18 @@ static void momentum_assemble_line(const MomentumLines *ml, int b, int a,
      * sfrutta.
      */
     if (axis == 0) {
+        /* Cronometrato a parte: g e' il termine noto, non il sistema, e
+         * finche' i due costi stavano insieme dentro eta_sys non si poteva
+         * sapere quanto restasse da guadagnare su ciascuno. Due letture
+         * dell'orologio per linea, cioe' meno di mezzo percento del passo
+         * alle taglie che contano. */
+        uint64_t inizio = time_ns();
+
         g_line(d, mline.data, mline.state, mline.k_porosity,
                cell[1], cell[2], mline.t_step, mline.v_comp,
                ml->abscissa, source_term + line);
         mline.source_term = source_term + line;
+        ml->conto[(size_t)workers_id() * CONTO_PASSO] += time_ns() - inizio;
     }
 
     for (int t = 0; t < length; t++) {
@@ -139,7 +160,8 @@ static void momentum_writeback_line(const MomentumLines *ml, int b, int a,
 
 static void momentum_direction(const Decomp *d,
                                SolverMemState *solver_mem_state,
-                               Data *data, int t_step, int v_comp, int axis) {
+                               Data *data, int t_step, int v_comp, int axis,
+                               SolverStats *solver_stats) {
     /*
      * La fisica di un punto sta in momentum_row.h, che e' condiviso con
      * l'altro backend: qui si fissa la linea una volta e poi si chiede la
@@ -200,7 +222,13 @@ static void momentum_direction(const Decomp *d,
      */
     const int arrays = (axis == 0) ? 6 : 5;
     Real *abscissa = NULL;
+    const int contatori = workers_available();
+    uint64_t *conto = xmalloc((size_t)contatori * CONTO_PASSO *
+                              sizeof(uint64_t));
 
+    for (int i = 0; i < contatori * CONTO_PASSO; i++) {
+        conto[i] = 0;
+    }
     if (axis == 0) {
         abscissa = xmalloc((size_t)length * sizeof(Real));
         forcing_line_coords(d, v_comp, abscissa);
@@ -211,6 +239,7 @@ static void momentum_direction(const Decomp *d,
         .d = d,
         .target = target,
         .abscissa = abscissa,
+        .conto = conto,
         .axis = axis,
         .group = group,
         .outer = outer,
@@ -306,6 +335,22 @@ static void momentum_direction(const Decomp *d,
         }
     }
 
+    /*
+     * Il ramo piu' lungo, non la somma: i thread lavorano insieme, quindi il
+     * tempo di parete speso su g e' quello del thread che ne ha fatto di piu'.
+     * E' cosi' che il numero resta confrontabile con eta_sys, che e' parete.
+     */
+    uint64_t piu_lungo = 0;
+    for (int i = 0; i < contatori; i++) {
+        uint64_t suo = conto[(size_t)i * CONTO_PASSO];
+
+        if (suo > piu_lungo) {
+            piu_lungo = suo;
+        }
+    }
+    solver_stats->momentum_source += piu_lungo;
+
+    free(conto);
     free(abscissa);
     free(pool);
 }
@@ -326,7 +371,8 @@ void momentum_step(const Decomp *decomp,
      */
     uint64_t start_ns = time_ns();
     for (int v_comp = 0; v_comp < 3; v_comp++) {
-        momentum_direction(decomp, solver_mem_state, data, t_step, v_comp, 0);
+        momentum_direction(decomp, solver_mem_state, data, t_step, v_comp,
+                           0, solver_stats);
     }
     solver_stats->eta_sys += time_ns() - start_ns;
 
@@ -341,7 +387,8 @@ void momentum_step(const Decomp *decomp,
             continue;
         }
 #endif
-        momentum_direction(decomp, solver_mem_state, data, t_step, v_comp, 1);
+        momentum_direction(decomp, solver_mem_state, data, t_step, v_comp,
+                           1, solver_stats);
     }
     solver_stats->zeta_sys += time_ns() - start_ns;
 
@@ -354,7 +401,8 @@ void momentum_step(const Decomp *decomp,
             continue;
         }
 #endif
-        momentum_direction(decomp, solver_mem_state, data, t_step, v_comp, 2);
+        momentum_direction(decomp, solver_mem_state, data, t_step, v_comp,
+                           2, solver_stats);
     }
     solver_stats->u_sys += time_ns() - start_ns;
 }

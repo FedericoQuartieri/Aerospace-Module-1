@@ -139,8 +139,7 @@ Forced policies intentionally reject MPI, SIMD and `TRIDIAG=pipeline` builds:
 planes are not a valid forced choice across MPI collectives, SIMD would bypass
 the scalar line solver along two directions and make the comparison
 incomplete, and the pipeline backend has its own loop structure and never
-reads the policy.  The cluster-ready comparison is
-`scripts/run_plane_vs_lines.sh`.
+reads the policy.
 
 ## Tridiagonal backend
 
@@ -220,31 +219,73 @@ script builds through the Makefile, so every `make` variable applies.
 
 ![Scaling](docs/scaling/scaling.svg)
 
-### The full study
+### The exhaustive campaign
 
-`scripts/study/` holds a ten-phase study that varies the three kinds of
-parallelism together -- which backend solves a split line, how many processes,
-how many threads -- and the parameters of each: the shape of the process grid,
-`PIPELINE_BATCH_LINES`, `SIMD`, the grid size.  Every phase is a separate PBS
-job that asks one question and appends to a CSV with the same 33 columns, so
-the results concatenate.
+`scripts/study/` holds six phases that fill the matrix rather than answer one
+question at a time --
+every backend, with and without SIMD, for every process count, for **every**
+shape of the process grid, crossed with every thread count that fits in the
+node, over several problem sizes.  1890 cases with the defaults, each run
+twice and the best kept, so 3780 solver runs.
+
+| phase | what it sweeps |
+|---|---|
+| `10_matrix_threads` | one process, threads 1 to 112, both backends, SIMD on and off |
+| `11_matrix_mpi` | one thread, every process count, all 80 shapes of the process grid; then the same question again with the *local block* held cubic, and with the block stretched at fixed shape |
+| `12_matrix_hybrid` | the full process x thread rectangle, not just the diagonal |
+| `13_matrix_batch` | `PIPELINE_BATCH_LINES` from 8 to 4096, against every placement |
+| `14_matrix_size` | problem size, strong scaling, weak scaling, peak memory |
+| `15_matrix_check` | the error norms: does the whole matrix still solve the same problem? |
 
 ```sh
-./scripts/run_study.sh submit          # every phase, with its dependencies
-./scripts/run_study.sh submit 03 05    # only some
+./scripts/run_study.sh submit 1[0-5]   # six chains, PBS runs them in parallel
 ./scripts/run_study.sh status          # how far along they are
-./scripts/run_study.sh merge           # merge the CSVs, draw the figures
+./scripts/run_study.sh merge           # one CSV, then the figures
+./scripts/plot_matrix.py               # SVGs in docs/scaling/matrix/
 ```
 
-Results resume: a phase writes one row at a time and skips what it already
-did, so a job killed by the walltime is re-submitted rather than restarted.
-`STUDY.md` describes what each phase asks and what would falsify its
-prediction.
+Each phase is its own PBS job asking for a whole node, so the six run on six
+nodes at once; each resumes where it stopped and re-submits itself until it is
+done, so the campaign can span days without anyone watching it.  The axes are
+environment variables, so it scales to the time available:
+
+```sh
+GRIDS="128 224 256" REPEATS=3 ./scripts/run_study.sh submit 1[0-5]
+MATRIX_BACKENDS=pipeline BATCHES="64 1024" ./scripts/run_study.sh submit 13
+DRY_RUN=1 ./scripts/study/11_matrix_mpi.sh   # list the cases, run nothing
+```
+
+Every phase writes the same 34 columns, so `merge` concatenates the six into
+`build/study/all.csv` and `plot_matrix.py` reads it.  Nine of those columns are the stages of a time step timed separately
+-- the three momentum sweeps, the three pressure solves, the pressure update,
+the permeability fill, and whatever is left unaccounted -- plus the share spent
+inside MPI; `matrix-12-composizione.svg` is the figure that reads them.  There is no multi-node sweep: on this cluster nothing launches
+processes across nodes -- not `plm tm`, not ssh between compute nodes, not
+`pbs_tmrsh` -- so the ceiling is one node.
 
 The measurements run `test/bench.c`, which is the only binary that reads the
 grid from a configuration file *and* takes the shape of the process grid on the
 command line: which axis gets split is a variable of the study rather than
 whatever `MPI_Dims_create` chose.
+
+### Measuring one change
+
+A campaign says how the solver behaves; it does not say what a given commit was
+worth.  For that there is a separate A/B:
+
+```sh
+./scripts/run_patch_ab.sh                 # HEAD~1 against HEAD
+./scripts/run_patch_ab.sh e64ef95 HEAD    # any two revisions
+./scripts/plot_patch_ab.py                # two figures in docs/scaling/patch-ab/
+```
+
+It extracts both revisions with `git archive` into `build/patch-ab/`, builds
+each with the same flags, and runs them **alternately** in the same job, keeping
+every repeat rather than the best one.  The CSV carries the same per-stage
+columns, which is the point: a change that touches one stage must show up in
+that stage and nowhere else, so the untouched stages come along as a control
+and their spread is the noise floor of that node.  The figures put the two side
+by side, with the control stages greyed.
 
 ## Solver structure
 

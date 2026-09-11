@@ -30,6 +30,13 @@
  * la soluzione esatta: la stessa configurazione che si sta cronometrando dice
  * pure se sta risolvendo il problema giusto, che e' la premessa di qualunque
  * tempo misurato.
+ *
+ * BENCH_SCENARIO=<nome> cambia lo scenario; senza, e' `paper_data'.  Serve
+ * perche' non tutti costano uguale: il termine forzante lo fornisce lo
+ * scenario, e paper_data e' l'unico che ne pubblica la versione a linea
+ * (forcing_line_fn).  Misurare solo lui vuol dire misurare solo il caso
+ * migliore, e una modifica al termine noto sembrerebbe valere per tutti
+ * quanto vale per uno.  I nomi sono quelli di data_print_names.
  */
 
 #include <stdio.h>
@@ -123,6 +130,23 @@ int main(int argc, char **argv)
 
     params_load(argv[1]);
 
+    /* Lo scenario: quello di default, o quello chiesto dall'ambiente. Un nome
+     * sbagliato ferma qui invece di misurare in silenzio un'altra cosa. */
+    const char *scenario = getenv("BENCH_SCENARIO");
+    const Data *scelto = NULL;
+
+    if (scenario != NULL && scenario[0] != '\0') {
+        scelto = data_by_name(scenario);
+        if (scelto == NULL) {
+            if (par_rank() == 0) {
+                fprintf(stderr, "scenario sconosciuto: %s\nDisponibili:\n",
+                        scenario);
+                data_print_names(stderr);
+            }
+            par_abort(1);
+        }
+    }
+
     /* Tutti zero: la forma la sceglie MPI. Tre numeri la impongono, ed e' il
      * motivo per cui questo binario esiste. */
     int process_grid[3] = {0, 0, 0};
@@ -138,7 +162,7 @@ int main(int argc, char **argv)
     Decomp decomp;
     SolverMemState solver_mem_state;
     SolverStats solver_stats = {0};
-    Data data = paper_data;
+    Data data = (scelto != NULL) ? *scelto : paper_data;
 
     decomp_init_mpi(&decomp);
     solver_init(&decomp, &solver_mem_state, &data, NULL);
@@ -156,6 +180,9 @@ int main(int argc, char **argv)
 
     if (par_rank() == 0) {
         printf("  bench backend:     %s\n", backend_name());
+        /* Lo scenario nell'output, non solo nell'ambiente: un CSV che non lo
+         * riporta non dice quale problema ha cronometrato. */
+        printf("  bench scenario:    %s\n", data.name);
         printf("  bench batch:       %d\n", backend_batch_lines());
         printf("  bench build:       simd=%d omp=%d mpi=%d\n",
                built_with_simd(), built_with_omp(), built_with_mpi());

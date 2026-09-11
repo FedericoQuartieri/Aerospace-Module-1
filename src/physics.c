@@ -382,10 +382,16 @@ Real forcing_at_cell(const Decomp *d, const Data *data,
  * The support excludes lower faces and the upper face normal to the velocity
  * component.  Tangential upper faces use a Dirichlet ghost value.
  */
-Real g_value(const Decomp *d,
-             int i, int j, int k, int t_step, Real k_i,
-             const SolverMemState *solver_mem_state,
-             const Data *data, int component, Real forcing) {
+/*
+ * Il nucleo di g. `forzante_pronta' dice se usare il valore che arriva da
+ * fuori -- chi percorre le linee lo ha gia' calcolato per tutta la linea --
+ * oppure valutarlo qui, dove x, y e z sono gia' sfalsate per la componente.
+ */
+static Real g_core(const Decomp *d,
+                   int i, int j, int k, int t_step, Real k_i,
+                   const SolverMemState *solver_mem_state,
+                   const Data *data, int component,
+                   int forzante_pronta, Real forcing) {
     size_t stride_x = d->stride[0];
     size_t stride_y = d->stride[1];
     size_t stride_z = d->stride[2];
@@ -540,10 +546,30 @@ Real g_value(const Decomp *d,
             return 0.0;
     }
 
+    if (!forzante_pronta) {
+        forcing = data->forcing_fn(x, y, z, forcing_time_of(t_step), component);
+    }
+
     return g_combine(forcing,
                      pressure_gradient,
                      ((Real)NU / k_i) * velocity[index],
                      laplacian_x + laplacian_y + laplacian_z);
+}
+
+Real g_value(const Decomp *d,
+             int i, int j, int k, int t_step, Real k_i,
+             const SolverMemState *solver_mem_state,
+             const Data *data, int component, Real forcing) {
+    return g_core(d, i, j, k, t_step, k_i, solver_mem_state, data, component,
+                  1, forcing);
+}
+
+Real g_value_here(const Decomp *d,
+                  int i, int j, int k, int t_step, Real k_i,
+                  const SolverMemState *solver_mem_state,
+                  const Data *data, int component) {
+    return g_core(d, i, j, k, t_step, k_i, solver_mem_state, data, component,
+                  0, (Real)0);
 }
 
 /*

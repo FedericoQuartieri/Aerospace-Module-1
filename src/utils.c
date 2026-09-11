@@ -58,6 +58,14 @@ void print_stats(const Decomp *d,
         par_max_long((long long)solver_stats->pressure_update);
     long long porosity_fill_ns =
         par_max_long((long long)solver_stats->porosity_fill);
+    /*
+     * Il termine noto del passo eta. Sta DENTRO eta_sys, non accanto: non va
+     * sommato agli stadi, o il passo risulterebbe piu' lungo di quello che e'.
+     * Si legge per differenza -- eta meno questo e' il solutore -- ed e' la
+     * differenza a dire se conviene lavorare sul termine noto o sul sistema.
+     */
+    long long g_term_ns =
+        par_max_long((long long)solver_stats->momentum_source);
     long long wr_output_ns = par_max_long((long long)solver_stats->wr_output);
     long long unaccounted_ns =
         par_max_long(local_solve_steps - local_timed_stages);
@@ -133,6 +141,15 @@ void print_stats(const Decomp *d,
     printf("Solver time stats (max per rank, average per time step):\n");
     printf("  eta system:  %.3f ms (%5.1f%%)\n", eta_avg_ms,
            (double)eta_ns * percentage_factor);
+    /* Le due parti di eta: il termine noto e cio' che resta, cioe' il
+     * solutore. Rientrate di due spazi perche' non sono stadi a se': sommarle
+     * agli altri stadi conterebbe il passo eta due volte. */
+    printf("    g term:    %.3f ms (%5.1f%%)\n",
+           (double)g_term_ns * ns_to_ms / (double)sample_count,
+           (double)g_term_ns * percentage_factor);
+    printf("    eta solve: %.3f ms (%5.1f%%)\n",
+           (double)(eta_ns - g_term_ns) * ns_to_ms / (double)sample_count,
+           (double)(eta_ns - g_term_ns) * percentage_factor);
     printf("  zeta system: %.3f ms (%5.1f%%)\n", zeta_avg_ms,
            (double)zeta_ns * percentage_factor);
     printf("  u system:    %.3f ms (%5.1f%%)\n", u_avg_ms,
