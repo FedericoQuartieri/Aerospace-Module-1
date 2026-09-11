@@ -140,24 +140,40 @@ echo
 # ------------------------------------------------------------- compilazione
 
 echo "=== compilazione ==="
-core_sources=()
-for source in src/*.c; do
-    [[ "$(basename -- "$source")" == "main.c" ]] || core_sources+=("$source")
-done
 
-cflags=(-std=gnu11 -O3 -Wall -Wextra -Iinclude -mavx2 -DUSE_SIMD -DUSE_MPI
-        -DDEFAULT_WIDTH="$NX" -DDEFAULT_HEIGHT="$NY" -DDEFAULT_DEPTH="$NZ"
-        -DDEFAULT_T=1e-1 -DDEFAULT_STEPS="$STEPS")
+# Il solutore non e' piu' il glob piatto src/*.c: il backend tridiagonale sta
+# in src/tridiag/$(TRIDIAG)/ e i flag li conosce solo il Makefile. Da qui si
+# passano soltanto le sue variabili, come fa scripts/study/lib.sh.
+#
+#   TRIDIAG=pipeline qsub scripts/run_multinode_check.sh
+tridiag="${TRIDIAG:-schur}"
+grid_cppflags="-DDEFAULT_WIDTH=$NX -DDEFAULT_HEIGHT=$NY -DDEFAULT_DEPTH=$NZ"
+grid_cppflags+=" -DDEFAULT_T=1e-1 -DDEFAULT_STEPS=$STEPS"
+
+# build_paper_man <OMP> <destinazione>
+build_paper_man()
+{
+    local omp="$1" dest="$2"
+
+    if ! make -s -B --no-print-directory \
+            TRIDIAG="$tridiag" MPI=1 OMP="$omp" SIMD=1 \
+            EXTRA_CPPFLAGS="$grid_cppflags" \
+            build/tests/paper_man > "$build/build.log" 2>&1; then
+        echo "compilazione fallita" >&2
+        sed 's/^/    /' "$build/build.log" >&2
+        exit 1
+    fi
+    mv build/tests/paper_man "$dest"
+}
 
 printf '  mpi puro (senza OpenMP)   '
-"${MPICC:-mpicc}" "${cflags[@]}" \
-    test/paper_man.c "${core_sources[@]}" -lm -o "$build/mpi_only"
+build_paper_man 0 "$build/mpi_only"
 echo ok
 
 printf '  ibrido (MPI + OpenMP)     '
-"${MPICC:-mpicc}" "${cflags[@]}" -fopenmp -DUSE_OMP \
-    test/paper_man.c "${core_sources[@]}" -fopenmp -lm -o "$build/hybrid"
+build_paper_man 1 "$build/hybrid"
 echo ok
+printf '  backend %s\n' "$tridiag"
 
 echo "  griglia ${NX}x${NY}x${NZ}, $STEPS passi"
 echo

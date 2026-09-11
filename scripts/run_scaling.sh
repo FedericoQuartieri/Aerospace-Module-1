@@ -29,15 +29,21 @@ root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 build_dir="$root/build/scaling"
 results="$build_dir/results${RESULTS_SUFFIX:-}.csv"
 executable="$build_dir/paper_man"
-compiler="${MPICC:-mpicc}"
+build_log="$build_dir/build.log"
 steps="${STEPS:-20}"
 # Su un portatile il rumore di fondo e' molto: ogni caso si ripete e si tiene
 # il tempo migliore, che e' quello meno contaminato da altre attivita'.
 repeats="${REPEATS:-3}"
 # SIMD=0 disattiva i kernel vettorizzati: serve a confrontare alla pari, dato
 # che quelli valgono solo sulle direzioni non divise.
-simd_flags="-mavx2 -DUSE_SIMD"
-[[ "${SIMD:-1}" == "0" ]] && simd_flags=""
+simd="${SIMD:-1}"
+# Quale backend ricuce le linee divise fra i processi: schur o pipeline.
+# Il solutore non e' piu' il glob piatto src/*.c -- il backend sta in
+# src/tridiag/$(TRIDIAG)/ -- e i flag li conosce solo il Makefile, quindi si
+# compila attraverso di lui, come fa scripts/study/lib.sh.
+#
+#   TRIDIAG=pipeline RESULTS_SUFFIX=_pipeline ./scripts/run_scaling.sh
+tridiag="${TRIDIAG:-schur}"
 
 # processi : forma della griglia di processi : griglia globale
 strong_configs=(
@@ -71,12 +77,9 @@ hybrid_configs=(
     "8 x 1 : 2 2 2 : 128 128 128"
 )
 
-core_sources=()
-for source in "$root"/src/*.c; do
-    [[ "$(basename -- "$source")" == "main.c" ]] || core_sources+=("$source")
-done
-
 mkdir -p "$build_dir"
+printf 'backend %s, SIMD=%s, %s passi, %s ripetizioni\n' \
+    "$tridiag" "$simd" "$steps" "$repeats"
 trap 'rm -f "$executable"' EXIT
 printf '%s\n' 'study,procs,threads,px,py,pz,nx,ny,nz,steps,wall_ms,mpi_ms' \
     > "$results"
@@ -93,14 +96,20 @@ run_case()
     # Il ramo a thread si compila solo quando serve: la build OpenMP costa un
     # punto percentuale anche a un thread solo, e le due misure vanno tenute
     # separate.
-    local omp_flags=""
-    [[ "$threads" -gt 1 ]] && omp_flags="-fopenmp -DUSE_OMP"
+    local omp=0
+    [[ "$threads" -gt 1 ]] && omp=1
 
-    "$compiler" -std=gnu11 -O3 -Wall -Wextra -I"$root/include" \
-        $simd_flags $omp_flags -DUSE_MPI \
-        -DDEFAULT_WIDTH="$nx" -DDEFAULT_HEIGHT="$ny" -DDEFAULT_DEPTH="$nz" \
-        -DDEFAULT_T=1e-1 -DDEFAULT_STEPS="$steps" \
-        "$root/test/paper_man.c" "${core_sources[@]}" -lm -o "$executable"
+    if ! make -s -B --no-print-directory -C "$root" \
+            TRIDIAG="$tridiag" MPI=1 OMP="$omp" SIMD="$simd" \
+            EXTRA_CPPFLAGS="-DDEFAULT_WIDTH=$nx -DDEFAULT_HEIGHT=$ny \
+                -DDEFAULT_DEPTH=$nz \
+                -DDEFAULT_T=1e-1 -DDEFAULT_STEPS=$steps" \
+            build/tests/paper_man > "$build_log" 2>&1; then
+        echo "compilazione fallita, vedi $build_log" >&2
+        sed 's/^/    /' "$build_log" >&2
+        exit 1
+    fi
+    mv "$root/build/tests/paper_man" "$executable"
 
     # --bind-to none e' obbligatorio, non un dettaglio: per default mpirun
     # inchioda ogni processo a un core solo, e i thread di quel processo se lo

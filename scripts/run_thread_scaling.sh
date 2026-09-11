@@ -102,28 +102,44 @@ echo
 # ----------------------------------------------------------------- compilazione
 
 echo "=== compilazione (una volta sola) ==="
-core_sources=()
-for source in src/*.c; do
-    [[ "$(basename -- "$source")" == "main.c" ]] || core_sources+=("$source")
-done
 
-cflags=(-std=gnu11 -O3 -Wall -Wextra -Iinclude
-        -mavx2 -mfma -DUSE_SIMD -fopenmp -DUSE_OMP -DUSE_MPI)
+# Il solutore non e' piu' il glob piatto src/*.c: il backend tridiagonale sta
+# in src/tridiag/$(TRIDIAG)/ e i flag li conosce solo il Makefile. Da qui si
+# passano soltanto le sue variabili, come fa scripts/study/lib.sh; -mfma e'
+# l'unico flag in piu' rispetto a SIMD=1, ed era gia' cosi'.
+#
+#   TRIDIAG=pipeline qsub scripts/run_thread_scaling.sh
+tridiag="${TRIDIAG:-schur}"
+grid_cppflags="-DDEFAULT_WIDTH=$NX -DDEFAULT_HEIGHT=$NY -DDEFAULT_DEPTH=$NZ"
+grid_cppflags+=" -DDEFAULT_T=1e-1 -DDEFAULT_STEPS=$STEPS"
+
+# build_target <bersaglio del Makefile> <destinazione> [EXTRA_CPPFLAGS]
+build_target()
+{
+    local target="$1" dest="$2" cppflags="${3:-}"
+
+    if ! make -s -B --no-print-directory \
+            TRIDIAG="$tridiag" MPI=1 OMP=1 SIMD=1 \
+            EXTRA_CFLAGS="-mfma" EXTRA_CPPFLAGS="$cppflags" \
+            "$target" > "$build/build.log" 2>&1; then
+        echo "compilazione fallita: $target" >&2
+        sed 's/^/    /' "$build/build.log" >&2
+        exit 1
+    fi
+    mv "$target" "$dest"
+}
 
 # bench: la griglia e' una costante di compilazione perche' i test non leggono
 # nessun file di configurazione.
 printf '  bench  (paper_man, K ricalcolato ogni passo)   '
-"${MPICC:-mpicc}" "${cflags[@]}" \
-    -DDEFAULT_WIDTH="$NX" -DDEFAULT_HEIGHT="$NY" -DDEFAULT_DEPTH="$NZ" \
-    -DDEFAULT_T=1e-1 -DDEFAULT_STEPS="$STEPS" \
-    test/paper_man.c "${core_sources[@]}" -fopenmp -lm -o "$build/bench"
+build_target build/tests/paper_man "$build/bench" "$grid_cppflags"
 echo ok
 
 # solver: la griglia la legge da file, quindi basta un binario.
 printf '  solver (paper_data, K statico)                 '
-"${MPICC:-mpicc}" "${cflags[@]}" \
-    src/main.c "${core_sources[@]}" -fopenmp -lm -o "$build/solver"
+build_target solver "$build/solver"
 echo ok
+printf '  backend %s\n' "$tridiag"
 
 printf 'width = %s\nheight = %s\ndepth = %s\nsteps = %s\nt_end = 1e-1\n' \
     "$NX" "$NY" "$NZ" "$STEPS" > "$config"
@@ -166,7 +182,7 @@ measure()
             /^  psi system/    {psi   = $3}
             /^  phi low/       {lo    = $3}
             /^  phi high/      {hi    = $3}
-            /^  pressure:/     {pr    = $3}
+            /^  pressure:/     {pr    = $2}
             /wall per step:/   {wall  = $4}
             END {
                 sum = eta + zeta + u + psi + lo + hi + pr
