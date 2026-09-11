@@ -4,6 +4,7 @@
 /solver
 .vscode/
 CMakeFiles/
+data/
 *.md
 !README.md
 /Fede_md/
