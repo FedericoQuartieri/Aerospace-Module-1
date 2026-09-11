@@ -65,6 +65,60 @@ static Real paper_forcing(Real x, Real y, Real z, Real t, int component)
     }
 }
 
+/*
+ * La stessa forzante di paper_forcing, ma per una linea intera lungo x.
+ *
+ * E' separabile: ogni termine e' un prodotto di un fattore in x, uno in (t+y)
+ * e uno in z.  Lungo una linea y, z e t non cambiano, quindi tutto tranne il
+ * fattore in x e' una costante da calcolare una volta.
+ *
+ * Delle cinque chiamate trigonometriche per cella ne resta una, e le altre
+ * quattro diventano quattro per linea.  Le espressioni sono associate come in
+ * paper_forcing, non riordinate, e le ascisse sono quelle che il core ha gia'
+ * calcolato: il risultato e' lo stesso bit per bit.
+ *
+ * Anche l'ultima chiamata si potrebbe togliere: le ascisse di una linea sono
+ * le stesse per ogni linea, ogni componente e ogni passo, quindi una tabella
+ * riempita all'avvio le servirebbe tutte.  Non e' fatto qui perche' andrebbe
+ * costruita dove la griglia e' nota, non pigramente con i thread intorno.
+ */
+static void paper_forcing_line(Real *restrict out, const Real *restrict xs,
+                               int n, Real y, Real z, Real t, int component)
+{
+    Real sin_ty = REAL_SIN(t + y);
+    Real cos_ty = REAL_COS(t + y);
+    Real sin_z = REAL_SIN(z);
+    Real cos_z = REAL_COS(z);
+    Real amplitude;
+    int i;
+
+    switch (component) {
+    case 0:
+        amplitude = sin_z * (4.0f * cos_ty - sin_ty) + 3.0f * cos_ty * cos_z;
+        for (i = 0; i < n; i++) {
+            out[i] = REAL_SIN(xs[i]) * amplitude;
+        }
+        return;
+    case 1:
+        amplitude = sin_z * (cos_ty + 4.0f * sin_ty) + 3.0f * sin_ty * cos_z;
+        break;
+    case 2:
+        amplitude = cos_z * (8.0f * cos_ty - 2.0f * sin_ty)
+                    + 3.0f * cos_ty * sin_z;
+        break;
+    default:
+        for (i = 0; i < n; i++) {
+            out[i] = 0.0;
+        }
+        return;
+    }
+
+    /* Le componenti 1 e 2 condividono il fattore cos(x). */
+    for (i = 0; i < n; i++) {
+        out[i] = REAL_COS(xs[i]) * amplitude;
+    }
+}
+
 static Real unit_porosity(Real x, Real y, Real z, Real t, int component) {
     (void)x;
     (void)y;
@@ -217,6 +271,7 @@ const Data paper_data = {
     .name = "paper_data",
     .bc_velocity = paper_bc_velocity,
     .forcing_fn  = paper_forcing,
+    .forcing_line_fn = paper_forcing_line,
     .porosity_fn = unit_porosity,
     .porosity_time_dependent = 0,
     .velocity_fn = paper_velocity_fn,

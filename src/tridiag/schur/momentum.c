@@ -39,6 +39,12 @@ typedef struct {
     const MomentumLine *mline;
     const Decomp *d;
     Real *target;
+    /*
+     * Le ascisse delle celle di una linea lungo x, o NULL fuori dal passo
+     * eta.  Sono le stesse per ogni linea del blocco, per ogni componente e
+     * per ogni passo: si riempiono una volta e i thread le leggono e basta.
+     */
+    const Real *abscissa;
     int axis;
     int group;
     int outer;
@@ -46,15 +52,28 @@ typedef struct {
     size_t step;
 } MomentumLines;
 
-/* Scrive nelle tre diagonali e nel termine noto il sistema di UNA linea. */
+/*
+ * Scrive nelle tre diagonali e nel termine noto il sistema di UNA linea.
+ *
+ * `source_term` e' lo spazio di lavoro dove mettere il termine fisico g della
+ * linea, o NULL fuori dal passo eta: lo riempie questa funzione, una chiamata
+ * sola invece di una per cella, e momentum_row poi ci pesca dentro.
+ */
 static void momentum_assemble_line(const MomentumLines *ml, int b, int a,
                                    Real *restrict lower,
                                    Real *restrict diagonal,
                                    Real *restrict upper,
-                                   Real *restrict known) {
+                                   Real *restrict known,
+                                   Real *restrict source_term) {
     const Decomp *restrict d = ml->d;
     const int axis = ml->axis;
     const int length = ml->length;
+    /*
+     * Una copia della linea condivisa, con il proprio g attaccato: la
+     * struttura di momentum_row.h e' una sola per direzione, mentre il pezzo
+     * di scratch e' di questo thread e di questa linea.
+     */
+    MomentumLine mline = *ml->mline;
     int cell[3];
 
     // Tre indici annidati: b (outer) -> a (group) -> t (lungo l'asse);
@@ -69,12 +88,26 @@ static void momentum_assemble_line(const MomentumLines *ml, int b, int a,
     //inizio linea nei buffer
     size_t line = (size_t)a * (size_t)length;
 
+    /*
+     * Il termine fisico di tutta la linea, in una chiamata sola.  Solo il
+     * passo eta porta g, e le sue linee corrono lungo x: qui dentro y, z e il
+     * tempo sono costanti, i test che governano g non cambiano da una cella
+     * all'altra e le celle sono contigue in memoria.  E' quello che g_line
+     * sfrutta.
+     */
+    if (axis == 0) {
+        g_line(d, mline.data, mline.state, mline.k_porosity,
+               cell[1], cell[2], mline.t_step, mline.v_comp,
+               ml->abscissa, source_term + line);
+        mline.source_term = source_term + line;
+    }
+
     for (int t = 0; t < length; t++) {
         cell[axis] = t;
 
         size_t here = start + (size_t)t * ml->step;
         size_t at = line + (size_t)t;
-        MomentumRow row = momentum_row(ml->mline, cell, here);
+        MomentumRow row = momentum_row(&mline, cell, here);
 
         lower[at] = row.a;
         diagonal[at] = row.b;
@@ -139,10 +172,14 @@ static void momentum_direction(const Decomp *d,
     const size_t line_room = (size_t)lines * (size_t)length;
 
     /*
-     * I piani sono indipendenti, ma i cinque array di lavoro no: ogni thread
-     * che ne prende uno deve avere i propri.  Sono allocati in un blocco solo,
-     * cinque per slot, e ogni slot appartiene a un thread per tutta la durata
-     * del ciclo.
+     * I piani sono indipendenti, ma gli array di lavoro no: ogni thread che ne
+     * prende uno deve avere i propri.  Sono allocati in un blocco solo, cinque
+     * per slot -- sei nel passo eta, dove il sesto e' il termine fisico g -- e
+     * ogni slot appartiene a un thread per tutta la durata del ciclo.
+     *
+     * Il sesto si indicizza per linea come `known`: stessa proprieta', quindi
+     * e' al sicuro sia quando a spartirsi il lavoro sono i piani sia quando
+     * sono le linee.
      *
      * I piani si possono spartire solo se lungo questo asse il processo tiene
      * tutta la linea: altrimenti ogni gruppo passa da schur_solve_mpi, che
@@ -156,10 +193,24 @@ static void momentum_direction(const Decomp *d,
     const int slots = schedule.slots;
     const bool split_lines = schedule.split_lines;
 
+    /*
+     * Le ascisse invece sono le stesse per tutte le linee del blocco -- lungo
+     * x la linea e' sempre la stessa fila di coordinate -- quindi si riempiono
+     * una volta e i thread se le leggono e basta.
+     */
+    const int arrays = (axis == 0) ? 6 : 5;
+    Real *abscissa = NULL;
+
+    if (axis == 0) {
+        abscissa = xmalloc((size_t)length * sizeof(Real));
+        forcing_line_coords(d, v_comp, abscissa);
+    }
+
     const MomentumLines ml = {
         .mline = &mline,
         .d = d,
         .target = target,
+        .abscissa = abscissa,
         .axis = axis,
         .group = group,
         .outer = outer,
@@ -167,7 +218,8 @@ static void momentum_direction(const Decomp *d,
         .step = step,
     };
 
-    Real *pool = xmalloc((size_t)slots * 5 * line_room * sizeof(Real));
+    Real *pool = xmalloc((size_t)slots * (size_t)arrays * line_room *
+                         sizeof(Real));
 
     if (split_lines) {
         /*
@@ -191,6 +243,8 @@ static void momentum_direction(const Decomp *d,
         Real *restrict upper = pool + 2 * line_room;
         Real *restrict known = pool + 3 * line_room;
         Real *restrict increment = pool + 4 * line_room;
+        Real *restrict source_term = (axis == 0) ? pool + 5 * line_room
+                                                 : NULL;
 
         WORKERS_PARALLEL(true)
         {
@@ -198,7 +252,8 @@ static void momentum_direction(const Decomp *d,
                 WORKERS_FOR
                 for (int a = 0; a < lines; a++) {
                     momentum_assemble_line(&ml, b, a,
-                                           lower, diagonal, upper, known);
+                                           lower, diagonal, upper, known,
+                                           source_term);
                 }
                 /* Barriera implicita di WORKERS_FOR: il sistema e' completo. */
 
@@ -226,16 +281,20 @@ static void momentum_direction(const Decomp *d,
          */
         WORKERS_PARALLEL_FOR(slots > 1)
         for (int b = 0; b < planes; b++) {
-            Real *slot = pool + (size_t)workers_slot(slots) * 5 * line_room;
+            Real *slot = pool + (size_t)workers_slot(slots) *
+                                (size_t)arrays * line_room;
             Real *restrict lower = slot;
             Real *restrict diagonal = slot + line_room;
             Real *restrict upper = slot + 2 * line_room;
             Real *restrict known = slot + 3 * line_room;
             Real *restrict increment = slot + 4 * line_room;
+            Real *restrict source_term = (axis == 0) ? slot + 5 * line_room
+                                                     : NULL;
 
             for (int a = 0; a < lines; a++) {
                 momentum_assemble_line(&ml, b, a,
-                                       lower, diagonal, upper, known);
+                                       lower, diagonal, upper, known,
+                                       source_term);
             }
 
             schur_solve_mpi(axis, lines, length,
@@ -247,6 +306,7 @@ static void momentum_direction(const Decomp *d,
         }
     }
 
+    free(abscissa);
     free(pool);
 }
 
