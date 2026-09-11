@@ -86,7 +86,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
     echo "=== il rettangolo: ms/passo, righe rank, colonne thread ==="
     awk -F, -v phase=12_matrix_hybrid -v tlist="$MATRIX_THREADS" '
-    NR == 1 || $1 != phase || $33 != "ok" { next }
+    NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
     {
         k = $3 "," $5 "," $10
         wall[k "," $8 "," $9] = $17 + 0

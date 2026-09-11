@@ -101,7 +101,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     # La lista dei thread arriva dalla shell: ordinarla dentro awk vorrebbe
     # asort, che e' di gawk, e sul cluster awk puo' essere mawk.
     awk -F, -v phase=10_matrix_threads -v tlist="$THREADS" '
-    NR == 1 || $1 != phase || $33 != "ok" || $2 ~ /bind=/ { next }
+    NR == 1 || $1 != phase || $(NF - 1) != "ok" || $2 ~ /bind=/ { next }
     {
         key = $3 "," $5 "," $10
         if ($2 ~ /omp=0/) { base[key] = $17; next }

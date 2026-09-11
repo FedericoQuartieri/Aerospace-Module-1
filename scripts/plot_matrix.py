@@ -586,6 +586,10 @@ def fig_composizione(rows, outdir):
     sola nasconde che una configurazione e' tre volte piu' lenta di quella
     sopra."""
     data = pick(rows, phase="12_matrix_hybrid", simd=1.0)
+    # Le misure prese prima che il binario cronometrasse g hanno la colonna
+    # vuota. Qui non basta leggerla come zero: la fetta `g' sparirebbe dalla
+    # barra e sembrerebbe un risultato invece che un dato mancante.
+    data = [r for r in data if r["g_ms"] is not None]
     if not data:
         return
     grid = max(valori(data, "nx"))

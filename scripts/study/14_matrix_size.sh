@@ -127,7 +127,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
     echo "=== costo per cella (1e-8 s) e memoria di picco, per taglia ==="
     awk -F, -v phase=14_matrix_size '
-    NR == 1 || $1 != phase || $33 != "ok" || $2 !~ / N=/ { next }
+    NR == 1 || $1 != phase || $(NF - 1) != "ok" || $2 !~ / N=/ { next }
     {
         k = $3 "," $5 "," $8 "x" $9
         cell[k "," $10] = $28 + 0
