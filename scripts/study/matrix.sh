@@ -30,7 +30,7 @@
 # allargano gli assi dall'ambiente, che e' il motivo per cui sono tutti
 # variabili:
 #
-#   GRIDS="128 224 256" REPEATS=3 ./scripts/run_study.sh submit 1[0-5]
+#   GRIDS="128 224 256" REPEATS=3 ./scripts/run_study.sh submit
 #
 # Un avvertimento che vale per tutta la campagna: il multi-nodo qui non c'e'.
 # Su questo cluster non esiste un modo funzionante di lanciare processi su piu'

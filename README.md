@@ -238,7 +238,7 @@ twice and the best kept, so 3780 solver runs.
 | `15_matrix_check` | the error norms: does the whole matrix still solve the same problem? |
 
 ```sh
-./scripts/run_study.sh submit 1[0-5]   # six chains, PBS runs them in parallel
+./scripts/run_study.sh submit          # six chains, PBS runs them in parallel
 ./scripts/run_study.sh status          # how far along they are
 ./scripts/run_study.sh merge           # one CSV, then the figures
 ./scripts/plot_matrix.py               # SVGs in docs/scaling/matrix/
@@ -250,7 +250,7 @@ done, so the campaign can span days without anyone watching it.  The axes are
 environment variables, so it scales to the time available:
 
 ```sh
-GRIDS="128 224 256" REPEATS=3 ./scripts/run_study.sh submit 1[0-5]
+GRIDS="128 224 256" REPEATS=3 ./scripts/run_study.sh submit
 MATRIX_BACKENDS=pipeline BATCHES="64 1024" ./scripts/run_study.sh submit 13
 DRY_RUN=1 ./scripts/study/11_matrix_mpi.sh   # list the cases, run nothing
 ```
