@@ -94,14 +94,18 @@ CASE_TIMEOUT="${CASE_TIMEOUT:-900}"
 emit_shapes()
 {
     local n="$1" grid="$2" simd="$3" steps="$4" backend shape
+    # Tutte le forme prima del ciclo: study_case lancia il solver, che legge
+    # stdin e lascerebbe il ciclo senza la lista dopo il primo caso.
+    local forme=()
+    mapfile -t forme < <(matrix_shapes "$n")
 
     for backend in $MATRIX_BACKENDS; do
-        while read -r shape; do
+        for shape in "${forme[@]}"; do
             matrix_shape_fits "$shape" "$grid" || continue
             study_case label="$backend R=$n ${shape// /x} s$simd" \
                 backend="$backend" ranks="$n" shape="$shape" simd="$simd" \
                 grid="$grid" steps="$steps"
-        done < <(matrix_shapes "$n")
+        done
     done
 }
 
@@ -136,13 +140,16 @@ echo "=== blocco locale ${BLOCK}^3 fisso: cambia solo quale asse e' tagliato ===
 steps="$(matrix_steps "$BLOCK")"
 for backend in $MATRIX_BACKENDS; do
     for n in $RANKS; do
-        while read -r px py pz; do
+        forme=()
+        mapfile -t forme < <(matrix_shapes "$n")
+        for forma in "${forme[@]}"; do
+            read -r px py pz <<< "$forma"
             study_case label="cubo $backend R=$n ${px}x${py}x${pz}" \
                 backend="$backend" ranks="$n" shape="$px $py $pz" simd=1 \
                 grid="$(( px * BLOCK )) $(( py * BLOCK )) $(( pz * BLOCK ))" \
                 steps="$steps" \
                 note="blocco locale ${BLOCK}^3, globale al seguito"
-        done < <(matrix_shapes "$n")
+        done
     done
 done
 echo

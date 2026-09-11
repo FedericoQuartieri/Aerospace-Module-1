@@ -506,13 +506,17 @@ study_case()
 
     for (( repeat = 0; repeat < repeats; repeat++ )); do
         set +e
+        # stdin chiuso: mpirun lo legge e lo consuma, e una fase che genera i
+        # casi con `while read ... done < <(...)' si vedrebbe sparire la lista
+        # dopo il primo caso. E' successo: la 12 ha misurato 6 casi su 276 e
+        # si e' dichiarata completa.
         out="$(OMP_NUM_THREADS="$threads" \
                OMP_PLACES="${OMP_PLACES:-cores}" \
                OMP_PROC_BIND="$STUDY_OMP_BIND" \
                OMP_WAIT_POLICY="$STUDY_OMP_WAIT" \
                BENCH_NORMS="$norms" \
                timeout --kill-after=30 "$case_timeout" \
-               "${command[@]}" 2>&1)"
+               "${command[@]}" 2>&1 < /dev/null)"
         local code=$?
         set -e
 

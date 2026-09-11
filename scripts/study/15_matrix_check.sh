@@ -62,12 +62,14 @@ echo "=== ${GRID}^3: ogni forma della griglia di processi, un thread ==="
 for backend in $MATRIX_BACKENDS; do
     for simd in $MATRIX_SIMD; do
         for n in $CHECK_RANKS; do
-            while read -r shape; do
+            forme=()
+            mapfile -t forme < <(matrix_shapes "$n")
+            for shape in "${forme[@]}"; do
                 matrix_shape_fits "$shape" "$grid" || continue
                 study_case label="$backend R=$n ${shape// /x} s$simd" \
                     backend="$backend" simd="$simd" ranks="$n" threads=1 \
                     shape="$shape" grid="$grid" steps="$steps"
-            done < <(matrix_shapes "$n")
+            done
         done
     done
 done
