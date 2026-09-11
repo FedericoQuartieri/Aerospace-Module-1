@@ -55,17 +55,23 @@ CASE_TIMEOUT="${CASE_TIMEOUT:-1200}"
 
 emit_rectangle()
 {
-    local grid="$1" simd="$2" steps="$3" backend r t shape
+    local grid="$1" simd="$2" steps="$3" backend r t shape coppia
+    # La lista si legge tutta prima: dentro il ciclo c'e' study_case, che
+    # lancia il solver, e un programma che legge stdin si mangerebbe le
+    # coppie che restano.
+    local coppie=()
+    mapfile -t coppie < <(matrix_pairs)
 
     for backend in $MATRIX_BACKENDS; do
-        while read -r r t; do
+        for coppia in "${coppie[@]}"; do
+            read -r r t <<< "$coppia"
             shape="$(study_auto_shape "$r")"
             [[ -n "$shape" ]] || continue
             matrix_shape_fits "$shape" "$grid" || continue
             study_case label="$backend R=$r T=$t s$simd" \
                 backend="$backend" ranks="$r" threads="$t" shape="$shape" \
                 simd="$simd" grid="$grid" steps="$steps"
-        done < <(matrix_pairs)
+        done
     done
 }
 
