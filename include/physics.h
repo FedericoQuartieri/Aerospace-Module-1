@@ -33,6 +33,20 @@ Real g_value(const Decomp *d,
              const Data *data, int component, Real forcing);
 
 /*
+ * Lo stesso, per chi la forzante non ce l'ha gia' pronta: la calcola qui
+ * dentro, dove le coordinate sfalsate sono gia' state ricavate.
+ *
+ * Esiste perche' l'alternativa -- chiamare forcing_at_cell e passare il
+ * risultato a g_value -- ricalcola le tre coordinate globali due volte per
+ * cella e aggiunge una chiamata che non si inlinea. Il valore prodotto e' lo
+ * stesso bit per bit: sono le stesse operazioni nello stesso ordine.
+ */
+Real g_value_here(const Decomp *d,
+                  int i, int j, int k, int t_step, Real k_i,
+                  const struct SolverMemState *solver_mem_state,
+                  const Data *data, int component);
+
+/*
  * Le ascisse delle celle di una linea lungo x, sfalsate per la componente
  * richiesta esattamente come le calcola g_value.  Non dipendono ne' da j e k
  * ne' dal passo temporale, quindi un riempimento solo serve tutte le linee

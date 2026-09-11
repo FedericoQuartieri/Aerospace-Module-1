@@ -1,22 +1,20 @@
 #!/usr/bin/env bash
 #
-# Lo studio di scaling completo: dieci fasi, un comando.
+# La campagna di scaling: sei fasi, un comando.
 #
 #   ./scripts/run_study.sh submit          sottomette tutte le fasi a PBS
-#   ./scripts/run_study.sh submit 03 05    solo alcune
-#   ./scripts/run_study.sh local 00        esegue una fase qui e ora
+#   ./scripts/run_study.sh submit 11 13    solo alcune
+#   ./scripts/run_study.sh local 10        esegue una fase qui e ora
 #   ./scripts/run_study.sh dry             elenca i casi senza eseguirli
 #   ./scripts/run_study.sh merge           unisce i CSV e disegna i grafici
 #   ./scripts/run_study.sh status          a che punto sono le fasi
 #   ./scripts/run_study.sh probe           cosa concede ogni coda, misurato
 #
-# La fase 00 va sempre per prima e da sola: verifica che tutte le varianti
-# diano la stessa risposta -- se non e' cosi', i tempi delle altre fasi
-# confrontano programmi diversi -- e riempie la cache dei binari, che le altre
-# fasi condividono e che due job simultanei si contenderebbero. Le altre
-# dipendono da lei con `-W depend=afterok' e possono poi correre in parallelo:
-# ognuna chiede un nodo intero, quindi PBS non le mettera' mai sulla stessa
-# macchina a disturbarsi.
+# Le sei fasi sono indipendenti e corrono in parallelo: ognuna si compila i
+# binari che le servono e chiede un nodo intero, quindi PBS non le mettera' mai
+# sulla stessa macchina a disturbarsi. La 15 e' quella che verifica che tutte
+# le varianti diano la stessa risposta, ed e' bene guardarla per prima: se non
+# e' cosi', i tempi delle altre confrontano programmi diversi.
 #
 # La coda `scalability' concede 30 minuti per job (resources_max.walltime =
 # 00:30:00) e lo studio ne vuole molte di piu'. Non serve fare niente: ogni
@@ -27,7 +25,7 @@
 #
 # Variabili utili, passate cosi':
 #
-#   GRIDS=128 REPEATS=1 ./scripts/run_study.sh submit 03
+#   GRIDS=128 REPEATS=1 ./scripts/run_study.sh submit 11
 #   WALLTIME=12:00:00 ./scripts/run_study.sh submit 05
 #
 # Le variabili dell'ambiente arrivano al job con `qsub -V, quindi basta
@@ -49,8 +47,13 @@ phases_dir="$root/scripts/study"
 action="${1:-help}"
 shift || true
 
-all_phases=(00_env 01_ceiling 02_threads 03_mpi 04_shape 05_hybrid \
-            06_batch 07_weak 08_size 09_multinode)
+# Le sei fasi riempiono la matrice invece di rispondere a una domanda per
+# volta: durano giorni e si ri-sottomettono da sole. Vedi
+# scripts/study/matrix.sh. Lo studio mirato a dieci fasi che le precedeva e'
+# stato tolto -- resta nella storia di git -- perche' quello che misurava lo
+# misurano queste, per intero.
+all_phases=(10_matrix_threads 11_matrix_mpi 12_matrix_hybrid \
+            13_matrix_batch 14_matrix_size 15_matrix_check)
 
 # Un prefisso numerico basta a scegliere una fase: `05' vale `05_hybrid'.
 resolve_phases()
@@ -96,26 +99,18 @@ submit)
         export "${pair?}"
     done
 
-    first=""
     rejected=0
     for phase in "${phases[@]}"; do
         script="$phases_dir/$phase.sh"
-        deps=()
-        # Tutte dipendono dalla 00: e' lei a dire se ha senso misurare, ed e'
-        # lei a compilare le varianti che le altre si limitano a usare.
-        if [[ "$phase" != 00_env && -n "$first" ]]; then
-            deps=(-W "depend=afterok:$first")
-        fi
         # Un rifiuto di PBS riguarda una fase sola -- di solito una risorsa
         # che quella coda non concede -- e non e' un motivo per non sottomettere
         # le altre. Prima si fermava qui, e sembrava che fosse fallito tutto.
-        if ! id="$(qsub "${qsub_opts[@]}" "${deps[@]}" "$script" 2>&1)"; then
+        if ! id="$(qsub "${qsub_opts[@]}" "$script" 2>&1)"; then
             printf '  %-14s RIFIUTATO: %s\n' "$phase" "$(head -1 <<< "$id")"
             rejected=$(( rejected + 1 ))
             continue
         fi
         printf '  %-14s %s\n' "$phase" "$id"
-        [[ "$phase" == 00_env ]] && first="$id"
     done
     echo
     if [[ "$rejected" -gt 0 ]]; then
@@ -164,8 +159,8 @@ merge)
         exit 1
     fi
     echo "$(( $(wc -l < "$out") - 1 )) misure in $out"
-    if [[ -x "$root/scripts/plot_study.py" ]]; then
-        "$root/scripts/plot_study.py" "$out"
+    if [[ -x "$root/scripts/plot_matrix.py" ]]; then
+        "$root/scripts/plot_matrix.py" "$out"
     fi
     ;;
 

@@ -154,12 +154,14 @@ static inline MomentumRow momentum_row(const MomentumLine *line,
 
     /* Solo il primo passo porta il termine fisico g. */
     if (axis == 0) {
+        /* Senza il termine gia' pronto si passa da g_value_here, che valuta
+         * la forzante dove ha gia' le coordinate: chiamare forcing_at_cell e
+         * girarne il risultato a g_value costerebbe le stesse tre coordinate
+         * globali calcolate due volte, per ogni cella. */
         Real source = (line->source_term != NULL)
             ? line->source_term[cell[0]]
-            : g_value(d, cell[0], cell[1], cell[2], line->t_step, k_i,
-                      line->state, line->data, line->v_comp,
-                      forcing_at_cell(d, line->data, cell[0], cell[1], cell[2],
-                                      line->t_step, line->v_comp));
+            : g_value_here(d, cell[0], cell[1], cell[2], line->t_step, k_i,
+                           line->state, line->data, line->v_comp);
 
         rhs += (DT / beta_from_k(k_i)) * source;
     }

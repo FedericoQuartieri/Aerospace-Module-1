@@ -88,6 +88,23 @@ typedef struct SolverStats {
      * quello a fissare il tetto dello speedup mentre lo si cercava altrove.
      */
     uint64_t porosity_fill;
+    /*
+     * Quanto del passo eta se ne va a preparare il termine fisico g, invece
+     * che a risolvere il sistema.
+     *
+     * g non e' il sistema: e' il termine noto, e ha un costo suo -- una
+     * chiamata allo scenario, uno stencil a tre punti per asse, il gradiente
+     * di pressione. Finche' stava dentro eta_sys non si poteva sapere se una
+     * modifica al termine noto valesse la pena, ne' quanto restasse da
+     * guadagnare. Adesso eta_sys meno questo e' il solutore puro.
+     *
+     * E' il ramo piu' lungo, non la somma: ogni thread cronometra le proprie
+     * linee e si tiene il massimo, cosi' il numero e' confrontabile con
+     * eta_sys, che e' tempo di parete. Lo riempie il backend che prepara g per
+     * linee (schur); il pipeline lo calcola cella per cella dentro il ciclo e
+     * qui lascia zero.
+     */
+    uint64_t momentum_source;
     uint64_t solve_steps;
     uint64_t wr_output;
 } SolverStats;

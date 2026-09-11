@@ -40,11 +40,19 @@ STUDY_BASE="$STUDY_ROOT/build/study"
 STUDY_BIN="$STUDY_BASE/bin"
 
 # Colonne, una volta sola: il resto del file si riferisce a questa riga.
-STUDY_HEADER='phase,label,backend,batch,simd,omp,mpi,ranks,threads,nx,ny,nz,steps,px,py,pz,wall_ms,mpi_ms,eta_ms,zeta_ms,u_ms,psi_ms,philow_ms,phihigh_ms,pressure_ms,porosity_ms,untimed_ms,cellstep_1e8s,rss_mb,l2_ux,l2_p,status,note'
+# g_ms sta in fondo, dopo l2_p, e non accanto a eta_ms dove sarebbe il suo
+# posto: gli awk di riepilogo delle fasi leggono le colonne per POSIZIONE, e
+# infilarla in mezzo le sposterebbe tutte. In fondo ne sposta due, status e
+# note, ed e' un cambio di una riga per fase.
+#
+# g_ms e' il tempo speso a preparare il termine noto del passo eta. Sta DENTRO
+# eta_ms, non accanto: eta_ms meno g_ms e' il solutore puro. Non va sommato
+# agli altri stadi, o il passo risulta piu' lungo di quello che e'.
+STUDY_HEADER='phase,label,backend,batch,simd,omp,mpi,ranks,threads,nx,ny,nz,steps,px,py,pz,wall_ms,mpi_ms,eta_ms,zeta_ms,u_ms,psi_ms,philow_ms,phihigh_ms,pressure_ms,porosity_ms,untimed_ms,cellstep_1e8s,rss_mb,l2_ux,l2_p,g_ms,status,note'
 
 # Quanti campi produce l'awk di lettura: serve a riempire di vuoti la riga di
 # un caso fallito senza sfasare le colonne.
-STUDY_MEASURED_FIELDS=18
+STUDY_MEASURED_FIELDS=19
 
 # ---------------------------------------------------------------- avvio fase
 
@@ -85,10 +93,8 @@ study_begin()
     STUDY_CHAIN=$(( $(cat "$STUDY_OUT/chain.count" 2> /dev/null || echo 0) + 1 ))
     echo "$STUDY_CHAIN" > "$STUDY_OUT/chain.count"
     STUDY_CHAIN_MAX="${STUDY_CHAIN_MAX:-40}"
-    # Le fasi che si ri-sottomettono da sole. La 00 e la 09 no: la prima
-    # perche' le altre dipendono dalla sua riuscita e devono partire quando ha
-    # finito davvero, la seconda perche' o funziona in un minuto o non
-    # funziona affatto.
+    # Le fasi si ri-sottomettono da sole finche' non hanno finito, salvo chi
+    # mette questo a 0 perche' o riesce in un minuto o non riesce affatto.
     STUDY_CHAINABLE="${STUDY_CHAINABLE:-1}"
     [[ -f "$STUDY_CSV" ]] || printf '%s\n' "$STUDY_HEADER" > "$STUDY_CSV"
     touch "$STUDY_KEYS"
@@ -576,6 +582,7 @@ study_parse()
 {
     awk '
         /^  eta system/     { eta  = $3 }
+        /^    g term/       { g    = $3 }
         /^  zeta system/    { zeta = $3 }
         /^  u system/       { u    = $3 }
         /^  psi system/     { psi  = $3 }
@@ -593,9 +600,11 @@ study_parse()
         END {
             if (wall == "") { exit 1 }
             sum = eta + zeta + u + psi + lo + hi + pr + po
-            printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%.3f,%s,%s,%s,%s",
+            # g NON entra nella somma: sta dentro eta, e sommarlo
+            # conterebbe il passo eta due volte.
+            printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%.3f,%s,%s,%s,%s,%s",
                    px, py, pz, wall, mpi, eta, zeta, u, psi, lo, hi, pr, po,
-                   wall - sum, cell, rss, lux, lp
+                   wall - sum, cell, rss, lux, lp, g
         }'
 }
 
