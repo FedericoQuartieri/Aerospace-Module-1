@@ -188,14 +188,14 @@ or broader.  With MPI enabled, `RANKS` controls `mpirun -n` and
 is the pipeline's one tuning knob: small batches fill the pipeline sooner but
 send more messages, large ones the opposite.
 
-One thing the pipeline backend does not do yet:
-
-  - **No SIMD.**  `SIMD=1` still vectorizes nothing inside it.  The scratch
-    layout is already the one that makes it possible -- for Y and Z
-    consecutive lines are adjacent in memory, so the kernels would vectorize
-    *across* lines and keep working even when that direction is split, which
-    is exactly what the Schur path cannot do.  The kernel is missing, not the
-    layout.
+`SIMD=1` vectorizes the Y and Z sweeps *across* lines: along those axes
+consecutive lines are adjacent in the scratch and in the field, so one vector
+holds the same level of `SIMD_LANES` neighbouring lines.  It is the kernel the
+pipeline branch had, carried over as it was, and it keeps working when that
+direction is split between processes, which is exactly what the Schur path
+cannot do.  It covers the interior points; the two wall points, the lines left
+over at the end of a batch or of a row, and the whole X sweep go through the
+scalar path, and the two paths produce the same bits.
 
 `OMP=1` does split the pipeline sweeps now: MPI messages still happen in the
 same batch order, while the independent lines inside each batch are shared
