@@ -15,10 +15,45 @@ typedef Real (*VectorFunction)(Real x, Real y, Real z, Real t, int component);
 /* Function of space and time */
 typedef Real (*ScalarFunction)(Real x, Real y, Real z, Real t);
 
+/*
+ * Il termine forzante di una linea intera lungo x, in un colpo solo.
+ *
+ * Il core la chiama una volta per linea invece di una volta per cella.  La
+ * chiamata indiretta si ammortizza su `n` celle, ma soprattutto sparisce dal
+ * ciclo interno: finche' c'e', il compilatore non puo' ne' inlinare ne'
+ * vettorizzare, ed e' il motivo per cui il passo eta e' l'unico dei tre senza
+ * kernel SIMD.
+ *
+ * Chi la implementa vede la linea intera, quindi tutto cio' che dipende solo
+ * da y, z e t lo calcola una volta prima del ciclo.  Li' sta il guadagno
+ * vero: per una forzante separabile come quella del paper, delle cinque
+ * chiamate trigonometriche per cella ne resta una.
+ *
+ * Le linee corrono lungo x perche' g entra solo nel passo eta, che e' quello
+ * lungo x.  Se un giorno entrasse anche negli altri, la firma andrebbe
+ * generalizzata con un asse.
+ *
+ * `out` ha `n` elementi e la cella i sta in (xs[i], y, z).  Le ascisse
+ * arrivano gia' calcolate e gia' sfalsate per la componente richiesta: le
+ * prepara il core con le stesse operazioni del percorso scalare, cosi' chi
+ * implementa questa funzione non puo' valutarla nel punto sbagliato ne'
+ * cambiarne l'ultimo bit ricostruendo le coordinate per conto suo.
+ *
+ * Puo' restare NULL.  In quel caso il core ripiega su forcing_fn cella per
+ * cella e lo scenario si comporta esattamente come prima, quindi gli scenari
+ * che non hanno niente da guadagnare non vanno toccati.
+ */
+typedef void (*VectorLineFunction)(Real *restrict out, const Real *restrict xs,
+                                   int n, Real y, Real z, Real t,
+                                   int component);
+
 typedef struct Data {
     const char *name;
     VectorFunction bc_velocity;
     VectorFunction forcing_fn;
+    /* Versione a linea della stessa forzante, o NULL: vedi
+     * VectorLineFunction. */
+    VectorLineFunction forcing_line_fn;
     VectorFunction porosity_fn;
     int porosity_time_dependent;
     VectorFunction velocity_fn;

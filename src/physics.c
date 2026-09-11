@@ -1,5 +1,8 @@
 #include "physics.h"
+#include "simd_real.h"
 #include "solver.h"
+
+#include <stdbool.h>
 
 static Real spacing_from_component(int component) {
     switch (component) {
@@ -253,6 +256,124 @@ static inline Real upper_second_derivative(const Real *restrict field,
 }
 
 /*
+ * L'ultima riga di g, per conto suo perche' tre percorsi devono arrotondarla
+ * allo stesso modo: g_value, il ciclo scalare di g_line e il suo blocco
+ * vettoriale.  Spezzarla diversamente -- sommare prima lo stencil e aggiungere
+ * la forzante dopo, per dire -- cambierebbe l'ultimo bit del risultato.
+ */
+static inline Real g_combine(Real forcing, Real gradient, Real drag,
+                             Real laplacian_sum) {
+    return forcing - gradient - drag + (Real)NU * laplacian_sum;
+}
+
+#if defined(USE_SIMD) && SIMD_AVAILABLE
+
+/*
+ * Le due qui sopra, un vettore di celle x adiacenti alla volta.  Adiacenti
+ * vuol dire contigue (stride[0] == 1), quindi i vicini lungo ogni asse sono
+ * letture normali non allineate: niente gather, niente trasposizioni.  Le
+ * operazioni sono nello stesso ordine delle versioni scalari, ed e' quello a
+ * tenere i due percorsi uguali fino all'ultima cifra.
+ */
+static inline SimdReal interior_second_derivative_simd(
+    const Real *restrict field,
+    size_t index,
+    size_t stride,
+    SimdReal inverse_spacing_square) {
+    SimdReal left = simd_loadu(&field[index - stride]);
+    SimdReal here = simd_loadu(&field[index]);
+    SimdReal right = simd_loadu(&field[index + stride]);
+
+    return simd_mul(simd_add(simd_sub(left, simd_mul(simd_set1(2.0), here)),
+                             right),
+                    inverse_spacing_square);
+}
+
+static inline SimdReal g_combine_simd(SimdReal forcing, SimdReal gradient,
+                                      SimdReal drag, SimdReal laplacian_sum,
+                                      SimdReal nu) {
+    return simd_add(simd_sub(simd_sub(forcing, gradient), drag),
+                    simd_mul(nu, laplacian_sum));
+}
+
+#endif
+
+/*
+ * Le coordinate della cella (i, j, k), con la mezza cella che g_value aggiunge
+ * alla componente richiesta.  Sono scritte qui una volta sola perche' i tre
+ * modi di arrivare alla forzante -- la linea, la singola cella e g_value --
+ * devono valutarla nello stesso punto fino all'ultimo bit.
+ */
+static void forcing_coords(const Decomp *d, int i, int j, int k,
+                           int component, Real *x, Real *y, Real *z) {
+    *x = (Real)decomp_global(d, i, 0) * (Real)DX;
+    *y = (Real)decomp_global(d, j, 1) * (Real)DY;
+    *z = (Real)decomp_global(d, k, 2) * (Real)DZ;
+
+    if (component == 0) {
+        *x += (Real)DX / 2.0;
+    } else if (component == 1) {
+        *y += (Real)DY / 2.0;
+    } else if (component == 2) {
+        *z += (Real)DZ / 2.0;
+    }
+}
+
+static Real forcing_time_of(int t_step) {
+    return ((Real)t_step - 0.5) * (Real)DT;
+}
+
+void forcing_line_coords(const Decomp *d, int component, Real *restrict xs) {
+    for (int i = 0; i < d->n[0]; i++) {
+        Real x = (Real)decomp_global(d, i, 0) * (Real)DX;
+
+        /* La mezza cella che g_value aggiunge alla componente x. */
+        if (component == 0) {
+            x += (Real)DX / 2.0;
+        }
+        xs[i] = x;
+    }
+}
+
+void forcing_fill_line(const Decomp *d, const Data *data,
+                       int j, int k, int t_step, int component,
+                       const Real *restrict xs, Real *restrict out) {
+    int n = d->n[0];
+    Real y = (Real)decomp_global(d, j, 1) * (Real)DY;
+    Real z = (Real)decomp_global(d, k, 2) * (Real)DZ;
+    Real t = forcing_time_of(t_step);
+
+    /* Le stesse mezze celle di g_value, nello stesso ordine di operazioni. */
+    if (component == 1) {
+        y += (Real)DY / 2.0;
+    } else if (component == 2) {
+        z += (Real)DZ / 2.0;
+    }
+
+    if (data->forcing_line_fn != NULL) {
+        data->forcing_line_fn(out, xs, n, y, z, t, component);
+        return;
+    }
+
+    /* Nessuna versione a linea: si paga il prezzo di prima, una chiamata per
+     * cella, ma il ciclo interno del chiamante resta comunque pulito. */
+    for (int i = 0; i < n; i++) {
+        out[i] = data->forcing_fn(xs[i], y, z, t, component);
+    }
+}
+
+Real forcing_at_cell(const Decomp *d, const Data *data,
+                     int i, int j, int k, int t_step, int component) {
+    Real x;
+    Real y;
+    Real z;
+
+    forcing_coords(d, i, j, k, component, &x, &y, &z);
+
+    return data->forcing_fn(x, y, z, forcing_time_of(t_step), component);
+}
+
+/*
  * Momentum source at (t_step - 1/2) DT:
  *
  *   g = f - grad(p*) - (NU / K) u
@@ -264,7 +385,7 @@ static inline Real upper_second_derivative(const Real *restrict field,
 Real g_value(const Decomp *d,
              int i, int j, int k, int t_step, Real k_i,
              const SolverMemState *solver_mem_state,
-             const Data *data, int component) {
+             const Data *data, int component, Real forcing) {
     size_t stride_x = d->stride[0];
     size_t stride_y = d->stride[1];
     size_t stride_z = d->stride[2];
@@ -278,8 +399,8 @@ Real g_value(const Decomp *d,
     int gj = decomp_global(d, j, 1);
     int gk = decomp_global(d, k, 2);
 
-    //per la forzante è t_step - 1/2, per la velocità è t_step - 1
-    Real forcing_time = ((Real)t_step - 0.5) * (Real)DT;
+    //la forzante arriva gia' valutata in (t_step - 1/2) DT; per la velocità
+    //serve invece t_step - 1
     Real velocity_time = ((Real)t_step - 1.0) * (Real)DT;
     
     //upper_x, upper_y, upper_z sono le coordinate fisiche del bordo superiore del dominio
@@ -419,8 +540,195 @@ Real g_value(const Decomp *d,
             return 0.0;
     }
 
-    return data->forcing_fn(x, y, z, forcing_time, component) -
-           pressure_gradient -
-           ((Real)NU / k_i) * velocity[index] +
-           (Real)NU * (laplacian_x + laplacian_y + laplacian_z);
+    return g_combine(forcing,
+                     pressure_gradient,
+                     ((Real)NU / k_i) * velocity[index],
+                     laplacian_x + laplacian_y + laplacian_z);
+}
+
+/*
+ * g di tutta una linea lungo x.
+ *
+ * Ogni test che g_value fa per cella qui si fa una volta per linea, perche' il
+ * supporto di g e la scelta del nodo fantasma dipendono da j e k, che sulla
+ * linea non cambiano.  Quello che sopravvive e' un'espressione dritta su celle
+ * vicine in memoria, quindi il blocco vettoriale e' la stessa aritmetica del
+ * ciclo scalare che lo segue, un vettore di celle alla volta.
+ *
+ * I pezzi che invece cambiano da cella a cella -- la forzante e i due estremi
+ * della linea -- non sono riscritti: la forzante la fa lo scenario, gli
+ * estremi tornano a g_value.
+ */
+void g_line(const Decomp *d, const Data *data,
+            const SolverMemState *solver_mem_state,
+            const Real *restrict k_porosity,
+            int j, int k, int t_step, int component,
+            const Real *restrict xs, Real *restrict out) {
+    int count = d->n[0];
+    int gj = decomp_global(d, j, 1);
+    int gk = decomp_global(d, k, 2);
+    size_t row = decomp_index(d, 0, j, k);
+    const Real *restrict pressure = solver_mem_state->pressure_star.v;
+    const Real *restrict eta;
+    const Real *restrict zeta;
+    const Real *restrict velocity;
+    size_t gradient_stride;
+    Real gradient_inverse;
+    /* Sono proprieta' della linea, non della cella. */
+    bool in_support;
+    bool leans_on_ghost;
+    int first;
+    int fast_end;
+    int n;
+
+    switch (component) {
+        case 0:
+            in_support = (gj >= 1 && gj < d->n_global[1] &&
+                          gk >= 1 && gk < d->n_global[2]);
+            leans_on_ghost = (gj == d->n_global[1] - 1 ||
+                              gk == d->n_global[2] - 1);
+            eta = solver_mem_state->eta.v_x;
+            zeta = solver_mem_state->zeta.v_x;
+            velocity = solver_mem_state->u.v_x;
+            gradient_stride = d->stride[0];
+            gradient_inverse = (Real)DX_INVERSE;
+            break;
+
+        case 1:
+            in_support = (gj >= 1 && gj < d->n_global[1] - 1 &&
+                          gk >= 1 && gk < d->n_global[2]);
+            leans_on_ghost = (gk == d->n_global[2] - 1);
+            eta = solver_mem_state->eta.v_y;
+            zeta = solver_mem_state->zeta.v_y;
+            velocity = solver_mem_state->u.v_y;
+            gradient_stride = d->stride[1];
+            gradient_inverse = (Real)DY_INVERSE;
+            break;
+
+        case 2:
+            in_support = (gj >= 1 && gj < d->n_global[1] &&
+                          gk >= 1 && gk < d->n_global[2] - 1);
+            leans_on_ghost = (gj == d->n_global[1] - 1);
+            eta = solver_mem_state->eta.v_z;
+            zeta = solver_mem_state->zeta.v_z;
+            velocity = solver_mem_state->u.v_z;
+            gradient_stride = d->stride[2];
+            gradient_inverse = (Real)DZ_INVERSE;
+            break;
+
+        default:
+            for (n = 0; n < count; n++) {
+                out[n] = 0.0;
+            }
+            return;
+    }
+
+    /* Fuori dal supporto in j o k la linea e' tutta zero, una cella come
+     * l'altra: e' quello che g_value risponde li'. */
+    if (!in_support) {
+        for (n = 0; n < count; n++) {
+            out[n] = 0.0;
+        }
+        return;
+    }
+
+    /* La forzante di tutta la linea prima di tutto: la ritrovano sia il ciclo
+     * vettoriale sia le celle che tornano a g_value. */
+    forcing_fill_line(d, data, j, k, t_step, component, xs, out);
+
+    /*
+     * Una linea che appoggia su un nodo fantasma legge il valore alla parete
+     * nell'ascissa della cella, quindi cambia da una cella all'altra e non
+     * resta niente da issare fuori.  Quelle linee sono due piani del blocco:
+     * tengono il percorso di prima, cella per cella.
+     */
+    if (leans_on_ghost) {
+        for (n = 0; n < count; n++) {
+            out[n] = g_value(d, n, j, k, t_step, k_porosity[row + (size_t)n],
+                             solver_mem_state, data, component, out[n]);
+        }
+        return;
+    }
+
+    /*
+     * Le celle scritte dal percorso veloce sono quelle di indice globale da 1
+     * a n_global[0] - 2.  Ne resta al piu' una per estremo: gi == 0, sempre
+     * fuori supporto, e gi == n_global[0] - 1, fuori supporto per la
+     * componente x e nodo fantasma per le altre due.  Tornano tutt'e due a
+     * g_value, cosi' quell'algebra resta scritta una volta sola.
+     */
+    first = 1 - d->start[0];
+    fast_end = d->n_global[0] - 1 - d->start[0];
+    if (first < 0) {
+        first = 0;
+    }
+    if (fast_end > count) {
+        fast_end = count;
+    }
+    if (fast_end < first) {
+        fast_end = first;
+    }
+
+    for (n = 0; n < first; n++) {
+        out[n] = g_value(d, n, j, k, t_step, k_porosity[row + (size_t)n],
+                         solver_mem_state, data, component, out[n]);
+    }
+    for (n = fast_end; n < count; n++) {
+        out[n] = g_value(d, n, j, k, t_step, k_porosity[row + (size_t)n],
+                         solver_mem_state, data, component, out[n]);
+    }
+
+    n = first;
+
+#if defined(USE_SIMD) && SIMD_AVAILABLE
+    {
+        const SimdReal nu = simd_set1((Real)NU);
+        const SimdReal gradient_inverse_v = simd_set1(gradient_inverse);
+        const SimdReal inverse_x = simd_set1((Real)DX_INVERSE_SQUARE);
+        const SimdReal inverse_y = simd_set1((Real)DY_INVERSE_SQUARE);
+        const SimdReal inverse_z = simd_set1((Real)DZ_INVERSE_SQUARE);
+
+        for (; n + SIMD_LANES <= fast_end; n += SIMD_LANES) {
+            size_t at = row + (size_t)n;
+            SimdReal pressure_gradient = simd_mul(
+                simd_sub(simd_loadu(&pressure[at + gradient_stride]),
+                         simd_loadu(&pressure[at])),
+                gradient_inverse_v);
+            SimdReal laplacian_x = interior_second_derivative_simd(
+                eta, at, d->stride[0], inverse_x);
+            SimdReal laplacian_y = interior_second_derivative_simd(
+                zeta, at, d->stride[1], inverse_y);
+            SimdReal laplacian_z = interior_second_derivative_simd(
+                velocity, at, d->stride[2], inverse_z);
+            SimdReal drag = simd_mul(simd_div(nu, simd_loadu(&k_porosity[at])),
+                                     simd_loadu(&velocity[at]));
+
+            simd_storeu(&out[n],
+                        g_combine_simd(simd_loadu(&out[n]),
+                                       pressure_gradient, drag,
+                                       simd_add(simd_add(laplacian_x,
+                                                         laplacian_y),
+                                                laplacian_z),
+                                       nu));
+        }
+    }
+#endif
+
+    /* Le celle che i vettori non hanno coperto, e tutta la linea quando la
+     * build non ha SIMD: stessa espressione, una cella alla volta. */
+    for (; n < fast_end; n++) {
+        size_t at = row + (size_t)n;
+        Real pressure_gradient =
+            (pressure[at + gradient_stride] - pressure[at]) * gradient_inverse;
+        Real laplacian_x = interior_second_derivative(
+            eta, at, d->stride[0], (Real)DX_INVERSE_SQUARE);
+        Real laplacian_y = interior_second_derivative(
+            zeta, at, d->stride[1], (Real)DY_INVERSE_SQUARE);
+        Real laplacian_z = interior_second_derivative(
+            velocity, at, d->stride[2], (Real)DZ_INVERSE_SQUARE);
+        Real drag = ((Real)NU / k_porosity[at]) * velocity[at];
+
+        out[n] = g_combine(out[n], pressure_gradient, drag,
+                           laplacian_x + laplacian_y + laplacian_z);
+    }
 }

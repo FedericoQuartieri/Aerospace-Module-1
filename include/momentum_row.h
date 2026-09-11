@@ -48,6 +48,21 @@ typedef struct MomentumLine {
     const Real *source;      /* lo stadio da cui si parte               */
     const Real *target;      /* lo stadio in cui si arriva (in lettura) */
     Real inverse_square;     /* 1/h^2 lungo questo asse                 */
+    /*
+     * Il termine fisico g della linea lungo x, gia' calcolato, indicizzato
+     * dalla posizione lungo l'asse -- oppure NULL.
+     *
+     * Chi percorre le linee lungo x (il backend Schur nel passo eta) lo
+     * riempie una volta per linea con g_line e lo punta qui.  Il guadagno non
+     * e' solo la chiamata indiretta alla forzante che sparisce dal ciclo
+     * interno: sulla linea il supporto di g e la scelta del nodo fantasma non
+     * cambiano, quindi si decidono una volta e quel che resta si vettorizza.
+     *
+     * NULL vuol dire "non l'ho preparato": si ripiega su g_value cella per
+     * cella come prima.  E' il caso del backend pipeline, che percorre i
+     * livelli e non le linee, e degli assi y e z, dove g non entra affatto.
+     */
+    const Real *source_term;
     int axis;
     int v_comp;
     int t_step;
@@ -93,6 +108,7 @@ static inline MomentumLine momentum_line(const Decomp *d,
     }
 
     line.d = d;
+    line.source_term = NULL;
     line.state = state;
     line.data = data;
     line.inverse_square = (axis == 0) ? (Real)DX_INVERSE_SQUARE
@@ -138,9 +154,14 @@ static inline MomentumRow momentum_row(const MomentumLine *line,
 
     /* Solo il primo passo porta il termine fisico g. */
     if (axis == 0) {
-        rhs += (DT / beta_from_k(k_i)) *
-               g_value(d, cell[0], cell[1], cell[2], line->t_step, k_i,
-                       line->state, line->data, line->v_comp);
+        Real source = (line->source_term != NULL)
+            ? line->source_term[cell[0]]
+            : g_value(d, cell[0], cell[1], cell[2], line->t_step, k_i,
+                      line->state, line->data, line->v_comp,
+                      forcing_at_cell(d, line->data, cell[0], cell[1], cell[2],
+                                      line->t_step, line->v_comp));
+
+        rhs += (DT / beta_from_k(k_i)) * source;
     }
 
     if (along < line->last_global) {
