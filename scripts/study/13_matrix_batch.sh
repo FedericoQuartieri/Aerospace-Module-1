@@ -89,7 +89,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
     echo "=== il batch migliore, per piazzamento ==="
     awk -F, -v phase=13_matrix_batch '
-    NR == 1 || $1 != phase || $33 != "ok" { next }
+    NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
     {
         k = $10 "," $5 "," $8 "x" $9
         if ($3 == "schur") { ref[k] = $17 + 0; next }

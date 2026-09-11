@@ -106,11 +106,11 @@ submit)
         # che quella coda non concede -- e non e' un motivo per non sottomettere
         # le altre. Prima si fermava qui, e sembrava che fosse fallito tutto.
         if ! id="$(qsub "${qsub_opts[@]}" "$script" 2>&1)"; then
-            printf '  %-14s RIFIUTATO: %s\n' "$phase" "$(head -1 <<< "$id")"
+            printf '  %-18s RIFIUTATO: %s\n' "$phase" "$(head -1 <<< "$id")"
             rejected=$(( rejected + 1 ))
             continue
         fi
-        printf '  %-14s %s\n' "$phase" "$id"
+        printf '  %-18s %s\n' "$phase" "$id"
     done
     echo
     if [[ "$rejected" -gt 0 ]]; then
@@ -144,15 +144,30 @@ merge)
     out="$root/build/study/all.csv"
     mkdir -p "$root/build/study"
     header=""
+    intestazione=$(sed -n "s/^STUDY_HEADER='//p" "$root/scripts/study/lib.sh" \
+        | head -1 | sed "s/'$//")
+    colonne=$(awk -F, '{print NF}' <<< "$intestazione")
     : > "$out"
     for phase in "${all_phases[@]}"; do
         csv="$root/build/study/$phase/results.csv"
         [[ -f "$csv" ]] || continue
         if [[ -z "$header" ]]; then
-            head -1 "$csv" > "$out"
+            printf '%s\n' "$intestazione" > "$out"
             header=1
         fi
-        tail -n +2 "$csv" >> "$out"
+        # Le misure fatte prima che g_ms esistesse hanno una colonna in meno.
+        # Qui si allineano al formato di adesso -- g_ms vuoto, inserito prima
+        # di stato e nota -- perche' i grafici leggono per nome e una riga
+        # corta gli sposterebbe ogni campo di uno.
+        awk -F, -v OFS=, -v larga="$colonne" 'NR > 1 {
+            if (NF == larga - 1) {
+                stato = $(NF - 1); nota = $NF
+                $(NF - 1) = ""
+                $NF = stato
+                $(NF + 1) = nota
+            }
+            print
+        }' "$csv" >> "$out"
     done
     if [[ -z "$header" ]]; then
         echo "nessun risultato da unire" >&2
@@ -205,18 +220,33 @@ probe)
     ;;
 
 status)
-    printf '  %-14s %8s %8s %8s   %s\n' fase misure ok falliti aggiornato
+    # La larghezza buona e' quella di lib.sh: un CSV cominciato prima che g_ms
+    # esistesse ha anche l'intestazione vecchia, quindi confrontarlo con se
+    # stesso non direbbe niente.
+    attesa=$(sed -n "s/^STUDY_HEADER='//p" "$root/scripts/study/lib.sh" \
+        | head -1 | awk -F, '{print NF}')
+    printf '  %-18s %8s %8s %8s   %s\n' fase misure ok falliti aggiornato
     for phase in "${all_phases[@]}"; do
         csv="$root/build/study/$phase/results.csv"
         if [[ ! -f "$csv" ]]; then
-            printf '  %-14s %8s\n' "$phase" "-"
+            printf '  %-18s %8s\n' "$phase" "-"
             continue
         fi
         total=$(( $(wc -l < "$csv") - 1 ))
-        ok=$(awk -F, 'NR>1 && $32=="ok"' "$csv" | wc -l)
-        bad=$(awk -F, 'NR>1 && $32!="ok"' "$csv" | wc -l)
-        printf '  %-14s %8s %8s %8s   %s\n' "$phase" "$total" "$ok" "$bad" \
-            "$(date -r "$csv" '+%Y-%m-%d %H:%M')"
+        # Lo stato e' sempre il penultimo campo e la nota l'ultimo, in questo
+        # formato come in quello prima di g_ms: le note hanno le virgole
+        # gia' sostituite, quindi contare da destra regge anche su un file
+        # che mescola le due larghezze. Un indice scritto a mano no: era $32,
+        # g_ms l'ha spostato a $33, e per una notte lo studio ha dichiarato
+        # fallito tutto quanto.
+        read -r ok bad vecchie < <(awk -F, -v larga="$attesa" '
+            NR == 1 { next }
+            { if ($(NF - 1) == "ok") buoni++; else cattivi++
+              if (NF < larga) corte++ }
+            END { printf "%d %d %d\n", buoni, cattivi, corte }' "$csv")
+        [[ "$vecchie" -gt 0 ]] && nota=" ($vecchie senza g_ms)" || nota=""
+        printf '  %-18s %8s %8s %8s   %s%s\n' "$phase" "$total" "$ok" "$bad" \
+            "$(date -r "$csv" '+%Y-%m-%d %H:%M')" "$nota"
     done
     ;;
 

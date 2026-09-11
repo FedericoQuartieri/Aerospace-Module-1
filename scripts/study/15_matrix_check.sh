@@ -107,7 +107,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo "=== verdetto: quanto si discostano le norme fra tutte le configurazioni ==="
     awk -F, -v phase=15_matrix_check '
     function abs(x) { return x < 0 ? -x : x }
-    NR == 1 || $1 != phase || $33 != "ok" || $30 == "" { next }
+    NR == 1 || $1 != phase || $(NF - 1) != "ok" || $30 == "" { next }
     {
         n++
         ux[n] = $30 + 0; p[n] = $31 + 0; who[n] = $2

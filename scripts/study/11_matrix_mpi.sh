@@ -192,7 +192,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
     echo "=== la forma migliore e la peggiore, per ogni numero di rank ==="
     awk -F, -v phase=11_matrix_mpi '
-    NR == 1 || $1 != phase || $33 != "ok" { next }
+    NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
     $2 ~ /ponte|^cubo |^aspetto / { next }
     {
         k = $3 "," $5 "," $10 "," $8
@@ -226,7 +226,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
     echo "=== blocco locale fisso: il tempo dei tre tagli puri, per asse ==="
     awk -F, -v phase=11_matrix_mpi '
-    NR == 1 || $1 != phase || $33 != "ok" || $2 !~ /^cubo / { next }
+    NR == 1 || $1 != phase || $(NF - 1) != "ok" || $2 !~ /^cubo / { next }
     {
         # Taglio puro: tutti i processi su un asse solo.
         asse = ""
