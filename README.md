@@ -50,9 +50,12 @@ Run the spatial and temporal convergence tests:
 
 ```sh
 ./scripts/run_convergence.sh
+TRIDIAG=pipeline SIMD=1 OMP=1 ./scripts/run_convergence.sh
 ```
 
 Errors and convergence rates are written to `build/convergence/results.csv`.
+The script builds through the Makefile, so `TRIDIAG`, `SIMD` and `OMP` in the
+environment select the backend and the kernels exactly as `make` would.
 
 ![Velocity convergence](docs/convergence/velocity.svg)
 
@@ -212,6 +215,8 @@ HYBRID=0 ./scripts/run_scaling.sh # skip the hybrid study
 
 The second run disables the vectorized kernels.  They only apply to directions
 that are not split, so comparing with them enabled measures two things at once.
+`TRIDIAG=pipeline RESULTS_SUFFIX=_pipeline` measures the other backend: the
+script builds through the Makefile, so every `make` variable applies.
 
 ![Scaling](docs/scaling/scaling.svg)
 

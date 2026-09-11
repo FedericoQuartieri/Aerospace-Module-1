@@ -7,12 +7,24 @@ build_dir="$root/build/convergence"
 raw_file="$build_dir/.raw.csv"
 results_file="$build_dir/results.csv"
 executable="$build_dir/paper_man"
-compiler="${CC:-cc}"
-# Flag aggiuntivi per il compilatore, vuoti per default: cosi' una corsa senza
-# EXTRA_CFLAGS si comporta esattamente come prima. Servono sul cluster, dove
-# senza SIMD e senza thread la griglia 256^3 dello studio temporale non
-# finirebbe dentro nessun walltime ragionevole.
+build_log="$build_dir/build.log"
+# Il solutore non e' piu' il glob piatto src/*.c: il backend tridiagonale sta
+# in src/tridiag/$(TRIDIAG)/ e i flag li conosce solo il Makefile. Da qui si
+# passano soltanto le sue variabili, come fa scripts/study/lib.sh.
+#
+# TRIDIAG, SIMD e OMP arrivano dall'ambiente con i default del Makefile.
+# Servono sul cluster, dove senza SIMD e senza thread la griglia 256^3 dello
+# studio temporale non finirebbe dentro nessun walltime ragionevole:
+#
+#   SIMD=1 OMP=1 ./scripts/run_convergence.sh
+#   TRIDIAG=pipeline ./scripts/run_convergence.sh
+#
+# EXTRA_CFLAGS e EXTRA_CPPFLAGS passano al Makefile come sono.
+tridiag="${TRIDIAG:-schur}"
+simd="${SIMD:-0}"
+omp="${OMP:-0}"
 extra_cflags="${EXTRA_CFLAGS:-}"
+extra_cppflags="${EXTRA_CPPFLAGS:-}"
 
 # Each configuration contains: grid size, dt, total time.
 spatial_configs=(
@@ -29,12 +41,8 @@ temporal_configs=(
     "256 0.00625 1.0"
 )
 
-core_sources=()
-for source in "$root"/src/*.c; do
-    [[ "$(basename -- "$source")" == "main.c" ]] || core_sources+=("$source")
-done
-
 mkdir -p "$build_dir"
+printf 'backend %s, SIMD=%s, OMP=%s\n' "$tridiag" "$simd" "$omp"
 trap 'rm -f "$raw_file" "$executable"' EXIT
 printf '%s\n' \
     'study,N,h,steps,dt,T,L2_ux,L2_uy,L2_uz,L2_p' > "$raw_file"
@@ -55,12 +63,21 @@ run_case()
     printf 'Running %-8s N=%-3s DT=%-8s STEPS=%-3s\n' \
         "$study" "$grid" "$dt" "$steps"
 
-    # $extra_cflags non quotato apposta: e' una lista di flag da spezzare
-    # sugli spazi, e la scrive solo chi lancia lo script.
-    "$compiler" -std=gnu11 -O3 -Wall -Wextra -I"$root/include" $extra_cflags \
-        -DDEFAULT_WIDTH="$grid" -DDEFAULT_HEIGHT="$grid" -DDEFAULT_DEPTH="$grid" \
-        -DDEFAULT_T="$total_time" -DDEFAULT_STEPS="$steps" \
-        "$root/test/paper_man.c" "${core_sources[@]}" -lm -o "$executable"
+    # La griglia e' una costante di compilazione: i test non leggono nessun
+    # file di configurazione.
+    if ! make -s -B --no-print-directory -C "$root" \
+            TRIDIAG="$tridiag" SIMD="$simd" OMP="$omp" MPI=0 \
+            EXTRA_CFLAGS="$extra_cflags" \
+            EXTRA_CPPFLAGS="$extra_cppflags \
+                -DDEFAULT_WIDTH=$grid -DDEFAULT_HEIGHT=$grid \
+                -DDEFAULT_DEPTH=$grid \
+                -DDEFAULT_T=$total_time -DDEFAULT_STEPS=$steps" \
+            build/tests/paper_man > "$build_log" 2>&1; then
+        echo "compilazione fallita, vedi $build_log" >&2
+        sed 's/^/    /' "$build_log" >&2
+        exit 1
+    fi
+    mv "$root/build/tests/paper_man" "$executable"
 
     output="$("$executable")"
     h="$(awk -v n="$grid" \

@@ -107,16 +107,26 @@ echo
 # ----------------------------------------------------------------- compilazione
 
 echo "=== compilazione ==="
-core_sources=()
-for source in src/*.c; do
-    [[ "$(basename -- "$source")" == "main.c" ]] || core_sources+=("$source")
-done
+
+# Il solutore non e' piu' il glob piatto src/*.c: il backend tridiagonale sta
+# in src/tridiag/$(TRIDIAG)/ e i flag li conosce solo il Makefile. Da qui si
+# passano soltanto le sue variabili, come fa scripts/study/lib.sh; -mfma e'
+# l'unico flag in piu' rispetto a SIMD=1, ed era gia' cosi'.
+#
+#   TRIDIAG=pipeline qsub scripts/run_hybrid.sh
+tridiag="${TRIDIAG:-schur}"
 
 printf '  solver (paper_data, K statico)   '
-"${MPICC:-mpicc}" -std=gnu11 -O3 -Wall -Wextra -Iinclude \
-    -mavx2 -mfma -DUSE_SIMD -fopenmp -DUSE_OMP -DUSE_MPI \
-    src/main.c "${core_sources[@]}" -fopenmp -lm -o "$build/solver"
+if ! make -s -B --no-print-directory \
+        TRIDIAG="$tridiag" MPI=1 OMP=1 SIMD=1 EXTRA_CFLAGS="-mfma" \
+        solver > "$build/build.log" 2>&1; then
+    echo "compilazione fallita" >&2
+    sed 's/^/    /' "$build/build.log" >&2
+    exit 1
+fi
+mv solver "$build/solver"
 echo ok
+printf '  backend %s\n' "$tridiag"
 
 printf 'width = %s\nheight = %s\ndepth = %s\nsteps = %s\nt_end = 1e-1\n' \
     "$NX" "$NY" "$NZ" "$STEPS" > "$config"
@@ -161,7 +171,7 @@ measure()
             /^  psi system/    {psi  = $3}
             /^  phi low/       {lo   = $3}
             /^  phi high/      {hi   = $3}
-            /^  pressure:/     {pr   = $3}
+            /^  pressure:/     {pr   = $2}
             /wall per step:/   {wall = $4}
             END {
                 sum = eta + zeta + u + psi + lo + hi + pr

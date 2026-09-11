@@ -581,8 +581,8 @@ study_parse()
         /^  psi system/     { psi  = $3 }
         /^  phi low/        { lo   = $3 }
         /^  phi high/       { hi   = $3 }
-        /^  pressure:/      { pr   = $3 }
-        /^  porosity:/      { po   = $3 }
+        /^  pressure:/      { pr   = $2 }
+        /^  porosity:/      { po   = $2 }
         /^  wall per step/  { wall = $4 }
         /^  mpi per step/   { mpi  = $4 }
         /^  per cell-step/  { cell = $3 }
