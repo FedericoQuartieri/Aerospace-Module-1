@@ -2,6 +2,7 @@
 #include "backend_pipeline.h"
 #include "momentum_row.h"
 #include "parallel.h"
+#include "simd_real.h"
 #include "utils.h"
 #include "workers.h"
 
@@ -28,6 +29,16 @@
  * muoiono nei registri, non toccano mai la memoria.  E' il punto per cui la
  * giuntura fra i due backend sta al passo direzionale e non piu' in basso --
  * una firma che chiedesse gli array a, b, c, f obbligherebbe a scriverli.
+ *
+ * Con SIMD=1 le passate lungo Y e Z vettorizzano *attraverso* le linee: in
+ * quelle direzioni le linee consecutive sono adiacenti nello scratch e nel
+ * campo (pipeline_scratch, pipeline_cell), quindi un vettore tiene lo stesso
+ * livello di SIMD_LANES linee vicine.  E' il kernel che aveva il branch
+ * pipeline, riportato pari pari: copre i punti interni di Y e Z, e lascia al
+ * percorso scalare i due punti di parete, le linee avanzate in fondo a un
+ * batch o a una riga, e tutta la direzione X, dove le linee non sono
+ * adiacenti.  I due percorsi fanno le stesse operazioni nello stesso ordine,
+ * per cui il risultato non cambia di un bit.
  */
 
 static Real *target_field(SolverMemState *state, int axis, int component) {
@@ -37,6 +48,145 @@ static Real *target_field(SolverMemState *state, int axis, int component) {
     return (component == 0) ? to->v_x
          : (component == 1) ? to->v_y
                             : to->v_z;
+}
+
+#if defined(USE_SIMD) && SIMD_AVAILABLE
+
+/*
+ * Il coefficiente w di Thomas da un vettore di permeabilita': le stesse
+ * operazioni, nello stesso ordine, di gamma_from_k, ed e' questo che tiene
+ * il risultato identico a quello scalare.
+ */
+static SimdReal momentum_weight_simd(SimdReal permeability,
+                                     Real inverse_square) {
+    SimdReal one = simd_set1((Real)1);
+    SimdReal two = simd_set1((Real)2);
+    SimdReal numerator = simd_set1((Real)(DT * NU));
+    SimdReal beta = simd_add(
+        one, simd_div(numerator, simd_mul(two, permeability)));
+    SimdReal gamma = simd_div(numerator, simd_mul(two, beta));
+
+    return simd_mul(gamma, simd_set1(-inverse_square));
+}
+
+/*
+ * Eliminazione in avanti di SIMD_LANES linee consecutive allo stesso
+ * livello, a partire da `line`.  Vale solo per un punto interno lungo Y o Z:
+ * li' la riga e' (w, 1-2w, w, source-target), senza termine g e senza
+ * condizioni al contorno, ed e' l'unica che si scrive in quattro operazioni.
+ * Restituisce quante linee ha fatto: SIMD_LANES, oppure 0 quando non puo' --
+ * punto di parete, meno di un vettore di linee ancora attive, o linee che
+ * scavalcherebbero la fine di una riga lungo X e non sarebbero piu' adiacenti
+ * nel campo.  In quel caso ci pensa il percorso scalare, linea per linea.
+ *
+ * Al livello 0 legge la giunzione ricevuta dal vicino di sotto senza
+ * chiedersi se esista: se non esiste, il livello 0 e' la parete inferiore
+ * globale e questa funzione ha gia' risposto 0.
+ */
+static int forward_interior_simd(const Decomp *d, PipelineBackend *backend,
+                                 const MomentumLine *line_ctx, int axis,
+                                 int component, size_t batch,
+                                 size_t first_line, int active, int level,
+                                 int line, int length) {
+    int cell[3];
+    int global_axis = decomp_global(d, level, axis);
+
+    if (global_axis == 0 || global_axis == d->n_global[axis] - 1 ||
+        line + SIMD_LANES > active) {
+        return 0;
+    }
+
+    pipeline_cell(d, axis, first_line + (size_t)line, level, cell);
+    if (cell[0] + SIMD_LANES > d->n[0]) {
+        return 0;
+    }
+
+    size_t here = decomp_index(d, cell[0], cell[1], cell[2]);
+    size_t at = pipeline_scratch(backend, axis, component, batch, level,
+                                 line, length);
+    const Real *previous_c;
+    const Real *previous_d;
+
+    if (level == 0) {
+        previous_c = &backend->forward[line];
+        previous_d = &backend->forward[active + line];
+    } else {
+        size_t before = pipeline_scratch(backend, axis, component, batch,
+                                         level - 1, line, length);
+        previous_c = &backend->c_prime[before];
+        previous_d = &backend->d_prime[before];
+    }
+
+    SimdReal one = simd_set1((Real)1);
+    SimdReal two = simd_set1((Real)2);
+    SimdReal w = momentum_weight_simd(simd_loadu(&line_ctx->k_porosity[here]),
+                                      line_ctx->inverse_square);
+    SimdReal inverse_diagonal = simd_div(
+        one, simd_sub(simd_sub(one, simd_mul(two, w)),
+                      simd_mul(w, simd_loadu(previous_c))));
+    SimdReal raw_rhs = simd_sub(simd_loadu(&line_ctx->source[here]),
+                                simd_loadu(&line_ctx->target[here]));
+
+    simd_storeu(&backend->c_prime[at], simd_mul(w, inverse_diagonal));
+    simd_storeu(&backend->d_prime[at],
+                simd_mul(simd_sub(raw_rhs,
+                                  simd_mul(w, simd_loadu(previous_d))),
+                         inverse_diagonal));
+    return SIMD_LANES;
+}
+
+/*
+ * Sostituzione all'indietro di SIMD_LANES linee consecutive allo stesso
+ * livello.  Qui non c'e' fisica e non c'e' parete: le condizioni sono solo
+ * quelle di adiacenza, e sono le stesse dell'andata.
+ */
+static int backward_simd(const Decomp *d, PipelineBackend *backend,
+                         Real *restrict target, int axis, int component,
+                         size_t batch, size_t first_line, int active,
+                         int level, int line, int length) {
+    int cell[3];
+
+    if (line + SIMD_LANES > active) {
+        return 0;
+    }
+
+    pipeline_cell(d, axis, first_line + (size_t)line, level, cell);
+    if (cell[0] + SIMD_LANES > d->n[0]) {
+        return 0;
+    }
+
+    size_t here = decomp_index(d, cell[0], cell[1], cell[2]);
+    size_t at = pipeline_scratch(backend, axis, component, batch, level,
+                                 line, length);
+    SimdReal solution = simd_sub(
+        simd_loadu(&backend->d_prime[at]),
+        simd_mul(simd_loadu(&backend->c_prime[at]),
+                 simd_loadu(&backend->backward[line])));
+
+    simd_storeu(&target[here],
+                simd_add(simd_loadu(&target[here]), solution));
+    simd_storeu(&backend->backward[line], solution);
+    return SIMD_LANES;
+}
+
+#endif
+
+/*
+ * Le linee si percorrono a gruppi larghi un vettore: il kernel SIMD prende
+ * un gruppo intero, e quando non puo' ogni linea del gruppo passa dal
+ * percorso scalare.  Lungo X il gruppo e' una linea sola, perche' li' le
+ * linee non sono adiacenti ne' nello scratch ne' nel campo.  Senza SIMD il
+ * gruppo e' sempre una linea e il ciclo e' quello di prima.  Il passo e'
+ * costante dentro il ciclo, che e' quello che serve a WORKERS_FOR per
+ * spartirlo fra i thread.
+ */
+static int line_step_for(int axis) {
+#if defined(USE_SIMD) && SIMD_AVAILABLE
+    return (axis == 0) ? 1 : SIMD_LANES;
+#else
+    (void)axis;
+    return 1;
+#endif
 }
 
 /*
@@ -61,6 +211,7 @@ static void forward_component(const Decomp *d, SolverMemState *state,
     const bool has_upper = par_neighbor(axis, 1) != PAR_NO_NEIGHBOR;
     const MomentumLine line_ctx =
         momentum_line(d, state, data, t_step, component, axis);
+    const int line_step = line_step_for(axis);
 
     for (size_t batch = 0; batch < batch_count; batch++) {
         const size_t first_line = batch * (size_t)batch_lines;
@@ -83,38 +234,57 @@ static void forward_component(const Decomp *d, SolverMemState *state,
         {
             for (int level = 0; level < length; level++) {
                 WORKERS_FOR
-                for (int line = 0; line < active; line++) {
-                    int cell[3];
-                    Real previous_c;
-                    Real previous_d;
+                for (int first = 0; first < active; first += line_step) {
+                    int last = first + line_step;
 
-                    if (level == 0) {
-                        previous_c =
-                            has_lower ? backend->forward[line] : (Real)0;
-                        previous_d =
-                            has_lower ? backend->forward[active + line]
-                                      : (Real)0;
-                    } else {
-                        size_t before =
-                            pipeline_scratch(backend, axis, component,
-                                             batch, level - 1, line, length);
-                        previous_c = backend->c_prime[before];
-                        previous_d = backend->d_prime[before];
+                    if (last > active) {
+                        last = active;
                     }
+#if defined(USE_SIMD) && SIMD_AVAILABLE
+                    if (line_step > 1 &&
+                        forward_interior_simd(d, backend, &line_ctx, axis,
+                                              component, batch, first_line,
+                                              active, level, first,
+                                              length) > 0) {
+                        continue;
+                    }
+#endif
+                    for (int line = first; line < last; line++) {
+                        int cell[3];
+                        Real previous_c;
+                        Real previous_d;
 
-                    pipeline_cell(d, axis, first_line + (size_t)line, level,
-                                  cell);
+                        if (level == 0) {
+                            previous_c =
+                                has_lower ? backend->forward[line] : (Real)0;
+                            previous_d =
+                                has_lower ? backend->forward[active + line]
+                                          : (Real)0;
+                        } else {
+                            size_t before =
+                                pipeline_scratch(backend, axis, component,
+                                                 batch, level - 1, line,
+                                                 length);
+                            previous_c = backend->c_prime[before];
+                            previous_d = backend->d_prime[before];
+                        }
 
-                    size_t here = decomp_index(d, cell[0], cell[1], cell[2]);
-                    MomentumRow row = momentum_row(&line_ctx, cell, here);
-                    Real inverse_diagonal =
-                        (Real)1 / (row.b - row.a * previous_c);
-                    size_t at = pipeline_scratch(backend, axis, component,
-                                                 batch, level, line, length);
+                        pipeline_cell(d, axis, first_line + (size_t)line,
+                                      level, cell);
 
-                    backend->c_prime[at] = row.c * inverse_diagonal;
-                    backend->d_prime[at] =
-                        (row.f - row.a * previous_d) * inverse_diagonal;
+                        size_t here =
+                            decomp_index(d, cell[0], cell[1], cell[2]);
+                        MomentumRow row = momentum_row(&line_ctx, cell, here);
+                        Real inverse_diagonal =
+                            (Real)1 / (row.b - row.a * previous_c);
+                        size_t at = pipeline_scratch(backend, axis, component,
+                                                     batch, level, line,
+                                                     length);
+
+                        backend->c_prime[at] = row.c * inverse_diagonal;
+                        backend->d_prime[at] =
+                            (row.f - row.a * previous_d) * inverse_diagonal;
+                    }
                 }
             }
         }
@@ -150,6 +320,7 @@ static void backward_component(const Decomp *d, SolverMemState *state,
     const bool has_lower = par_neighbor(axis, -1) != PAR_NO_NEIGHBOR;
     const bool has_upper = par_neighbor(axis, 1) != PAR_NO_NEIGHBOR;
     Real *restrict target = target_field(state, axis, component);
+    const int line_step = line_step_for(axis);
 
     for (size_t remaining = batch_count; remaining > 0; remaining--) {
         const size_t batch = remaining - 1;
@@ -172,19 +343,35 @@ static void backward_component(const Decomp *d, SolverMemState *state,
         {
             for (int level = length - 1; level >= 0; level--) {
                 WORKERS_FOR
-                for (int line = 0; line < active; line++) {
-                    int cell[3];
-                    size_t at = pipeline_scratch(backend, axis, component,
-                                                 batch, level, line, length);
-                    Real solution =
-                        backend->d_prime[at] -
-                        backend->c_prime[at] * backend->backward[line];
+                for (int first = 0; first < active; first += line_step) {
+                    int last = first + line_step;
 
-                    pipeline_cell(d, axis, first_line + (size_t)line, level,
-                                  cell);
-                    target[decomp_index(d, cell[0], cell[1], cell[2])] +=
-                        solution;
-                    backend->backward[line] = solution;
+                    if (last > active) {
+                        last = active;
+                    }
+#if defined(USE_SIMD) && SIMD_AVAILABLE
+                    if (line_step > 1 &&
+                        backward_simd(d, backend, target, axis, component,
+                                      batch, first_line, active, level,
+                                      first, length) > 0) {
+                        continue;
+                    }
+#endif
+                    for (int line = first; line < last; line++) {
+                        int cell[3];
+                        size_t at = pipeline_scratch(backend, axis, component,
+                                                     batch, level, line,
+                                                     length);
+                        Real solution =
+                            backend->d_prime[at] -
+                            backend->c_prime[at] * backend->backward[line];
+
+                        pipeline_cell(d, axis, first_line + (size_t)line,
+                                      level, cell);
+                        target[decomp_index(d, cell[0], cell[1], cell[2])] +=
+                            solution;
+                        backend->backward[line] = solution;
+                    }
                 }
             }
         }
