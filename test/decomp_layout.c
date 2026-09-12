@@ -72,7 +72,7 @@ int main(void)
      */
     if (par_size() > 1) {
         if (par_rank() == 0) {
-            printf("\n  decomp_layout va eseguito con un processo solo\n");
+            printf("\n  decomp_layout must be run with a single process\n");
         }
         par_finalize();
         return 0;

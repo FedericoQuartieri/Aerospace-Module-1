@@ -49,8 +49,8 @@ mkdir -p "$build"
 
 exec > >(tee "$log") 2>&1
 
-echo "=== macchina ==="
-printf 'cpu concesse:  %s\n' "$(grep Cpus_allowed_list /proc/self/status | cut -f2)"
+echo "=== machine ==="
+printf 'cpus granted:  %s\n' "$(grep Cpus_allowed_list /proc/self/status | cut -f2)"
 
 # Un thread per core FISICO concesso: l'SMT su questo carico non aggiunge
 # unita' aritmetiche e in locale e' risultato controproducente.
@@ -60,12 +60,12 @@ granted="$(grep Cpus_allowed_list /proc/self/status | cut -f2 |
                      n += (r[2]=="") ? 1 : r[2]-r[1]+1} print n}')"
 threads="${OMP_NUM_THREADS:-$(( granted / 2 ))}"
 [[ "$threads" -lt 1 ]] && threads=1
-printf 'thread usati:  %s\n' "$threads"
+printf 'threads used:  %s\n' "$threads"
 echo
 
-echo "=== studio di convergenza a 256^3 ==="
-echo "  spaziale: 32, 64, 128, 256 a dt fisso"
-echo "  temporale: 256^3 con dt dimezzato quattro volte (300 passi in tutto)"
+echo "=== convergence study at 256^3 ==="
+echo "  spatial: 32, 64, 128, 256 at fixed dt"
+echo "  temporal: 256^3 with dt halved four times (300 steps in total)"
 echo
 
 export OMP_NUM_THREADS="$threads"

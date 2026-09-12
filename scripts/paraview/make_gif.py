@@ -65,7 +65,7 @@ if not (hi > lo):
     lo, hi = 0.0, 1.0
 lut = GetColorTransferFunction(field)
 lut.RescaleTransferFunction(lo, hi)
-print(f"scala colori: {lo:.4g} .. {hi:.4g}")
+print(f"colour scale: {lo:.4g} .. {hi:.4g}")
 lut.ApplyPreset('Viridis (matplotlib)', True)
 disp.SetScalarBarVisibility(view, True)
 sb = GetScalarBar(lut, view)
@@ -78,7 +78,7 @@ for i, t in enumerate(times):
     Render()
     SaveScreenshot(os.path.join(tmp, f"f_{i:04d}.png"), view,
                    ImageResolution=view.ViewSize)
-print(f"{len(times)} fotogrammi resi")
+print(f"{len(times)} frames rendered")
 
 os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
 pal = os.path.join(tmp, "pal.png")
@@ -89,4 +89,4 @@ run(["ffmpeg", "-y", "-framerate", str(fps), "-i", f"{tmp}/f_%04d.png",
      "-vf", vf + ",palettegen", pal])
 run(["ffmpeg", "-y", "-framerate", str(fps), "-i", f"{tmp}/f_%04d.png", "-i", pal,
      "-lavfi", vf + " [x]; [x][1:v] paletteuse", "-loop", "0", out])
-print("scritto", out, f"({os.path.getsize(out)/1e6:.1f} MB)")
+print("written", out, f"({os.path.getsize(out)/1e6:.1f} MB)")

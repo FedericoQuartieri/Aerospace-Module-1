@@ -48,7 +48,7 @@ void solver_init(const Decomp *decomp,
 
         if (found == NULL) {
             if (par_rank() == 0) {
-                fprintf(stderr, "Scenario sconosciuto: %s\nDisponibili:\n",
+                fprintf(stderr, "Unknown scenario: %s\nAvailable:\n",
                         data_name);
                 data_print_names(stderr);
             }

@@ -33,7 +33,7 @@
 cd "${PBS_O_WORKDIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)}" || exit 1
 
 if [[ ! -f scripts/study/lib.sh ]]; then
-    echo "qsub va fatto dalla radice del repo; qui sono in $PWD" >&2
+    echo "qsub must be run from the repo root; I am in $PWD" >&2
     exit 1
 fi
 
@@ -57,7 +57,7 @@ CASE_TIMEOUT="${CASE_TIMEOUT:-1200}"
 for n in $GRIDS; do
     steps="$(matrix_steps "$n")"
 
-    echo "=== ${n}^3, $steps passi: un rank, thread crescenti ==="
+    echo "=== ${n}^3, $steps steps: one rank, increasing threads ==="
     for backend in $MATRIX_BACKENDS; do
         for simd in $MATRIX_SIMD; do
             # I due riferimenti della configurazione: il seriale vero --
@@ -86,7 +86,7 @@ done
 # memoria contro tutti.
 BIND_GRID="${BIND_GRID:-224}"
 BIND_THREADS="${BIND_THREADS:-14 28}"
-echo "=== ${BIND_GRID}^3: gli stessi thread, stretti o distribuiti ==="
+echo "=== ${BIND_GRID}^3: the same threads, packed or spread ==="
 for backend in $MATRIX_BACKENDS; do
     for t in $BIND_THREADS; do
         for bind in close spread; do
@@ -101,7 +101,7 @@ done
 
 if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
-    echo "=== risultato: ms/passo e speedup sul proprio caso a 1 thread ==="
+    echo "=== result: ms/step and speedup against its own 1-thread case ==="
     # La lista dei thread arriva dalla shell: ordinarla dentro awk vorrebbe
     # asort, che e' di gawk, e sul cluster awk puo' essere mawk.
     awk -F, -v phase=10_matrix_threads -v tlist="$THREADS" '
@@ -118,8 +118,8 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     }
     END {
         n = split(tlist, ts, " ")
-        printf "  %-10s %-5s %-6s %9s %9s", "backend", "simd", "griglia",
-               "seriale", "T(1)"
+        printf "  %-10s %-5s %-6s %9s %9s", "backend", "simd", "grid",
+               "serial", "T(1)"
         for (i = 1; i <= n; i++) printf " %8s", "T=" ts[i]
         printf "\n"
         for (k = 1; k <= nk; k++) {
@@ -135,17 +135,17 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
             printf "\n"
         }
         print ""
-        print "  I numeri sono ms per passo temporale, il migliore delle ripetizioni."
+        print "  The numbers are ms per time step, best of the repeats."
         print ""
-        print "  seriale: MPI non collegato, OpenMP non compilato. E\x27 il"
-        print "           denominatore dello speedup assoluto."
-        print "  T(1):    la stessa cosa con la macchineria parallela dentro, a un"
-        print "           processo e un thread."
+        print "  serial: MPI not linked, OpenMP not compiled. It is the"
+        print "          denominator of the absolute speedup."
+        print "  T(1):   the same thing with the parallel machinery inside, on one"
+        print "          process and one thread."
         print ""
-        print "  Il rapporto T(1)/seriale e\x27 il costo di quella macchineria a"
-        print "  vuoto: finche\x27 resta dentro al rumore, usare T(1) come"
-        print "  denominatore e\x27 legittimo -- ed e\x27 dimostrato, non affermato."
-        print "  Lo speedup dei thread va misurato da seriale, non da T=1."
+        print "  The T(1)/serial ratio is the cost of that machinery when idle:"
+        print "  as long as it stays within the noise, using T(1) as the"
+        print "  denominator is legitimate -- and shown, not asserted."
+        print "  Thread speedup must be measured from serial, not from T=1."
     }' "$STUDY_CSV"
 fi
 

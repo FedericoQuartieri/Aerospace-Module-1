@@ -32,7 +32,7 @@
 cd "${PBS_O_WORKDIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)}" || exit 1
 
 if [[ ! -f scripts/study/lib.sh ]]; then
-    echo "qsub va fatto dalla radice del repo; qui sono in $PWD" >&2
+    echo "qsub must be run from the repo root; I am in $PWD" >&2
     exit 1
 fi
 
@@ -83,20 +83,20 @@ emit_rectangle()
 
 steps="$(matrix_steps "$FULL_GRID")"
 for simd in $MATRIX_SIMD; do
-    echo "=== ${FULL_GRID}^3, simd=$simd: ogni coppia rank x thread ==="
+    echo "=== ${FULL_GRID}^3, simd=$simd: every rank x thread pair ==="
     emit_rectangle "$FULL_GRID $FULL_GRID $FULL_GRID" "$simd" "$steps"
     echo
 done
 
 for m in $PLAIN_GRIDS; do
-    echo "=== ${m}^3, simd=1: lo stesso rettangolo su un'altra taglia ==="
+    echo "=== ${m}^3, simd=1: the same rectangle on another size ==="
     emit_rectangle "$m $m $m" 1 "$(matrix_steps "$m")"
     echo
 done
 
 if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
-    echo "=== il rettangolo: ms/passo, righe rank, colonne thread ==="
+    echo "=== the rectangle: ms/step, rows are ranks, columns are threads ==="
     awk -F, -v phase=12_matrix_hybrid -v tlist="$MATRIX_THREADS" '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
     # I riferimenti hanno un rank e un thread: senza questo finirebbero
@@ -127,8 +127,8 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
             }
         }
         print ""
-        print "  Un punto e\x27 una coppia che non ci sta nel nodo. Le anti-diagonali"
-        print "  a prodotto costante sono le righe della fase 05."
+        print "  A dot is a pair that does not fit in the node. The anti-diagonals"
+        print "  at constant product are the rows of phase 05."
     }' "$STUDY_CSV"
 fi
 

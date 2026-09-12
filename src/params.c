@@ -81,17 +81,17 @@ static void params_derive(void) {
 /* Un valore fuori dai valori ammessi si vede subito, non dieci passi dopo. */
 static void params_check(const char *path) {
     if (sim.width < 2 || sim.height < 2 || sim.depth < 2) {
-        fprintf(stderr, "%s: la griglia vuole almeno 2 punti per direzione\n",
+        fprintf(stderr, "%s: the grid needs at least 2 points per direction\n",
                 path);
         exit(1);
     }
     if (sim.steps < 1) {
-        fprintf(stderr, "%s: steps deve essere almeno 1\n", path);
+        fprintf(stderr, "%s: steps must be at least 1\n", path);
         exit(1);
     }
     if (sim.lx <= 0 || sim.ly <= 0 || sim.lz <= 0 ||
         sim.t_end <= 0 || sim.nu <= 0) {
-        fprintf(stderr, "%s: lx, ly, lz, t_end e nu devono essere positivi\n",
+        fprintf(stderr, "%s: lx, ly, lz, t_end and nu must be positive\n",
                 path);
         exit(1);
     }
@@ -121,7 +121,7 @@ void params_load(const char *path) {
         }
 
         if (sscanf(line, " %63[a-z_] = %lf", key, &value) != 2) {
-            fprintf(stderr, "%s:%d: non e' una riga `chiave = valore`: %s",
+            fprintf(stderr, "%s:%d: not a `key = value` line: %s",
                     path, number, line);
             exit(1);
         }
@@ -136,7 +136,7 @@ void params_load(const char *path) {
         }
 
         if (which == count) {
-            fprintf(stderr, "%s:%d: chiave sconosciuta `%s`\n",
+            fprintf(stderr, "%s:%d: unknown key `%s`\n",
                     path, number, key);
             exit(1);
         }

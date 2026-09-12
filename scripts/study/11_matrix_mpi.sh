@@ -59,7 +59,7 @@
 cd "${PBS_O_WORKDIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)}" || exit 1
 
 if [[ ! -f scripts/study/lib.sh ]]; then
-    echo "qsub va fatto dalla radice del repo; qui sono in $PWD" >&2
+    echo "qsub must be run from the repo root; I am in $PWD" >&2
     exit 1
 fi
 
@@ -112,7 +112,7 @@ emit_shapes()
 steps="$(matrix_steps "$FULL_GRID")"
 grid="$FULL_GRID $FULL_GRID $FULL_GRID"
 for simd in $MATRIX_SIMD; do
-    echo "=== ${FULL_GRID}^3, simd=$simd: ogni forma di ogni numero di rank ==="
+    echo "=== ${FULL_GRID}^3, simd=$simd: every shape of every rank count ==="
     for backend in $MATRIX_BACKENDS; do
         study_baseline label="$backend ${FULL_GRID}^3 s$simd" \
             backend="$backend" simd="$simd" grid="$grid" steps="$steps"
@@ -126,7 +126,7 @@ done
 for m in $PLAIN_GRIDS; do
     steps="$(matrix_steps "$m")"
     grid="$m $m $m"
-    echo "=== ${m}^3, simd=1: le stesse forme su una taglia diversa ==="
+    echo "=== ${m}^3, simd=1: the same shapes on a different size ==="
     for backend in $MATRIX_BACKENDS; do
         study_baseline label="$backend ${m}^3 s1" \
             backend="$backend" simd=1 grid="$grid" steps="$steps"
@@ -144,7 +144,7 @@ done
 # darebbero tutte lo stesso tempo: e' un confronto a lavoro costante, non a
 # problema costante, ed e' l'unico modo di leggere l'asse da solo.
 
-echo "=== blocco locale ${BLOCK}^3 fisso: cambia solo quale asse e' tagliato ==="
+echo "=== local block ${BLOCK}^3 fixed: only the split axis changes ==="
 steps="$(matrix_steps "$BLOCK")"
 # Qui il riferimento giusto e' il BLOCCO LOCALE, non la griglia globale.
 # Queste righe tengono costante il lavoro per processo, quindi la domanda e'
@@ -180,7 +180,7 @@ echo
 # blocco e' un cubo, una barra o una lamina -- e su uno stencil quella forma
 # decide quante linee di cache si riusano.
 
-echo "=== stesso volume per processo, blocco locale di forma diversa ==="
+echo "=== same volume per process, local block of a different shape ==="
 IFS='|' read -r -a aspetti <<< "$ASPETTI"
 for n in $ASPETTO_RANKS; do
     shape="$(study_auto_shape "$n")"
@@ -208,7 +208,7 @@ done
 echo
 
 # Righe ponte verso la 12: stessa cosa, build con OpenMP e un thread solo.
-echo "=== righe ponte: build OpenMP a un thread ==="
+echo "=== bridge rows: OpenMP build on one thread ==="
 for backend in $MATRIX_BACKENDS; do
     for n in 1 8 56; do
         shape="$(study_auto_shape "$n")"
@@ -222,7 +222,7 @@ done
 
 if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
-    echo "=== la forma migliore e la peggiore, per ogni numero di rank ==="
+    echo "=== the best and the worst shape, for each rank count ==="
     awk -F, -v phase=11_matrix_mpi '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
     $2 ~ /ponte|^cubo |^aspetto / { next }
@@ -238,8 +238,8 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     }
     END {
         printf "  %-10s %-5s %-6s %-5s %9s %-9s %9s %-9s %7s\n",
-               "backend", "simd", "griglia", "rank",
-               "migliore", "forma", "peggiore", "forma", "scarto"
+               "backend", "simd", "grid", "rank",
+               "best", "shape", "worst", "shape", "spread"
         for (i = 1; i <= nk; i++) {
             split(keys[i], p, ",")
             printf "  %-10s %-5s %-6s %-5s %9.1f %-9s %9.1f %-9s %6.2fx\n",
@@ -249,17 +249,17 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
                    (best[keys[i]] > 0 ? worst[keys[i]] / best[keys[i]] : 0)
         }
         print ""
-        print "  Lo scarto e\x27 quanto costa disporre male gli stessi processi."
-        print "  Se per i due backend la forma migliore e\x27 la stessa, allora a"
-        print "  decidere e\x27 la banda di memoria e non l\x27algoritmo."
+        print "  The spread is what laying out the same processes badly costs."
+        print "  If the best shape is the same for both backends, then what"
+        print "  decides is memory bandwidth and not the algorithm."
         print ""
-        print "  ATTENZIONE: qui la griglia globale e\x27 cubica, quindi una forma"
-        print "  molto sbilanciata da\x27 anche un blocco locale a lamina. Le due"
-        print "  cause si separano nella tabella qui sotto."
+        print "  WARNING: the global grid is cubic here, so a very skewed shape"
+        print "  also gives a slab-shaped local block. The two causes are"
+        print "  separated in the table below."
     }' "$STUDY_CSV"
 
     echo
-    echo "=== blocco locale fisso: il tempo dei tre tagli puri, per asse ==="
+    echo "=== fixed local block: the time of the three pure splits, by axis ==="
     awk -F, -v phase=11_matrix_mpi '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" || $2 !~ /^cubo / { next }
     {
@@ -285,9 +285,9 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
             printf " %9s\n", (x && z ? sprintf("%.2fx", z / x) : "-")
         }
         print ""
-        print "  Stesso blocco locale in tutte le colonne, stesso lavoro per"
-        print "  processo: se l\x27asse non contasse, le tre colonne sarebbero"
-        print "  uguali. Schur e pipeline dovrebbero sbilanciarsi in versi opposti."
+        print "  Same local block in every column, same work per process: if"
+        print "  the axis did not matter, the three columns would be equal."
+        print "  Schur and pipeline should lean in opposite directions."
     }' "$STUDY_CSV"
 fi
 

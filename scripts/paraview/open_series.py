@@ -18,7 +18,7 @@ reader = XMLPartitionedImageDataReader(FileName=files,
                                        registrationName=os.path.basename(folder))
 reader.UpdatePipeline()
 times = reader.TimestepValues
-print(f"{len(files)} file -> {len(times)} istanti, da {times[0]} a {times[-1]}")
+print(f"{len(files)} files -> {len(times)} instants, from {times[0]} to {times[-1]}")
 
 view = GetActiveViewOrCreate('RenderView')
 disp = Show(reader, view)

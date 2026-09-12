@@ -4,12 +4,12 @@
 
 static void usage(const char *program) {
     fprintf(stderr,
-            "uso: %s [scenario]\n"
-            "     %s [file-di-configurazione] [scenario]\n"
-            "\nSenza argomenti usa i valori di default e lo scenario "
-            "`paper_data`.\nCon un solo argomento, se il nome e' uno scenario "
-            "lo esegue; altrimenti lo legge come file di configurazione.\n"
-            "Scenari disponibili:\n", program, program);
+            "usage: %s [scenario]\n"
+            "       %s [config-file] [scenario]\n"
+            "\nWith no arguments it uses the default values and the "
+            "`paper_data` scenario.\nWith a single argument, if the name is a "
+            "scenario it runs it; otherwise it is read as a config file.\n"
+            "Available scenarios:\n", program, program);
     data_print_names(stderr);
 }
 

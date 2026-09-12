@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""I grafici della campagna esaustiva (fasi 10-15), dal CSV unico.
+"""The plots of the exhaustive campaign (phases 10-15), from the merged CSV.
 
-    ./scripts/run_study.sh merge          produce build/study/all.csv
-    ./scripts/plot_matrix.py              disegna in docs/scaling/matrix/
+    ./scripts/run_study.sh merge          produces build/study/all.csv
+    ./scripts/plot_matrix.py              draws into docs/scaling/matrix/
     ./scripts/plot_matrix.py build/study/all.csv -o /tmp/figure
 
-Come plot_scaling.py e plot_convergence.py: l'SVG e' scritto a mano, senza
-librerie da installare. Sul cluster non c'e' matplotlib, e un grafico che si
-puo' produrre solo altrove e' un grafico che non si guarda.
+Like plot_scaling.py and plot_convergence.py: the SVG is written by hand, with
+no libraries to install. There is no matplotlib on the cluster, and a plot that
+can only be produced somewhere else is a plot nobody looks at.
 
-I colori invece sono nuovi, e scelti non a gusto: la scala categorica e'
-verificata per il daltonismo (separazione OKLab >= 8 fra due colori vicini,
->= 15 a vista normale) e ogni serie porta anche l'etichetta accanto, perche'
-due delle tinte stanno sotto il rapporto di contrasto 3:1 sul fondo chiaro.
-Le figure si adattano al tema scuro del visualizzatore.
+The colours instead are new, and not chosen by taste: the categorical scale is
+checked for colour blindness (OKLab separation >= 8 between two neighbouring
+colours, >= 15 to normal vision) and every series also carries its label next
+to it, because two of the hues fall below the 3:1 contrast ratio on the light
+background. The figures adapt to the viewer's dark theme.
 
-Una regola sola, e vale per tutte: mai due assi y nello stesso riquadro.
-L'allineamento fra due scale diverse e' arbitrario e inventa una correlazione
-che nei dati non c'e'. Due grandezze, due riquadri.
+One rule, and it holds for all of them: never two y axes in the same panel.
+Aligning two different scales is arbitrary and invents a correlation the data
+does not have. Two quantities, two panels.
 """
 
 import argparse
@@ -266,7 +266,7 @@ def load(path):
     disegnare uno zero dove non c'e' una misura, ed e' il modo piu' rapido di
     leggere un buco come un risultato."""
     if not path.exists():
-        sys.exit(f"manca {path}\n  ./scripts/run_study.sh merge")
+        sys.exit(f"missing {path}\n  ./scripts/run_study.sh merge")
 
     rows = []
     with path.open(newline="", encoding="utf-8") as handle:
@@ -294,7 +294,7 @@ def load(path):
             else:
                 row["baseline"] = None
             rows.append(row)
-    print(f"{len(rows)} misure valide da {path}")
+    print(f"{len(rows)} valid measurements from {path}")
     return rows
 
 
@@ -1169,10 +1169,10 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("csv", nargs="?", type=Path,
                         default=root / "build" / "study" / "all.csv",
-                        help="il CSV unito da ./scripts/run_study.sh merge")
+                        help="the CSV merged by ./scripts/run_study.sh merge")
     parser.add_argument("-o", "--outdir", type=Path,
                         default=root / "docs" / "scaling" / "matrix",
-                        help="dove scrivere gli SVG")
+                        help="where to write the SVGs")
     args = parser.parse_args()
 
     rows = load(args.csv)
