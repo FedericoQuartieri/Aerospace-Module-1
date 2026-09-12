@@ -58,6 +58,27 @@ CASE_REPEATS=1
 CASE_NORMS=1
 CASE_TIMEOUT="${CASE_TIMEOUT:-600}"
 
+# Il riferimento vero di tutta la fase. Qui non serve solo a normalizzare i
+# tempi: e' la norma L2 contro cui tutte le righe seguenti devono combaciare.
+# Un binario senza MPI e senza OpenMP non puo' sbagliare per colpa di una
+# divisione o di un thread, quindi se una forma se ne discosta e' quella forma
+# ad avere torto, non il riferimento.
+echo "=== i riferimenti: seriale e processo singolo ==="
+for backend in $MATRIX_BACKENDS; do
+    for simd in $MATRIX_SIMD; do
+        study_baseline label="$backend s$simd" \
+            backend="$backend" simd="$simd" grid="$grid" steps="$steps"
+    done
+done
+for simd in $MATRIX_SIMD; do
+    for b in $CHECK_BATCHES; do
+        study_baseline label="pipeline b=$b s$simd" \
+            backend=pipeline batch="$b" simd="$simd" \
+            grid="$grid" steps="$steps"
+    done
+done
+echo
+
 echo "=== ${GRID}^3: ogni forma della griglia di processi, un thread ==="
 for backend in $MATRIX_BACKENDS; do
     for simd in $MATRIX_SIMD; do

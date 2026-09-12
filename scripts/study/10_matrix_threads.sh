@@ -60,10 +60,14 @@ for n in $GRIDS; do
     echo "=== ${n}^3, $steps passi: un rank, thread crescenti ==="
     for backend in $MATRIX_BACKENDS; do
         for simd in $MATRIX_SIMD; do
-            # Il riferimento senza OpenMP: stesso codice, nessun thread
-            # compilato dentro.
-            study_case label="$backend ${n}^3 s$simd omp=0" \
-                backend="$backend" simd="$simd" omp=0 threads=1 \
+            # I due riferimenti della configurazione: il seriale vero --
+            # niente MPI collegato, niente OpenMP compilato -- e la stessa
+            # cosa con la macchineria parallela dentro ma un processo e un
+            # thread soli. Gli speedup di questa fase si normalizzano su di
+            # loro, e la loro differenza dice quanto costa quella macchineria
+            # a vuoto.
+            study_baseline label="$backend ${n}^3 s$simd" \
+                backend="$backend" simd="$simd" \
                 grid="$n $n $n" steps="$steps"
 
             for t in $THREADS; do
@@ -104,19 +108,25 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     NR == 1 || $1 != phase || $(NF - 1) != "ok" || $2 ~ /bind=/ { next }
     {
         key = $3 "," $5 "," $10
-        if ($2 ~ /omp=0/) { base[key] = $17; next }
-        wall[key "," $9] = $17
         if (!(key in seen)) { keys[++nk] = key; seen[key] = 1 }
+        # Le due righe di riferimento non sono punti della curva: sono i
+        # denominatori. Vanno riconosciute prima, o finirebbero a
+        # sovrascrivere la colonna T=1, che ha gli stessi rank e thread.
+        if ($2 ~ / seriale$/) { ser[key] = $17; next }
+        if ($2 ~ / T\(1\)$/) { t1[key] = $17; next }
+        wall[key "," $9] = $17
     }
     END {
         n = split(tlist, ts, " ")
-        printf "  %-10s %-5s %-6s %10s", "backend", "simd", "griglia", "omp=0"
+        printf "  %-10s %-5s %-6s %9s %9s", "backend", "simd", "griglia",
+               "seriale", "T(1)"
         for (i = 1; i <= n; i++) printf " %8s", "T=" ts[i]
         printf "\n"
         for (k = 1; k <= nk; k++) {
             split(keys[k], p, ",")
-            printf "  %-10s %-5s %-6s %10s", p[1], p[2], p[3],
-                   (keys[k] in base ? sprintf("%.0f", base[keys[k]]) : "-")
+            printf "  %-10s %-5s %-6s %9s %9s", p[1], p[2], p[3],
+                   (keys[k] in ser ? sprintf("%.0f", ser[keys[k]]) : "-"),
+                   (keys[k] in t1  ? sprintf("%.0f", t1[keys[k]])  : "-")
             for (i = 1; i <= n; i++) {
                 kk = keys[k] "," ts[i]
                 if (kk in wall) printf " %8.1f", wall[kk]
@@ -126,8 +136,16 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
         }
         print ""
         print "  I numeri sono ms per passo temporale, il migliore delle ripetizioni."
-        print "  La colonna omp=0 e\x27 lo stesso codice compilato senza OpenMP: e\x27 da"
-        print "  li\x27 che va misurato lo speedup, non dalla colonna T=1."
+        print ""
+        print "  seriale: MPI non collegato, OpenMP non compilato. E\x27 il"
+        print "           denominatore dello speedup assoluto."
+        print "  T(1):    la stessa cosa con la macchineria parallela dentro, a un"
+        print "           processo e un thread."
+        print ""
+        print "  Il rapporto T(1)/seriale e\x27 il costo di quella macchineria a"
+        print "  vuoto: finche\x27 resta dentro al rumore, usare T(1) come"
+        print "  denominatore e\x27 legittimo -- ed e\x27 dimostrato, non affermato."
+        print "  Lo speedup dei thread va misurato da seriale, non da T=1."
     }' "$STUDY_CSV"
 fi
 

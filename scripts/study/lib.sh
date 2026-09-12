@@ -467,8 +467,8 @@ study_case()
     printf '  %-34s ' "$label"
 
     if [[ "${DRY_RUN:-0}" == "1" ]]; then
-        printf 'backend=%s batch=%s simd=%s omp=%s ranks=%s thr=%s grid=%sx%sx%s shape=%s steps=%s\n' \
-            "$backend" "$batch" "$simd" "$omp" "$ranks" "$threads" \
+        printf 'backend=%s batch=%s simd=%s omp=%s mpi=%s ranks=%s thr=%s grid=%sx%sx%s shape=%s steps=%s\n' \
+            "$backend" "$batch" "$simd" "$omp" "$mpi" "$ranks" "$threads" \
             "$nx" "$ny" "$nz" "${shape:-auto}" "$steps"
         STUDY_CASES=$(( STUDY_CASES + 1 ))
         return 0
@@ -597,6 +597,47 @@ study_case()
     rss="$(cut -d, -f16 <<< "$best_line")"
     printf '%10s ms  %-9s non contato %6s ms  rss %7s MB  (%ds)\n' \
         "$best_wall" "$shape_out" "$untimed" "$rss" "$seconds"
+}
+
+# I due riferimenti da cui si normalizzano gli speedup di una configurazione.
+#
+#   seriale  MPI=0 OMP=0.  Il binario non collega MPI e non compila OpenMP: le
+#            direttive sono macro vuote e le funzioni MPI stub che rispondono
+#            "un processo, nessun vicino".  Non e' il codice parallelo a un
+#            processo, e' un binario in cui il codice parallelo non esiste.  E'
+#            il T_s dello speedup assoluto.
+#
+#   T(1)     MPI=1 OMP=0, un rank.  Stessa sorgente con la macchineria
+#            parallela compilata dentro, ma un processo solo.
+#
+# Averli tutti e due non e' ridondanza: la loro differenza E' la misura del
+# costo della macchineria parallela a vuoto.  Finche' resta dentro al rumore,
+# usare T(1) come denominatore e' legittimo, e lo si dimostra invece di
+# affermarlo.  Entrambi a un thread, perche' il confronto dev'essere fra
+# configurazioni identiche in tutto tranne lo strato che si sta misurando.
+#
+# Prende gli stessi argomenti di study_case tranne omp, mpi, ranks e threads,
+# che sono fissati qui: passarli vorrebbe dire misurare un'altra cosa, e
+# infatti fermano lo script.
+study_baseline()
+{
+    local label="" arg
+    local rest=()
+
+    for arg in "$@"; do
+        case "$arg" in
+            label=*) label="${arg#*=}" ;;
+            omp=*|mpi=*|ranks=*|threads=*|shape=*)
+                echo "study_baseline: $arg lo fissa la funzione, non passarlo" >&2
+                return 2 ;;
+            *) rest+=("$arg") ;;
+        esac
+    done
+
+    study_case "${rest[@]}" label="$label seriale" \
+        omp=0 mpi=0 ranks=1 threads=1
+    study_case "${rest[@]}" label="$label T(1)" \
+        omp=0 mpi=1 ranks=1 threads=1
 }
 
 # Legge l'output di bench. I pattern sono ancorati: "eta system" senza ancora

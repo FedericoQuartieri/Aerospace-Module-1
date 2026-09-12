@@ -113,6 +113,10 @@ steps="$(matrix_steps "$FULL_GRID")"
 grid="$FULL_GRID $FULL_GRID $FULL_GRID"
 for simd in $MATRIX_SIMD; do
     echo "=== ${FULL_GRID}^3, simd=$simd: ogni forma di ogni numero di rank ==="
+    for backend in $MATRIX_BACKENDS; do
+        study_baseline label="$backend ${FULL_GRID}^3 s$simd" \
+            backend="$backend" simd="$simd" grid="$grid" steps="$steps"
+    done
     for n in $RANKS; do
         emit_shapes "$n" "$grid" "$simd" "$steps"
     done
@@ -123,6 +127,10 @@ for m in $PLAIN_GRIDS; do
     steps="$(matrix_steps "$m")"
     grid="$m $m $m"
     echo "=== ${m}^3, simd=1: le stesse forme su una taglia diversa ==="
+    for backend in $MATRIX_BACKENDS; do
+        study_baseline label="$backend ${m}^3 s1" \
+            backend="$backend" simd=1 grid="$grid" steps="$steps"
+    done
     for n in $RANKS; do
         emit_shapes "$n" "$grid" 1 "$steps"
     done
@@ -138,6 +146,17 @@ done
 
 echo "=== blocco locale ${BLOCK}^3 fisso: cambia solo quale asse e' tagliato ==="
 steps="$(matrix_steps "$BLOCK")"
+# Qui il riferimento giusto e' il BLOCCO LOCALE, non la griglia globale.
+# Queste righe tengono costante il lavoro per processo, quindi la domanda e'
+# "quanto costa a un processo il suo blocco, rispetto a farlo da solo": il
+# denominatore e' un seriale su ${BLOCK}^3.  Un seriale sul globale -- che
+# arriva a 96x96x5376 -- risponderebbe a una domanda che nessuno pone, e
+# costerebbe 6-8 GB e minuti a caso.
+for backend in $MATRIX_BACKENDS; do
+    study_baseline label="cubo $backend blocco ${BLOCK}^3" \
+        backend="$backend" simd=1 grid="$BLOCK $BLOCK $BLOCK" \
+        steps="$steps" note="riferimento a blocco locale"
+done
 for backend in $MATRIX_BACKENDS; do
     for n in $RANKS; do
         forme=()
@@ -171,6 +190,12 @@ for n in $ASPETTO_RANKS; do
         read -r bx by bz <<< "$entry"
         for backend in $MATRIX_BACKENDS; do
             for simd in $MATRIX_SIMD; do
+                # Stesso ragionamento del blocco 2: il denominatore e' quella
+                # stessa forma di blocco fatta da un processo solo.
+                study_baseline label="aspetto $backend ${bx}x${by}x${bz} s$simd" \
+                    backend="$backend" simd="$simd" \
+                    grid="$bx $by $bz" steps="$(matrix_steps "$bx")" \
+                    note="riferimento a blocco locale ${bx}x${by}x${bz}"
                 study_case label="aspetto $backend ${bx}x${by}x${bz} s$simd" \
                     backend="$backend" ranks="$n" shape="$shape" simd="$simd" \
                     grid="$(( px * bx )) $(( py * by )) $(( pz * bz ))" \
@@ -201,6 +226,9 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     awk -F, -v phase=11_matrix_mpi '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
     $2 ~ /ponte|^cubo |^aspetto / { next }
+    # I riferimenti non sono forme: escluderli o comparirebbero come la
+    # "forma migliore" di ogni riga, essendo a un processo solo.
+    $2 ~ / (seriale|T\(1\))$/ { next }
     {
         k = $3 "," $5 "," $10 "," $8
         s = $14 "x" $15 "x" $16

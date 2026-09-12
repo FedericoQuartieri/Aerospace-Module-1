@@ -63,6 +63,12 @@ emit_rectangle()
     mapfile -t coppie < <(matrix_pairs)
 
     for backend in $MATRIX_BACKENDS; do
+        # L'angolo del rettangolo: un rank, un thread, e prima ancora il
+        # binario in cui MPI e OpenMP non sono nemmeno compilati. Tutte le
+        # coppie qui sotto si leggono rispetto a questi due.
+        study_baseline label="$backend s$simd" \
+            backend="$backend" simd="$simd" grid="$grid" steps="$steps"
+
         for coppia in "${coppie[@]}"; do
             read -r r t <<< "$coppia"
             shape="$(study_auto_shape "$r")"
@@ -93,6 +99,9 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo "=== il rettangolo: ms/passo, righe rank, colonne thread ==="
     awk -F, -v phase=12_matrix_hybrid -v tlist="$MATRIX_THREADS" '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
+    # I riferimenti hanno un rank e un thread: senza questo finirebbero
+    # nella cella R=1 T=1 del rettangolo, dove sta un caso vero.
+    $2 ~ / (seriale|T\(1\))$/ { next }
     {
         k = $3 "," $5 "," $10
         wall[k "," $8 "," $9] = $17 + 0
