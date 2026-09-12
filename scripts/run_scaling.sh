@@ -78,7 +78,7 @@ hybrid_configs=(
 )
 
 mkdir -p "$build_dir"
-printf 'backend %s, SIMD=%s, %s passi, %s ripetizioni\n' \
+printf 'backend %s, SIMD=%s, %s steps, %s repeats\n' \
     "$tridiag" "$simd" "$steps" "$repeats"
 trap 'rm -f "$executable"' EXIT
 printf '%s\n' 'study,procs,threads,px,py,pz,nx,ny,nz,steps,wall_ms,mpi_ms' \
@@ -105,7 +105,7 @@ run_case()
                 -DDEFAULT_DEPTH=$nz \
                 -DDEFAULT_T=1e-1 -DDEFAULT_STEPS=$steps" \
             build/tests/paper_man > "$build_log" 2>&1; then
-        echo "compilazione fallita, vedi $build_log" >&2
+        echo "build failed, see $build_log" >&2
         sed 's/^/    /' "$build_log" >&2
         exit 1
     fi
@@ -130,7 +130,7 @@ run_case()
             best_mpi="$mpi"
         fi
     done
-    printf '    migliore di %s: %s ms\n' "$repeats" "$best_wall"
+    printf '    best of %s: %s ms\n' "$repeats" "$best_wall"
 
     printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
         "$study" "$procs" "$threads" "$px" "$py" "$pz" \
@@ -156,7 +156,7 @@ if [[ "${HYBRID:-1}" != "0" ]]; then
     done
 fi
 
-printf '\nRisultati in %s\n\n' "$results"
+printf '\nResults in %s\n\n' "$results"
 
 # Nello strong scaling il tempo dovrebbe dimezzarsi raddoppiando i processi,
 # quindi l efficienza e (t1/tP)/P. Nel weak il lavoro per processo non cambia,
@@ -169,7 +169,7 @@ NR == 1 { next }
         base = $11
         printf "\n%s scaling\n", study
         printf "  %-9s %-9s %-13s %11s %11s %9s %9s\n",
-               "proc x th", "forma", "griglia", "wall/passo", "mpi/passo",
+               "proc x th", "shape", "grid", "wall/step", "mpi/step",
                (study == "weak" ? "t1/tP" : "speedup"), "effic."
     }
     cores = $2 * $3

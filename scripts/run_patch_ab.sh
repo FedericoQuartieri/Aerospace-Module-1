@@ -91,13 +91,13 @@ sha_prima="$(git rev-parse --short "$PRIMA")"
 sha_dopo="$(git rev-parse --short "$DOPO")"
 
 echo "==============================================================="
-echo "confronto  $sha_prima ($PRIMA)  contro  $sha_dopo ($DOPO)"
+echo "comparing  $sha_prima ($PRIMA)  against  $sha_dopo ($DOPO)"
 echo "==============================================================="
 git --no-pager log --oneline "$PRIMA..$DOPO" | sed 's/^/  /'
 echo
 
 if [[ "$sha_prima" == "$sha_dopo" ]]; then
-    echo "le due revisioni sono la stessa: non c'e' niente da confrontare" >&2
+    echo "the two revisions are the same: there is nothing to compare" >&2
     exit 1
 fi
 
@@ -111,7 +111,7 @@ for rev in "$sha_prima" "$sha_dopo"; do
     if [[ ! -d "$albero" ]]; then
         mkdir -p "$albero"
         git archive "$rev" | tar -x -C "$albero"
-        echo "estratto $rev in $albero"
+        echo "extracted $rev into $albero"
     fi
 done
 echo
@@ -128,7 +128,7 @@ costruisci()
     [[ -x "$out" ]] && { printf '%s' "$out"; return 0; }
     if ! make -s -B -C "$albero" TRIDIAG="$backend" SIMD="$simd" OMP="$omp" \
             MPI="$mpi" build/tests/bench > "$albero/$nome.log" 2>&1; then
-        echo "compilazione fallita: $rev $nome" >&2
+        echo "build failed: $rev $nome" >&2
         sed 's/^/    /' "$albero/$nome.log" | head -15 >&2
         return 1
     fi
@@ -224,7 +224,7 @@ for n in $GRIDS; do
 
                 if gia_fatto "$scenario" "$backend" "$simd" "$ranks" \
                              "$threads" "$n"; then
-                    echo "gia' fatto"
+                    echo "already done"
                     continue
                 fi
 
@@ -236,7 +236,7 @@ for n in $GRIDS; do
                         saltare=1
                     fi
                 done
-                [[ "$saltare" == "1" ]] && { echo "saltato"; continue; }
+                [[ "$saltare" == "1" ]] && { echo "skipped"; continue; }
 
                 # Alternate: prima, dopo, prima, dopo...
                 for (( r = 1; r <= REPEATS; r++ )); do
@@ -253,7 +253,7 @@ for n in $GRIDS; do
                             "$passi" "$r" "$riga" >> "$csv"
                     done
                 done
-                echo "fatto"
+                echo "done"
             done
         done
       done
@@ -261,7 +261,7 @@ for n in $GRIDS; do
 done
 
 echo
-echo "=== risultato: mediana di $REPEATS corse, per stadio ==="
+echo "=== result: median of $REPEATS runs, by stage ==="
 awk -F, '
 function mediana(chiave, quante,   i, v, n) {
     n = conta[chiave]
@@ -306,21 +306,21 @@ END {
         printf "\n"
     }
     print ""
-    print "  prima>dopo e la percentuale risparmiata. Gli stadi zeta e u sono il"
-    print "  controllo: una modifica che tocca solo eta li deve lasciare fermi,"
-    print "  e quanto si muovono e la misura del rumore di questo nodo."
+    print "  before>after and the percentage saved. The zeta and u stages are"
+    print "  the control: a change that touches only eta must leave them still,"
+    print "  and how much they move is the measure of this node\x27s noise."
     print ""
-    print "  Righe di scenari diversi non si confrontano fra loro nei tempi --"
-    print "  sono problemi diversi -- ma le loro PERCENTUALI si: e quella"
-    print "  differenza dice quanto della modifica dipende dallo scenario."
+    print "  Rows of different scenarios are not comparable in time -- they are"
+    print "  different problems -- but their PERCENTAGES are: that difference"
+    print "  says how much of the change depends on the scenario."
 }' "$csv"
 
 echo
 echo
-echo "Se il walltime ha ucciso il job prima della fine, ri-sottomettere"
-echo "continua da dove era arrivato: i casi completi vengono saltati."
-echo "FRESH=1 ricomincia da capo."
+echo "If the walltime killed the job before the end, resubmitting continues"
+echo "from where it got to: complete cases are skipped."
+echo "FRESH=1 starts over."
 echo
 echo "csv: $csv"
 echo "log: $log"
-echo "grafici:  ./scripts/plot_patch_ab.py $csv"
+echo "plots:  ./scripts/plot_patch_ab.py $csv"

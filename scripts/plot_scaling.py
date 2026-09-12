@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Disegna i grafici dello scaling a partire dai CSV di run_scaling.sh.
+"""Draw the scaling plots from the CSVs produced by run_scaling.sh.
 
-Come plot_convergence.py, l'SVG viene scritto a mano: niente librerie da
-installare, e il file resta leggibile.
+Like plot_convergence.py, the SVG is written by hand: no libraries to
+install, and the file stays readable.
 """
 
 import argparse
@@ -182,7 +182,7 @@ def main():
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text("\n".join(parts), encoding="utf-8")
-    print(f"scritto {args.output}")
+    print(f"written {args.output}")
 
 
 if __name__ == "__main__":

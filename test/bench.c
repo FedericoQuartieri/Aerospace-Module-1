@@ -55,7 +55,7 @@ static const char *backend_name(void)
 #elif defined(TRIDIAG_SCHUR)
     return "schur";
 #else
-    return "sconosciuto";
+    return "unknown";
 #endif
 }
 
@@ -119,9 +119,10 @@ int main(int argc, char **argv)
     if (argc != 2 && argc != 5) {
         if (par_rank() == 0) {
             fprintf(stderr,
-                    "uso: %s <file-di-configurazione> [px py pz]\n"
-                    "\nSenza px py pz la forma la sceglie MPI_Dims_create.\n"
-                    "BENCH_NORMS=1 aggiunge le norme dell'errore.\n",
+                    "usage: %s <config-file> [px py pz]\n"
+                    "\nWithout px py pz the shape is chosen by "
+                    "MPI_Dims_create.\n"
+                    "BENCH_NORMS=1 adds the error norms.\n",
                     argv[0]);
         }
         par_finalize();
@@ -139,7 +140,7 @@ int main(int argc, char **argv)
         scelto = data_by_name(scenario);
         if (scelto == NULL) {
             if (par_rank() == 0) {
-                fprintf(stderr, "scenario sconosciuto: %s\nDisponibili:\n",
+                fprintf(stderr, "unknown scenario: %s\nAvailable:\n",
                         scenario);
                 data_print_names(stderr);
             }

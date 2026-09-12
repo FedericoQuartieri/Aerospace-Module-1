@@ -113,15 +113,15 @@ int main(int argc, char **argv)
     par_dims(dims);
 
     if (par_rank() == 0) {
-        printf("\nScambio delle celle di contorno:\n");
-        printf("  processi %d x %d x %d su una griglia %d x %d x %d\n",
+        printf("\nHalo exchange:\n");
+        printf("  processes %d x %d x %d over a %d x %d x %d grid\n",
                dims[0], dims[1], dims[2],
                d.n_global[0], d.n_global[1], d.n_global[2]);
-        printf("  celle di contorno sbagliate:       %lld\n", bad_values);
-        printf("  celle scritte dove c'e' la parete: %lld\n", bad_walls);
+        printf("  wrong halo cells:             %lld\n", bad_values);
+        printf("  cells written against a wall: %lld\n", bad_walls);
         printf("\n  %s\n", failed
-               ? "FALLITO: l'anello non contiene i dati del vicino"
-               : "PASSATO: l'anello contiene i dati del vicino");
+               ? "FAILED: the halo does not hold the neighbour's data"
+               : "PASSED: the halo holds the neighbour's data");
     }
 
     free(field);

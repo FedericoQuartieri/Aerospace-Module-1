@@ -173,7 +173,7 @@ void print_stats(const Decomp *d,
      * cronometrata. Il riempimento della permeabilita' e' rimasto fuori dai
      * conti per tutto il tempo, e da solo valeva fino a due terzi del passo.
      */
-    printf("  non contato: %.3f ms (%5.1f%%)\n",
+    printf("  unaccounted: %.3f ms (%5.1f%%)\n",
            unaccounted_avg_ms, unaccounted_ns * percentage_factor);
     /* Righe pensate per essere lette anche da uno script. */
     printf("  wall per step: %.3f ms\n",

@@ -73,7 +73,7 @@ study_begin()
 
     if [[ "${FRESH:-0}" == "1" ]]; then
         rm -f "$STUDY_CSV" "$STUDY_KEYS" "$STUDY_OUT/chain.count"
-        echo "FRESH=1: ricomincio da capo, i risultati precedenti sono cancellati"
+        echo "FRESH=1: starting over, previous results are deleted"
         # E soltanto per questo job: la ri-sottomissione passa l'ambiente con
         # `qsub -V', e un FRESH ereditato farebbe cancellare a ogni anello
         # della catena quello che l'anello prima ha appena misurato.
@@ -105,12 +105,12 @@ study_begin()
     exec > >(tee -a "$STUDY_LOG") 2>&1
 
     echo "==============================================================="
-    echo "fase $STUDY_PHASE -- $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "phase $STUDY_PHASE -- $(date '+%Y-%m-%d %H:%M:%S')"
     echo "==============================================================="
-    echo "risultati: $STUDY_CSV"
-    printf 'budget:    %d min di lavoro utile (job %d della catena)\n' \
+    echo "results: $STUDY_CSV"
+    printf 'budget:    %d min of useful work (job %d of the chain)\n' \
         $(( STUDY_BUDGET / 60 )) "$STUDY_CHAIN"
-    [[ "${DRY_RUN:-0}" == "1" ]] && echo "DRY_RUN=1: elenco i casi, non eseguo"
+    [[ "${DRY_RUN:-0}" == "1" ]] && echo "DRY_RUN=1: listing the cases, not running them"
     echo
 }
 
@@ -119,20 +119,20 @@ study_end()
     local elapsed=$(( $(date +%s) - STUDY_STARTED ))
 
     echo
-    echo "=== fine fase $STUDY_PHASE ==="
-    printf 'casi eseguiti: %d   saltati (gia\x27 fatti): %d   falliti: %d\n' \
+    echo "=== end of phase $STUDY_PHASE ==="
+    printf 'cases run: %d   skipped (already done): %d   failed: %d\n' \
         "$STUDY_CASES" "$STUDY_SKIPPED" "$STUDY_FAILED"
-    printf 'tempo totale:  %02d:%02d:%02d\n' \
+    printf 'total time: %02d:%02d:%02d\n' \
         $(( elapsed / 3600 )) $(( elapsed % 3600 / 60 )) $(( elapsed % 60 ))
     echo "csv: $STUDY_CSV"
     echo "log: $STUDY_LOG"
 
     if [[ "$STUDY_OUT_OF_TIME" -eq 0 ]]; then
-        [[ "${DRY_RUN:-0}" == "1" ]] || echo "la fase e' completa."
+        [[ "${DRY_RUN:-0}" == "1" ]] || echo "the phase is complete."
         return 0
     fi
 
-    printf 'restano %d casi: il budget di questo job e\x27 finito.\n' \
+    printf '%d cases left: this job has run out of budget.\n' \
         "$STUDY_PENDING"
 
     # Se questo job non ha concluso nemmeno un caso, il prossimo si
@@ -140,9 +140,9 @@ study_end()
     # Meglio fermarsi e dirlo che ripetere il ciclo -- e' esattamente cosi'
     # che due casi in timeout hanno occupato 31 job di fila.
     if [[ "$STUDY_CASES" -eq 0 && "$STUDY_FAILED" -eq 0 ]]; then
-        echo "questo job non ha concluso nessun caso: mi fermo invece di"
-        echo "ripetere lo stesso ciclo. Guarda il log qui sopra e rilancia"
-        echo "a mano quando sai perche'."
+        echo "this job completed no case: stopping instead of repeating"
+        echo "the same loop. Read the log above and resubmit by hand"
+        echo "once you know why."
         return 0
     fi
     study_resubmit
@@ -157,26 +157,26 @@ study_resubmit()
     local script="$STUDY_ROOT/scripts/study/$STUDY_PHASE.sh"
 
     if [[ "${AUTO_RESUBMIT:-$STUDY_CHAINABLE}" != "1" ]]; then
-        echo "ri-sottomissione disattivata: rilancia con  qsub $script"
+        echo "resubmission disabled: resubmit with  qsub $script"
         return 0
     fi
     if [[ "$STUDY_CHAIN" -ge "$STUDY_CHAIN_MAX" ]]; then
-        echo "catena arrivata a $STUDY_CHAIN job: mi fermo qui per prudenza."
-        echo "se e' normale, rilancia con  STUDY_CHAIN=1 qsub $script"
+        echo "the chain reached $STUDY_CHAIN jobs: stopping here to be safe."
+        echo "if that is expected, resubmit with  STUDY_CHAIN=1 qsub $script"
         return 0
     fi
     if ! command -v qsub > /dev/null || [[ -z "${PBS_JOBID:-}" ]]; then
-        echo "fuori da PBS: rilancia con  ./scripts/study/$STUDY_PHASE.sh"
+        echo "outside PBS: rerun with  ./scripts/study/$STUDY_PHASE.sh"
         return 0
     fi
 
     local next
     mkdir -p "$STUDY_BASE/pbs"
     if next="$(qsub -V -o "$STUDY_BASE/pbs/" "$script" 2>&1)"; then
-        echo "continua nel job $next"
+        echo "continues in job $next"
     else
-        echo "ri-sottomissione fallita: $next"
-        echo "rilancia a mano con  qsub $script"
+        echo "resubmission failed: $next"
+        echo "resubmit by hand with  qsub $script"
     fi
 }
 
@@ -205,17 +205,17 @@ study_machine()
     STUDY_PHYSICAL=$(( STUDY_SOCKETS * STUDY_PER_SOCKET ))
     [[ "$STUDY_LOGICAL" -lt "$STUDY_PHYSICAL" ]] && STUDY_PHYSICAL="$STUDY_LOGICAL"
 
-    echo "=== macchina ==="
-    printf 'nodo:          %s\n' "$(hostname -s)"
-    printf 'socket:        %s\n' "$STUDY_SOCKETS"
-    printf 'cpu del nodo:  %s logiche, %s core fisici\n' \
+    echo "=== machine ==="
+    printf 'node:          %s\n' "$(hostname -s)"
+    printf 'sockets:       %s\n' "$STUDY_SOCKETS"
+    printf 'node cpus:     %s logical, %s physical cores\n' \
         "$node_logical" "$(( STUDY_SOCKETS * STUDY_PER_SOCKET ))"
-    printf 'cpu concesse:  %s\n' "$STUDY_LOGICAL"
-    printf 'nodi NUMA:     %s\n' \
+    printf 'cpus granted:  %s\n' "$STUDY_LOGICAL"
+    printf 'NUMA nodes:    %s\n' \
         "$(find /sys/devices/system/node -maxdepth 1 -name 'node[0-9]*' 2>/dev/null | wc -l)"
-    printf 'memoria:       %s\n' "$(awk '/MemTotal/ {printf "%.0f GB", $2/1048576}' /proc/meminfo)"
-    printf 'mpirun:        %s\n' "$(command -v "${MPIRUN:-mpirun}" || echo assente)"
-    printf 'versione MPI:  %s\n' \
+    printf 'memory:        %s\n' "$(awk '/MemTotal/ {printf "%.0f GB", $2/1048576}' /proc/meminfo)"
+    printf 'mpirun:        %s\n' "$(command -v "${MPIRUN:-mpirun}" || echo missing)"
+    printf 'MPI version:   %s\n' \
         "$(${MPIRUN:-mpirun} --version 2>&1 | head -1)"
 
     # Il nodo e' davvero tutto nostro? Su questo cluster la risposta e' stata
@@ -223,13 +223,13 @@ study_machine()
     # senza che niente nell'output lo dicesse.
     if [[ "$STUDY_LOGICAL" -ge "$node_logical" ]]; then
         STUDY_EXCLUSIVE=1
-        printf 'esclusivo:     si\n'
+        printf 'exclusive:     yes\n'
     else
         STUDY_EXCLUSIVE=0
-        printf '\n  ATTENZIONE: hai %s CPU su %s. Le misure che seguono sono\n' \
+        printf '\n  WARNING: you have %s CPUs out of %s. The measurements below\n' \
             "$STUDY_LOGICAL" "$node_logical"
-        printf '  contaminate dai job dei vicini e non vanno usate per i tempi.\n'
-        printf '  Serve:  qsub -q scalability -l select=1:ncpus=%s\n\n' \
+        printf '  are polluted by the neighbours\x27 jobs and must not be used for timings.\n'
+        printf '  You need:  qsub -q scalability -l select=1:ncpus=%s\n\n' \
             "$node_logical"
     fi
     echo
@@ -278,7 +278,7 @@ study_build()
             TRIDIAG="$backend" SIMD="$simd" OMP="$omp" MPI="$mpi" \
             PIPELINE_BATCH_LINES="$batch" \
             "build/tests/$target" > "$STUDY_BIN/$key.build.log" 2>&1; then
-        echo "compilazione fallita: $key" >&2
+        echo "build failed: $key" >&2
         sed 's/^/    /' "$STUDY_BIN/$key.build.log" | head -20 >&2
         return 1
     fi
@@ -433,7 +433,7 @@ study_case()
             note=*)    note="${arg#*=}" ;;
             wrap=*)    wrap="${arg#*=}" ;;
             bind=*)    bind="${arg#*=}" ;;
-            *) echo "study_case: argomento sconosciuto: $arg" >&2; return 2 ;;
+            *) echo "study_case: unknown argument: $arg" >&2; return 2 ;;
         esac
     done
 
@@ -447,7 +447,7 @@ study_case()
 
     if [[ "${RESUME:-1}" == "1" ]] && study_already_done "$key"; then
         STUDY_SKIPPED=$(( STUDY_SKIPPED + 1 ))
-        printf '  %-34s gia\x27 fatto\n' "$label"
+        printf '  %-34s already done\n' "$label"
         return 0
     fi
 
@@ -457,7 +457,7 @@ study_case()
     local remaining=$(( STUDY_BUDGET - ( $(date +%s) - STUDY_STARTED ) ))
     if [[ "${DRY_RUN:-0}" != "1" && "$remaining" -lt "${CASE_MIN_TIME:-90}" ]]; then
         if [[ "$STUDY_OUT_OF_TIME" -eq 0 ]]; then
-            printf '  budget finito: i casi che restano vanno al prossimo job\n'
+            printf '  budget spent: the remaining cases go to the next job\n'
             STUDY_OUT_OF_TIME=1
         fi
         STUDY_PENDING=$(( STUDY_PENDING + 1 ))
@@ -478,8 +478,8 @@ study_case()
     if ! exe="$(study_build "$backend" "$simd" "$omp" "$mpi" "$batch")"; then
         study_record "$label" "$backend" "$batch" "$simd" "$omp" "$mpi" \
             "$ranks" "$threads" "$nx" "$ny" "$nz" "$steps" "" \
-            "build" "compilazione fallita"
-        printf 'compilazione fallita\n'
+            "build" "build failed"
+        printf 'build failed\n'
         STUDY_FAILED=$(( STUDY_FAILED + 1 ))
         return 0
     fi
@@ -545,16 +545,16 @@ study_case()
             break
         fi
         if [[ $code -ne 0 ]]; then
-            status="fallito"
-            printf '\n    uscita %d, ecco cosa ha stampato:\n' "$code"
+            status="failed"
+            printf '\n    exit %d, here is what it printed:\n' "$code"
             sed 's/^/      /' <<< "$out" | tail -15
             break
         fi
 
         line="$(study_parse <<< "$out")" || line=""
         if [[ -z "$line" ]]; then
-            status="illeggibile"
-            printf '\n    nessun tempo nell\x27output:\n'
+            status="unreadable"
+            printf '\n    no timings in the output:\n'
             sed 's/^/      /' <<< "$out" | tail -15
             break
         fi
@@ -595,7 +595,7 @@ study_case()
     shape_out="$(cut -d, -f1-3 <<< "$best_line" | tr ',' 'x')"
     untimed="$(cut -d, -f14 <<< "$best_line")"
     rss="$(cut -d, -f16 <<< "$best_line")"
-    printf '%10s ms  %-9s non contato %6s ms  rss %7s MB  (%ds)\n' \
+    printf '%10s ms  %-9s unaccounted %6s ms  rss %7s MB  (%ds)\n' \
         "$best_wall" "$shape_out" "$untimed" "$rss" "$seconds"
 }
 
@@ -628,7 +628,7 @@ study_baseline()
         case "$arg" in
             label=*) label="${arg#*=}" ;;
             omp=*|mpi=*|ranks=*|threads=*|shape=*)
-                echo "study_baseline: $arg lo fissa la funzione, non passarlo" >&2
+                echo "study_baseline: $arg is set by the function, do not pass it" >&2
                 return 2 ;;
             *) rest+=("$arg") ;;
         esac

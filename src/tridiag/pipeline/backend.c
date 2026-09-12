@@ -9,7 +9,7 @@
 
 static void pipeline_size_overflow(const char *what) {
     if (par_rank() == 0) {
-        fprintf(stderr, "pipeline: dimensione troppo grande per %s\n", what);
+        fprintf(stderr, "pipeline: size too large for %s\n", what);
     }
     par_abort(1);
 }
@@ -38,9 +38,9 @@ static size_t axis_capacity(const Decomp *d, int axis, int batch_lines) {
     size_t batch_count =
         (line_count - 1) / (size_t)batch_lines + 1;
     size_t padded_lines =
-        checked_mul(batch_count, (size_t)batch_lines, "batch di linee");
+        checked_mul(batch_count, (size_t)batch_lines, "batch of lines");
 
-    return checked_mul(padded_lines, (size_t)d->n[axis], "scratch per asse");
+    return checked_mul(padded_lines, (size_t)d->n[axis], "per-axis scratch");
 }
 
 void backend_init(const Decomp *d, SolverMemState *solver_mem_state) {
@@ -75,11 +75,11 @@ void backend_init(const Decomp *d, SolverMemState *solver_mem_state) {
     backend->forward =
         xmalloc_real_array(checked_mul(2,
                                        (size_t)backend->batch_lines,
-                                       "giunzioni avanti"),
-                           "giunzioni avanti");
+                                       "forward junctions"),
+                           "forward junctions");
     backend->backward =
         xmalloc_real_array((size_t)backend->batch_lines,
-                           "giunzioni indietro");
+                           "backward junctions");
 
     /*
      * Il g di un batch di linee lungo x.  Costa batch_lines * n[0] elementi --
@@ -88,19 +88,19 @@ void backend_init(const Decomp *d, SolverMemState *solver_mem_state) {
      */
     backend->source_term =
         xmalloc_real_array(checked_mul((size_t)backend->batch_lines,
-                                       (size_t)d->n[0], "g del batch"),
-                           "g del batch");
+                                       (size_t)d->n[0], "batch g"),
+                           "batch g");
     backend->abscissa =
-        xmalloc_real_array((size_t)d->n[0], "ascisse della linea");
+        xmalloc_real_array((size_t)d->n[0], "line abscissas");
 
     /* La matrice della pressione non cambia mai: si scrive una volta qui. */
     for (int axis = 0; axis < 3; axis++) {
         backend->matrix_a[axis] =
-            xmalloc_real_array((size_t)d->n[axis], "matrice pressione a");
+            xmalloc_real_array((size_t)d->n[axis], "pressure matrix a");
         backend->matrix_b[axis] =
-            xmalloc_real_array((size_t)d->n[axis], "matrice pressione b");
+            xmalloc_real_array((size_t)d->n[axis], "pressure matrix b");
         backend->matrix_c[axis] =
-            xmalloc_real_array((size_t)d->n[axis], "matrice pressione c");
+            xmalloc_real_array((size_t)d->n[axis], "pressure matrix c");
         pressure_matrix(d, axis, backend->matrix_a[axis],
                         backend->matrix_b[axis], backend->matrix_c[axis]);
     }

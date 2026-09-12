@@ -32,7 +32,7 @@
 cd "${PBS_O_WORKDIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)}" || exit 1
 
 if [[ ! -f scripts/study/lib.sh ]]; then
-    echo "qsub va fatto dalla radice del repo; qui sono in $PWD" >&2
+    echo "qsub must be run from the repo root; I am in $PWD" >&2
     exit 1
 fi
 
@@ -63,7 +63,7 @@ CASE_TIMEOUT="${CASE_TIMEOUT:-600}"
 # Un binario senza MPI e senza OpenMP non puo' sbagliare per colpa di una
 # divisione o di un thread, quindi se una forma se ne discosta e' quella forma
 # ad avere torto, non il riferimento.
-echo "=== i riferimenti: seriale e processo singolo ==="
+echo "=== the baselines: serial and single process ==="
 for backend in $MATRIX_BACKENDS; do
     for simd in $MATRIX_SIMD; do
         study_baseline label="$backend s$simd" \
@@ -79,7 +79,7 @@ for simd in $MATRIX_SIMD; do
 done
 echo
 
-echo "=== ${GRID}^3: ogni forma della griglia di processi, un thread ==="
+echo "=== ${GRID}^3: every process-grid shape, one thread ==="
 for backend in $MATRIX_BACKENDS; do
     for simd in $MATRIX_SIMD; do
         for n in $CHECK_RANKS; do
@@ -96,7 +96,7 @@ for backend in $MATRIX_BACKENDS; do
 done
 echo
 
-echo "=== ${GRID}^3: i thread non devono cambiare il risultato ==="
+echo "=== ${GRID}^3: threads must not change the result ==="
 for backend in $MATRIX_BACKENDS; do
     for simd in $MATRIX_SIMD; do
         for t in $CHECK_THREADS; do
@@ -113,7 +113,7 @@ for backend in $MATRIX_BACKENDS; do
 done
 echo
 
-echo "=== ${GRID}^3: nemmeno il batch della pipeline deve cambiarlo ==="
+echo "=== ${GRID}^3: nor must the pipeline batch change it ==="
 for simd in $MATRIX_SIMD; do
     for b in $CHECK_BATCHES; do
         for n in 1 8; do
@@ -127,7 +127,7 @@ done
 
 if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
-    echo "=== verdetto: quanto si discostano le norme fra tutte le configurazioni ==="
+    echo "=== verdict: how far the norms drift across all configurations ==="
     awk -F, -v phase=15_matrix_check '
     function abs(x) { return x < 0 ? -x : x }
     NR == 1 || $1 != phase || $(NF - 1) != "ok" || $30 == "" { next }
@@ -140,7 +140,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
         if (n == 1) { rux = ux[1]; rp = p[1]; rwho = who[1] }
     }
     END {
-        if (n == 0) { print "  nessuna norma nel CSV"; exit }
+        if (n == 0) { print "  no norms in the CSV"; exit }
         worst_ux = 0; worst_p = 0
         worst_ux_who = rwho; worst_p_who = rwho
         for (i = 1; i <= n; i++) {
@@ -149,20 +149,20 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
             if (du > worst_ux) { worst_ux = du; worst_ux_who = who[i] }
             if (dp > worst_p)  { worst_p  = dp; worst_p_who  = who[i] }
         }
-        printf "  configurazioni confrontate: %d\n", n
-        printf "  riferimento:                %s\n", rwho
-        printf "  scarto relativo massimo su |u_x|:  %.3e   (%s)\n",
+        printf "  configurations compared: %d\n", n
+        printf "  reference:               %s\n", rwho
+        printf "  largest relative drift on |u_x|:  %.3e   (%s)\n",
                worst_ux, worst_ux_who
-        printf "  scarto relativo massimo su |p|:    %.3e   (%s)\n",
+        printf "  largest relative drift on |p|:    %.3e   (%s)\n",
                worst_p, worst_p_who
         print  ""
         if (worst_ux < 1e-10 && worst_p < 1e-10) {
-            print "  Tutte le configurazioni danno la stessa risposta: i tempi"
-            print "  delle altre fasi confrontano la stessa cosa."
+            print "  Every configuration gives the same answer: the timings of"
+            print "  the other phases compare the same thing."
         } else {
-            print "  ATTENZIONE: qualche configurazione risolve un problema diverso."
-            print "  I tempi che la riguardano non vanno letti finche\x27 non si sa"
-            print "  perche\x27. In double lo scarto atteso e\x27 zero, non `piccolo\x27."
+            print "  WARNING: some configuration is solving a different problem."
+            print "  Its timings must not be read until the reason is known."
+            print "  In double the expected drift is zero, not `small\x27."
         }
     }' "$STUDY_CSV"
 fi

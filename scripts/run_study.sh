@@ -1,44 +1,44 @@
 #!/usr/bin/env bash
 #
-# La campagna di scaling: sei fasi, un comando.
+# The scaling campaign: six phases, one command.
 #
-#   ./scripts/run_study.sh submit          sottomette tutte le fasi a PBS
-#   ./scripts/run_study.sh submit 11 13    solo alcune
-#   ./scripts/run_study.sh local 10        esegue una fase qui e ora
-#   ./scripts/run_study.sh dry             elenca i casi senza eseguirli
-#   ./scripts/run_study.sh merge           unisce i CSV e disegna i grafici
-#   ./scripts/run_study.sh status          a che punto sono le fasi
-#   ./scripts/run_study.sh probe           cosa concede ogni coda, misurato
+#   ./scripts/run_study.sh submit          submits every phase to PBS
+#   ./scripts/run_study.sh submit 11 13    only some of them
+#   ./scripts/run_study.sh local 10        runs one phase here and now
+#   ./scripts/run_study.sh dry             lists the cases without running them
+#   ./scripts/run_study.sh merge           merges the CSVs and draws the plots
+#   ./scripts/run_study.sh status          how far along the phases are
+#   ./scripts/run_study.sh probe           what each queue grants, measured
 #
-# Le sei fasi sono indipendenti e corrono in parallelo: ognuna si compila i
-# binari che le servono e chiede un nodo intero, quindi PBS non le mettera' mai
-# sulla stessa macchina a disturbarsi. La 15 e' quella che verifica che tutte
-# le varianti diano la stessa risposta, ed e' bene guardarla per prima: se non
-# e' cosi', i tempi delle altre confrontano programmi diversi.
+# The six phases are independent and run in parallel: each one builds the
+# binaries it needs and asks for a whole node, so PBS will never put two of
+# them on the same machine to disturb each other. Phase 15 is the one that
+# checks that every variant gives the same answer, and it is worth reading
+# first: if it does not, the timings of the others compare different programs.
 #
-# La coda `scalability' concede 30 minuti per job (resources_max.walltime =
-# 00:30:00) e lo studio ne vuole molte di piu'. Non serve fare niente: ogni
-# fase lavora a budget, smette prima di essere uccisa e si ri-sottomette da
-# sola finche' non ha finito. `status' dice a che punto e'. Sottomettere di
-# nuovo una fase gia' in corso non fa danni -- i casi gia' misurati vengono
-# saltati -- quindi `submit' vale anche come "continua".
+# The `scalability' queue grants 30 minutes per job (resources_max.walltime =
+# 00:30:00) and the study wants far more. Nothing needs to be done: each phase
+# works to a budget, stops before being killed and resubmits itself until it
+# is done. `status' says how far it got. Submitting a phase that is already
+# running does no harm -- the cases already measured are skipped -- so
+# `submit' doubles as "continue".
 #
-# Variabili utili, passate cosi':
+# Useful variables, passed like this:
 #
 #   GRIDS=128 REPEATS=1 ./scripts/run_study.sh submit 11
 #   WALLTIME=12:00:00 ./scripts/run_study.sh submit 05
 #
-# Le variabili dell'ambiente arrivano al job con `qsub -V, quindi basta
-# metterle davanti al comando. STUDY_ENV="chiave=valore ..." fa lo stesso per
-# chi preferisce, ma i valori non possono contenere spazi.
+# Environment variables reach the job through `qsub -V', so it is enough to
+# put them in front of the command. STUDY_ENV="key=value ..." does the same
+# for whoever prefers it, but the values cannot contain spaces.
 #
-#   FRESH=1     ricomincia da capo invece di riprendere
-#   STUDY_BUDGET=1500  secondi di lavoro utile per job: 25 dei 30 minuti
-#               concessi, il resto e' margine per chiudere il caso in corso
-#   AUTO_RESUBMIT=0    non ri-sottomettersi, fermarsi a budget finito
-#   DRY_RUN=1   elenca i casi e non esegue niente
-#   REPEATS     ripetizioni per caso (default 2, si tiene la migliore)
-#   STEPS       passi temporali per caso
+#   FRESH=1     start over instead of resuming
+#   STUDY_BUDGET=1500  seconds of useful work per job: 25 of the 30 minutes
+#               granted, the rest is margin to close the case in flight
+#   AUTO_RESUBMIT=0    do not resubmit, stop when the budget is spent
+#   DRY_RUN=1   list the cases and run nothing
+#   REPEATS     repeats per case (default 2, the best one is kept)
+#   STEPS       time steps per case
 
 set -euo pipefail
 
@@ -72,8 +72,8 @@ resolve_phases()
             fi
         done
         if [[ "$found" -eq 0 ]]; then
-            echo "fase sconosciuta: $name" >&2
-            printf '  disponibili: %s\n' "${all_phases[*]}" >&2
+            echo "unknown phase: $name" >&2
+            printf '  available: %s\n' "${all_phases[*]}" >&2
             exit 1
         fi
     done
@@ -82,7 +82,7 @@ resolve_phases()
 case "$action" in
 
 submit)
-    command -v qsub > /dev/null || { echo "qsub non c'e': usa 'local'" >&2; exit 1; }
+    command -v qsub > /dev/null || { echo "no qsub here: use 'local'" >&2; exit 1; }
     mapfile -t phases < <(resolve_phases "$@")
 
     # -V passa tutto l'ambiente al job. PBS ha anche -v con una lista di
@@ -106,7 +106,7 @@ submit)
         # che quella coda non concede -- e non e' un motivo per non sottomettere
         # le altre. Prima si fermava qui, e sembrava che fosse fallito tutto.
         if ! id="$(qsub "${qsub_opts[@]}" "$script" 2>&1)"; then
-            printf '  %-18s RIFIUTATO: %s\n' "$phase" "$(head -1 <<< "$id")"
+            printf '  %-18s REJECTED: %s\n' "$phase" "$(head -1 <<< "$id")"
             rejected=$(( rejected + 1 ))
             continue
         fi
@@ -114,14 +114,15 @@ submit)
     done
     echo
     if [[ "$rejected" -gt 0 ]]; then
-        echo "  $rejected fasi rifiutate da PBS. Quasi sempre e' il walltime o"
-        echo "  le CPU chieste: ./scripts/run_study.sh probe  dice cosa concede"
-        echo "  ogni coda, e le direttive #PBS in testa allo script si possono"
-        echo "  scavalcare da riga di comando (qsub -l walltime=... script)."
+        echo "  $rejected phases rejected by PBS. Almost always it is the"
+        echo "  walltime or the CPUs asked for: ./scripts/run_study.sh probe"
+        echo "  says what each queue grants, and the #PBS directives at the top"
+        echo "  of the script can be overridden from the command line"
+        echo "  (qsub -l walltime=... script)."
         echo
     fi
-    echo "  qstat -u \"\$USER\"    per seguirle"
-    echo "  i risultati arrivano in build/study/<fase>/results.csv"
+    echo "  qstat -u \"\$USER\"    to follow them"
+    echo "  the results land in build/study/<phase>/results.csv"
     ;;
 
 local)
@@ -170,10 +171,10 @@ merge)
         }' "$csv" >> "$out"
     done
     if [[ -z "$header" ]]; then
-        echo "nessun risultato da unire" >&2
+        echo "nothing to merge" >&2
         exit 1
     fi
-    echo "$(( $(wc -l < "$out") - 1 )) misure in $out"
+    echo "$(( $(wc -l < "$out") - 1 )) measurements in $out"
     if [[ -x "$root/scripts/plot_matrix.py" ]]; then
         "$root/scripts/plot_matrix.py" "$out"
     fi
@@ -184,10 +185,10 @@ probe)
     # sottomettono job minuscoli e si guarda quale viene accettato. Quelli che
     # passano vengono cancellati subito -- non devono girare, solo essere
     # accettati.
-    command -v qsub > /dev/null || { echo "qsub non c'e'" >&2; exit 1; }
+    command -v qsub > /dev/null || { echo "no qsub here" >&2; exit 1; }
     for queue in ${QUEUES:-scalability cpu}; do
-        echo "coda $queue"
-        printf '  cpu per job:  '
+        echo "queue $queue"
+        printf '  cpus per job: '
         found=""
         for n in 112 56 28 14 7 1; do
             if id="$(echo /bin/true | qsub -q "$queue" -l "select=1:ncpus=$n" \
@@ -198,25 +199,25 @@ probe)
             fi
         done
         if [[ -n "$found" ]]; then
-            echo "select=1:ncpus=$found accettato"
+            echo "select=1:ncpus=$found accepted"
         else
-            echo "nemmeno 1 cpu accettata -- $(head -1 <<< "${id:-}")"
+            echo "not even 1 cpu accepted -- $(head -1 <<< "${id:-}")"
             continue
         fi
         printf '  walltime:     '
         for w in 48:00:00 24:00:00 08:00:00 02:00:00 00:30:00 00:10:00; do
             if id="$(echo /bin/true | qsub -q "$queue" -l "select=1:ncpus=$found" \
                      -l "walltime=$w" -N probe 2>&1)"; then
-                echo "$w accettato"
+                echo "$w accepted"
                 qdel "$id" > /dev/null 2>&1 || true
                 break
             fi
         done
     done
     echo
-    echo "  Le fasi che misurano vogliono il nodo intero: se la coda esclusiva"
-    echo "  concede meno CPU di quelle del nodo, la domanda centrale dello"
-    echo "  studio (56 core spesi in modi diversi) non si puo' porre."
+    echo "  The measuring phases want the whole node: if the exclusive queue"
+    echo "  grants fewer CPUs than the node has, the central question of the"
+    echo "  study (56 cores spent in different ways) cannot be asked."
     ;;
 
 status)
@@ -225,7 +226,7 @@ status)
     # stesso non direbbe niente.
     attesa=$(sed -n "s/^STUDY_HEADER='//p" "$root/scripts/study/lib.sh" \
         | head -1 | awk -F, '{print NF}')
-    printf '  %-18s %8s %8s %8s   %s\n' fase misure ok falliti aggiornato
+    printf '  %-18s %8s %8s %8s   %s\n' phase cases ok failed updated
     for phase in "${all_phases[@]}"; do
         csv="$root/build/study/$phase/results.csv"
         if [[ ! -f "$csv" ]]; then
@@ -244,7 +245,7 @@ status)
             { if ($(NF - 1) == "ok") buoni++; else cattivi++
               if (NF < larga) corte++ }
             END { printf "%d %d %d\n", buoni, cattivi, corte }' "$csv")
-        [[ "$vecchie" -gt 0 ]] && nota=" ($vecchie senza g_ms)" || nota=""
+        [[ "$vecchie" -gt 0 ]] && nota=" ($vecchie without g_ms)" || nota=""
         printf '  %-18s %8s %8s %8s   %s%s\n' "$phase" "$total" "$ok" "$bad" \
             "$(date -r "$csv" '+%Y-%m-%d %H:%M')" "$nota"
     done

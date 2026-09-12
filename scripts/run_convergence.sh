@@ -73,7 +73,7 @@ run_case()
                 -DDEFAULT_DEPTH=$grid \
                 -DDEFAULT_T=$total_time -DDEFAULT_STEPS=$steps" \
             build/tests/paper_man > "$build_log" 2>&1; then
-        echo "compilazione fallita, vedi $build_log" >&2
+        echo "build failed, see $build_log" >&2
         sed 's/^/    /' "$build_log" >&2
         exit 1
     fi

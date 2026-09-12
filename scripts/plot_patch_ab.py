@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""I grafici del confronto fra due revisioni, dal CSV di run_patch_ab.sh.
+"""The plots comparing two revisions, from the CSV of run_patch_ab.sh.
 
     ./scripts/run_patch_ab.sh HEAD~1 HEAD
-    ./scripts/plot_patch_ab.py            legge build/patch-ab/results.csv
+    ./scripts/plot_patch_ab.py            reads build/patch-ab/results.csv
 
-Due figure, e rispondono a due domande diverse:
+Two figures, answering two different questions:
 
-    patch-ab-stadi.svg     dove stava il tempo prima e dove sta adesso, stadio
-                           per stadio. Le barrette vanno da prima a dopo.
-    patch-ab-guadagno.svg  quanto si e' risparmiato in percentuale, e -- nella
-                           stessa figura -- quanto si muovono gli stadi che la
-                           modifica non tocca. Quelli sono il rumore, e senza
-                           averli accanto una percentuale non si sa leggere.
+    patch-ab-stadi.svg     where the time was before and where it is now,
+                           stage by stage. The bars run from before to after.
+    patch-ab-guadagno.svg  how much was saved in percent and -- in the same
+                           figure -- how much the stages the change does not
+                           touch move. Those are the noise, and without them
+                           next to it a percentage cannot be read.
 
-Il colore qui non dice l'identita' ma il verso: blu dove il tempo e' calato,
-rosso dove e' cresciuto, grigio in mezzo. E' una scala divergente, non
-categorica, perche' la domanda e' il segno.
+Colour here does not say identity but direction: blue where the time went
+down, red where it went up, grey in between. It is a diverging scale, not a
+categorical one, because the question is the sign.
 """
 
 import argparse
@@ -62,7 +62,7 @@ SINISTRA = 108     # spazio per i nomi degli stadi
 
 def load(path):
     if not path.exists():
-        sys.exit(f"manca {path}\n  ./scripts/run_patch_ab.sh")
+        sys.exit(f"missing {path}\n  ./scripts/run_patch_ab.sh")
     righe = []
     with path.open(newline="", encoding="utf-8") as handle:
         for raw in csv.DictReader(handle):
@@ -81,7 +81,7 @@ def load(path):
             if riga["wall_ms"] <= 0:
                 continue
             righe.append(riga)
-    print(f"{len(righe)} corse da {path}")
+    print(f"{len(righe)} runs from {path}")
     return righe
 
 

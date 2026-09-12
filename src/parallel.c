@@ -62,8 +62,8 @@ void par_init(int *argc, char ***argv) {
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         if (rank == 0) {
             fprintf(stderr,
-                    "questa MPI si ferma a MPI_THREAD_SINGLE: "
-                    "ricompila senza OMP=1\n");
+                    "this MPI only goes up to MPI_THREAD_SINGLE: "
+                    "rebuild without OMP=1\n");
         }
         MPI_Abort(MPI_COMM_WORLD, 1);
     }

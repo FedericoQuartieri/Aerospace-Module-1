@@ -31,7 +31,7 @@
 cd "${PBS_O_WORKDIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)}" || exit 1
 
 if [[ ! -f scripts/study/lib.sh ]]; then
-    echo "qsub va fatto dalla radice del repo; qui sono in $PWD" >&2
+    echo "qsub must be run from the repo root; I am in $PWD" >&2
     exit 1
 fi
 
@@ -72,7 +72,7 @@ for n in $GRIDS; do
             backend=schur simd="$simd" grid="$grid" steps="$steps" \
             note="riferimento per il batch"
 
-        echo "=== ${n}^3 simd=$simd: il batch, per ogni piazzamento ==="
+        echo "=== ${n}^3 simd=$simd: the batch, for every placement ==="
         for place in $PLACEMENTS; do
             r="${place%x*}"
             t="${place#*x}"
@@ -100,7 +100,7 @@ done
 
 if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
-    echo "=== il batch migliore, per piazzamento ==="
+    echo "=== the best batch, per placement ==="
     awk -F, -v phase=13_matrix_batch '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
     # Come sopra: i riferimenti collidono col piazzamento 1x1.
@@ -114,8 +114,8 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     }
     END {
         printf "  %-7s %-5s %-8s %9s %7s %9s %7s %7s %9s\n",
-               "griglia", "simd", "rankxthr", "migliore", "batch",
-               "peggiore", "batch", "scarto", "schur"
+               "grid", "simd", "rankxthr", "best", "batch",
+               "worst", "batch", "spread", "schur"
         for (i = 1; i <= nk; i++) {
             split(keys[i], p, ",")
             printf "  %-7s %-5s %-8s %9.1f %7s %9.1f %7s %6.2fx %9s\n",
@@ -125,8 +125,8 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
                    (keys[i] in ref ? sprintf("%.1f", ref[keys[i]]) : "-")
         }
         print ""
-        print "  Se la colonna `batch migliore\x27 cambia con il piazzamento, allora"
-        print "  il default 64 e\x27 giusto solo per il piazzamento su cui fu scelto."
+        print "  If the `best batch\x27 column changes with the placement, then the"
+        print "  default 64 is right only for the placement it was chosen on."
     }' "$STUDY_CSV"
 fi
 

@@ -34,7 +34,7 @@
 cd "${PBS_O_WORKDIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)}" || exit 1
 
 if [[ ! -f scripts/study/lib.sh ]]; then
-    echo "qsub va fatto dalla radice del repo; qui sono in $PWD" >&2
+    echo "qsub must be run from the repo root; I am in $PWD" >&2
     exit 1
 fi
 
@@ -64,7 +64,7 @@ CASE_TIMEOUT="${CASE_TIMEOUT:-1500}"
 # per piazzamento: il piazzamento a un processo e un thread non esiste.
 # Coprono anche lo scaling forte (STRONG_GRID sta in SIZES) e la base dello
 # scaling debole, che parte da un rank.
-echo "=== i riferimenti: seriale e processo singolo, per ogni taglia ==="
+echo "=== the baselines: serial and single process, for every size ==="
 for backend in $MATRIX_BACKENDS; do
     for simd in $MATRIX_SIMD; do
         for n in $SIZES; do
@@ -76,7 +76,7 @@ for backend in $MATRIX_BACKENDS; do
 done
 echo
 
-echo "=== il muro: costo per cella al crescere della taglia ==="
+echo "=== the wall: cost per cell as the size grows ==="
 for place in $SIZE_PLACEMENTS; do
     r="${place%x*}"
     t="${place#*x}"
@@ -98,7 +98,7 @@ for place in $SIZE_PLACEMENTS; do
 done
 echo
 
-echo "=== scaling forte: ${STRONG_GRID}^3, unita' crescenti ==="
+echo "=== strong scaling: ${STRONG_GRID}^3, growing units ==="
 steps="$(matrix_steps "$STRONG_GRID")"
 grid="$STRONG_GRID $STRONG_GRID $STRONG_GRID"
 for backend in $MATRIX_BACKENDS; do
@@ -118,7 +118,7 @@ for backend in $MATRIX_BACKENDS; do
 done
 echo
 
-echo "=== scaling debole: celle per rank costanti ==="
+echo "=== weak scaling: constant cells per rank ==="
 IFS='|' read -r -a weak <<< "$WEAK_CONFIGS"
 for entry in "${weak[@]}"; do
     n="${entry%%:*}"
@@ -141,7 +141,7 @@ done
 
 if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
-    echo "=== costo per cella (1e-8 s) e memoria di picco, per taglia ==="
+    echo "=== cost per cell (1e-8 s) and peak memory, by size ==="
     awk -F, -v phase=14_matrix_size '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" || $2 !~ / N=/ { next }
     # Le etichette dei riferimenti contengono anche loro " N=".
@@ -168,8 +168,8 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
             printf "\n"
         }
         print ""
-        print "  Costo per cella per passo: se fosse solo calcolo resterebbe"
-        print "  costante. Dove sale, il blocco locale e\x27 uscito dalla cache."
+        print "  Cost per cell per step: if it were only arithmetic it would stay"
+        print "  constant. Where it rises, the local block has left the cache."
     }' "$STUDY_CSV"
 fi
 
