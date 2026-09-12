@@ -1,0 +1,225 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1674" height="428" viewBox="0 0 1674 428">
+<style>
+
+svg{--fondo:#fcfcfb;--inchiostro:#0b0b0b;--inchiostro-2:#52514e;
+    --inchiostro-3:#6f6e69;--riquadro:#f6f6f4;--linea:#d9d8d2;--griglia:#e8e7e2}
+@media (prefers-color-scheme:dark){
+svg{--fondo:#1a1a19;--inchiostro:#ffffff;--inchiostro-2:#c3c2b7;
+    --inchiostro-3:#a3a299;--riquadro:#232322;--linea:#3a3a37;--griglia:#2e2e2c}}
+text{font-family:"DejaVu Sans",sans-serif;fill:var(--inchiostro)}
+.titolo{font-size:15px;font-weight:600}
+.sotto{font-size:11px;fill:var(--inchiostro-2)}
+.asse{font-size:12px;fill:var(--inchiostro-2);text-anchor:middle}
+.tacca-x{font-size:10px;fill:var(--inchiostro-3);text-anchor:middle}
+.tacca-y{font-size:10px;fill:var(--inchiostro-3);text-anchor:end}
+.legenda{font-size:11px;fill:var(--inchiostro-2)}
+.valore{font-size:9px;fill:var(--inchiostro-2);text-anchor:middle}
+.cella{font-size:9px;text-anchor:middle}
+.nota{font-size:11px;fill:var(--inchiostro-2)}
+.enorme{font-size:46px;font-weight:600}
+.riquadro{fill:var(--riquadro);stroke:var(--linea)}
+.griglia{stroke:var(--griglia);stroke-width:1}
+
+.s0{stroke:#2a78d6;fill:#2a78d6}
+.s1{stroke:#eb6834;fill:#eb6834}
+@media (prefers-color-scheme:dark){
+.s0{stroke:#3987e5;fill:#3987e5}
+.s1{stroke:#d95926;fill:#d95926}
+}
+</style>
+<rect width="1674" height="428" fill="var(--fondo)"/>
+<text x="74" y="28" class="titolo">1 processo x 1 thread</text>
+<text x="74" y="44" class="sotto">memoria di picco per processo</text>
+<rect x="74" y="58" width="300" height="250" class="riquadro"/>
+<text x="22" y="183.0" class="asse" transform="rotate(-90 22 183.0)">MB</text>
+<text x="224.0" y="350" class="asse">lato della griglia</text>
+<line x1="74" y1="216.5" x2="374" y2="216.5" class="griglia"/>
+<text x="66" y="220.5" class="tacca-y">100</text>
+<line x1="74" y1="108.7" x2="374" y2="108.7" class="griglia"/>
+<text x="66" y="112.7" class="tacca-y">1000</text>
+<text x="74.0" y="328" class="tacca-x">32</text>
+<line x1="74.0" y1="308" x2="74.0" y2="313" class="griglia"/>
+<text x="132.5" y="328" class="tacca-x">48</text>
+<line x1="132.5" y1="308" x2="132.5" y2="313" class="griglia"/>
+<text x="174.0" y="328" class="tacca-x">64</text>
+<line x1="174.0" y1="308" x2="174.0" y2="313" class="griglia"/>
+<text x="232.5" y="328" class="tacca-x">96</text>
+<line x1="232.5" y1="308" x2="232.5" y2="313" class="griglia"/>
+<text x="274.0" y="328" class="tacca-x">128</text>
+<line x1="274.0" y1="308" x2="274.0" y2="313" class="griglia"/>
+<text x="306.2" y="328" class="tacca-x">160</text>
+<line x1="306.2" y1="308" x2="306.2" y2="313" class="griglia"/>
+<text x="332.5" y="328" class="tacca-x">192</text>
+<line x1="332.5" y1="308" x2="332.5" y2="313" class="griglia"/>
+<text x="354.7" y="328" class="tacca-x">224</text>
+<line x1="354.7" y1="308" x2="354.7" y2="313" class="griglia"/>
+<path d="M74.0,295.7 L132.5,276.1 L174.0,252.4 L232.5,208.0 L274.0,171.3 L306.2,141.6 L332.5,116.7 L354.7,95.4 L374.0,77.0" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="74.0" cy="295.7" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="132.5" cy="276.1" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="174.0" cy="252.4" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="232.5" cy="208.0" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="274.0" cy="171.3" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="306.2" cy="141.6" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="332.5" cy="116.7" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="354.7" cy="95.4" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="374.0" cy="77.0" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<path d="M74.0,293.7 L132.5,269.2 L174.0,242.1 L232.5,194.2 L274.0,156.9 L306.2,126.6 L332.5,101.5 L354.7,80.2 L374.0,61.6" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="74.0" cy="293.7" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="132.5" cy="269.2" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="174.0" cy="242.1" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="232.5" cy="194.2" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="274.0" cy="156.9" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="306.2" cy="126.6" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="332.5" cy="101.5" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="354.7" cy="80.2" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="374.0" cy="61.6" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<rect x="82.0" y="66.0" width="97.6" height="38.0" fill="var(--riquadro)" opacity="0.92"/>
+<line x1="90.0" y1="80.0" x2="116.0" y2="80.0" stroke="#2a78d6" stroke-width="2"/>
+<text x="122.0" y="84.0" class="legenda">schur</text>
+<line x1="90.0" y1="95.0" x2="116.0" y2="95.0" stroke="#eb6834" stroke-width="2"/>
+<text x="122.0" y="99.0" class="legenda">pipeline</text>
+<text x="474" y="28" class="titolo">1 processo x 56 thread</text>
+<text x="474" y="44" class="sotto">memoria di picco per processo</text>
+<rect x="474" y="58" width="300" height="250" class="riquadro"/>
+<text x="422" y="183.0" class="asse" transform="rotate(-90 422 183.0)">MB</text>
+<text x="624.0" y="350" class="asse">lato della griglia</text>
+<line x1="474" y1="210.3" x2="774" y2="210.3" class="griglia"/>
+<text x="466" y="214.3" class="tacca-y">100</text>
+<line x1="474" y1="106.5" x2="774" y2="106.5" class="griglia"/>
+<text x="466" y="110.5" class="tacca-y">1000</text>
+<text x="474.0" y="328" class="tacca-x">32</text>
+<line x1="474.0" y1="308" x2="474.0" y2="313" class="griglia"/>
+<text x="532.5" y="328" class="tacca-x">48</text>
+<line x1="532.5" y1="308" x2="532.5" y2="313" class="griglia"/>
+<text x="574.0" y="328" class="tacca-x">64</text>
+<line x1="574.0" y1="308" x2="574.0" y2="313" class="griglia"/>
+<text x="632.5" y="328" class="tacca-x">96</text>
+<line x1="632.5" y1="308" x2="632.5" y2="313" class="griglia"/>
+<text x="674.0" y="328" class="tacca-x">128</text>
+<line x1="674.0" y1="308" x2="674.0" y2="313" class="griglia"/>
+<text x="706.2" y="328" class="tacca-x">160</text>
+<line x1="706.2" y1="308" x2="706.2" y2="313" class="griglia"/>
+<text x="732.5" y="328" class="tacca-x">192</text>
+<line x1="732.5" y1="308" x2="732.5" y2="313" class="griglia"/>
+<text x="754.7" y="328" class="tacca-x">224</text>
+<line x1="754.7" y1="308" x2="754.7" y2="313" class="griglia"/>
+<path d="M474.0,296.2 L532.5,293.5 L574.0,236.9 L632.5,198.0 L674.0,160.2 L706.2,132.3 L732.5,109.0 L754.7,90.5 L774.0,73.1" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="474.0" cy="296.2" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="532.5" cy="293.5" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="574.0" cy="236.9" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="632.5" cy="198.0" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="674.0" cy="160.2" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="706.2" cy="132.3" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="732.5" cy="109.0" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="754.7" cy="90.5" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="774.0" cy="73.1" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<path d="M474.0,291.3 L532.5,282.7 L574.0,267.7 L632.5,191.1 L674.0,156.2 L706.2,126.3 L732.5,100.6 L754.7,80.0 L774.0,61.5" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="474.0" cy="291.3" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="532.5" cy="282.7" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="574.0" cy="267.7" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="632.5" cy="191.1" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="674.0" cy="156.2" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="706.2" cy="126.3" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="732.5" cy="100.6" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="754.7" cy="80.0" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="774.0" cy="61.5" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<rect x="482.0" y="66.0" width="97.6" height="38.0" fill="var(--riquadro)" opacity="0.92"/>
+<line x1="490.0" y1="80.0" x2="516.0" y2="80.0" stroke="#2a78d6" stroke-width="2"/>
+<text x="522.0" y="84.0" class="legenda">schur</text>
+<line x1="490.0" y1="95.0" x2="516.0" y2="95.0" stroke="#eb6834" stroke-width="2"/>
+<text x="522.0" y="99.0" class="legenda">pipeline</text>
+<text x="874" y="28" class="titolo">8 processi x 7 thread</text>
+<text x="874" y="44" class="sotto">memoria di picco per processo</text>
+<rect x="874" y="58" width="300" height="250" class="riquadro"/>
+<text x="822" y="183.0" class="asse" transform="rotate(-90 822 183.0)">MB</text>
+<text x="1024.0" y="350" class="asse">lato della griglia</text>
+<line x1="874" y1="155.9" x2="1174" y2="155.9" class="griglia"/>
+<text x="866" y="159.9" class="tacca-y">100</text>
+<text x="874.0" y="328" class="tacca-x">32</text>
+<line x1="874.0" y1="308" x2="874.0" y2="313" class="griglia"/>
+<text x="932.5" y="328" class="tacca-x">48</text>
+<line x1="932.5" y1="308" x2="932.5" y2="313" class="griglia"/>
+<text x="974.0" y="328" class="tacca-x">64</text>
+<line x1="974.0" y1="308" x2="974.0" y2="313" class="griglia"/>
+<text x="1032.5" y="328" class="tacca-x">96</text>
+<line x1="1032.5" y1="308" x2="1032.5" y2="313" class="griglia"/>
+<text x="1074.0" y="328" class="tacca-x">128</text>
+<line x1="1074.0" y1="308" x2="1074.0" y2="313" class="griglia"/>
+<text x="1106.2" y="328" class="tacca-x">160</text>
+<line x1="1106.2" y1="308" x2="1106.2" y2="313" class="griglia"/>
+<text x="1132.5" y="328" class="tacca-x">192</text>
+<line x1="1132.5" y1="308" x2="1132.5" y2="313" class="griglia"/>
+<text x="1154.7" y="328" class="tacca-x">224</text>
+<line x1="1154.7" y1="308" x2="1154.7" y2="313" class="griglia"/>
+<path d="M874.0,285.5 L932.5,285.5 L974.0,285.5 L1032.5,245.5 L1074.0,212.7 L1106.2,175.6 L1132.5,142.3 L1154.7,112.7 L1174.0,86.3" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="874.0" cy="285.5" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="932.5" cy="285.5" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="974.0" cy="285.5" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1032.5" cy="245.5" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1074.0" cy="212.7" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1106.2" cy="175.6" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1132.5" cy="142.3" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1154.7" cy="112.7" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1174.0" cy="86.3" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<path d="M874.0,289.1 L932.5,285.5 L974.0,281.7 L1032.5,233.6 L1074.0,194.5 L1106.2,154.8 L1132.5,121.1 L1154.7,90.7 L1174.0,63.6" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="874.0" cy="289.1" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="932.5" cy="285.5" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="974.0" cy="281.7" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1032.5" cy="233.6" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1074.0" cy="194.5" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1106.2" cy="154.8" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1132.5" cy="121.1" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1154.7" cy="90.7" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1174.0" cy="63.6" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<rect x="882.0" y="66.0" width="97.6" height="38.0" fill="var(--riquadro)" opacity="0.92"/>
+<line x1="890.0" y1="80.0" x2="916.0" y2="80.0" stroke="#2a78d6" stroke-width="2"/>
+<text x="922.0" y="84.0" class="legenda">schur</text>
+<line x1="890.0" y1="95.0" x2="916.0" y2="95.0" stroke="#eb6834" stroke-width="2"/>
+<text x="922.0" y="99.0" class="legenda">pipeline</text>
+<text x="1274" y="28" class="titolo">56 processi x 1 thread</text>
+<text x="1274" y="44" class="sotto">memoria di picco per processo</text>
+<rect x="1274" y="58" width="300" height="250" class="riquadro"/>
+<text x="1222" y="183.0" class="asse" transform="rotate(-90 1222 183.0)">MB</text>
+<text x="1424.0" y="350" class="asse">lato della griglia</text>
+<text x="1274.0" y="328" class="tacca-x">32</text>
+<line x1="1274.0" y1="308" x2="1274.0" y2="313" class="griglia"/>
+<text x="1332.5" y="328" class="tacca-x">48</text>
+<line x1="1332.5" y1="308" x2="1332.5" y2="313" class="griglia"/>
+<text x="1374.0" y="328" class="tacca-x">64</text>
+<line x1="1374.0" y1="308" x2="1374.0" y2="313" class="griglia"/>
+<text x="1432.5" y="328" class="tacca-x">96</text>
+<line x1="1432.5" y1="308" x2="1432.5" y2="313" class="griglia"/>
+<text x="1474.0" y="328" class="tacca-x">128</text>
+<line x1="1474.0" y1="308" x2="1474.0" y2="313" class="griglia"/>
+<text x="1506.2" y="328" class="tacca-x">160</text>
+<line x1="1506.2" y1="308" x2="1506.2" y2="313" class="griglia"/>
+<text x="1532.5" y="328" class="tacca-x">192</text>
+<line x1="1532.5" y1="308" x2="1532.5" y2="313" class="griglia"/>
+<text x="1554.7" y="328" class="tacca-x">224</text>
+<line x1="1554.7" y1="308" x2="1554.7" y2="313" class="griglia"/>
+<path d="M1274.0,269.7 L1332.5,269.7 L1374.0,269.7 L1432.5,256.2 L1474.0,237.0 L1506.2,205.9 L1532.5,172.3 L1554.7,138.8 L1574.0,102.3" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="1274.0" cy="269.7" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1332.5" cy="269.7" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1374.0" cy="269.7" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1432.5" cy="256.2" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1474.0" cy="237.0" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1506.2" cy="205.9" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1532.5" cy="172.3" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1554.7" cy="138.8" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1574.0" cy="102.3" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<path d="M1274.0,269.7 L1332.5,269.7 L1374.0,262.4 L1432.5,249.5 L1474.0,220.6 L1506.2,188.1 L1532.5,148.3 L1554.7,111.9 L1574.0,69.2" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="1274.0" cy="269.7" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1332.5" cy="269.7" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1374.0" cy="262.4" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1432.5" cy="249.5" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1474.0" cy="220.6" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1506.2" cy="188.1" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1532.5" cy="148.3" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1554.7" cy="111.9" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="1574.0" cy="69.2" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<rect x="1282.0" y="66.0" width="97.6" height="38.0" fill="var(--riquadro)" opacity="0.92"/>
+<line x1="1290.0" y1="80.0" x2="1316.0" y2="80.0" stroke="#2a78d6" stroke-width="2"/>
+<text x="1322.0" y="84.0" class="legenda">schur</text>
+<line x1="1290.0" y1="95.0" x2="1316.0" y2="95.0" stroke="#eb6834" stroke-width="2"/>
+<text x="1322.0" y="99.0" class="legenda">pipeline</text>
+</svg>

@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="474" height="464" viewBox="0 0 474 464">
+<style>
+
+svg{--fondo:#fcfcfb;--inchiostro:#0b0b0b;--inchiostro-2:#52514e;
+    --inchiostro-3:#6f6e69;--riquadro:#f6f6f4;--linea:#d9d8d2;--griglia:#e8e7e2}
+@media (prefers-color-scheme:dark){
+svg{--fondo:#1a1a19;--inchiostro:#ffffff;--inchiostro-2:#c3c2b7;
+    --inchiostro-3:#a3a299;--riquadro:#232322;--linea:#3a3a37;--griglia:#2e2e2c}}
+text{font-family:"DejaVu Sans",sans-serif;fill:var(--inchiostro)}
+.titolo{font-size:15px;font-weight:600}
+.sotto{font-size:11px;fill:var(--inchiostro-2)}
+.asse{font-size:12px;fill:var(--inchiostro-2);text-anchor:middle}
+.tacca-x{font-size:10px;fill:var(--inchiostro-3);text-anchor:middle}
+.tacca-y{font-size:10px;fill:var(--inchiostro-3);text-anchor:end}
+.legenda{font-size:11px;fill:var(--inchiostro-2)}
+.valore{font-size:9px;fill:var(--inchiostro-2);text-anchor:middle}
+.cella{font-size:9px;text-anchor:middle}
+.nota{font-size:11px;fill:var(--inchiostro-2)}
+.enorme{font-size:46px;font-weight:600}
+.riquadro{fill:var(--riquadro);stroke:var(--linea)}
+.griglia{stroke:var(--griglia);stroke-width:1}
+
+.s0{stroke:#2a78d6;fill:#2a78d6}
+.s1{stroke:#eb6834;fill:#eb6834}
+.s2{stroke:#1baf7a;fill:#1baf7a}
+@media (prefers-color-scheme:dark){
+.s0{stroke:#3987e5;fill:#3987e5}
+.s1{stroke:#d95926;fill:#d95926}
+.s2{stroke:#199e70;fill:#199e70}
+}
+</style>
+<rect width="474" height="464" fill="var(--fondo)"/>
+<text x="74" y="28" class="titolo">Quale asse costa davvero</text>
+<text x="74" y="44" class="sotto">blocco locale 96^3 uguale in ogni riga, solo i tagli cambiano</text>
+<rect x="74" y="58" width="300" height="250" class="riquadro"/>
+<text x="22" y="183.0" class="asse" transform="rotate(-90 22 183.0)">ms per passo</text>
+<text x="224.0" y="350" class="asse">processi</text>
+<text x="74.0" y="328" class="tacca-x">2</text>
+<line x1="74.0" y1="308" x2="74.0" y2="313" class="griglia"/>
+<text x="136.4" y="328" class="tacca-x">4</text>
+<line x1="136.4" y1="308" x2="136.4" y2="313" class="griglia"/>
+<text x="186.8" y="328" class="tacca-x">7</text>
+<line x1="186.8" y1="308" x2="186.8" y2="313" class="griglia"/>
+<text x="249.2" y="328" class="tacca-x">14</text>
+<line x1="249.2" y1="308" x2="249.2" y2="313" class="griglia"/>
+<text x="311.6" y="328" class="tacca-x">28</text>
+<line x1="311.6" y1="308" x2="311.6" y2="313" class="griglia"/>
+<text x="374.0" y="328" class="tacca-x">56</text>
+<line x1="374.0" y1="308" x2="374.0" y2="313" class="griglia"/>
+<path d="M74.0,260.3 L136.4,237.6 L186.8,225.5 L198.8,224.2 L249.2,200.1 L311.6,142.1 L374.0,113.9" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="74.0" cy="260.3" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="136.4" cy="237.6" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="186.8" cy="225.5" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="198.8" cy="224.2" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="249.2" cy="200.1" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="311.6" cy="142.1" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="374.0" cy="113.9" r="4.5" fill="#2a78d6" stroke="var(--riquadro)" stroke-width="2"/>
+<path d="M74.0,170.6 L136.4,159.4 L186.8,150.9 L198.8,150.3 L249.2,136.7 L311.6,84.8 L374.0,72.0" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6,4"/>
+<path d="M74.0,228.8 L136.4,206.3 L186.8,200.7 L198.8,196.7 L249.2,178.8 L311.6,118.8 L374.0,94.0" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="74.0" cy="228.8" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="136.4" cy="206.3" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="186.8" cy="200.7" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="198.8" cy="196.7" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="249.2" cy="178.8" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="311.6" cy="118.8" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="374.0" cy="94.0" r="4.5" fill="#eb6834" stroke="var(--riquadro)" stroke-width="2"/>
+<path d="M74.0,173.1 L136.4,160.5 L186.8,155.2 L198.8,153.1 L249.2,142.0 L311.6,92.8 L374.0,90.6" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6,4"/>
+<path d="M74.0,238.8 L136.4,214.8 L186.8,204.4 L198.8,206.1 L249.2,191.2 L311.6,132.0 L374.0,107.3" fill="none" stroke="#1baf7a" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="74.0" cy="238.8" r="4.5" fill="#1baf7a" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="136.4" cy="214.8" r="4.5" fill="#1baf7a" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="186.8" cy="204.4" r="4.5" fill="#1baf7a" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="198.8" cy="206.1" r="4.5" fill="#1baf7a" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="249.2" cy="191.2" r="4.5" fill="#1baf7a" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="311.6" cy="132.0" r="4.5" fill="#1baf7a" stroke="var(--riquadro)" stroke-width="2"/>
+<circle cx="374.0" cy="107.3" r="4.5" fill="#1baf7a" stroke="var(--riquadro)" stroke-width="2"/>
+<path d="M74.0,172.1 L136.4,159.7 L186.8,153.2 L198.8,151.6 L249.2,140.2 L311.6,93.0 L374.0,90.4" fill="none" stroke="#1baf7a" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6,4"/>
+<rect x="82.0" y="66.0" width="172.0" height="83.0" fill="var(--riquadro)" opacity="0.92"/>
+<line x1="90.0" y1="80.0" x2="116.0" y2="80.0" stroke="#2a78d6" stroke-width="2"/>
+<text x="122.0" y="84.0" class="legenda">x diviso</text>
+<line x1="90.0" y1="95.0" x2="116.0" y2="95.0" stroke="#eb6834" stroke-width="2"/>
+<text x="122.0" y="99.0" class="legenda">y diviso</text>
+<line x1="90.0" y1="110.0" x2="116.0" y2="110.0" stroke="#1baf7a" stroke-width="2"/>
+<text x="122.0" y="114.0" class="legenda">z diviso</text>
+<line x1="90.0" y1="125.0" x2="116.0" y2="125.0" stroke="#8a8a83" stroke-width="2"/>
+<text x="122.0" y="129.0" class="legenda">continuo: schur</text>
+<line x1="90.0" y1="140.0" x2="116.0" y2="140.0" stroke="#8a8a83" stroke-width="2" stroke-dasharray="6,4"/>
+<text x="122.0" y="144.0" class="legenda">tratteggio: pipeline</text>
+<text x="74" y="364" class="nota">Lavoro per processo costante: se l'asse non</text>
+<text x="74" y="380" class="nota">contasse, le tre curve starebbero una sull'altra.</text>
+</svg>
