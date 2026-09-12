@@ -242,11 +242,31 @@ study_machine()
 # nome della variante. Cosi' una differenza fra studio e build normale non puo'
 # nascere per divergenza di flag copiati a mano.
 
+# Un'impronta delle sorgenti, calcolata una volta sola per job. Entra nella
+# chiave della cache dei binari: senza, un eseguibile compilato da una
+# revisione diversa resta li' e la campagna misura codice che non e' quello di
+# adesso. E' successo, e in grande: 1706 casi su 1888 della prima campagna sono
+# stati misurati con i binari della campagna precedente, riconoscibili perche'
+# non stampano la riga `g term'. Le chiavi non ne portavano traccia.
+study_source_stamp()
+{
+    if [[ -z "${STUDY_STAMP:-}" ]]; then
+        STUDY_STAMP="$(
+            {
+                cat "$STUDY_ROOT/Makefile"
+                find "$STUDY_ROOT/include" "$STUDY_ROOT/src" "$STUDY_ROOT/test" \
+                    -type f \( -name '*.c' -o -name '*.h' \) -print0 \
+                    | sort -z | xargs -0 cat
+            } 2> /dev/null | md5sum | cut -c1-10)"
+    fi
+    printf '%s' "$STUDY_STAMP"
+}
+
 study_build()
 {
     local backend="$1" simd="$2" omp="$3" mpi="$4" batch="$5"
     local target="${6:-bench}"
-    local key="$target-$backend-simd$simd-omp$omp-mpi$mpi-b$batch"
+    local key="$target-$backend-simd$simd-omp$omp-mpi$mpi-b$batch-$(study_source_stamp)"
     local out="$STUDY_BIN/$key"
 
     if [[ -x "$out" && "${REBUILD:-0}" != "1" ]]; then
