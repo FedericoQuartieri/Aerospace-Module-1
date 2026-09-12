@@ -44,6 +44,15 @@ typedef struct PipelineBackend {
     Real *d_prime;             /* 3 * component_capacity                   */
     Real *forward;             /* 2 * batch_lines: i (c', d') di giunzione */
     Real *backward;            /* batch_lines: la soluzione di giunzione   */
+    /*
+     * Il termine fisico g delle linee di un batch lungo x, batch_lines * n[0]
+     * elementi, una linea dietro l'altra.  Lo riempie forward_component prima
+     * di scendere nei livelli: g dipende dalla linea, non dal livello, e
+     * calcolarlo per linea invece che cella per cella e' cio' che permette a
+     * momentum_row di trovarselo pronto (momentum_row.h, source_term).
+     */
+    Real *source_term;
+    Real *abscissa;            /* n[0] ascisse, le stesse per ogni linea   */
     Real *matrix_a[3];         /* la matrice della pressione, una per asse */
     Real *matrix_b[3];
     Real *matrix_c[3];

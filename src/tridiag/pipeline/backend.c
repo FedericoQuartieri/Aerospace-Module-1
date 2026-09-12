@@ -81,6 +81,18 @@ void backend_init(const Decomp *d, SolverMemState *solver_mem_state) {
         xmalloc_real_array((size_t)backend->batch_lines,
                            "giunzioni indietro");
 
+    /*
+     * Il g di un batch di linee lungo x.  Costa batch_lines * n[0] elementi --
+     * su 128^3 col batch di default sono 64 KB in double, nulla accanto ai c'
+     * e d' qui sopra -- e in cambio toglie g dal ciclo sulle celle.
+     */
+    backend->source_term =
+        xmalloc_real_array(checked_mul((size_t)backend->batch_lines,
+                                       (size_t)d->n[0], "g del batch"),
+                           "g del batch");
+    backend->abscissa =
+        xmalloc_real_array((size_t)d->n[0], "ascisse della linea");
+
     /* La matrice della pressione non cambia mai: si scrive una volta qui. */
     for (int axis = 0; axis < 3; axis++) {
         backend->matrix_a[axis] =
@@ -107,6 +119,8 @@ void backend_free(SolverMemState *solver_mem_state) {
         free(backend->matrix_b[axis]);
         free(backend->matrix_a[axis]);
     }
+    free(backend->abscissa);
+    free(backend->source_term);
     free(backend->backward);
     free(backend->forward);
     free(backend->d_prime);
