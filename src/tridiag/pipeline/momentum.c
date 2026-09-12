@@ -199,7 +199,7 @@ static int line_step_for(int axis) {
  */
 static void forward_component(const Decomp *d, SolverMemState *state,
                               Data *data, int axis, int component,
-                              int t_step) {
+                              int t_step, SolverStats *solver_stats) {
     PipelineBackend *backend = state->backend;
     const int batch_lines = backend->batch_lines;
     const int length = d->n[axis];
@@ -213,6 +213,14 @@ static void forward_component(const Decomp *d, SolverMemState *state,
         momentum_line(d, state, data, t_step, component, axis);
     const int line_step = line_step_for(axis);
 
+    /*
+     * Le ascisse non dipendono ne' dalla linea ne' dal livello ne' dal passo,
+     * solo dalla componente: un riempimento serve tutti i batch.
+     */
+    if (axis == 0) {
+        forcing_line_coords(d, component, backend->abscissa);
+    }
+
     for (size_t batch = 0; batch < batch_count; batch++) {
         const size_t first_line = batch * (size_t)batch_lines;
         int active = (int)(line_count - first_line);
@@ -222,6 +230,34 @@ static void forward_component(const Decomp *d, SolverMemState *state,
         }
         if (has_lower) {
             par_recv_real(axis, -1, backend->forward, 2 * active, tag);
+        }
+
+        /*
+         * Il termine fisico g delle linee del batch, prima di scendere nei
+         * livelli.  Solo lo stadio eta lo porta, e le sue linee corrono lungo
+         * x: su una linea y, z e il tempo sono costanti, quindi i test che
+         * governano g si decidono una volta e il resto si vettorizza.  Prima
+         * si arrivava qui con source_term a NULL e momentum_row rivalutava la
+         * forzante cella per cella (momentum_row.h).
+         *
+         * Cronometrato come nel backend Schur: due letture dell'orologio per
+         * batch, e il tempo e' gia' di parete perche' stanno fuori dal team.
+         */
+        if (axis == 0) {
+            uint64_t inizio = time_ns();
+
+            WORKERS_PARALLEL_FOR(workers_many() && active > 1)
+            for (int line = 0; line < active; line++) {
+                int cell[3];
+
+                pipeline_cell(d, axis, first_line + (size_t)line, 0, cell);
+                g_line(d, data, state, line_ctx.k_porosity,
+                       cell[1], cell[2], t_step, component,
+                       backend->abscissa,
+                       backend->source_term + (size_t)line * (size_t)length);
+            }
+
+            solver_stats->momentum_source += time_ns() - inizio;
         }
 
         /*
@@ -274,7 +310,21 @@ static void forward_component(const Decomp *d, SolverMemState *state,
 
                         size_t here =
                             decomp_index(d, cell[0], cell[1], cell[2]);
-                        MomentumRow row = momentum_row(&line_ctx, cell, here);
+                        /*
+                         * Lungo x il g della linea e' gia' nel buffer del
+                         * batch: si punta la sua riga e momentum_row lo legge
+                         * invece di rivalutare la forzante.  Sugli altri due
+                         * assi g non entra e il contesto resta quello.
+                         */
+                        MomentumLine cell_ctx = line_ctx;
+
+                        if (axis == 0) {
+                            cell_ctx.source_term =
+                                backend->source_term +
+                                (size_t)line * (size_t)length;
+                        }
+
+                        MomentumRow row = momentum_row(&cell_ctx, cell, here);
                         Real inverse_diagonal =
                             (Real)1 / (row.b - row.a * previous_c);
                         size_t at = pipeline_scratch(backend, axis, component,
@@ -393,9 +443,11 @@ static void backward_component(const Decomp *d, SolverMemState *state,
  * per direzione invece di sei.
  */
 static void momentum_direction(const Decomp *d, SolverMemState *state,
-                               Data *data, int axis, int t_step) {
+                               Data *data, int axis, int t_step,
+                               SolverStats *solver_stats) {
     for (int component = 0; component < 3; component++) {
-        forward_component(d, state, data, axis, component, t_step);
+        forward_component(d, state, data, axis, component, t_step,
+                          solver_stats);
     }
     for (int component = 2; component >= 0; component--) {
         backward_component(d, state, axis, component);
@@ -406,14 +458,17 @@ void momentum_step(const Decomp *d, SolverMemState *solver_mem_state,
                    Data *data, int t_step, SolverStats *solver_stats) {
     uint64_t start_ns = time_ns();
 
-    momentum_direction(d, solver_mem_state, data, 0, t_step);
+    momentum_direction(d, solver_mem_state, data, 0, t_step,
+                       solver_stats);
     solver_stats->eta_sys += time_ns() - start_ns;
 
     start_ns = time_ns();
-    momentum_direction(d, solver_mem_state, data, 1, t_step);
+    momentum_direction(d, solver_mem_state, data, 1, t_step,
+                       solver_stats);
     solver_stats->zeta_sys += time_ns() - start_ns;
 
     start_ns = time_ns();
-    momentum_direction(d, solver_mem_state, data, 2, t_step);
+    momentum_direction(d, solver_mem_state, data, 2, t_step,
+                       solver_stats);
     solver_stats->u_sys += time_ns() - start_ns;
 }
