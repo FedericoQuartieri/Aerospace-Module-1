@@ -282,12 +282,30 @@ def load(path):
                     row[key] = None
             if row["wall_ms"] in (None, 0):
                 continue
+            # Le due righe di riferimento di ogni configurazione si
+            # riconoscono dal suffisso che study_baseline mette in coda
+            # all'etichetta. Marcarle qui costa una volta sola e permette a
+            # pick() di tenerle fuori dalle curve.
+            label = row.get("label") or ""
+            if label.endswith(" seriale"):
+                row["baseline"] = "seriale"
+            elif label.endswith(" T(1)"):
+                row["baseline"] = "T(1)"
+            else:
+                row["baseline"] = None
             rows.append(row)
     print(f"{len(rows)} misure valide da {path}")
     return rows
 
 
 def pick(rows, **filtri):
+    """Le righe che soddisfano i filtri, riferimenti esclusi.
+
+    Seriale e T(1) non sono punti di una curva, sono i denominatori: hanno un
+    rank e un thread, quindi senza questo finirebbero dentro ogni grafico come
+    se fossero il caso a un processo -- che pero' c'e' gia' ed e' un altro.
+    Per averli si chiede baseline="seriale" o baseline="T(1)"."""
+    filtri.setdefault("baseline", None)
     out = []
     for row in rows:
         ok = True

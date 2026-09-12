@@ -60,6 +60,22 @@ CASE_MPI=1
 CASE_REPEATS="${REPEATS:-2}"
 CASE_TIMEOUT="${CASE_TIMEOUT:-1500}"
 
+# I riferimenti di tutta la fase, una volta per (backend, simd, taglia) e non
+# per piazzamento: il piazzamento a un processo e un thread non esiste.
+# Coprono anche lo scaling forte (STRONG_GRID sta in SIZES) e la base dello
+# scaling debole, che parte da un rank.
+echo "=== i riferimenti: seriale e processo singolo, per ogni taglia ==="
+for backend in $MATRIX_BACKENDS; do
+    for simd in $MATRIX_SIMD; do
+        for n in $SIZES; do
+            study_baseline label="$backend s$simd N=$n" \
+                backend="$backend" simd="$simd" grid="$n $n $n" \
+                steps="$(matrix_steps "$n")"
+        done
+    done
+done
+echo
+
 echo "=== il muro: costo per cella al crescere della taglia ==="
 for place in $SIZE_PLACEMENTS; do
     r="${place%x*}"
@@ -128,6 +144,8 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo "=== costo per cella (1e-8 s) e memoria di picco, per taglia ==="
     awk -F, -v phase=14_matrix_size '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" || $2 !~ / N=/ { next }
+    # Le etichette dei riferimenti contengono anche loro " N=".
+    $2 ~ / (seriale|T\(1\))$/ { next }
     {
         k = $3 "," $5 "," $8 "x" $9
         cell[k "," $10] = $28 + 0

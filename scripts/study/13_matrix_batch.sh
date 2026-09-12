@@ -59,6 +59,19 @@ for n in $GRIDS; do
     grid="$n $n $n"
 
     for simd in $MATRIX_SIMD; do
+        # I riferimenti della taglia. Il batch entra anche qui: nella
+        # pipeline decide la memoria di scratch e il modo di percorrerla,
+        # quindi un seriale per batch non e' un doppione. Lo schur ne ha uno
+        # solo, il batch non lo guarda nemmeno.
+        for b in $BATCHES; do
+            study_baseline label="pipeline ${n}^3 s$simd b=$b" \
+                backend=pipeline batch="$b" simd="$simd" \
+                grid="$grid" steps="$steps"
+        done
+        study_baseline label="schur ${n}^3 s$simd" \
+            backend=schur simd="$simd" grid="$grid" steps="$steps" \
+            note="riferimento per il batch"
+
         echo "=== ${n}^3 simd=$simd: il batch, per ogni piazzamento ==="
         for place in $PLACEMENTS; do
             r="${place%x*}"
@@ -90,6 +103,8 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo "=== il batch migliore, per piazzamento ==="
     awk -F, -v phase=13_matrix_batch '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
+    # Come sopra: i riferimenti collidono col piazzamento 1x1.
+    $2 ~ / (seriale|T\(1\))$/ { next }
     {
         k = $10 "," $5 "," $8 "x" $9
         if ($3 == "schur") { ref[k] = $17 + 0; next }
