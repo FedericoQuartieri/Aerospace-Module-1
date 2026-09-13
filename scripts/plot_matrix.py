@@ -59,6 +59,10 @@ class Panel:
         self.x0 = ML + col * (W + ML + MR)
         self.y0 = MT + row * (H + MT + MB)
         self.xlog, self.ylog = xlog, ylog
+        # Dove il riquadro e' gia' occupato, in pixel: linee, marcatori,
+        # etichette. Legenda ed etichette delle serie ci guardano per
+        # scegliere un posto che non copra i dati.
+        self.occupati = []
         xs = [x for x in xs if x > 0] or [1]
         ys = [y for y in ys if y > 0 or not ylog] or [1]
         self.xmin, self.xmax = min(xs), max(xs)
@@ -84,9 +88,17 @@ class Panel:
 
     def _grid_y(self):
         if self.ylog:
-            lo = math.floor(math.log10(self.ymin))
-            hi = math.ceil(math.log10(self.ymax))
-            values = [10 ** e for e in range(int(lo), int(hi) + 1)]
+            lo = int(math.floor(math.log10(self.ymin)))
+            hi = int(math.ceil(math.log10(self.ymax)))
+            # Le sole potenze di dieci lasciano un asse con un numero, o
+            # nessuno, quando i dati stanno dentro una decada: allora si
+            # scende a 1-2-5, e se non basta a tutti i multipli.
+            values = []
+            for multipli in ((1,), (1, 2, 5), tuple(range(1, 10))):
+                values = [m * 10 ** e for e in range(lo, hi + 1)
+                          for m in multipli]
+                if sum(self.ymin <= v <= self.ymax for v in values) >= 3:
+                    break
         else:
             # Tacche su numeri tondi: una scala che dice 2.16 e 1.62 si legge
             # peggio di una che dice 2 e 1.5, e il grafico non guadagna niente
@@ -95,10 +107,16 @@ class Panel:
             self.ymax = math.ceil(self.ymax / step) * step
             values = [self.ymin + step * i
                       for i in range(int((self.ymax - self.ymin) / step) + 1)]
+        ultima = None
         for value in values:
             if not (self.ymin <= value <= self.ymax):
                 continue
             y = self.py(value)
+            # Due etichette a meno di 13 pixel si sovrappongono: la seconda
+            # si salta, insieme alla sua riga di griglia.
+            if ultima is not None and abs(y - ultima) < 13:
+                continue
+            ultima = y
             self.parts.append(f'<line x1="{self.x0}" y1="{y:.1f}" '
                               f'x2="{self.x0 + W}" y2="{y:.1f}" class="griglia"/>')
             label = f"{value:g}"
@@ -115,23 +133,30 @@ class Panel:
                               f'x2="{x:.1f}" y2="{self.y0 + H + 5}" '
                               f'class="griglia"/>')
 
-    def px(self, x):
+    def px_raw(self, x):
+        """La x in pixel senza fermarla al bordo: serve a tagliare le linee."""
         if self.xlog:
             span = math.log2(self.xmax) - math.log2(self.xmin) or 1
             f = (math.log2(max(x, 1e-9)) - math.log2(self.xmin)) / span
         else:
             span = self.xmax - self.xmin or 1
             f = (x - self.xmin) / span
-        return self.x0 + W * min(max(f, 0), 1)
+        return self.x0 + W * f
 
-    def py(self, y):
+    def py_raw(self, y):
         if self.ylog:
             span = math.log10(self.ymax) - math.log10(self.ymin) or 1
             f = (math.log10(max(y, 1e-12)) - math.log10(self.ymin)) / span
         else:
             span = self.ymax - self.ymin or 1
             f = (y - self.ymin) / span
-        return self.y0 + H * (1 - min(max(f, 0), 1))
+        return self.y0 + H * (1 - f)
+
+    def px(self, x):
+        return min(max(self.px_raw(x), self.x0), self.x0 + W)
+
+    def py(self, y):
+        return min(max(self.py_raw(y), self.y0), self.y0 + H)
 
     def line(self, points, colore, dash="", marker=True):
         points = [p for p in points if p[1] is not None]
@@ -161,10 +186,14 @@ class Panel:
             self.parts.append(f'<text x="{x + width / 2:.1f}" '
                               f'y="{top - 5:.1f}" class="valore">'
                               f'{value:.0f}</text>')
+            # Allineata a destra sulla tacca e ruotata: il testo scende a
+            # sinistra della sua barra invece di allargarsi dai due lati, e
+            # non arriva al titolo dell'asse.
             self.parts.append(
-                f'<text x="{x + width / 2:.1f}" y="{self.y0 + H + 16}" '
-                f'class="tacca-x" transform="rotate(-35 {x + width / 2:.1f} '
-                f'{self.y0 + H + 16})">{label}</text>')
+                f'<text x="{x + width / 2:.1f}" y="{self.y0 + H + 14}" '
+                f'class="tacca-x" style="text-anchor:end" '
+                f'transform="rotate(-35 {x + width / 2:.1f} '
+                f'{self.y0 + H + 14})">{label}</text>')
 
     def legend(self, voci, dx=14, dy=10):
         for i, (colore, testo, dash) in enumerate(voci):
@@ -325,6 +354,58 @@ def valori(rows, key):
     return sorted({r[key] for r in rows if r[key] is not None})
 
 
+def _conta(panel, riquadro, margine=2.0):
+    """Quanti punti gia' disegnati cadono dentro un riquadro (x, y, w, h)."""
+    x, y, w, h = riquadro
+    return sum(1 for a, b in panel.occupati
+               if x - margine <= a <= x + w + margine
+               and y - margine <= b <= y + h + margine)
+
+
+def _occupa(panel, riquadro, passo=6.0):
+    x, y, w, h = riquadro
+    nx, ny = max(1, int(w / passo)), max(1, int(h / passo))
+    for i in range(nx + 1):
+        for j in range(ny + 1):
+            panel.occupati.append((x + w * i / nx, y + h * j / ny))
+
+
+def _campiona(panel, a, b, passo=5.0):
+    (x1, y1), (x2, y2) = a, b
+    n = max(1, int(math.hypot(x2 - x1, y2 - y1) / passo))
+    for k in range(n + 1):
+        t = k / n
+        panel.occupati.append((x1 + (x2 - x1) * t, y1 + (y2 - y1) * t))
+
+
+def _taglia(panel, a, b):
+    """Il tratto a-b ristretto al riquadro (Liang-Barsky), oppure None."""
+    (x1, y1), (x2, y2) = a, b
+    dx, dy = x2 - x1, y2 - y1
+    t0, t1 = 0.0, 1.0
+    for p, q in ((-dx, x1 - panel.x0), (dx, panel.x0 + W - x1),
+                 (-dy, y1 - panel.y0), (dy, panel.y0 + H - y1)):
+        if p == 0:
+            if q < 0:
+                return None
+            continue
+        t = q / p
+        if p < 0:
+            if t > t1:
+                return None
+            t0 = max(t0, t)
+        else:
+            if t < t0:
+                return None
+            t1 = min(t1, t)
+    return (x1 + t0 * dx, y1 + t0 * dy), (x1 + t1 * dx, y1 + t1 * dy)
+
+
+def _dentro(panel, x, y):
+    return (panel.x0 - 0.5 <= x <= panel.x0 + W + 0.5
+            and panel.y0 - 0.5 <= y <= panel.y0 + H + 0.5)
+
+
 def etichetta_fine(parts, panel, points, colore, testo):
     """L'etichetta accanto all'ultimo punto della linea.
 
@@ -335,11 +416,20 @@ def etichetta_fine(parts, panel, points, colore, testo):
     if not points:
         return
     x, y = points[-1]
-    # Dentro il riquadro, sopra l'ultimo punto: fuori finirebbe addosso
-    # all'asse del riquadro accanto, che e' a 26 pixel.
-    parts.append(f'<text x="{panel.px(x) - 6:.1f}" y="{panel.py(y) - 10:.1f}" '
+    X, Y = panel.px(x), panel.py(y)
+    larghezza = len(testo) * 6.2 + 4
+    # Dentro il riquadro, allineata a destra sull'ultimo punto: fuori
+    # finirebbe addosso all'asse del riquadro accanto, che e' a 26 pixel.
+    # Sopra o sotto il punto, dove non esce dal riquadro e copre meno dati.
+    def punteggio(base):
+        fuori = base - 11 < panel.y0 + 2 or base + 3 > panel.y0 + H - 2
+        return (fuori, _conta(panel, (X - 6 - larghezza, base - 11,
+                                      larghezza, 14)))
+    base = min((Y - 10, Y + 20), key=punteggio)
+    parts.append(f'<text x="{X - 6:.1f}" y="{base:.1f}" '
                  f'class="legenda" text-anchor="end" '
                  f'style="fill:{colore}">{testo}</text>')
+    _occupa(panel, (X - 6 - larghezza, base - 11, larghezza, 14))
 
 
 def piazzamento(r, t):
@@ -354,30 +444,70 @@ def linea(parts, panel, punti, colore, tratteggio="", marcatori=True):
     punti = [p for p in punti if p[1] is not None]
     if not punti:
         return
-    coords = [(panel.px(x), panel.py(y)) for x, y in punti]
-    path = " ".join(f"{'M' if i == 0 else 'L'}{x:.1f},{y:.1f}"
-                    for i, (x, y) in enumerate(coords))
+    grezze = [(panel.px_raw(x), panel.py_raw(y)) for x, y in punti]
     dash = f' stroke-dasharray="{tratteggio}"' if tratteggio else ""
-    parts.append(f'<path d="{path}" fill="none" stroke="{colore}" '
-                 f'stroke-width="2" stroke-linejoin="round"{dash}/>')
+    # Una linea che esce dalla scala si taglia al bordo del riquadro. Prima si
+    # schiacciava sul bordo, e un tratto piatto lungo l'asse sembrava una
+    # misura: la retta ideale dei thread pareva fermarsi a 14.
+    tratti, corrente = [], []
+    for a, b in zip(grezze, grezze[1:]):
+        pezzo = _taglia(panel, a, b)
+        if pezzo is None:
+            if corrente:
+                tratti.append(corrente)
+            corrente = []
+            continue
+        p, q = pezzo
+        if corrente and math.hypot(corrente[-1][0] - p[0],
+                                   corrente[-1][1] - p[1]) > 0.01:
+            tratti.append(corrente)
+            corrente = []
+        if not corrente:
+            corrente = [p]
+        corrente.append(q)
+    if corrente:
+        tratti.append(corrente)
+    for tratto in tratti:
+        path = " ".join(f"{'M' if i == 0 else 'L'}{x:.1f},{y:.1f}"
+                        for i, (x, y) in enumerate(tratto))
+        parts.append(f'<path d="{path}" fill="none" stroke="{colore}" '
+                     f'stroke-width="2" stroke-linejoin="round"{dash}/>')
+        for a, b in zip(tratto, tratto[1:]):
+            _campiona(panel, a, b)
     if marcatori:
-        for x, y in coords:
+        for x, y in grezze:
+            if not _dentro(panel, x, y):
+                continue
             parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4.5" '
                          f'fill="{colore}" stroke="var(--riquadro)" '
                          f'stroke-width="2"/>')
+            panel.occupati.append((x, y))
 
 
-def legenda(parts, panel, voci, angolo="ne"):
-    """La legenda, su un piatto del colore del riquadro.
+def legenda(parts, panel, voci, angolo="auto"):
+    """La legenda, su un piatto del colore del riquadro, nell'angolo che copre
+    meno dati.
 
-    Senza il piatto finisce sopra le curve, ed e' quello che succede sempre
-    quando i dati scendono da sinistra a destra."""
+    Il piatto da solo non basta: nasconde le curve che ha dietro. In un angolo
+    fisso finiva sopra la pipeline dei thread, che sale proprio a destra.
+    L'angolo si sceglie contando i punti gia' disegnati sotto ciascuno dei
+    quattro, per questo la legenda va chiamata dopo le serie."""
     if not voci:
         return
     larghezza = 8 + 26 + 6 + max(len(t) for _, t, _ in voci) * 6.2 + 8
     altezza = 8 + len(voci) * 15
-    x = panel.x0 + W - larghezza - 8 if angolo.endswith("e") else panel.x0 + 8
-    y = panel.y0 + 8
+    angoli = {
+        "ne": (panel.x0 + W - larghezza - 8, panel.y0 + 8),
+        "nw": (panel.x0 + 8, panel.y0 + 8),
+        "sw": (panel.x0 + 8, panel.y0 + H - altezza - 8),
+        "se": (panel.x0 + W - larghezza - 8, panel.y0 + H - altezza - 8),
+    }
+    if angolo == "auto":
+        ordine = ("ne", "nw", "sw", "se")
+        angolo = min(ordine, key=lambda a: (
+            _conta(panel, (angoli[a][0], angoli[a][1], larghezza, altezza)),
+            ordine.index(a)))
+    x, y = angoli[angolo]
     parts.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{larghezza:.1f}" '
                  f'height="{altezza:.1f}" fill="var(--riquadro)" '
                  f'opacity="0.92"/>')
@@ -389,6 +519,20 @@ def legenda(parts, panel, voci, angolo="ne"):
                      f'stroke-width="2"{dash}/>')
         parts.append(f'<text x="{x + 40:.1f}" y="{yy + 4:.1f}" '
                      f'class="legenda">{testo}</text>')
+
+
+def legenda_riga(parts, x, y, voci):
+    """La legenda su una riga, sotto i riquadri, una volta per la figura.
+
+    Quando le curve occupano tutti e quattro gli angoli nessun angolo e'
+    libero, e un piatto dentro il riquadro copre sempre qualcosa."""
+    for colore, testo, tratteggio in voci:
+        dash = f' stroke-dasharray="{tratteggio}"' if tratteggio else ""
+        parts.append(f'<line x1="{x:.1f}" y1="{y:.1f}" x2="{x + 26:.1f}" '
+                     f'y2="{y:.1f}" stroke="{colore}" stroke-width="2"{dash}/>')
+        parts.append(f'<text x="{x + 32:.1f}" y="{y + 4:.1f}" '
+                     f'class="legenda">{testo}</text>')
+        x += 32 + len(testo) * 6.2 + 26
 
 
 def tacche(panel, valori_, formato=lambda v: f"{v:.0f}", minimo=20):
@@ -532,7 +676,7 @@ def fig_asse_puro(rows, outdir):
                 voci.append((SERIE[i], f"{nome} diviso", ""))
     voci.append((NEUTRO, "continuo: schur", ""))
     voci.append((NEUTRO, "tratteggio: pipeline", "6,4"))
-    legenda(parts, panel, voci, angolo="nw")
+    legenda(parts, panel, voci)
     # Due righe: una sola sfonderebbe la larghezza del riquadro singolo.
     parts.append(f'<text x="{ML}" y="{MT + H + 56}" class="nota">'
                  f'Lavoro per processo costante: se l\'asse non</text>')
@@ -572,13 +716,17 @@ def fig_aspetto(rows, outdir):
             valori_.append(min(gruppo) if gruppo else 0.0)
         if not any(valori_):
             continue
+        # Il titolo dell'asse lo mette la figura, piu' in basso del solito:
+        # le etichette ruotate delle barre occupano il posto dove starebbe.
         panel = Panel(parts, col, 0, f"Forma del blocco, {backend}",
                       "stesse celle per processo, proporzioni diverse",
-                      "blocco locale", "ms per passo",
+                      "", "ms per passo",
                       [0, len(forme)], valori_, xlog=False, ylog=False)
         # Una serie sola, quindi un colore solo: colorare ogni barra
         # diversamente direbbe due volte quello che dice gia' l'altezza.
         panel.bars(forme, valori_, [SERIE[0]])
+        parts.append(f'<text x="{panel.x0 + W / 2}" y="{panel.y0 + H + 64}" '
+                     f'class="asse">blocco locale</text>')
     write(outdir, "matrix-11-aspetto.svg", 2, 1, parts, serie=1)
 
 
@@ -617,6 +765,7 @@ def fig_composizione(rows, outdir):
     # vedere come cambia la composizione, non a elencare il rettangolo.
     voluti = [(1, 1), (1, 28), (1, 56), (8, 7), (28, 2), (56, 1)]
     barre = []
+    negativi = False
     for backend in ("schur", "pipeline"):
         for r, t in voluti:
             gruppo = pick(data, backend=backend, ranks=float(r),
@@ -631,13 +780,20 @@ def fig_composizione(rows, outdir):
                                         - (migliore["g_ms"] or 0.0), 0.0)
             pezzi = []
             for chiavi, nome in COMPOSIZIONE:
-                pezzi.append(sum(migliore[k] or 0.0 for k in chiavi))
+                valore = sum(migliore[k] or 0.0 for k in chiavi)
+                # Con piu' processi ogni stadio e' il massimo sui processi, e
+                # la somma dei massimi puo' superare il passo: il non contato
+                # esce negativo. Un pezzo negativo non si disegna, e vale zero
+                # anche per la quota, che altrimenti sfonderebbe il cento.
+                if valore < 0:
+                    negativi = True
+                pezzi.append(max(valore, 0.0))
             barre.append((f"{backend}, {piazzamento(r, t)}", pezzi,
                           migliore["wall_ms"]))
     if not barre:
         return
 
-    massimo = max(b[2] for b in barre) or 1.0
+    massimo = max(max(b[2], sum(b[1])) for b in barre) or 1.0
     # Due colonne di barre: a sinistra i millisecondi con una scala sola, a
     # destra la stessa riga normalizzata a cento. La prima dice quanto costa,
     # la seconda com'e' fatta -- e con trenta volte fra la riga piu' lenta e
@@ -708,9 +864,14 @@ def fig_composizione(rows, outdir):
                  f'Il numero in fondo a ogni barra e\' il passo intero. '
                  f'La colonna eta porta il termine fisico g, le altre due no: '
                  f'per questo non sono uguali.</text>')
+    if negativi:
+        parts.append(f'<text x="{ML}" y="{y + 42}" class="nota">'
+                     f'Con piu\' processi ogni stadio e\' il massimo sui '
+                     f'processi: dove la somma supera il passo, il non contato '
+                     f'vale zero.</text>')
 
     larghezza_svg = ML + sinistra + larghezza_area + 72 + larghezza_quota + 40
-    altezza_svg = y + 48
+    altezza_svg = y + (64 if negativi else 48)
     outdir.mkdir(parents=True, exist_ok=True)
     path = outdir / "matrix-12-composizione.svg"
     path.write_text(
@@ -731,6 +892,7 @@ def fig_thread(rows, outdir):
         return
     grids = valori(data, "nx")
     parts = []
+    voci_legenda = []
     # Due dimensioni, due canali: la tinta dice il backend, il tratteggio dice
     # se c'e' SIMD. Quattro tinte direbbero la stessa cosa con il doppio dei
     # colori, e due di esse sarebbero vicine.
@@ -743,6 +905,7 @@ def fig_thread(rows, outdir):
                       [r["wall_ms"] for r in here], xlog=True, ylog=True)
         tacche(panel, valori(here, "threads"))
         voci = []
+        etichette = []
         for i, backend in enumerate(("schur", "pipeline")):
             for simd, tratto in ((1.0, ""), (0.0, "6,4")):
                 punti = sorted((r["threads"], r["wall_ms"])
@@ -753,7 +916,7 @@ def fig_thread(rows, outdir):
                       marcatori=(simd == 1.0))
                 if simd == 1.0:
                     voci.append((SERIE[i], backend, ""))
-                    etichetta_fine(parts, panel, punti, SERIE[i], backend)
+                    etichette.append((punti, SERIE[i], backend))
         voci.append((NEUTRO, "tratteggio: senza SIMD", "6,4"))
         base = sorted((r["threads"], r["wall_ms"])
                       for r in pick(here, backend="schur", simd=1.0))
@@ -762,8 +925,16 @@ def fig_thread(rows, outdir):
             linea(parts, panel, [(t, y0 * t0 / t) for t, _ in base], NEUTRO,
                   marcatori=False)
             voci.append((NEUTRO, "ideale", ""))
-        legenda(parts, panel, voci)
-    write(outdir, "matrix-10-thread.svg", len(grids), 1, parts, serie=2)
+        # Le etichette dopo tutte le linee: ciascuna sceglie il suo posto
+        # guardando quello che e' gia' disegnato.
+        for punti, colore, testo in etichette:
+            etichetta_fine(parts, panel, punti, colore, testo)
+        voci_legenda = voci or voci_legenda
+    # La legenda sotto, una sola: la pipeline sale a destra, Schur e l'ideale
+    # scendono da sinistra, e a 224^3 nessun angolo del riquadro resta libero.
+    legenda_riga(parts, ML, MT + H + MB + 8, voci_legenda)
+    write(outdir, "matrix-10-thread.svg", len(grids), 1, parts, serie=2,
+          altezza_extra=24)
 
 
 def fig_forme(rows, outdir):
@@ -812,6 +983,7 @@ def fig_forme(rows, outdir):
                 parts.append(f'<circle cx="{x:.1f}" cy="{panel.py(hi):.1f}" '
                              f'r="4" fill="var(--riquadro)" stroke="{colore}" '
                              f'stroke-width="2"/>')
+                _campiona(panel, (x, panel.py(lo)), (x, panel.py(hi)))
                 migliori.append((n, lo))
             if migliori:
                 linea(parts, panel, migliori, colore, marcatori=False)
@@ -907,11 +1079,13 @@ def fig_rettangolo(rows, outdir):
         scala_calore(parts, x0, y0 + altezza + 66, scala[0], scala[1])
     parts.append(f'<text x="{ML}" y="{MT + altezza + 120}" class="nota">'
                  f'Stessa scala di colore nei due riquadri, cosi\' si possono '
-                 f'confrontare. Le anti-diagonali a prodotto costante sono le '
-                 f'righe della fase 05.</text>')
+                 f'confrontare.</text>')
+    parts.append(f'<text x="{ML}" y="{MT + altezza + 136}" class="nota">'
+                 f'Lungo un\'anti-diagonale processi x thread e\' costante: '
+                 f'cambia solo come le stesse unita\' sono divise.</text>')
     width_cols = 2
     write(outdir, "matrix-12-rettangolo.svg", width_cols, 1, parts,
-          altezza_extra=70)
+          altezza_extra=86)
 
 
 def fig_batch(rows, outdir):
@@ -953,6 +1127,7 @@ def fig_batch(rows, outdir):
             parts.append(f'<line x1="{panel.x0}" y1="{panel.py(y):.1f}" '
                          f'x2="{panel.x0 + W}" y2="{panel.py(y):.1f}" '
                          f'stroke="{NEUTRO}" stroke-width="2"/>')
+            _campiona(panel, (panel.x0, panel.py(y)), (panel.x0 + W, panel.py(y)))
             voci.append((NEUTRO, "schur, stesso piazzamento", ""))
         # Il minimo, marcato: e' l'unica cosa che il lettore deve portarsi via.
         bx, by = min(pipe, key=lambda p: p[1])
@@ -962,6 +1137,7 @@ def fig_batch(rows, outdir):
         parts.append(f'<text x="{panel.px(bx):.1f}" '
                      f'y="{panel.py(by) - 12:.1f}" class="valore" '
                      f'style="fill:{SERIE[0]}">{bx:.0f}</text>')
+        _occupa(panel, (panel.px(bx) - 14, panel.py(by) - 22, 28, 30))
         legenda(parts, panel, voci)
     parts.append(f'<text x="{ML}" y="{MT + righe * (H + MT + MB) + 10}" '
                  f'class="nota">Ogni riquadro ha la sua scala verticale: la '
@@ -1045,7 +1221,7 @@ def fig_memoria(rows, outdir):
                 continue
             linea(parts, panel, punti, SERIE[i])
             voci.append((SERIE[i], backend, ""))
-        legenda(parts, panel, voci, angolo="nw")
+        legenda(parts, panel, voci)
     write(outdir, "matrix-14-memoria.svg", len(piazzamenti), 1, parts, serie=2)
 
 
@@ -1058,18 +1234,14 @@ def fig_scaling(rows, outdir):
     if not forte and not debole:
         return
     parts = []
+    voci_legenda = []
 
     if forte:
         unita = sorted({max(r["ranks"], r["threads"]) for r in forte})
-        panel = Panel(parts, 0, 0, "Scaling forte",
-                      "stesso problema, piu' unita' di calcolo",
-                      "unita' (processi oppure thread)", "speedup",
-                      # Log su entrambi gli assi: cosi' la retta ideale e'
-                      # una retta, e lo scarto si legge uguale a 2 unita' e a
-                      # 56 invece di schiacciarsi in basso a sinistra.
-                      unita, [1, max(unita)], xlog=True, ylog=True)
-        tacche(panel, unita)
-        voci = []
+        # Le serie prima del riquadro: la scala deve contenere anche gli
+        # speedup sotto uno -- la pipeline sui thread ci scende -- o quei punti
+        # restano fuori dal riquadro.
+        serie_forti = []
         i = 0
         for backend in ("schur", "pipeline"):
             for modo, chiave in (("processi", "ranks"), ("thread", "threads")):
@@ -1080,15 +1252,28 @@ def fig_scaling(rows, outdir):
                 if len(punti) < 2:
                     continue
                 base = punti[0][1]
-                linea(parts, panel, [(u, base / w) for u, w in punti],
-                      SERIE[i // 2], "" if i % 2 == 0 else "6,4",
-                      marcatori=(i % 2 == 0))
-                voci.append((SERIE[i // 2], f"{backend}, {modo}",
-                             "" if i % 2 == 0 else "6,4"))
+                tratto = "" if i % 2 == 0 else "6,4"
+                serie_forti.append(([(u, base / w) for u, w in punti],
+                                    SERIE[i // 2], tratto,
+                                    f"{backend}, {modo}"))
                 i += 1
+        speedup = [v for punti, _, _, _ in serie_forti for _, v in punti]
+        panel = Panel(parts, 0, 0, "Scaling forte",
+                      "stesso problema, piu' unita' di calcolo",
+                      "unita' (processi oppure thread)", "speedup",
+                      # Log su entrambi gli assi: cosi' la retta ideale e'
+                      # una retta, e lo scarto si legge uguale a 2 unita' e a
+                      # 56 invece di schiacciarsi in basso a sinistra.
+                      unita, speedup + [1, max(unita)], xlog=True, ylog=True)
+        tacche(panel, unita)
+        voci = []
+        for punti, colore, tratto, nome in serie_forti:
+            linea(parts, panel, punti, colore, tratto,
+                  marcatori=(tratto == ""))
+            voci.append((colore, nome, tratto))
         linea(parts, panel, [(u, u) for u in unita], NEUTRO, marcatori=False)
         voci.append((NEUTRO, "ideale", ""))
-        legenda(parts, panel, voci, angolo="nw")
+        voci_legenda = voci
 
     if debole:
         ranks = valori(debole, "ranks")
@@ -1108,9 +1293,13 @@ def fig_scaling(rows, outdir):
             voci.append((SERIE[i], backend, ""))
         linea(parts, panel, [(n, 1.0) for n in ranks], NEUTRO, marcatori=False)
         voci.append((NEUTRO, "ideale", ""))
-        legenda(parts, panel, voci)
+        voci_legenda = voci_legenda or voci
 
-    write(outdir, "matrix-14-scaling.svg", 2, 1, parts, serie=2)
+    # Una legenda sola, sotto i due riquadri: nel forte le cinque serie
+    # occupavano ogni angolo, e il debole usa le stesse tinte e lo stesso tratto.
+    legenda_riga(parts, ML, MT + H + MB + 8, voci_legenda)
+    write(outdir, "matrix-14-scaling.svg", 2, 1, parts, serie=2,
+          altezza_extra=24)
 
 
 def fig_norme(rows, outdir):

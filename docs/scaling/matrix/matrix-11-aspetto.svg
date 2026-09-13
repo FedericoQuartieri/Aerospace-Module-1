@@ -30,7 +30,7 @@ text{font-family:"DejaVu Sans",sans-serif;fill:var(--inchiostro)}
 <text x="74" y="44" class="sotto">stesse celle per processo, proporzioni diverse</text>
 <rect x="74" y="58" width="300" height="250" class="riquadro"/>
 <text x="22" y="183.0" class="asse" transform="rotate(-90 22 183.0)">ms per passo</text>
-<text x="224.0" y="350" class="asse">blocco locale</text>
+<text x="224.0" y="350" class="asse"></text>
 <line x1="74" y1="308.0" x2="374" y2="308.0" class="griglia"/>
 <text x="66" y="312.0" class="tacca-y">0</text>
 <line x1="74" y1="224.7" x2="374" y2="224.7" class="griglia"/>
@@ -39,29 +39,30 @@ text{font-family:"DejaVu Sans",sans-serif;fill:var(--inchiostro)}
 <text x="66" y="145.3" class="tacca-y">1000</text>
 <line x1="74" y1="58.0" x2="374" y2="58.0" class="griglia"/>
 <text x="66" y="62.0" class="tacca-y">1500</text>
-<rect x="83.5" y="82.9" width="31.0" height="225.1" fill="#2a78d6" opacity="0.85"/>
-<text x="99.0" y="77.9" class="valore">1351</text>
-<text x="99.0" y="324" class="tacca-x" transform="rotate(-35 99.0 324)">128x128x128</text>
-<rect x="133.5" y="83.7" width="31.0" height="224.3" fill="#2a78d6" opacity="0.85"/>
-<text x="149.0" y="78.7" class="valore">1346</text>
-<text x="149.0" y="324" class="tacca-x" transform="rotate(-35 149.0 324)">256x128x64</text>
-<rect x="183.5" y="92.0" width="31.0" height="216.0" fill="#2a78d6" opacity="0.85"/>
-<text x="199.0" y="87.0" class="valore">1296</text>
-<text x="199.0" y="324" class="tacca-x" transform="rotate(-35 199.0 324)">64x128x256</text>
-<rect x="233.5" y="77.1" width="31.0" height="230.9" fill="#2a78d6" opacity="0.85"/>
-<text x="249.0" y="72.1" class="valore">1386</text>
-<text x="249.0" y="324" class="tacca-x" transform="rotate(-35 249.0 324)">512x64x64</text>
-<rect x="283.5" y="90.2" width="31.0" height="217.8" fill="#2a78d6" opacity="0.85"/>
-<text x="299.0" y="85.2" class="valore">1307</text>
-<text x="299.0" y="324" class="tacca-x" transform="rotate(-35 299.0 324)">64x512x64</text>
-<rect x="333.5" y="95.9" width="31.0" height="212.1" fill="#2a78d6" opacity="0.85"/>
-<text x="349.0" y="90.9" class="valore">1273</text>
-<text x="349.0" y="324" class="tacca-x" transform="rotate(-35 349.0 324)">64x64x512</text>
+<rect x="83.5" y="106.6" width="31.0" height="201.4" fill="#2a78d6" opacity="0.85"/>
+<text x="99.0" y="101.6" class="valore">1209</text>
+<text x="99.0" y="322" class="tacca-x" style="text-anchor:end" transform="rotate(-35 99.0 322)">128x128x128</text>
+<rect x="133.5" y="106.0" width="31.0" height="202.0" fill="#2a78d6" opacity="0.85"/>
+<text x="149.0" y="101.0" class="valore">1212</text>
+<text x="149.0" y="322" class="tacca-x" style="text-anchor:end" transform="rotate(-35 149.0 322)">256x128x64</text>
+<rect x="183.5" y="126.7" width="31.0" height="181.3" fill="#2a78d6" opacity="0.85"/>
+<text x="199.0" y="121.7" class="valore">1088</text>
+<text x="199.0" y="322" class="tacca-x" style="text-anchor:end" transform="rotate(-35 199.0 322)">64x128x256</text>
+<rect x="233.5" y="98.9" width="31.0" height="209.1" fill="#2a78d6" opacity="0.85"/>
+<text x="249.0" y="93.9" class="valore">1255</text>
+<text x="249.0" y="322" class="tacca-x" style="text-anchor:end" transform="rotate(-35 249.0 322)">512x64x64</text>
+<rect x="283.5" y="136.3" width="31.0" height="171.7" fill="#2a78d6" opacity="0.85"/>
+<text x="299.0" y="131.3" class="valore">1030</text>
+<text x="299.0" y="322" class="tacca-x" style="text-anchor:end" transform="rotate(-35 299.0 322)">64x512x64</text>
+<rect x="333.5" y="142.1" width="31.0" height="165.9" fill="#2a78d6" opacity="0.85"/>
+<text x="349.0" y="137.1" class="valore">995</text>
+<text x="349.0" y="322" class="tacca-x" style="text-anchor:end" transform="rotate(-35 349.0 322)">64x64x512</text>
+<text x="224.0" y="372" class="asse">blocco locale</text>
 <text x="474" y="28" class="titolo">Forma del blocco, pipeline</text>
 <text x="474" y="44" class="sotto">stesse celle per processo, proporzioni diverse</text>
 <rect x="474" y="58" width="300" height="250" class="riquadro"/>
 <text x="422" y="183.0" class="asse" transform="rotate(-90 422 183.0)">ms per passo</text>
-<text x="624.0" y="350" class="asse">blocco locale</text>
+<text x="624.0" y="350" class="asse"></text>
 <line x1="474" y1="308.0" x2="774" y2="308.0" class="griglia"/>
 <text x="466" y="312.0" class="tacca-y">0</text>
 <line x1="474" y1="245.5" x2="774" y2="245.5" class="griglia"/>
@@ -72,22 +73,23 @@ text{font-family:"DejaVu Sans",sans-serif;fill:var(--inchiostro)}
 <text x="466" y="124.5" class="tacca-y">1500</text>
 <line x1="474" y1="58.0" x2="774" y2="58.0" class="griglia"/>
 <text x="466" y="62.0" class="tacca-y">2000</text>
-<rect x="483.5" y="128.8" width="31.0" height="179.2" fill="#2a78d6" opacity="0.85"/>
-<text x="499.0" y="123.8" class="valore">1433</text>
-<text x="499.0" y="324" class="tacca-x" transform="rotate(-35 499.0 324)">128x128x128</text>
-<rect x="533.5" y="120.1" width="31.0" height="187.9" fill="#2a78d6" opacity="0.85"/>
-<text x="549.0" y="115.1" class="valore">1503</text>
-<text x="549.0" y="324" class="tacca-x" transform="rotate(-35 549.0 324)">256x128x64</text>
-<rect x="583.5" y="160.9" width="31.0" height="147.1" fill="#2a78d6" opacity="0.85"/>
-<text x="599.0" y="155.9" class="valore">1177</text>
-<text x="599.0" y="324" class="tacca-x" transform="rotate(-35 599.0 324)">64x128x256</text>
-<rect x="633.5" y="109.6" width="31.0" height="198.4" fill="#2a78d6" opacity="0.85"/>
-<text x="649.0" y="104.6" class="valore">1587</text>
-<text x="649.0" y="324" class="tacca-x" transform="rotate(-35 649.0 324)">512x64x64</text>
-<rect x="683.5" y="160.3" width="31.0" height="147.7" fill="#2a78d6" opacity="0.85"/>
-<text x="699.0" y="155.3" class="valore">1182</text>
-<text x="699.0" y="324" class="tacca-x" transform="rotate(-35 699.0 324)">64x512x64</text>
-<rect x="733.5" y="159.8" width="31.0" height="148.2" fill="#2a78d6" opacity="0.85"/>
-<text x="749.0" y="154.8" class="valore">1185</text>
-<text x="749.0" y="324" class="tacca-x" transform="rotate(-35 749.0 324)">64x64x512</text>
+<rect x="483.5" y="173.8" width="31.0" height="134.2" fill="#2a78d6" opacity="0.85"/>
+<text x="499.0" y="168.8" class="valore">1074</text>
+<text x="499.0" y="322" class="tacca-x" style="text-anchor:end" transform="rotate(-35 499.0 322)">128x128x128</text>
+<rect x="533.5" y="145.8" width="31.0" height="162.2" fill="#2a78d6" opacity="0.85"/>
+<text x="549.0" y="140.8" class="valore">1298</text>
+<text x="549.0" y="322" class="tacca-x" style="text-anchor:end" transform="rotate(-35 549.0 322)">256x128x64</text>
+<rect x="583.5" y="188.3" width="31.0" height="119.7" fill="#2a78d6" opacity="0.85"/>
+<text x="599.0" y="183.3" class="valore">957</text>
+<text x="599.0" y="322" class="tacca-x" style="text-anchor:end" transform="rotate(-35 599.0 322)">64x128x256</text>
+<rect x="633.5" y="122.4" width="31.0" height="185.6" fill="#2a78d6" opacity="0.85"/>
+<text x="649.0" y="117.4" class="valore">1485</text>
+<text x="649.0" y="322" class="tacca-x" style="text-anchor:end" transform="rotate(-35 649.0 322)">512x64x64</text>
+<rect x="683.5" y="205.8" width="31.0" height="102.2" fill="#2a78d6" opacity="0.85"/>
+<text x="699.0" y="200.8" class="valore">817</text>
+<text x="699.0" y="322" class="tacca-x" style="text-anchor:end" transform="rotate(-35 699.0 322)">64x512x64</text>
+<rect x="733.5" y="205.0" width="31.0" height="103.0" fill="#2a78d6" opacity="0.85"/>
+<text x="749.0" y="200.0" class="valore">824</text>
+<text x="749.0" y="322" class="tacca-x" style="text-anchor:end" transform="rotate(-35 749.0 322)">64x64x512</text>
+<text x="624.0" y="372" class="asse">blocco locale</text>
 </svg>
