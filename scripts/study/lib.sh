@@ -498,7 +498,10 @@ study_case()
 
     # Nessun caso puo' durare piu' del budget che resta: oltre quello lo
     # ucciderebbe comunque il walltime, e senza lasciare traccia.
-    local case_timeout="${CASE_TIMEOUT:-1500}"
+    # case_timeout e' gia' tagliato dal budget, phase_timeout no: e' con
+    # quello che si distingue un caso troppo lento da uno partito tardi.
+    local phase_timeout="${CASE_TIMEOUT:-1500}"
+    local case_timeout="$phase_timeout"
     [[ "$remaining" -lt "$case_timeout" ]] && case_timeout="$remaining"
 
     # Un binario senza MPI non si lancia con mpirun: si esegue e basta,
@@ -524,7 +527,25 @@ study_case()
         [[ -n "$shape" ]] && command+=($shape)
     fi
 
+    local left repeat_timeout repeat_started last_seconds=0
     for (( repeat = 0; repeat < repeats; repeat++ )); do
+        # Il budget si ricontrolla prima di ogni ripetizione. Prima si
+        # calcolava una volta per caso e ogni ripetizione riceveva
+        # case_timeout intero: due ripetizioni potevano durare il doppio di
+        # quello che restava, il walltime uccideva il job a meta' caso, e la
+        # ri-sottomissione -- che sta in fondo allo script -- non partiva.
+        # Cosi' la 13 si e' fermata a 374 casi su 440 con la coda vuota.
+        left=$(( STUDY_BUDGET - ( $(date +%s) - STUDY_STARTED ) ))
+        if [[ "$repeat" -gt 0 && "$left" -le "$last_seconds" ]]; then
+            # Un'altra ripetizione non ci starebbe. La misura che c'e' e'
+            # valida: si tiene, e la nota dice su quante ripetizioni e' presa.
+            note="${note:+$note; }ripetizioni: $repeat su $repeats (budget)"
+            break
+        fi
+        repeat_timeout="$case_timeout"
+        [[ "$left" -lt "$repeat_timeout" ]] && repeat_timeout="$left"
+        repeat_started="$(date +%s)"
+
         set +e
         # stdin chiuso: mpirun lo legge e lo consuma, e una fase che genera i
         # casi con `while read ... done < <(...)' si vedrebbe sparire la lista
@@ -535,12 +556,32 @@ study_case()
                OMP_PROC_BIND="$STUDY_OMP_BIND" \
                OMP_WAIT_POLICY="$STUDY_OMP_WAIT" \
                BENCH_NORMS="$norms" \
-               timeout --kill-after=30 "$case_timeout" \
+               timeout --kill-after=30 "$repeat_timeout" \
                "${command[@]}" 2>&1 < /dev/null)"
         local code=$?
         set -e
+        last_seconds=$(( $(date +%s) - repeat_started ))
 
         if [[ $code -eq 124 || $code -eq 137 ]]; then
+            # Tagliata dal budget e non dal proprio timeout, con una misura
+            # gia' presa: la configurazione e' la stessa, e quella misura resta.
+            if [[ -n "$best_line" && "$repeat_timeout" -lt "$phase_timeout" ]]; then
+                note="${note:+$note; }ripetizioni: $repeat su $repeats (budget)"
+                break
+            fi
+            # Tagliata dal budget alla prima ripetizione: non si sa quanto
+            # dura, si sa solo che non ci stava in quello che restava. Scriverla
+            # come timeout la marcherebbe fallita per sempre, quindi si rinvia:
+            # il prossimo job ci arriva per primo, con tutto il budget. Solo se
+            # questo job ha gia' concluso qualcosa, pero': il primo caso di un
+            # job ha avuto il massimo che un job puo' dare, e per lui timeout e'
+            # la risposta vera. Altrimenti un caso piu' lungo di un job intero
+            # si rinvierebbe all'infinito.
+            if [[ "$repeat_timeout" -lt "$phase_timeout" &&
+                  $(( STUDY_CASES + STUDY_FAILED )) -gt 0 ]]; then
+                status="deferred"
+                break
+            fi
             status="timeout"
             break
         fi
@@ -568,6 +609,14 @@ study_case()
     done
 
     local seconds=$(( $(date +%s) - started ))
+
+    # Niente riga e niente chiave: per la ripresa il caso non e' mai esistito.
+    if [[ "$status" == "deferred" ]]; then
+        STUDY_OUT_OF_TIME=1
+        STUDY_PENDING=$(( STUDY_PENDING + 1 ))
+        printf 'cut by the budget, back to the next job (%ds)\n' "$seconds"
+        return 0
+    fi
 
     if [[ "$status" != "ok" ]]; then
         STUDY_FAILED=$(( STUDY_FAILED + 1 ))
