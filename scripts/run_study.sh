@@ -160,15 +160,26 @@ merge)
         # Qui si allineano al formato di adesso -- g_ms vuoto, inserito prima
         # di stato e nota -- perche' i grafici leggono per nome e una riga
         # corta gli sposterebbe ogni campo di uno.
-        awk -F, -v OFS=, -v larga="$colonne" 'NR > 1 {
+        #
+        # E un caso ritentato con RETRY_FAILED=1 lascia due righe, quella
+        # fallita e quella nuova: vale l'ultima, al posto della prima. Le
+        # colonne 1-13 (phase..steps) bastano a riconoscere un caso: verificato
+        # sui dry run di tutte e sei le fasi.
+        awk -F, -v OFS=, -v larga="$colonne" '
+        NR == 1 { next }
+        {
             if (NF == larga - 1) {
                 stato = $(NF - 1); nota = $NF
                 $(NF - 1) = ""
                 $NF = stato
                 $(NF + 1) = nota
             }
-            print
-        }' "$csv" >> "$out"
+            id = $1
+            for (i = 2; i <= 13; i++) id = id SUBSEP $i
+            if (!(id in riga)) ordine[++n] = id
+            riga[id] = $0
+        }
+        END { for (i = 1; i <= n; i++) print riga[ordine[i]] }' "$csv" >> "$out"
     done
     if [[ -z "$header" ]]; then
         echo "nothing to merge" >&2
@@ -233,18 +244,30 @@ status)
             printf '  %-18s %8s\n' "$phase" "-"
             continue
         fi
-        total=$(( $(wc -l < "$csv") - 1 ))
         # Lo stato e' sempre il penultimo campo e la nota l'ultimo, in questo
         # formato come in quello prima di g_ms: le note hanno le virgole
         # gia' sostituite, quindi contare da destra regge anche su un file
         # che mescola le due larghezze. Un indice scritto a mano no: era $32,
         # g_ms l'ha spostato a $33, e per una notte lo studio ha dichiarato
         # fallito tutto quanto.
-        read -r ok bad vecchie < <(awk -F, -v larga="$attesa" '
+        # Ogni caso conta con la sua ultima riga: uno ritentato con
+        # RETRY_FAILED=1 ne ha due, e quella fallita non conta piu'.
+        read -r total ok bad vecchie < <(awk -F, -v larga="$attesa" '
             NR == 1 { next }
-            { if ($(NF - 1) == "ok") buoni++; else cattivi++
-              if (NF < larga) corte++ }
-            END { printf "%d %d %d\n", buoni, cattivi, corte }' "$csv")
+            {
+                id = $1
+                for (i = 2; i <= 13; i++) id = id SUBSEP $i
+                stato[id] = $(NF - 1)
+                corta[id] = (NF < larga)
+            }
+            END {
+                for (id in stato) {
+                    casi++
+                    if (stato[id] == "ok") buoni++; else cattivi++
+                    if (corta[id]) corte++
+                }
+                printf "%d %d %d %d\n", casi, buoni, cattivi, corte
+            }' "$csv")
         [[ "$vecchie" -gt 0 ]] && nota=" ($vecchie without g_ms)" || nota=""
         printf '  %-18s %8s %8s %8s   %s%s\n' "$phase" "$total" "$ok" "$bad" \
             "$(date -r "$csv" '+%Y-%m-%d %H:%M')" "$nota"

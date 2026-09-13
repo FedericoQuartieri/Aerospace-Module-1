@@ -62,6 +62,22 @@ study_begin()
     STUDY_OUT="$STUDY_BASE/$STUDY_PHASE"
     STUDY_CSV="$STUDY_OUT/results.csv"
     STUDY_KEYS="$STUDY_OUT/done.keys"
+    # RETRY_FAILED=1 rimette in gioco i casi falliti una volta sola, qui, nel
+    # primo job: le loro chiavi spariscono (con una copia accanto) e da quel
+    # momento sono casi da fare come gli altri. Ignorarle a ogni lettura non
+    # basta: study_resubmit passava l'ambiente al job dopo, un timeout vero
+    # registrato in questo job veniva ritentato in ogni job della catena, e un
+    # caso ritentato ma rinviato ritrovava la vecchia chiave e si perdeva.
+    if [[ "${RETRY_FAILED:-0}" == "1" && "${DRY_RUN:-0}" != "1" &&
+          -f "$STUDY_KEYS" ]] && grep -q '^!' "$STUDY_KEYS"; then
+        local back_in_play
+        back_in_play=$(grep -c '^!' "$STUDY_KEYS")
+        cp "$STUDY_KEYS" "$STUDY_KEYS.before-retry"
+        grep -v '^!' "$STUDY_KEYS" > "$STUDY_KEYS.tmp" || true
+        mv "$STUDY_KEYS.tmp" "$STUDY_KEYS"
+        printf 'RETRY_FAILED=1: %d failed cases back in play (old keys in %s)\n' \
+            "$back_in_play" "$STUDY_KEYS.before-retry"
+    fi
     STUDY_LOG="$STUDY_OUT/run.log"
     STUDY_STARTED="$(date +%s)"
     STUDY_CASES=0
@@ -172,7 +188,9 @@ study_resubmit()
 
     local next
     mkdir -p "$STUDY_BASE/pbs"
-    if next="$(qsub -V -o "$STUDY_BASE/pbs/" "$script" 2>&1)"; then
+    # Senza RETRY_FAILED: i falliti li ha gia' rimessi in gioco il primo job
+    # della catena, e un timeout vero registrato qui il job dopo non lo rifa'.
+    if next="$(env -u RETRY_FAILED qsub -V -o "$STUDY_BASE/pbs/" "$script" 2>&1)"; then
         echo "continues in job $next"
     else
         echo "resubmission failed: $next"
