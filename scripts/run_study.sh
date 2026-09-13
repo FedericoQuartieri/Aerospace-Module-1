@@ -27,6 +27,7 @@
 #
 #   GRIDS=128 REPEATS=1 ./scripts/run_study.sh submit 11
 #   WALLTIME=12:00:00 ./scripts/run_study.sh submit 05
+#   STUDY_HOST=cpu03 ./scripts/run_study.sh submit 10 12 14   (every job on cpu03)
 #
 # Environment variables reach the job through `qsub -V', so it is enough to
 # put them in front of the command. STUDY_ENV="key=value ..." does the same
@@ -95,6 +96,11 @@ submit)
     mkdir -p "$root/build/study/pbs"
     qsub_opts=(-V -o "$root/build/study/pbs/")
     [[ -n "${WALLTIME:-}" ]] && qsub_opts+=(-l "walltime=$WALLTIME")
+    # Tutta la catena su un nodo. lib.sh ripete il vincolo a ogni
+    # ri-sottomissione: qui vale solo per il primo job.
+    if [[ -n "${STUDY_HOST:-}" ]]; then
+        qsub_opts+=(-l "select=1:ncpus=${STUDY_NCPUS:-112}:host=$STUDY_HOST")
+    fi
     for pair in ${STUDY_ENV:-}; do
         export "${pair?}"
     done
@@ -156,10 +162,10 @@ merge)
             printf '%s\n' "$intestazione" > "$out"
             header=1
         fi
-        # Le misure fatte prima che g_ms esistesse hanno una colonna in meno.
-        # Qui si allineano al formato di adesso -- g_ms vuoto, inserito prima
-        # di stato e nota -- perche' i grafici leggono per nome e una riga
-        # corta gli sposterebbe ogni campo di uno.
+        # Le colonne aggiunte nel tempo -- g_ms, poi node -- stanno tutte subito
+        # prima di stato e nota. Una riga di un formato piu' vecchio le ha in
+        # meno, e si allinea inserendole vuote li': i grafici leggono per nome,
+        # e una riga corta gli sposterebbe ogni campo.
         #
         # E un caso ritentato con RETRY_FAILED=1 lascia due righe, quella
         # fallita e quella nuova: vale l'ultima, al posto della prima. Le
@@ -168,11 +174,13 @@ merge)
         awk -F, -v OFS=, -v larga="$colonne" '
         NR == 1 { next }
         {
-            if (NF == larga - 1) {
-                stato = $(NF - 1); nota = $NF
-                $(NF - 1) = ""
-                $NF = stato
-                $(NF + 1) = nota
+            if (NF < larga) {
+                # campi e non n: n conta i casi della deduplica qui sotto,
+                # e riusarlo stampava righe vuote e ne perdeva una.
+                campi = NF; stato = $(campi - 1); nota = $campi
+                $larga = nota
+                $(larga - 1) = stato
+                for (i = campi - 1; i <= larga - 2; i++) $i = ""
             }
             id = $1
             for (i = 2; i <= 13; i++) id = id SUBSEP $i
@@ -268,7 +276,7 @@ status)
                 }
                 printf "%d %d %d %d\n", casi, buoni, cattivi, corte
             }' "$csv")
-        [[ "$vecchie" -gt 0 ]] && nota=" ($vecchie without g_ms)" || nota=""
+        [[ "$vecchie" -gt 0 ]] && nota=" ($vecchie in an older format)" || nota=""
         printf '  %-18s %8s %8s %8s   %s%s\n' "$phase" "$total" "$ok" "$bad" \
             "$(date -r "$csv" '+%Y-%m-%d %H:%M')" "$nota"
     done
