@@ -48,7 +48,7 @@ STUDY_BIN="$STUDY_BASE/bin"
 # g_ms e' il tempo speso a preparare il termine noto del passo eta. Sta DENTRO
 # eta_ms, non accanto: eta_ms meno g_ms e' il solutore puro. Non va sommato
 # agli altri stadi, o il passo risulta piu' lungo di quello che e'.
-STUDY_HEADER='phase,label,backend,batch,simd,omp,mpi,ranks,threads,nx,ny,nz,steps,px,py,pz,wall_ms,mpi_ms,eta_ms,zeta_ms,u_ms,psi_ms,philow_ms,phihigh_ms,pressure_ms,porosity_ms,untimed_ms,cellstep_1e8s,rss_mb,l2_ux,l2_p,g_ms,status,note'
+STUDY_HEADER='phase,label,backend,batch,simd,omp,mpi,ranks,threads,nx,ny,nz,steps,px,py,pz,wall_ms,mpi_ms,eta_ms,zeta_ms,u_ms,psi_ms,philow_ms,phihigh_ms,pressure_ms,porosity_ms,untimed_ms,cellstep_1e8s,rss_mb,l2_ux,l2_p,g_ms,node,status,note'
 
 # Quanti campi produce l'awk di lettura: serve a riempire di vuoti la riga di
 # un caso fallito senza sfasare le colonne.
@@ -186,11 +186,17 @@ study_resubmit()
         return 0
     fi
 
-    local next
+    local next pin=()
     mkdir -p "$STUDY_BASE/pbs"
+    # Una catena fissata su un nodo ci resta. Il vincolo di `submit' vale solo
+    # per il primo job: senza ripeterlo qui, dal secondo anello in poi la
+    # catena andrebbe sul primo nodo libero.
+    if [[ -n "${STUDY_HOST:-}" ]]; then
+        pin=(-l "select=1:ncpus=${STUDY_NCPUS:-112}:host=$STUDY_HOST")
+    fi
     # Senza RETRY_FAILED: i falliti li ha gia' rimessi in gioco il primo job
     # della catena, e un timeout vero registrato qui il job dopo non lo rifa'.
-    if next="$(env -u RETRY_FAILED qsub -V -o "$STUDY_BASE/pbs/" "$script" 2>&1)"; then
+    if next="$(env -u RETRY_FAILED qsub -V ${pin[@]+"${pin[@]}"} -o "$STUDY_BASE/pbs/" "$script" 2>&1)"; then
         echo "continues in job $next"
     else
         echo "resubmission failed: $next"
@@ -235,6 +241,14 @@ study_machine()
     printf 'mpirun:        %s\n' "$(command -v "${MPIRUN:-mpirun}" || echo missing)"
     printf 'MPI version:   %s\n' \
         "$(${MPIRUN:-mpirun} --version 2>&1 | head -1)"
+    if [[ -n "${STUDY_HOST:-}" ]]; then
+        if [[ "$(hostname -s)" == "$STUDY_HOST" ]]; then
+            printf 'pinned to:     %s\n' "$STUDY_HOST"
+        else
+            printf '\n  WARNING: STUDY_HOST=%s, but this job runs on %s.\n\n' \
+                "$STUDY_HOST" "$(hostname -s)"
+        fi
+    fi
 
     # Il nodo e' davvero tutto nostro? Su questo cluster la risposta e' stata
     # no due volte su tre, e le misure raccolte in quei casi erano inservibili
@@ -752,10 +766,13 @@ study_record()
         measured="$(printf ',%.0s' $(seq 2 "$STUDY_MEASURED_FIELDS"))"
     fi
 
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+    # Il nodo in ogni riga: i nodi della coda dichiarano la stessa macchina e a
+    # pieno carico non lo sono (cpu04 fino a 1.7x piu' lento di cpu03). Senza
+    # questa colonna lo si ricostruiva solo incrociando run.log riga per riga.
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
         "$STUDY_PHASE" "$label" "$backend" "$batch" "$simd" "$omp" "$mpi" \
         "$ranks" "$threads" "$nx" "$ny" "$nz" "$steps" "$measured" \
-        "$status" "${note//,/;}" >> "$STUDY_CSV"
+        "$(hostname -s)" "$status" "${note//,/;}" >> "$STUDY_CSV"
 }
 
 # Un caso concluso -- riuscito o no -- lascia la sua chiave, cosi' la ripresa
