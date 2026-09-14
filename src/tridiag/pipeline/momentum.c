@@ -244,7 +244,7 @@ static void forward_component(const Decomp *d, SolverMemState *state,
          * batch, e il tempo e' gia' di parete perche' stanno fuori dal team.
          */
         if (axis == 0) {
-            uint64_t inizio = time_ns();
+            uint64_t g_start = time_ns();
 
             WORKERS_PARALLEL_FOR(workers_many() && active > 1)
             for (int line = 0; line < active; line++) {
@@ -257,7 +257,7 @@ static void forward_component(const Decomp *d, SolverMemState *state,
                        backend->source_term + (size_t)line * (size_t)length);
             }
 
-            solver_stats->momentum_source += time_ns() - inizio;
+            solver_stats->momentum_source += time_ns() - g_start;
         }
 
         /*

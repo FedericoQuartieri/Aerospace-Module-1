@@ -54,7 +54,7 @@ typedef struct {
      * cache perche' contatori vicini si rimpallano fra i core, e quello che
      * si finirebbe per misurare e' il rimpallo.
      */
-    uint64_t *conto;
+    uint64_t *g_ns;
     int axis;
     int group;
     int outer;
@@ -63,7 +63,7 @@ typedef struct {
 } MomentumLines;
 
 /* Un contatore per thread, distanziati di una linea di cache. */
-#define CONTO_PASSO 8
+#define COUNTER_STRIDE 8
 
 /*
  * Scrive nelle tre diagonali e nel termine noto il sistema di UNA linea.
@@ -114,13 +114,13 @@ static void momentum_assemble_line(const MomentumLines *ml, int b, int a,
          * sapere quanto restasse da guadagnare su ciascuno. Due letture
          * dell'orologio per linea, cioe' meno di mezzo percento del passo
          * alle taglie che contano. */
-        uint64_t inizio = time_ns();
+        uint64_t g_start = time_ns();
 
         g_line(d, mline.data, mline.state, mline.k_porosity,
                cell[1], cell[2], mline.t_step, mline.v_comp,
                ml->abscissa, source_term + line);
         mline.source_term = source_term + line;
-        ml->conto[(size_t)workers_id() * CONTO_PASSO] += time_ns() - inizio;
+        ml->g_ns[(size_t)workers_id() * COUNTER_STRIDE] += time_ns() - g_start;
     }
 
     for (int t = 0; t < length; t++) {
@@ -222,12 +222,12 @@ static void momentum_direction(const Decomp *d,
      */
     const int arrays = (axis == 0) ? 6 : 5;
     Real *abscissa = NULL;
-    const int contatori = workers_available();
-    uint64_t *conto = xmalloc((size_t)contatori * CONTO_PASSO *
-                              sizeof(uint64_t));
+    const int counters = workers_available();
+    uint64_t *g_ns = xmalloc((size_t)counters * COUNTER_STRIDE *
+                             sizeof(uint64_t));
 
-    for (int i = 0; i < contatori * CONTO_PASSO; i++) {
-        conto[i] = 0;
+    for (int i = 0; i < counters * COUNTER_STRIDE; i++) {
+        g_ns[i] = 0;
     }
     if (axis == 0) {
         abscissa = xmalloc((size_t)length * sizeof(Real));
@@ -239,7 +239,7 @@ static void momentum_direction(const Decomp *d,
         .d = d,
         .target = target,
         .abscissa = abscissa,
-        .conto = conto,
+        .g_ns = g_ns,
         .axis = axis,
         .group = group,
         .outer = outer,
@@ -340,17 +340,17 @@ static void momentum_direction(const Decomp *d,
      * tempo di parete speso su g e' quello del thread che ne ha fatto di piu'.
      * E' cosi' che il numero resta confrontabile con eta_sys, che e' parete.
      */
-    uint64_t piu_lungo = 0;
-    for (int i = 0; i < contatori; i++) {
-        uint64_t suo = conto[(size_t)i * CONTO_PASSO];
+    uint64_t slowest = 0;
+    for (int i = 0; i < counters; i++) {
+        uint64_t thread_ns = g_ns[(size_t)i * COUNTER_STRIDE];
 
-        if (suo > piu_lungo) {
-            piu_lungo = suo;
+        if (thread_ns > slowest) {
+            slowest = thread_ns;
         }
     }
-    solver_stats->momentum_source += piu_lungo;
+    solver_stats->momentum_source += slowest;
 
-    free(conto);
+    free(g_ns);
     free(abscissa);
     free(pool);
 }
