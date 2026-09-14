@@ -75,9 +75,9 @@ void forcing_fill_line(const Decomp *d, const Data *data,
  * tempo di forcing_fill_line.
  *
  * E' quello che g_value calcolava al suo interno prima che la forzante gli
- * arrivasse gia' pronta.  Serve a chi non ha una linea lungo x da riempire --
- * il backend pipeline percorre i livelli, non le linee -- e paga come prima
- * una chiamata indiretta per cella.
+ * arrivasse gia' pronta.  Oggi nessuno la chiama: lungo x entrambi i backend
+ * preparano g per linea con g_line, e il ripiego cella per cella di
+ * momentum_row passa da g_value_here, che la forzante la valuta da se'.
  */
 Real forcing_at_cell(const Decomp *d, const Data *data,
                      int i, int j, int k, int t_step, int component);

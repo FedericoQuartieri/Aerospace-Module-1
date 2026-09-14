@@ -52,15 +52,16 @@ typedef struct MomentumLine {
      * Il termine fisico g della linea lungo x, gia' calcolato, indicizzato
      * dalla posizione lungo l'asse -- oppure NULL.
      *
-     * Chi percorre le linee lungo x (il backend Schur nel passo eta) lo
-     * riempie una volta per linea con g_line e lo punta qui.  Il guadagno non
-     * e' solo la chiamata indiretta alla forzante che sparisce dal ciclo
+     * Lungo x, nel passo eta, lo riempiono entrambi i backend con g_line e lo
+     * puntano qui: Schur una linea alla volta mentre la assembla, la pipeline
+     * tutte le linee di un batch prima di scendere nei livelli.  Il guadagno
+     * non e' solo la chiamata indiretta alla forzante che sparisce dal ciclo
      * interno: sulla linea il supporto di g e la scelta del nodo fantasma non
      * cambiano, quindi si decidono una volta e quel che resta si vettorizza.
      *
-     * NULL vuol dire "non l'ho preparato": si ripiega su g_value cella per
-     * cella come prima.  E' il caso del backend pipeline, che percorre i
-     * livelli e non le linee, e degli assi y e z, dove g non entra affatto.
+     * NULL vuol dire "non l'ho preparato": si ripiega su g_value_here cella
+     * per cella.  Sugli assi y e z il puntatore non si legge nemmeno, perche'
+     * g non entra; lungo x oggi nessun chiamante arriva con NULL.
      */
     const Real *source_term;
     int axis;
