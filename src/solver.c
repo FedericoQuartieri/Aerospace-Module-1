@@ -129,7 +129,8 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
          * aggiornata, su tutti e tre gli assi. altrimenti la divergenza
          * sul bordo basso del blocco sarebbe vecchia di un passo
          */
-        //aggiorna l'anello di contorno della velocità, per il passo successivo
+        //aggiorna l'anello di contorno della velocità appena calcolata: lo legge
+        // compute_div, nel pressure_step qui sotto
         refresh_vector_halo(decomp, &solver_mem_state->u);
 
         // Pressure system
