@@ -183,9 +183,14 @@ It builds Schur once, rebuilds the pipeline with several
 or broader.  With MPI enabled, `RANKS` controls `mpirun -n` and
 `PROCESS_GRID="px py pz"` passes the decomposition shape to the tests.
 
-`PIPELINE_BATCH_LINES` (default 64) sets how many lines travel together.  It
-is the pipeline's one tuning knob: small batches fill the pipeline sooner but
-send more messages, large ones the opposite.
+The pipeline sends its lines through the processes in batches.  Small batches
+fill the pipeline sooner but send more messages; large ones give each thread
+more work between two barriers.  By default the batch is chosen at start-up:
+the power of two nearest to 256 x threads per process, at most 4096, calibrated
+on the batch sweep of the scaling campaign and the same on every process.
+`pipeline_batch_lines = N` in the configuration file overrides it for one run,
+and `make PIPELINE_BATCH_LINES=N` fixes it in the binary, as the batch sweep
+and `check_pipeline.sh` do.
 
 `SIMD=1` vectorizes the Y and Z sweeps *across* lines: along those axes
 consecutive lines are adjacent in the scratch and in the field, so one vector

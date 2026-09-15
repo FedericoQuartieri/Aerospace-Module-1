@@ -48,6 +48,12 @@
 #include "parallel.h"
 #include "error_norms.h"
 
+/*
+ * Da backend.h, che qui non si include: questo file ha un suo backend_name
+ * statico, e le due dichiarazioni si scontrerebbero.
+ */
+int backend_batch_lines(void);
+
 static const char *backend_name(void)
 {
 #if defined(TRIDIAG_PIPELINE)
@@ -56,17 +62,6 @@ static const char *backend_name(void)
     return "schur";
 #else
     return "unknown";
-#endif
-}
-
-/* Zero quando il backend non ha questo parametro: la colonna resta, il valore
- * dice che non si applica. */
-static int backend_batch_lines(void)
-{
-#if defined(PIPELINE_BATCH_LINES)
-    return PIPELINE_BATCH_LINES;
-#else
-    return 0;
 #endif
 }
 

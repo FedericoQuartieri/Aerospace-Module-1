@@ -13,14 +13,6 @@ void *xmalloc(size_t size) {
     return ptr;
 }
 
-static int report_pipeline_batch_lines(void) {
-#if defined(PIPELINE_BATCH_LINES)
-    return PIPELINE_BATCH_LINES;
-#else
-    return 0;
-#endif
-}
-
 void print_stats(const Decomp *d,
                  const SolverStats *solver_stats,
                  size_t sample_count) {
@@ -133,8 +125,8 @@ void print_stats(const Decomp *d,
      * confrontare con nessun'altra. */
     printf("Threads per process: %d\n", workers_available());
     printf("Tridiagonal backend: %s\n", backend_name());
-    if (report_pipeline_batch_lines() > 0) {
-        printf("Pipeline batch lines: %d\n", report_pipeline_batch_lines());
+    if (backend_batch_lines() > 0) {
+        printf("Pipeline batch lines: %d\n", backend_batch_lines());
     }
     printf("Directional policy: %s\n", workers_line_policy_name());
     printf("Time steps: %zu\n", sample_count);

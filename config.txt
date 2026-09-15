@@ -29,3 +29,8 @@ nu = 1.0
 # Ogni quanti passi scrivere.  Oggi ./solver non scrive comunque nulla:
 # vedi la nota sul flag di scrittura.
 wr_freq = 5
+
+# --- pipeline ----------------------------------------------------------------
+# Linee per batch del backend pipeline. 0 le fa scegliere all'avvio in base ai
+# thread per processo; Schur ignora la chiave.
+# pipeline_batch_lines = 0

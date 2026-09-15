@@ -47,6 +47,11 @@ void backend_free(SolverMemState *solver_mem_state);
 
 /* Nome del backend compilato, per le statistiche e per i test. */
 const char *backend_name(void);
+/*
+ * Linee per batch scelte da backend_init, uguali su tutti i processi. La
+ * pipeline le usa; Schur risponde 0, perche' il parametro non lo riguarda.
+ */
+int backend_batch_lines(void);
 
 /*
  * I tre sistemi della quantita' di moto di un passo temporale, tutti e tre

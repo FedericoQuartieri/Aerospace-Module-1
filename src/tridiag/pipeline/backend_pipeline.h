@@ -33,9 +33,10 @@
  * di svuotarsi e riempirsi di nuovo.
  */
 
-#ifndef PIPELINE_BATCH_LINES
-#define PIPELINE_BATCH_LINES 64
-#endif
+/*
+ * Le linee per batch non sono una costante: backend_init le sceglie all'avvio
+ * (backend.c). PIPELINE_BATCH_LINES, se definito a compilazione, le fissa.
+ */
 
 typedef struct PipelineBackend {
     int batch_lines;           /* linee per batch                          */

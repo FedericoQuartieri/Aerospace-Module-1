@@ -27,6 +27,11 @@ typedef struct SimParams {
     int steps;
     Real nu;
     int wr_freq;
+    /*
+     * Linee per batch della pipeline. 0, il default, le lascia scegliere
+     * all'avvio in base ai thread per processo; Schur ignora la chiave.
+     */
+    int pipeline_batch_lines;
 
     Real dx, dy, dz;
     Real dx_inverse, dy_inverse, dz_inverse;
