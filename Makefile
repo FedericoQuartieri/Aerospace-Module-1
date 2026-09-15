@@ -6,7 +6,11 @@ MPI ?= 0
 OMP ?= 0
 TRIDIAG ?= schur
 OMP_SPLIT ?= auto
-PIPELINE_BATCH_LINES ?= 64
+# Empty, the default: the pipeline picks its batch at start-up from the threads
+# per process (src/tridiag/pipeline/backend.c), and `pipeline_batch_lines = N'
+# in the configuration file overrides it for one run.  A number fixes it in the
+# binary, which is what the batch sweep of the study and check_pipeline.sh need.
+PIPELINE_BATCH_LINES ?=
 ZETA_SIMD_VECTORS ?= 4
 U_SIMD_VECTORS ?= 8
 
@@ -33,10 +37,13 @@ override CPPFLAGS += -DTRIDIAG_SCHUR
 endif
 
 ifeq ($(TRIDIAG),pipeline)
+override CPPFLAGS += -DTRIDIAG_PIPELINE
+ifneq ($(PIPELINE_BATCH_LINES),)
 ifeq ($(shell expr "$(PIPELINE_BATCH_LINES)" : '[1-9][0-9]*$$'),0)
 $(error PIPELINE_BATCH_LINES must be one positive integer, not '$(PIPELINE_BATCH_LINES)')
 endif
-override CPPFLAGS += -DTRIDIAG_PIPELINE -DPIPELINE_BATCH_LINES=$(PIPELINE_BATCH_LINES)
+override CPPFLAGS += -DPIPELINE_BATCH_LINES=$(PIPELINE_BATCH_LINES)
+endif
 endif
 
 # The backend's own headers are private to its directory: include/ holds only

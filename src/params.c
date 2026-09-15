@@ -28,6 +28,7 @@ SimParams sim = {
     .steps = DEFAULT_STEPS,
     .nu = DEFAULT_NU,
     .wr_freq = DEFAULT_WR_FREQ,
+    .pipeline_batch_lines = 0,
 
     .dx = SPACING(DEFAULT_LX, DEFAULT_WIDTH),
     .dy = SPACING(DEFAULT_LY, DEFAULT_HEIGHT),
@@ -60,6 +61,7 @@ static const struct {
     { "steps",   1, &sim.steps },
     { "nu",      0, &sim.nu },
     { "wr_freq", 1, &sim.wr_freq },
+    { "pipeline_batch_lines", 1, &sim.pipeline_batch_lines },
 };
 
 static void params_derive(void) {
@@ -93,6 +95,11 @@ static void params_check(const char *path) {
         sim.t_end <= 0 || sim.nu <= 0) {
         fprintf(stderr, "%s: lx, ly, lz, t_end and nu must be positive\n",
                 path);
+        exit(1);
+    }
+    if (sim.pipeline_batch_lines < 0) {
+        fprintf(stderr, "%s: pipeline_batch_lines must be 0 (chosen at "
+                "start-up) or positive\n", path);
         exit(1);
     }
 }

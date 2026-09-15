@@ -53,3 +53,7 @@ void backend_free(SolverMemState *solver_mem_state) {
 const char *backend_name(void) {
     return "schur";
 }
+
+int backend_batch_lines(void) {
+    return 0;
+}
