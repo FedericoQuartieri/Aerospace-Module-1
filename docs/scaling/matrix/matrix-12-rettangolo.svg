@@ -35,112 +35,112 @@ text{font-family:"DejaVu Sans",sans-serif;fill:var(--inchiostro)}
 <text x="74" y="28" class="titolo">schur, 224^3</text>
 <text x="74" y="44" class="sotto">ms per passo; righe processi, colonne thread</text>
 <rect x="75.0" y="59.0" width="35.8" height="29.2" fill="#2a78d6"/>
-<text x="92.9" y="76.6" class="cella" style="fill:#ffffff">2789</text>
+<text x="92.9" y="76.6" class="cella" style="fill:#ffffff">2468</text>
 <rect x="112.8" y="59.0" width="35.8" height="29.2" fill="#5598e7"/>
-<text x="130.7" y="76.6" class="cella" style="fill:#0b0b0b">1406</text>
-<rect x="150.6" y="59.0" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="168.4" y="76.6" class="cella" style="fill:#0b0b0b">744</text>
+<text x="130.7" y="76.6" class="cella" style="fill:#0b0b0b">1231</text>
+<rect x="150.6" y="59.0" width="35.8" height="29.2" fill="#6da7ec"/>
+<text x="168.4" y="76.6" class="cella" style="fill:#0b0b0b">647</text>
 <rect x="188.3" y="59.0" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="206.2" y="76.6" class="cella" style="fill:#0b0b0b">451</text>
+<text x="206.2" y="76.6" class="cella" style="fill:#0b0b0b">392</text>
 <rect x="226.1" y="59.0" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="244.0" y="76.6" class="cella" style="fill:#0b0b0b">388</text>
+<text x="244.0" y="76.6" class="cella" style="fill:#0b0b0b">356</text>
 <rect x="263.9" y="59.0" width="35.8" height="29.2" fill="#b7d3f6"/>
-<text x="281.8" y="76.6" class="cella" style="fill:#0b0b0b">287</text>
-<rect x="301.7" y="59.0" width="35.8" height="29.2" fill="#b7d3f6"/>
-<text x="319.6" y="76.6" class="cella" style="fill:#0b0b0b">250</text>
+<text x="281.8" y="76.6" class="cella" style="fill:#0b0b0b">235</text>
+<rect x="301.7" y="59.0" width="35.8" height="29.2" fill="#cde2fb"/>
+<text x="319.6" y="76.6" class="cella" style="fill:#0b0b0b">187</text>
 <rect x="339.4" y="59.0" width="35.8" height="29.2" fill="#cde2fb"/>
-<text x="357.3" y="76.6" class="cella" style="fill:#0b0b0b">226</text>
+<text x="357.3" y="76.6" class="cella" style="fill:#0b0b0b">159</text>
 <rect x="377.2" y="59.0" width="35.8" height="29.2" fill="#b7d3f6"/>
-<text x="395.1" y="76.6" class="cella" style="fill:#0b0b0b">302</text>
+<text x="395.1" y="76.6" class="cella" style="fill:#0b0b0b">248</text>
 <text x="66" y="76.6" class="tacca-y">1</text>
 <rect x="75.0" y="90.2" width="35.8" height="29.2" fill="#5598e7"/>
-<text x="92.9" y="107.9" class="cella" style="fill:#0b0b0b">1595</text>
-<rect x="112.8" y="90.2" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="130.7" y="107.9" class="cella" style="fill:#0b0b0b">1074</text>
+<text x="92.9" y="107.9" class="cella" style="fill:#0b0b0b">1462</text>
+<rect x="112.8" y="90.2" width="35.8" height="29.2" fill="#5598e7"/>
+<text x="130.7" y="107.9" class="cella" style="fill:#0b0b0b">1028</text>
 <rect x="150.6" y="90.2" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="168.4" y="107.9" class="cella" style="fill:#0b0b0b">833</text>
-<rect x="188.3" y="90.2" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="206.2" y="107.9" class="cella" style="fill:#0b0b0b">722</text>
-<rect x="226.1" y="90.2" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="244.0" y="107.9" class="cella" style="fill:#0b0b0b">702</text>
-<rect x="263.9" y="90.2" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="281.8" y="107.9" class="cella" style="fill:#0b0b0b">737</text>
+<text x="168.4" y="107.9" class="cella" style="fill:#0b0b0b">791</text>
+<rect x="188.3" y="90.2" width="35.8" height="29.2" fill="#6da7ec"/>
+<text x="206.2" y="107.9" class="cella" style="fill:#0b0b0b">687</text>
+<rect x="226.1" y="90.2" width="35.8" height="29.2" fill="#6da7ec"/>
+<text x="244.0" y="107.9" class="cella" style="fill:#0b0b0b">672</text>
+<rect x="263.9" y="90.2" width="35.8" height="29.2" fill="#6da7ec"/>
+<text x="281.8" y="107.9" class="cella" style="fill:#0b0b0b">694</text>
 <rect x="301.7" y="90.2" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="319.6" y="107.9" class="cella" style="fill:#0b0b0b">819</text>
+<text x="319.6" y="107.9" class="cella" style="fill:#0b0b0b">778</text>
 <rect x="339.4" y="90.2" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="357.3" y="107.9" class="cella" style="fill:#0b0b0b">865</text>
+<text x="357.3" y="107.9" class="cella" style="fill:#0b0b0b">822</text>
 <rect x="377.2" y="90.2" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <text x="66" y="107.9" class="tacca-y">2</text>
 <rect x="75.0" y="121.5" width="35.8" height="29.2" fill="#5598e7"/>
-<text x="92.9" y="139.1" class="cella" style="fill:#0b0b0b">1257</text>
+<text x="92.9" y="139.1" class="cella" style="fill:#0b0b0b">1156</text>
 <rect x="112.8" y="121.5" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="130.7" y="139.1" class="cella" style="fill:#0b0b0b">892</text>
-<rect x="150.6" y="121.5" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="168.4" y="139.1" class="cella" style="fill:#0b0b0b">705</text>
-<rect x="188.3" y="121.5" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="206.2" y="139.1" class="cella" style="fill:#0b0b0b">714</text>
-<rect x="226.1" y="121.5" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="244.0" y="139.1" class="cella" style="fill:#0b0b0b">710</text>
+<text x="130.7" y="139.1" class="cella" style="fill:#0b0b0b">846</text>
+<rect x="150.6" y="121.5" width="35.8" height="29.2" fill="#6da7ec"/>
+<text x="168.4" y="139.1" class="cella" style="fill:#0b0b0b">686</text>
+<rect x="188.3" y="121.5" width="35.8" height="29.2" fill="#6da7ec"/>
+<text x="206.2" y="139.1" class="cella" style="fill:#0b0b0b">691</text>
+<rect x="226.1" y="121.5" width="35.8" height="29.2" fill="#6da7ec"/>
+<text x="244.0" y="139.1" class="cella" style="fill:#0b0b0b">693</text>
 <rect x="263.9" y="121.5" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="281.8" y="139.1" class="cella" style="fill:#0b0b0b">795</text>
+<text x="281.8" y="139.1" class="cella" style="fill:#0b0b0b">770</text>
 <rect x="301.7" y="121.5" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="319.6" y="139.1" class="cella" style="fill:#0b0b0b">859</text>
+<text x="319.6" y="139.1" class="cella" style="fill:#0b0b0b">845</text>
 <rect x="339.4" y="121.5" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="377.2" y="121.5" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <text x="66" y="139.1" class="tacca-y">4</text>
 <rect x="75.0" y="152.8" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="92.9" y="170.4" class="cella" style="fill:#0b0b0b">651</text>
+<text x="92.9" y="170.4" class="cella" style="fill:#0b0b0b">558</text>
 <rect x="112.8" y="152.8" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="130.7" y="170.4" class="cella" style="fill:#0b0b0b">527</text>
-<rect x="150.6" y="152.8" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="168.4" y="170.4" class="cella" style="fill:#0b0b0b">518</text>
+<text x="130.7" y="170.4" class="cella" style="fill:#0b0b0b">454</text>
+<rect x="150.6" y="152.8" width="35.8" height="29.2" fill="#86b6ef"/>
+<text x="168.4" y="170.4" class="cella" style="fill:#0b0b0b">450</text>
 <rect x="188.3" y="152.8" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="206.2" y="170.4" class="cella" style="fill:#0b0b0b">462</text>
+<text x="206.2" y="170.4" class="cella" style="fill:#0b0b0b">401</text>
 <rect x="226.1" y="152.8" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="244.0" y="170.4" class="cella" style="fill:#0b0b0b">445</text>
-<rect x="263.9" y="152.8" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="281.8" y="170.4" class="cella" style="fill:#0b0b0b">495</text>
+<text x="244.0" y="170.4" class="cella" style="fill:#0b0b0b">400</text>
+<rect x="263.9" y="152.8" width="35.8" height="29.2" fill="#86b6ef"/>
+<text x="281.8" y="170.4" class="cella" style="fill:#0b0b0b">432</text>
 <rect x="301.7" y="152.8" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="339.4" y="152.8" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="377.2" y="152.8" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <text x="66" y="170.4" class="tacca-y">7</text>
 <rect x="75.0" y="184.0" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="92.9" y="201.6" class="cella" style="fill:#0b0b0b">831</text>
+<text x="92.9" y="201.6" class="cella" style="fill:#0b0b0b">748</text>
 <rect x="112.8" y="184.0" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="130.7" y="201.6" class="cella" style="fill:#0b0b0b">590</text>
+<text x="130.7" y="201.6" class="cella" style="fill:#0b0b0b">556</text>
 <rect x="150.6" y="184.0" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="168.4" y="201.6" class="cella" style="fill:#0b0b0b">541</text>
+<text x="168.4" y="201.6" class="cella" style="fill:#0b0b0b">526</text>
 <rect x="188.3" y="184.0" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="206.2" y="201.6" class="cella" style="fill:#0b0b0b">586</text>
+<text x="206.2" y="201.6" class="cella" style="fill:#0b0b0b">566</text>
 <rect x="226.1" y="184.0" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="244.0" y="201.6" class="cella" style="fill:#0b0b0b">577</text>
+<text x="244.0" y="201.6" class="cella" style="fill:#0b0b0b">552</text>
 <rect x="263.9" y="184.0" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="281.8" y="201.6" class="cella" style="fill:#0b0b0b">613</text>
+<text x="281.8" y="201.6" class="cella" style="fill:#0b0b0b">593</text>
 <rect x="301.7" y="184.0" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="339.4" y="184.0" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="377.2" y="184.0" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <text x="66" y="201.6" class="tacca-y">8</text>
 <rect x="75.0" y="215.2" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="92.9" y="232.9" class="cella" style="fill:#0b0b0b">450</text>
+<text x="92.9" y="232.9" class="cella" style="fill:#0b0b0b">396</text>
 <rect x="112.8" y="215.2" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="130.7" y="232.9" class="cella" style="fill:#0b0b0b">369</text>
+<text x="130.7" y="232.9" class="cella" style="fill:#0b0b0b">332</text>
 <rect x="150.6" y="215.2" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="168.4" y="232.9" class="cella" style="fill:#0b0b0b">380</text>
+<text x="168.4" y="232.9" class="cella" style="fill:#0b0b0b">349</text>
 <rect x="188.3" y="215.2" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="206.2" y="232.9" class="cella" style="fill:#0b0b0b">413</text>
+<text x="206.2" y="232.9" class="cella" style="fill:#0b0b0b">373</text>
 <rect x="226.1" y="215.2" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="244.0" y="232.9" class="cella" style="fill:#0b0b0b">403</text>
+<text x="244.0" y="232.9" class="cella" style="fill:#0b0b0b">364</text>
 <rect x="263.9" y="215.2" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="301.7" y="215.2" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="339.4" y="215.2" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="377.2" y="215.2" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <text x="66" y="232.9" class="tacca-y">14</text>
 <rect x="75.0" y="246.5" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="92.9" y="264.1" class="cella" style="fill:#0b0b0b">359</text>
+<text x="92.9" y="264.1" class="cella" style="fill:#0b0b0b">310</text>
 <rect x="112.8" y="246.5" width="35.8" height="29.2" fill="#b7d3f6"/>
-<text x="130.7" y="264.1" class="cella" style="fill:#0b0b0b">292</text>
+<text x="130.7" y="264.1" class="cella" style="fill:#0b0b0b">260</text>
 <rect x="150.6" y="246.5" width="35.8" height="29.2" fill="#b7d3f6"/>
-<text x="168.4" y="264.1" class="cella" style="fill:#0b0b0b">302</text>
+<text x="168.4" y="264.1" class="cella" style="fill:#0b0b0b">270</text>
 <rect x="188.3" y="246.5" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="226.1" y="246.5" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="263.9" y="246.5" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
@@ -149,9 +149,9 @@ text{font-family:"DejaVu Sans",sans-serif;fill:var(--inchiostro)}
 <rect x="377.2" y="246.5" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <text x="66" y="264.1" class="tacca-y">28</text>
 <rect x="75.0" y="277.8" width="35.8" height="29.2" fill="#cde2fb"/>
-<text x="92.9" y="295.4" class="cella" style="fill:#0b0b0b">200</text>
+<text x="92.9" y="295.4" class="cella" style="fill:#0b0b0b">165</text>
 <rect x="112.8" y="277.8" width="35.8" height="29.2" fill="#cde2fb"/>
-<text x="130.7" y="295.4" class="cella" style="fill:#0b0b0b">208</text>
+<text x="130.7" y="295.4" class="cella" style="fill:#0b0b0b">168</text>
 <rect x="150.6" y="277.8" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="188.3" y="277.8" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="226.1" y="277.8" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
@@ -184,118 +184,118 @@ text{font-family:"DejaVu Sans",sans-serif;fill:var(--inchiostro)}
 <rect x="212.5" y="374" width="14.3" height="10" fill="#184f95"/>
 <rect x="226.3" y="374" width="14.3" height="10" fill="#104281"/>
 <rect x="240.2" y="374" width="14.3" height="10" fill="#0d366b"/>
-<text x="74" y="396" class="tacca-x" text-anchor="start">200</text>
-<text x="254.0" y="396" class="tacca-x" text-anchor="end">1.95e+04</text>
+<text x="74" y="396" class="tacca-x" text-anchor="start">154</text>
+<text x="254.0" y="396" class="tacca-x" text-anchor="end">2.12e+04</text>
 <text x="164.0" y="369" class="legenda" text-anchor="middle">ms per passo</text>
 <text x="514" y="28" class="titolo">pipeline, 224^3</text>
 <text x="514" y="44" class="sotto">ms per passo; righe processi, colonne thread</text>
-<rect x="515.0" y="59.0" width="35.8" height="29.2" fill="#1c5cab"/>
-<text x="532.9" y="76.6" class="cella" style="fill:#ffffff">5760</text>
+<rect x="515.0" y="59.0" width="35.8" height="29.2" fill="#256abf"/>
+<text x="532.9" y="76.6" class="cella" style="fill:#ffffff">4831</text>
 <rect x="552.8" y="59.0" width="35.8" height="29.2" fill="#256abf"/>
-<text x="570.7" y="76.6" class="cella" style="fill:#ffffff">4320</text>
+<text x="570.7" y="76.6" class="cella" style="fill:#ffffff">3717</text>
 <rect x="590.6" y="59.0" width="35.8" height="29.2" fill="#256abf"/>
-<text x="608.4" y="76.6" class="cella" style="fill:#ffffff">3920</text>
+<text x="608.4" y="76.6" class="cella" style="fill:#ffffff">3754</text>
 <rect x="628.3" y="59.0" width="35.8" height="29.2" fill="#256abf"/>
-<text x="646.2" y="76.6" class="cella" style="fill:#ffffff">4527</text>
+<text x="646.2" y="76.6" class="cella" style="fill:#ffffff">4166</text>
 <rect x="666.1" y="59.0" width="35.8" height="29.2" fill="#184f95"/>
-<text x="684.0" y="76.6" class="cella" style="fill:#ffffff">10198</text>
+<text x="684.0" y="76.6" class="cella" style="fill:#ffffff">8023</text>
 <rect x="703.9" y="59.0" width="35.8" height="29.2" fill="#1c5cab"/>
-<text x="721.8" y="76.6" class="cella" style="fill:#ffffff">6475</text>
+<text x="721.8" y="76.6" class="cella" style="fill:#ffffff">5797</text>
 <rect x="741.7" y="59.0" width="35.8" height="29.2" fill="#184f95"/>
-<text x="759.6" y="76.6" class="cella" style="fill:#ffffff">9389</text>
+<text x="759.6" y="76.6" class="cella" style="fill:#ffffff">9783</text>
 <rect x="779.4" y="59.0" width="35.8" height="29.2" fill="#0d366b"/>
-<text x="797.3" y="76.6" class="cella" style="fill:#ffffff">19503</text>
+<text x="797.3" y="76.6" class="cella" style="fill:#ffffff">19773</text>
 <rect x="817.2" y="59.0" width="35.8" height="29.2" fill="#0d366b"/>
-<text x="835.1" y="76.6" class="cella" style="fill:#ffffff">19006</text>
+<text x="835.1" y="76.6" class="cella" style="fill:#ffffff">21182</text>
 <text x="506" y="76.6" class="tacca-y">1</text>
 <rect x="515.0" y="90.2" width="35.8" height="29.2" fill="#2a78d6"/>
-<text x="532.9" y="107.9" class="cella" style="fill:#ffffff">2937</text>
+<text x="532.9" y="107.9" class="cella" style="fill:#ffffff">2512</text>
 <rect x="552.8" y="90.2" width="35.8" height="29.2" fill="#3987e5"/>
-<text x="570.7" y="107.9" class="cella" style="fill:#0b0b0b">2068</text>
+<text x="570.7" y="107.9" class="cella" style="fill:#0b0b0b">1921</text>
 <rect x="590.6" y="90.2" width="35.8" height="29.2" fill="#3987e5"/>
-<text x="608.4" y="107.9" class="cella" style="fill:#0b0b0b">1989</text>
-<rect x="628.3" y="90.2" width="35.8" height="29.2" fill="#3987e5"/>
-<text x="646.2" y="107.9" class="cella" style="fill:#0b0b0b">2325</text>
+<text x="608.4" y="107.9" class="cella" style="fill:#0b0b0b">1942</text>
+<rect x="628.3" y="90.2" width="35.8" height="29.2" fill="#2a78d6"/>
+<text x="646.2" y="107.9" class="cella" style="fill:#ffffff">2644</text>
 <rect x="666.1" y="90.2" width="35.8" height="29.2" fill="#2a78d6"/>
-<text x="684.0" y="107.9" class="cella" style="fill:#ffffff">2839</text>
-<rect x="703.9" y="90.2" width="35.8" height="29.2" fill="#2a78d6"/>
-<text x="721.8" y="107.9" class="cella" style="fill:#ffffff">3180</text>
+<text x="684.0" y="107.9" class="cella" style="fill:#ffffff">2315</text>
+<rect x="703.9" y="90.2" width="35.8" height="29.2" fill="#256abf"/>
+<text x="721.8" y="107.9" class="cella" style="fill:#ffffff">4467</text>
 <rect x="741.7" y="90.2" width="35.8" height="29.2" fill="#184f95"/>
-<text x="759.6" y="107.9" class="cella" style="fill:#ffffff">9212</text>
+<text x="759.6" y="107.9" class="cella" style="fill:#ffffff">9270</text>
 <rect x="779.4" y="90.2" width="35.8" height="29.2" fill="#184f95"/>
-<text x="797.3" y="107.9" class="cella" style="fill:#ffffff">9492</text>
+<text x="797.3" y="107.9" class="cella" style="fill:#ffffff">9564</text>
 <rect x="817.2" y="90.2" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <text x="506" y="107.9" class="tacca-y">2</text>
 <rect x="515.0" y="121.5" width="35.8" height="29.2" fill="#5598e7"/>
-<text x="532.9" y="139.1" class="cella" style="fill:#0b0b0b">1574</text>
-<rect x="552.8" y="121.5" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="570.7" y="139.1" class="cella" style="fill:#0b0b0b">1084</text>
-<rect x="590.6" y="121.5" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="608.4" y="139.1" class="cella" style="fill:#0b0b0b">1062</text>
+<text x="532.9" y="139.1" class="cella" style="fill:#0b0b0b">1337</text>
+<rect x="552.8" y="121.5" width="35.8" height="29.2" fill="#5598e7"/>
+<text x="570.7" y="139.1" class="cella" style="fill:#0b0b0b">1030</text>
+<rect x="590.6" y="121.5" width="35.8" height="29.2" fill="#5598e7"/>
+<text x="608.4" y="139.1" class="cella" style="fill:#0b0b0b">1068</text>
 <rect x="628.3" y="121.5" width="35.8" height="29.2" fill="#5598e7"/>
-<text x="646.2" y="139.1" class="cella" style="fill:#0b0b0b">1363</text>
+<text x="646.2" y="139.1" class="cella" style="fill:#0b0b0b">1369</text>
 <rect x="666.1" y="121.5" width="35.8" height="29.2" fill="#5598e7"/>
-<text x="684.0" y="139.1" class="cella" style="fill:#0b0b0b">1484</text>
-<rect x="703.9" y="121.5" width="35.8" height="29.2" fill="#3987e5"/>
-<text x="721.8" y="139.1" class="cella" style="fill:#0b0b0b">1772</text>
+<text x="684.0" y="139.1" class="cella" style="fill:#0b0b0b">1271</text>
+<rect x="703.9" y="121.5" width="35.8" height="29.2" fill="#2a78d6"/>
+<text x="721.8" y="139.1" class="cella" style="fill:#ffffff">2379</text>
 <rect x="741.7" y="121.5" width="35.8" height="29.2" fill="#2a78d6"/>
-<text x="759.6" y="139.1" class="cella" style="fill:#ffffff">2490</text>
+<text x="759.6" y="139.1" class="cella" style="fill:#ffffff">2491</text>
 <rect x="779.4" y="121.5" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="817.2" y="121.5" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <text x="506" y="139.1" class="tacca-y">4</text>
 <rect x="515.0" y="152.8" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="532.9" y="170.4" class="cella" style="fill:#0b0b0b">927</text>
+<text x="532.9" y="170.4" class="cella" style="fill:#0b0b0b">809</text>
 <rect x="552.8" y="152.8" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="570.7" y="170.4" class="cella" style="fill:#0b0b0b">765</text>
+<text x="570.7" y="170.4" class="cella" style="fill:#0b0b0b">654</text>
 <rect x="590.6" y="152.8" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="608.4" y="170.4" class="cella" style="fill:#0b0b0b">797</text>
+<text x="608.4" y="170.4" class="cella" style="fill:#0b0b0b">723</text>
 <rect x="628.3" y="152.8" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="646.2" y="170.4" class="cella" style="fill:#0b0b0b">962</text>
+<text x="646.2" y="170.4" class="cella" style="fill:#0b0b0b">906</text>
 <rect x="666.1" y="152.8" width="35.8" height="29.2" fill="#5598e7"/>
-<text x="684.0" y="170.4" class="cella" style="fill:#0b0b0b">1161</text>
+<text x="684.0" y="170.4" class="cella" style="fill:#0b0b0b">1299</text>
 <rect x="703.9" y="152.8" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="721.8" y="170.4" class="cella" style="fill:#0b0b0b">1014</text>
+<text x="721.8" y="170.4" class="cella" style="fill:#0b0b0b">965</text>
 <rect x="741.7" y="152.8" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="779.4" y="152.8" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="817.2" y="152.8" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <text x="506" y="170.4" class="tacca-y">7</text>
 <rect x="515.0" y="184.0" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="532.9" y="201.6" class="cella" style="fill:#0b0b0b">843</text>
+<text x="532.9" y="201.6" class="cella" style="fill:#0b0b0b">719</text>
 <rect x="552.8" y="184.0" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="570.7" y="201.6" class="cella" style="fill:#0b0b0b">575</text>
+<text x="570.7" y="201.6" class="cella" style="fill:#0b0b0b">536</text>
 <rect x="590.6" y="184.0" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="608.4" y="201.6" class="cella" style="fill:#0b0b0b">572</text>
+<text x="608.4" y="201.6" class="cella" style="fill:#0b0b0b">554</text>
 <rect x="628.3" y="184.0" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="646.2" y="201.6" class="cella" style="fill:#0b0b0b">768</text>
+<text x="646.2" y="201.6" class="cella" style="fill:#0b0b0b">733</text>
 <rect x="666.1" y="184.0" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="684.0" y="201.6" class="cella" style="fill:#0b0b0b">584</text>
+<text x="684.0" y="201.6" class="cella" style="fill:#0b0b0b">583</text>
 <rect x="703.9" y="184.0" width="35.8" height="29.2" fill="#6da7ec"/>
-<text x="721.8" y="201.6" class="cella" style="fill:#0b0b0b">837</text>
+<text x="721.8" y="201.6" class="cella" style="fill:#0b0b0b">787</text>
 <rect x="741.7" y="184.0" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="779.4" y="184.0" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="817.2" y="184.0" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <text x="506" y="201.6" class="tacca-y">8</text>
 <rect x="515.0" y="215.2" width="35.8" height="29.2" fill="#86b6ef"/>
-<text x="532.9" y="232.9" class="cella" style="fill:#0b0b0b">553</text>
+<text x="532.9" y="232.9" class="cella" style="fill:#0b0b0b">446</text>
 <rect x="552.8" y="215.2" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="570.7" y="232.9" class="cella" style="fill:#0b0b0b">388</text>
+<text x="570.7" y="232.9" class="cella" style="fill:#0b0b0b">326</text>
 <rect x="590.6" y="215.2" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="608.4" y="232.9" class="cella" style="fill:#0b0b0b">409</text>
+<text x="608.4" y="232.9" class="cella" style="fill:#0b0b0b">375</text>
 <rect x="628.3" y="215.2" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="646.2" y="232.9" class="cella" style="fill:#0b0b0b">457</text>
+<text x="646.2" y="232.9" class="cella" style="fill:#0b0b0b">407</text>
 <rect x="666.1" y="215.2" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="684.0" y="232.9" class="cella" style="fill:#0b0b0b">438</text>
+<text x="684.0" y="232.9" class="cella" style="fill:#0b0b0b">384</text>
 <rect x="703.9" y="215.2" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="741.7" y="215.2" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="779.4" y="215.2" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="817.2" y="215.2" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <text x="506" y="232.9" class="tacca-y">14</text>
 <rect x="515.0" y="246.5" width="35.8" height="29.2" fill="#9ec5f4"/>
-<text x="532.9" y="264.1" class="cella" style="fill:#0b0b0b">432</text>
+<text x="532.9" y="264.1" class="cella" style="fill:#0b0b0b">318</text>
 <rect x="552.8" y="246.5" width="35.8" height="29.2" fill="#b7d3f6"/>
-<text x="570.7" y="264.1" class="cella" style="fill:#0b0b0b">295</text>
+<text x="570.7" y="264.1" class="cella" style="fill:#0b0b0b">210</text>
 <rect x="590.6" y="246.5" width="35.8" height="29.2" fill="#b7d3f6"/>
-<text x="608.4" y="264.1" class="cella" style="fill:#0b0b0b">295</text>
+<text x="608.4" y="264.1" class="cella" style="fill:#0b0b0b">207</text>
 <rect x="628.3" y="246.5" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="666.1" y="246.5" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="703.9" y="246.5" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
@@ -303,10 +303,10 @@ text{font-family:"DejaVu Sans",sans-serif;fill:var(--inchiostro)}
 <rect x="779.4" y="246.5" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="817.2" y="246.5" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <text x="506" y="264.1" class="tacca-y">28</text>
-<rect x="515.0" y="277.8" width="35.8" height="29.2" fill="#b7d3f6"/>
-<text x="532.9" y="295.4" class="cella" style="fill:#0b0b0b">271</text>
-<rect x="552.8" y="277.8" width="35.8" height="29.2" fill="#b7d3f6"/>
-<text x="570.7" y="295.4" class="cella" style="fill:#0b0b0b">267</text>
+<rect x="515.0" y="277.8" width="35.8" height="29.2" fill="#cde2fb"/>
+<text x="532.9" y="295.4" class="cella" style="fill:#0b0b0b">159</text>
+<rect x="552.8" y="277.8" width="35.8" height="29.2" fill="#cde2fb"/>
+<text x="570.7" y="295.4" class="cella" style="fill:#0b0b0b">154</text>
 <rect x="590.6" y="277.8" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="628.3" y="277.8" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
 <rect x="666.1" y="277.8" width="35.8" height="29.2" fill="none" stroke="var(--griglia)"/>
@@ -339,8 +339,8 @@ text{font-family:"DejaVu Sans",sans-serif;fill:var(--inchiostro)}
 <rect x="652.5" y="374" width="14.3" height="10" fill="#184f95"/>
 <rect x="666.3" y="374" width="14.3" height="10" fill="#104281"/>
 <rect x="680.2" y="374" width="14.3" height="10" fill="#0d366b"/>
-<text x="514" y="396" class="tacca-x" text-anchor="start">200</text>
-<text x="694.0" y="396" class="tacca-x" text-anchor="end">1.95e+04</text>
+<text x="514" y="396" class="tacca-x" text-anchor="start">154</text>
+<text x="694.0" y="396" class="tacca-x" text-anchor="end">2.12e+04</text>
 <text x="604.0" y="369" class="legenda" text-anchor="middle">ms per passo</text>
 <text x="74" y="428" class="nota">Stessa scala di colore nei due riquadri, cosi' si possono confrontare.</text>
 <text x="74" y="444" class="nota">Lungo un'anti-diagonale processi x thread e' costante: cambia solo come le stesse unita' sono divise.</text>
