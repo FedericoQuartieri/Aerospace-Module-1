@@ -39,6 +39,15 @@ The test executables are created in `build/tests/` and can be run separately:
 The manufactured tests return a non-zero status when their L2 norms cross
 conservative regression thresholds, so they can be used directly in scripts.
 
+`brinkman_channel` checks the regime of the obstacles, small permeability and
+a jump of K, against the exact solution of Brinkman flow in a plane channel:
+
+```sh
+./build/tests/brinkman_channel                     # uniform K = 1e-2
+./build/tests/brinkman_channel layer 1e-4          # porous layer, free fluid above
+./scripts/run_brinkman.sh                          # grids x permeabilities, into docs/brinkman/
+```
+
 For the results of the report, `./scripts/run_equivalence.sh` runs
 `paper_man` under both backends, with and without MPI, threads and SIMD, and
 tabulates the norms in `docs/equivalence/`; `./scripts/run_figures.sh` runs
