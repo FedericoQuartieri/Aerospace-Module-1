@@ -1,4 +1,4 @@
-/* Three-dimensional channel with a moving spherical Brinkman obstacle. */
+/* Three-dimensional channel with a rigid sphere moving along it. */
 #include "solver.h"
 #include "parallel.h"
 
@@ -7,17 +7,6 @@
 #define SOLID_PERMEABILITY ((Real)2e-3)
 #define SPHERE_RADIUS ((Real)0.18 * (Real)LY)
 #define SPHERE_TRAVEL_AMPLITUDE ((Real)0.25 * (Real)LX)
-
-static Real zero_forcing(Real x, Real y, Real z, Real t, int component)
-{
-    (void)x;
-    (void)y;
-    (void)z;
-    (void)t;
-    (void)component;
-
-    return (Real)0;
-}
 
 static Real zero_pressure(Real x, Real y, Real z, Real t)
 {
@@ -112,6 +101,35 @@ static Real moving_sphere_permeability(Real x,
         : FREE_FLUID_PERMEABILITY;
 }
 
+static Real sphere_velocity_x(Real t)
+{
+    const Real omega = (Real)2 * (Real)M_PI / (Real)T;
+
+    return SPHERE_TRAVEL_AMPLITUDE * omega * (Real)cos((double)(omega * t));
+}
+
+/*
+ * A body that moves drags the fluid inside it along: the drag has to be
+ * (NU/K) (u - u_s), not (NU/K) u, or the sphere is only a region where the
+ * fluid is stopped, moved a little at every step.  The solver keeps
+ * (NU/K) u on the left, so the known part (NU/K) u_s is the forcing.
+ *
+ * It is written with the same permeability the solver samples, and the solver
+ * evaluates both at the same staggered point and the same half step: the
+ * cells treated as solid are exactly the ones that receive it.  Outside the
+ * sphere K = 1e30 and the term vanishes.
+ */
+static Real rigid_sphere_forcing(Real x, Real y, Real z, Real t,
+                                 int component)
+{
+    if (component != 0) {
+        return (Real)0;
+    }
+
+    return (Real)NU / moving_sphere_permeability(x, y, z, t, component) *
+           sphere_velocity_x(t);
+}
+
 int main(void)
 {
     par_init(NULL, NULL);
@@ -119,7 +137,7 @@ int main(void)
     Data data = {
         .name = "Channel with moving spherical obstacle",
         .bc_velocity = channel_boundary_velocity,
-        .forcing_fn = zero_forcing,
+        .forcing_fn = rigid_sphere_forcing,
         .porosity_fn = moving_sphere_permeability,
         .porosity_time_dependent = 1,
         .velocity_fn = channel_initial_velocity,
