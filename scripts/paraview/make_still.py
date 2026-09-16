@@ -9,6 +9,8 @@
 #                       the X = 0 section for a channel (default diagonal)
 #   --streamlines N     how many (default 24, 0 for none)
 #   --width PIXELS      width of the domain in the image (default 1600)
+#   --range LOW HIGH    fix the colour scale, so that stills meant to be
+#                       compared share it (default: the range of the slice)
 #
 # example:
 #   pvpython scripts/paraview/make_still.py data/output/channel_obstacle \
@@ -79,6 +81,8 @@ parser.add_argument("--seeds", choices=["diagonal", "inlet"],
                     default="diagonal")
 parser.add_argument("--streamlines", type=int, default=24)
 parser.add_argument("--width", type=int, default=1600)
+parser.add_argument("--range", type=float, nargs=2, default=None,
+                    metavar=("LOW", "HIGH"))
 args = parser.parse_args()
 
 files = sorted(glob.glob(os.path.join(args.folder, "sol_*.pvti")))
@@ -122,6 +126,8 @@ speed.ResultArrayName = "speed"
 speed.Function = "mag(velocity)"
 speed.UpdatePipeline()
 speed_low, speed_high = speed.PointData["speed"].GetRange()
+if args.range is not None:
+    speed_low, speed_high = args.range
 if not speed_high > speed_low:
     speed_high = speed_low + 1.0
 
@@ -152,11 +158,15 @@ for index, colour in enumerate(RAMP):
     points += [value] + rgb(colour)
 lut.RGBPoints = points
 lut.ColorSpace = "Lab"
+# ParaView widens the scale to the data when the field is shown: keep the one
+# chosen above, or stills meant to be compared end up on different scales.
+lut.AutomaticRescaleRangeMode = "Never"
 
 shown = Show(speed, view)
 shown.SetRepresentationType("Surface")
 ColorBy(shown, ("POINTS", "speed"))
 shown.LookupTable = lut
+lut.RescaleTransferFunction(speed_low, speed_high)
 unlit(shown)
 shown.SetScalarBarVisibility(view, True)
 
@@ -193,8 +203,8 @@ if has_solid:
     solid.Value = threshold
     solid.Invert = 1
     solid.Crinkleclip = 0
-    # Above the streamlines: the small velocity the drag leaves inside the
-    # solid is not flow worth drawing.
+    # Above the streamlines: inside the solid the velocity is the one the drag
+    # imposes, the body's own, not flow worth drawing.
     fill = Show(lifted(solid, 4e-3), view)
     fill.SetRepresentationType("Surface")
     unlit(fill, SOLID)
