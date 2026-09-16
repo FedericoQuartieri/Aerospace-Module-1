@@ -51,7 +51,10 @@ a jump of K, against the exact solution of Brinkman flow in a plane channel:
 For the results of the report, `./scripts/run_equivalence.sh` runs
 `paper_man` under both backends, with and without MPI, threads and SIMD, and
 tabulates the norms in `docs/equivalence/`; `./scripts/run_figures.sh` runs
-the cavity and the two channels into `data/output/<case>/` for ParaView.
+the cavity and the two channels into `data/output/<case>/` for ParaView, and
+`./scripts/paraview/report_images.sh` turns those runs into the mid-plane
+and perspective images in `report/figures/` (set `PVPYTHON` if `pvpython` is
+not on the path).
 
 Run the fast backend equivalence check with:
 
