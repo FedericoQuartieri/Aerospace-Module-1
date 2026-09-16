@@ -38,6 +38,11 @@ The test executables are created in `build/tests/` and can be run separately:
 
 The manufactured tests return a non-zero status when their L2 norms cross
 conservative regression thresholds, so they can be used directly in scripts.
+
+For the results of the report, `./scripts/run_equivalence.sh` runs
+`paper_man` under both backends, with and without MPI, threads and SIMD, and
+tabulates the norms in `docs/equivalence/`.
+
 Run the fast backend equivalence check with:
 
 ```sh

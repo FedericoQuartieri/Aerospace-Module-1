@@ -1,0 +1,638 @@
+commit f65f8ce (with uncommitted changes)
+host federico-MacBookAir, 2026-09-15T22:17:55+02:00
+paper_man at 32^3, 20 steps to T = 0.1; MPI runs: 8 processes (2 2 2), 2 threads
+
+=== schur-mpi0-omp0-simd0
+Global grid: 32 x 32 x 32
+Local block: 32 x 32 x 32
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  15.915 ms ( 50.0%)
+    g term:    11.251 ms ( 35.3%)
+    eta solve: 4.664 ms ( 14.7%)
+  zeta system: 4.232 ms ( 13.3%)
+  u system:    4.129 ms ( 13.0%)
+  psi system:  0.685 ms (  2.2%)
+  phi low:     0.635 ms (  2.0%)
+  phi high:    0.616 ms (  1.9%)
+  pressure:    0.048 ms (  0.2%)
+  porosity:    5.571 ms ( 17.5%)
+  write file:  0.000 ms
+  unaccounted: 0.002 ms (  0.0%)
+  wall per step: 31.834 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 97.150 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== schur-mpi0-omp0-simd1
+Global grid: 32 x 32 x 32
+Local block: 32 x 32 x 32
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  13.899 ms ( 60.2%)
+    g term:    9.741 ms ( 42.2%)
+    eta solve: 4.158 ms ( 18.0%)
+  zeta system: 1.267 ms (  5.5%)
+  u system:    1.147 ms (  5.0%)
+  psi system:  0.609 ms (  2.6%)
+  phi low:     0.583 ms (  2.5%)
+  phi high:    0.569 ms (  2.5%)
+  pressure:    0.039 ms (  0.2%)
+  porosity:    4.965 ms ( 21.5%)
+  write file:  0.000 ms
+  unaccounted: 0.002 ms (  0.0%)
+  wall per step: 23.081 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 70.438 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== schur-mpi0-omp1-simd0
+Global grid: 32 x 32 x 32
+Local block: 32 x 32 x 32
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 2
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  12.558 ms ( 52.0%)
+    g term:    8.891 ms ( 36.8%)
+    eta solve: 3.667 ms ( 15.2%)
+  zeta system: 3.115 ms ( 12.9%)
+  u system:    3.031 ms ( 12.6%)
+  psi system:  0.508 ms (  2.1%)
+  phi low:     0.431 ms (  1.8%)
+  phi high:    0.432 ms (  1.8%)
+  pressure:    0.049 ms (  0.2%)
+  porosity:    4.015 ms ( 16.6%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 24.142 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 73.674 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== schur-mpi0-omp1-simd1
+Global grid: 32 x 32 x 32
+Local block: 32 x 32 x 32
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 2
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  10.235 ms ( 58.9%)
+    g term:    7.283 ms ( 41.9%)
+    eta solve: 2.951 ms ( 17.0%)
+  zeta system: 0.994 ms (  5.7%)
+  u system:    0.956 ms (  5.5%)
+  psi system:  0.436 ms (  2.5%)
+  phi low:     0.398 ms (  2.3%)
+  phi high:    0.404 ms (  2.3%)
+  pressure:    0.055 ms (  0.3%)
+  porosity:    3.884 ms ( 22.4%)
+  write file:  0.000 ms
+  unaccounted: 0.002 ms (  0.0%)
+  wall per step: 17.363 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 52.988 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== schur-mpi1-omp0-simd0
+Global grid: 32 x 32 x 32
+Local block: 16 x 16 x 16
+Processes: 8
+Process grid: 2 x 2 x 2
+Critical rank: 6
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  8.345 ms ( 39.8%)
+    g term:    4.538 ms ( 21.7%)
+    eta solve: 3.806 ms ( 18.2%)
+  zeta system: 4.756 ms ( 22.7%)
+  u system:    4.649 ms ( 22.2%)
+  psi system:  0.475 ms (  2.3%)
+  phi low:     0.479 ms (  2.3%)
+  phi high:    0.455 ms (  2.2%)
+  pressure:    0.015 ms (  0.1%)
+  porosity:    2.055 ms (  9.8%)
+  write file:  0.000 ms
+  unaccounted: 3.160 ms ( 15.1%)
+  wall per step: 20.944 ms
+  mpi per step:  9.310 ms ( 44.5%)
+  per cell-step: 511.334 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== schur-mpi1-omp0-simd1
+Global grid: 32 x 32 x 32
+Local block: 16 x 16 x 16
+Processes: 8
+Process grid: 2 x 2 x 2
+Critical rank: 7
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  5.986 ms ( 43.5%)
+    g term:    3.847 ms ( 28.0%)
+    eta solve: 2.139 ms ( 15.6%)
+  zeta system: 2.555 ms ( 18.6%)
+  u system:    2.340 ms ( 17.0%)
+  psi system:  0.241 ms (  1.8%)
+  phi low:     0.235 ms (  1.7%)
+  phi high:    0.244 ms (  1.8%)
+  pressure:    0.017 ms (  0.1%)
+  porosity:    1.817 ms ( 13.2%)
+  write file:  0.000 ms
+  unaccounted: 1.331 ms (  9.7%)
+  wall per step: 13.750 ms
+  mpi per step:  3.761 ms ( 27.4%)
+  per cell-step: 335.685 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== schur-mpi1-omp1-simd0
+Global grid: 32 x 32 x 32
+Local block: 16 x 16 x 16
+Processes: 8
+Process grid: 2 x 2 x 2
+Critical rank: 2
+Threads per process: 2
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  8.199 ms ( 39.5%)
+    g term:    1.904 ms (  9.2%)
+    eta solve: 6.294 ms ( 30.3%)
+  zeta system: 4.729 ms ( 22.8%)
+  u system:    4.533 ms ( 21.8%)
+  psi system:  0.936 ms (  4.5%)
+  phi low:     0.948 ms (  4.6%)
+  phi high:    0.982 ms (  4.7%)
+  pressure:    0.030 ms (  0.1%)
+  porosity:    1.704 ms (  8.2%)
+  write file:  0.000 ms
+  unaccounted: 1.568 ms (  7.6%)
+  wall per step: 20.748 ms
+  mpi per step:  5.775 ms ( 27.8%)
+  per cell-step: 506.549 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== schur-mpi1-omp1-simd1
+Global grid: 32 x 32 x 32
+Local block: 16 x 16 x 16
+Processes: 8
+Process grid: 2 x 2 x 2
+Critical rank: 3
+Threads per process: 2
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  8.163 ms ( 36.9%)
+    g term:    1.947 ms (  8.8%)
+    eta solve: 6.215 ms ( 28.1%)
+  zeta system: 4.565 ms ( 20.6%)
+  u system:    4.474 ms ( 20.2%)
+  psi system:  1.320 ms (  6.0%)
+  phi low:     1.521 ms (  6.9%)
+  phi high:    1.639 ms (  7.4%)
+  pressure:    0.029 ms (  0.1%)
+  porosity:    1.711 ms (  7.7%)
+  write file:  0.000 ms
+  unaccounted: 1.568 ms (  7.1%)
+  wall per step: 22.124 ms
+  mpi per step:  6.896 ms ( 31.2%)
+  per cell-step: 540.129 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== pipeline-mpi0-omp0-simd0
+Global grid: 32 x 32 x 32
+Local block: 32 x 32 x 32
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: pipeline
+Pipeline batch lines: 256
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  16.621 ms ( 51.6%)
+    g term:    11.376 ms ( 35.3%)
+    eta solve: 5.245 ms ( 16.3%)
+  zeta system: 4.327 ms ( 13.4%)
+  u system:    4.096 ms ( 12.7%)
+  psi system:  0.549 ms (  1.7%)
+  phi low:     0.403 ms (  1.3%)
+  phi high:    0.404 ms (  1.3%)
+  pressure:    0.040 ms (  0.1%)
+  porosity:    5.768 ms ( 17.9%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 32.209 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 98.294 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== pipeline-mpi0-omp0-simd1
+Global grid: 32 x 32 x 32
+Local block: 32 x 32 x 32
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: pipeline
+Pipeline batch lines: 256
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  13.150 ms ( 61.1%)
+    g term:    8.859 ms ( 41.1%)
+    eta solve: 4.292 ms ( 19.9%)
+  zeta system: 1.502 ms (  7.0%)
+  u system:    1.431 ms (  6.6%)
+  psi system:  0.424 ms (  2.0%)
+  phi low:     0.316 ms (  1.5%)
+  phi high:    0.318 ms (  1.5%)
+  pressure:    0.031 ms (  0.1%)
+  porosity:    4.365 ms ( 20.3%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 21.538 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 65.728 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== pipeline-mpi0-omp1-simd0
+Global grid: 32 x 32 x 32
+Local block: 32 x 32 x 32
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 2
+Tridiagonal backend: pipeline
+Pipeline batch lines: 512
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  10.787 ms ( 43.7%)
+    g term:    5.834 ms ( 23.7%)
+    eta solve: 4.953 ms ( 20.1%)
+  zeta system: 4.368 ms ( 17.7%)
+  u system:    4.374 ms ( 17.7%)
+  psi system:  0.886 ms (  3.6%)
+  phi low:     0.764 ms (  3.1%)
+  phi high:    0.788 ms (  3.2%)
+  pressure:    0.040 ms (  0.2%)
+  porosity:    2.659 ms ( 10.8%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 24.667 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 75.278 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== pipeline-mpi0-omp1-simd1
+Global grid: 32 x 32 x 32
+Local block: 32 x 32 x 32
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 2
+Tridiagonal backend: pipeline
+Pipeline batch lines: 512
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  9.225 ms ( 49.5%)
+    g term:    4.784 ms ( 25.7%)
+    eta solve: 4.441 ms ( 23.9%)
+  zeta system: 2.532 ms ( 13.6%)
+  u system:    2.441 ms ( 13.1%)
+  psi system:  0.756 ms (  4.1%)
+  phi low:     0.657 ms (  3.5%)
+  phi high:    0.673 ms (  3.6%)
+  pressure:    0.037 ms (  0.2%)
+  porosity:    2.298 ms ( 12.3%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 18.620 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 56.824 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== pipeline-mpi1-omp0-simd0
+Global grid: 32 x 32 x 32
+Local block: 16 x 16 x 16
+Processes: 8
+Process grid: 2 x 2 x 2
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: pipeline
+Pipeline batch lines: 256
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  6.807 ms ( 32.6%)
+    g term:    3.432 ms ( 16.5%)
+    eta solve: 3.375 ms ( 16.2%)
+  zeta system: 3.222 ms ( 15.4%)
+  u system:    4.022 ms ( 19.3%)
+  psi system:  0.345 ms (  1.7%)
+  phi low:     0.441 ms (  2.1%)
+  phi high:    0.447 ms (  2.1%)
+  pressure:    0.009 ms (  0.0%)
+  porosity:    1.728 ms (  8.3%)
+  write file:  0.000 ms
+  unaccounted: 7.566 ms ( 36.3%)
+  wall per step: 20.857 ms
+  mpi per step:  11.988 ms ( 57.5%)
+  per cell-step: 509.211 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== pipeline-mpi1-omp0-simd1
+Global grid: 32 x 32 x 32
+Local block: 16 x 16 x 16
+Processes: 8
+Process grid: 2 x 2 x 2
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: pipeline
+Pipeline batch lines: 256
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  9.558 ms ( 44.8%)
+    g term:    4.320 ms ( 20.3%)
+    eta solve: 5.238 ms ( 24.6%)
+  zeta system: 3.715 ms ( 17.4%)
+  u system:    3.431 ms ( 16.1%)
+  psi system:  0.332 ms (  1.6%)
+  phi low:     0.294 ms (  1.4%)
+  phi high:    0.280 ms (  1.3%)
+  pressure:    0.010 ms (  0.0%)
+  porosity:    2.358 ms ( 11.1%)
+  write file:  0.000 ms
+  unaccounted: 5.609 ms ( 26.3%)
+  wall per step: 21.321 ms
+  mpi per step:  12.974 ms ( 60.9%)
+  per cell-step: 520.529 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== pipeline-mpi1-omp1-simd0
+Global grid: 32 x 32 x 32
+Local block: 16 x 16 x 16
+Processes: 8
+Process grid: 2 x 2 x 2
+Critical rank: 4
+Threads per process: 2
+Tridiagonal backend: pipeline
+Pipeline batch lines: 512
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  9.671 ms ( 41.5%)
+    g term:    3.728 ms ( 16.0%)
+    eta solve: 5.942 ms ( 25.5%)
+  zeta system: 5.325 ms ( 22.9%)
+  u system:    4.161 ms ( 17.9%)
+  psi system:  0.963 ms (  4.1%)
+  phi low:     0.974 ms (  4.2%)
+  phi high:    0.892 ms (  3.8%)
+  pressure:    0.029 ms (  0.1%)
+  porosity:    1.903 ms (  8.2%)
+  write file:  0.000 ms
+  unaccounted: 3.044 ms ( 13.1%)
+  wall per step: 23.298 ms
+  mpi per step:  9.551 ms ( 41.0%)
+  per cell-step: 568.792 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+=== pipeline-mpi1-omp1-simd1
+Global grid: 32 x 32 x 32
+Local block: 16 x 16 x 16
+Processes: 8
+Process grid: 2 x 2 x 2
+Critical rank: 0
+Threads per process: 2
+Tridiagonal backend: pipeline
+Pipeline batch lines: 512
+Directional policy: auto
+Time steps: 20
+Solver time stats (max per rank, average per time step):
+  eta system:  8.882 ms ( 46.2%)
+    g term:    3.560 ms ( 18.5%)
+    eta solve: 5.322 ms ( 27.7%)
+  zeta system: 3.688 ms ( 19.2%)
+  u system:    2.680 ms ( 13.9%)
+  psi system:  0.955 ms (  5.0%)
+  phi low:     0.938 ms (  4.9%)
+  phi high:    0.996 ms (  5.2%)
+  pressure:    0.029 ms (  0.1%)
+  porosity:    1.809 ms (  9.4%)
+  write file:  0.000 ms
+  unaccounted: 2.821 ms ( 14.7%)
+  wall per step: 19.216 ms
+  mpi per step:  7.329 ms ( 38.1%)
+  per cell-step: 469.143 1e-8s
+
+Manufactured-solution error report:
+  Grid: 32 x 32 x 32
+  dt: 5.00e-03
+  T:  1.00e-01
+  Velocity verification time: 1.00e-01
+  Pressure verification time: 9.75e-02
+  L2 error u_x: 1.1279667516e-03
+  L2 error u_y: 1.3689828379e-03
+  L2 error u_z: 1.5208682346e-03
+  L2 error p:   3.1109649808e-02
+  thresholds: |u|_L2 <= 1.00e+00, |p|_L2 <= 8.00e+00  ok
+
+backend   procs threads simd  L2 u_x            L2 u_y            L2 u_z            L2 p              max rel. diff
+schur         1       1    0  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+schur         1       1    1  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+schur         1       2    0  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+schur         1       2    1  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+schur         8       1    0  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+schur         8       1    1  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+schur         8       2    0  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+schur         8       2    1  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+pipeline      1       1    0  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+pipeline      1       1    1  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+pipeline      1       2    0  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+pipeline      1       2    1  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+pipeline      8       1    0  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+pipeline      8       1    1  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+pipeline      8       2    0  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
+pipeline      8       2    1  1.1279667516e-03  1.3689828379e-03  1.5208682346e-03  3.1109649808e-02  0.0e+00
