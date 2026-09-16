@@ -41,6 +41,8 @@ source scripts/study/matrix.sh
 
 STUDY_CHAIN_MAX="$MATRIX_CHAIN_MAX"
 study_begin 15_matrix_check
+STUDY_EXPECTED="$STUDY_OUT/expected.tsv"
+: > "$STUDY_EXPECTED"
 study_machine
 
 GRID="${CHECK_GRID:-64}"
@@ -64,6 +66,9 @@ CASE_TIMEOUT="${CASE_TIMEOUT:-600}"
 # divisione o di un thread, quindi se una forma se ne discosta e' quella forma
 # ad avere torto, non il riferimento.
 echo "=== the baselines: serial and single process ==="
+# Always present, even when MATRIX_BACKENDS/SIMD restrict the sweep.
+study_case label="reference serial" backend=schur simd=0 omp=0 mpi=0 \
+    ranks=1 threads=1 shape="1 1 1" grid="$grid" steps="$steps"
 for backend in $MATRIX_BACKENDS; do
     for simd in $MATRIX_SIMD; do
         study_baseline label="$backend s$simd" \
@@ -125,46 +130,15 @@ for simd in $MATRIX_SIMD; do
     done
 done
 
+verdict=0
 if [[ "${DRY_RUN:-0}" != "1" ]]; then
-    echo
-    echo "=== verdict: how far the norms drift across all configurations ==="
-    awk -F, -v phase=15_matrix_check '
-    function abs(x) { return x < 0 ? -x : x }
-    NR == 1 || $1 != phase || $(NF - 1) != "ok" || $30 == "" { next }
-    {
-        n++
-        ux[n] = $30 + 0; p[n] = $31 + 0; who[n] = $2
-        # Il riferimento e\x27 il primo caso letto, qualunque sia: la proprieta\x27
-        # da verificare e\x27 che tutti diano lo stesso, non che diano un valore
-        # deciso in anticipo.
-        if (n == 1) { rux = ux[1]; rp = p[1]; rwho = who[1] }
-    }
-    END {
-        if (n == 0) { print "  no norms in the CSV"; exit }
-        worst_ux = 0; worst_p = 0
-        worst_ux_who = rwho; worst_p_who = rwho
-        for (i = 1; i <= n; i++) {
-            du = (rux != 0) ? abs(ux[i] - rux) / abs(rux) : abs(ux[i])
-            dp = (rp  != 0) ? abs(p[i]  - rp)  / abs(rp)  : abs(p[i])
-            if (du > worst_ux) { worst_ux = du; worst_ux_who = who[i] }
-            if (dp > worst_p)  { worst_p  = dp; worst_p_who  = who[i] }
-        }
-        printf "  configurations compared: %d\n", n
-        printf "  reference:               %s\n", rwho
-        printf "  largest relative drift on |u_x|:  %.3e   (%s)\n",
-               worst_ux, worst_ux_who
-        printf "  largest relative drift on |p|:    %.3e   (%s)\n",
-               worst_p, worst_p_who
-        print  ""
-        if (worst_ux < 1e-10 && worst_p < 1e-10) {
-            print "  Every configuration gives the same answer: the timings of"
-            print "  the other phases compare the same thing."
-        } else {
-            print "  WARNING: some configuration is solving a different problem."
-            print "  Its timings must not be read until the reason is known."
-            print "  In double the expected drift is zero, not `small\x27."
-        }
-    }' "$STUDY_CSV"
+    if [[ "$STUDY_PENDING" -gt 0 ]]; then
+        echo "Numerical verdict pending: the campaign still has unfinished cases."
+    elif ! python3 "$STUDY_ROOT/scripts/study/validate.py" \
+            "$STUDY_CSV" "$STUDY_EXPECTED" "${CHECK_TOLERANCE:-1e-10}"; then
+        verdict=3
+    fi
 fi
 
 study_end
+exit "$verdict"

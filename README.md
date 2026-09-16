@@ -191,35 +191,59 @@ For a quick local backend check, run:
 ./scripts/check_pipeline.sh
 ```
 
-It builds Schur once, rebuilds the pipeline with several
-`PIPELINE_BATCH_LINES` values, runs `paper_man`, `zero_pressure` and
-`constant_forcing_man`, and compares the L2-error values numerically.  Use
-`GRID`, `STEPS`, `PIPELINE_BATCHES` and `TOLERANCE` to make the check larger
-or broader.  With MPI enabled, `RANKS` controls `mpirun -n` and
-`PROCESS_GRID="px py pz"` passes the decomposition shape to the tests.
+The check reconstructs all eleven state fields and compares every owned cell
+with a serial scalar Schur reference. It also runs the manufactured cases and
+checks the momentum and pressure equation residuals, including MPI junctions.
+The scenarios cover constant and space/time-dependent permeability, cubic and
+rectangular grids, SIMD tails, and partial batches. Thin MPI blocks are checked
+against the serial reference even when Schur cannot run that decomposition.
+Python 3.9 or newer is required; logs and `results.json` go to `build/pipeline-check/run-*`.
 
-The pipeline sends its lines through the processes in batches.  Small batches
-fill the pipeline sooner but send more messages; large ones give each thread
-more work between two barriers.  By default the batch is chosen at start-up:
-the power of two nearest to 256 x threads per process, at most 4096, calibrated
-on the batch sweep of the scaling campaign and the same on every process.
-`pipeline_batch_lines = N` in the configuration file overrides it for one run,
-and `make PIPELINE_BATCH_LINES=N` fixes it in the binary, as the batch sweep
-and `check_pipeline.sh` do.
+```sh
+MPI=1 OMP=1 SIMD=1 THREADS="1 4" RANKS=4 ./scripts/check_pipeline.sh
+PRECISION=float SIMD=1 ./scripts/check_pipeline.sh
+GRIDS="16;17 19 13" PIPELINE_BATCHES="auto 1 3 64" ./scripts/check_pipeline.sh
+python3 scripts/test_pipeline_tools.py
+```
 
-`SIMD=1` vectorizes the Y and Z sweeps *across* lines: along those axes
-consecutive lines are adjacent in the scratch and in the field, so one vector
-holds the same level of `SIMD_LANES` neighbouring lines.  It is the kernel the
-pipeline branch had, carried over as it was, and it keeps working when that
-direction is split between processes, which is exactly what the Schur path
-cannot do.  It covers the interior points; the two wall points, the lines left
-over at the end of a batch or of a row, and the whole X sweep go through the
-scalar path, and the two paths produce the same bits.
+`PROCESS_GRID="px py pz"` selects one MPI layout; otherwise the check tries
+all pure-axis splits and selected mixed layouts. `TOLERANCE` controls the
+combined absolute/relative comparison (default `1e-10` in double, `1e-4` in
+float). Nonfinite values and missing cells always fail. `TIMEOUT` bounds each
+run; `BUILD_JOBS` controls concurrent compilation (default 2).
 
-`OMP=1` does split the pipeline sweeps now: MPI messages still happen in the
-same batch order, while the independent lines inside each batch are shared
-among the threads.  This preserves the Thomas dependency along each line and
-keeps MPI calls outside the OpenMP regions.
+The pipeline sends independent lines through MPI processes in batches. Smaller
+batches start the next process sooner; larger ones amortize communication.
+The existing automatic rule is retained: the nearest power of two to
+256 x threads per process, capped at 4096 and shared by all processes.
+`pipeline_batch_lines = N` overrides it at runtime; compiling with
+`PIPELINE_BATCH_LINES=N` takes precedence. The rule was calibrated on the old
+loop structure and should be retuned on the target cluster. Effective batches
+are capped by available lines; local axes also cap them to expose enough work
+for the threads.
+
+Each OpenMP worker owns complete lines (or SIMD groups of neighboring Y/Z
+lines), so there is no barrier between Thomas levels. A team persists for a
+whole direction, and MPI calls run only on its master thread, preserving
+`MPI_THREAD_FUNNELED` and the forward/reverse message order. X prepares `g_line`
+in a private reusable buffer and streams contiguous scratch; Y/Z keep the
+adjacent-line SIMD layout, with scalar fallbacks at row ends and momentum walls.
+The pressure sweeps also use SIMD and reuse coefficients factored once at
+initialization. Their forward messages carry only the transformed RHS.
+
+On axes contained in one process, a worker completes both sweeps of a batch
+before reusing its scratch. Distributed momentum still retains three components
+until the reverse sweep: two arrays of three padded local volumes, or 96 MiB
+for a 128^3 double block without padding. Pressure shares that storage.
+
+Builds live in configuration-specific `build/variants/` directories; changing
+backend, batch, compiler or flags no longer requires `make clean`. `solver` and
+`build/tests/*` are convenience copies; concurrent scripts should use the paths
+returned by `make ... print-test-dir`. Compilations publish files atomically.
+
+The implementation review and local validation results are in
+[the pipeline review](docs/pipeline/review-unified.md) and
+[the validation report](docs/pipeline/validation.md).
 
 ## Scaling study
 
@@ -275,8 +299,15 @@ MATRIX_BACKENDS=pipeline BATCHES="64 1024" ./scripts/run_study.sh submit 13
 DRY_RUN=1 ./scripts/study/11_matrix_mpi.sh   # list the cases, run nothing
 ```
 
-Every phase writes the same 34 columns, so `merge` concatenates the six into
-`build/study/all.csv` and `plot_matrix.py` reads it.  Nine of those columns are the stages of a time step timed separately
+Study outputs and resume keys live in `build/study/<source-toolchain-id>/`;
+changing source contents, compiler or build options starts a separate campaign.
+Previous campaigns remain available. `STUDY_BASE` selects an explicit campaign
+for `status` or `merge`. Phase 15 requires all expected cases, finite norms and
+a serial scalar Schur reference, and exits unsuccessfully on a mismatch; an
+incomplete budgeted run postpones the verdict until its continuation.
+
+Every phase writes the same CSV schema, so `merge` concatenates the six into
+that campaign's `all.csv` and `plot_matrix.py` reads it.  Nine of those columns are the stages of a time step timed separately
 -- the three momentum sweeps, the three pressure solves, the pressure update,
 the permeability fill, and whatever is left unaccounted -- plus the share spent
 inside MPI; `matrix-12-composizione.svg` is the figure that reads them.  There is no multi-node sweep: on this cluster nothing launches

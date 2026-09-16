@@ -26,6 +26,9 @@ U_SIMD_VECTORS ?= 8
 #
 # The choice is a directory, not a chain of #ifdef: only one backend is ever
 # compiled, so the two cannot silently drift into each other.
+ifneq ($(words $(TRIDIAG)),1)
+$(error TRIDIAG must contain exactly one value)
+endif
 ifeq ($(filter $(TRIDIAG),schur pipeline),)
 $(error TRIDIAG must be schur or pipeline, not '$(TRIDIAG)')
 endif
@@ -115,6 +118,14 @@ endif
 CFLAGS += $(EXTRA_CFLAGS)
 override CPPFLAGS += $(EXTRA_CPPFLAGS)
 
+# Configuration-specific outputs prevent stale binaries after changing flags.
+# Quote each value before passing it to the shell (flags can contain quotes).
+quote = '$(subst ','"'"',$(1))'
+COMPILER_VERSION := $(shell $(CC) --version 2>/dev/null | head -n 1)
+BUILD_ID := $(shell printf '%s\n' $(call quote,$(CC)) $(call quote,$(COMPILER_VERSION)) $(call quote,$(CPPFLAGS)) $(call quote,$(CFLAGS)) | cksum | awk '{print $$1 "-" $$2}')
+BUILD_ROOT ?= build/variants
+BUILD_DIR := $(BUILD_ROOT)/$(BUILD_ID)
+.DEFAULT_GOAL := solver
 TARGET = solver
 # src/*.c is the shared solver; the tridiagonal backend comes from its own
 # directory.  src/*.c does not reach into subdirectories, so exactly one
@@ -126,13 +137,17 @@ HEADERS = $(wildcard include/*.h) $(wildcard include/*/*.h) \
 	$(wildcard src/tridiag/$(TRIDIAG)/*.h)
 
 TEST_DIR = test
-TEST_BIN_DIR = build/tests
+TEST_BIN_DIR = $(BUILD_DIR)/tests
 # Tests that exercise the backend directly live with it, so selecting a
 # backend selects its tests too and never tries to link the other one's.
 TEST_SOURCES = $(wildcard $(TEST_DIR)/*.c) \
 	$(wildcard $(TEST_DIR)/tridiag/$(TRIDIAG)/*.c)
 TEST_HEADERS = $(wildcard $(TEST_DIR)/*.h)
 CORE_SOURCES = $(filter-out src/main.c,$(SOURCES))
+CORE_OBJECTS = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(CORE_SOURCES))
+SOLVER_OBJECTS = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(SOURCES))
+CHANNEL_OBJECTS = $(patsubst %.c,$(BUILD_DIR)/channel/%.o,$(CORE_SOURCES))
+BRINKMAN_OBJECTS = $(patsubst %.c,$(BUILD_DIR)/brinkman/%.o,$(CORE_SOURCES))
 TEST_TARGETS = $(patsubst %.c,$(TEST_BIN_DIR)/%,$(notdir $(TEST_SOURCES)))
 CHANNEL_CPPFLAGS = -DDEFAULT_LX=2.0 -DDEFAULT_LY=1.0 -DDEFAULT_LZ=1.0 \
 	-DDEFAULT_WIDTH=192 -DDEFAULT_HEIGHT=96 -DDEFAULT_DEPTH=96
@@ -141,31 +156,85 @@ CHANNEL_CPPFLAGS = -DDEFAULT_LX=2.0 -DDEFAULT_LY=1.0 -DDEFAULT_LZ=1.0 \
 BRINKMAN_CPPFLAGS = -DDEFAULT_LX=20.0 -DDEFAULT_LY=1.0 -DDEFAULT_LZ=20.0 \
 	-DDEFAULT_WIDTH=6 -DDEFAULT_HEIGHT=64 -DDEFAULT_DEPTH=6
 
-$(TARGET): $(SOURCES) $(HEADERS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCES) -o $(TARGET) -lm
+# Compile to a unique temporary file and publish atomically. Independent
+# study jobs can build even the same variant without sharing partial output.
+define compile
+	@mkdir -p "$(@D)"
+	@set -e; tmp=$$(mktemp "$@.XXXXXX"); trap 'rm -f "$$tmp"' EXIT HUP INT TERM; \
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(1) -o "$$tmp" -lm; \
+	chmod +x "$$tmp"; mv -f "$$tmp" "$@"
+endef
 
-tests: $(TEST_TARGETS)
+define publish
+	@mkdir -p "$(@D)"
+	@set -e; tmp=$$(mktemp "$@.XXXXXX"); trap 'rm -f "$$tmp"' EXIT HUP INT TERM; \
+	cp "$<" "$$tmp"; chmod +x "$$tmp"; mv -f "$$tmp" "$@"
+endef
+
+define compile_object
+	@mkdir -p "$(@D)"
+	@set -e; tmp=$$(mktemp "$@.XXXXXX"); trap 'rm -f "$$tmp"' EXIT HUP INT TERM; \
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c "$<" -o "$$tmp"; mv -f "$$tmp" "$@"
+endef
+
+$(BUILD_DIR)/obj/%.o: %.c $(HEADERS) Makefile
+	$(compile_object)
+
+# These tests change solver defaults, so their core objects must also carry
+# those defaults. They cannot reuse the ordinary core object directory.
+$(CHANNEL_OBJECTS): override CPPFLAGS += $(CHANNEL_CPPFLAGS)
+$(BUILD_DIR)/channel/%.o: %.c $(HEADERS) Makefile
+	$(compile_object)
+
+$(BRINKMAN_OBJECTS): override CPPFLAGS += $(BRINKMAN_CPPFLAGS)
+$(BUILD_DIR)/brinkman/%.o: %.c $(HEADERS) Makefile
+	$(compile_object)
+
+$(BUILD_DIR)/solver: $(SOLVER_OBJECTS) Makefile
+	$(call compile,$(SOLVER_OBJECTS))
+
+# These familiar paths are convenience copies. Studies and checks use the
+# immutable variant path directly, so concurrent configurations cannot race.
+$(TARGET): $(BUILD_DIR)/solver FORCE
+	$(publish)
+
+build/tests/%: $(TEST_BIN_DIR)/% FORCE
+	$(publish)
+
+tests: $(addprefix build/tests/,$(notdir $(TEST_TARGETS)))
 
 test: tests
 
 check:
 	./scripts/check_pipeline.sh
 
-$(TEST_BIN_DIR)/channel_obstacle $(TEST_BIN_DIR)/moving_sphere: override CPPFLAGS += $(CHANNEL_CPPFLAGS)
-$(TEST_BIN_DIR)/brinkman_channel: override CPPFLAGS += $(BRINKMAN_CPPFLAGS)
+$(TEST_BIN_DIR)/channel_obstacle: $(TEST_DIR)/channel_obstacle.c $(CHANNEL_OBJECTS) $(HEADERS) $(TEST_HEADERS) Makefile
+	$(call compile,$(CHANNEL_CPPFLAGS) -Itest $< $(CHANNEL_OBJECTS))
+$(TEST_BIN_DIR)/moving_sphere: $(TEST_DIR)/moving_sphere.c $(CHANNEL_OBJECTS) $(HEADERS) $(TEST_HEADERS) Makefile
+	$(call compile,$(CHANNEL_CPPFLAGS) -Itest $< $(CHANNEL_OBJECTS))
+$(TEST_BIN_DIR)/brinkman_channel: $(TEST_DIR)/brinkman_channel.c $(BRINKMAN_OBJECTS) $(HEADERS) $(TEST_HEADERS) Makefile
+	$(call compile,$(BRINKMAN_CPPFLAGS) -Itest $< $(BRINKMAN_OBJECTS))
 
-$(TEST_BIN_DIR)/%: $(TEST_DIR)/%.c $(CORE_SOURCES) $(HEADERS) $(TEST_HEADERS) Makefile
-	mkdir -p $(TEST_BIN_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(CORE_SOURCES) -o $@ -lm
+$(TEST_BIN_DIR)/%: $(TEST_DIR)/%.c $(CORE_OBJECTS) $(HEADERS) $(TEST_HEADERS) Makefile
+	$(call compile,-Itest $< $(CORE_OBJECTS))
 
 # The same recipe for the tests that live with their backend.  Two rules
 # rather than a vpath: make picks whichever prerequisite actually exists, and
 # a missing test fails loudly instead of being silently searched for elsewhere.
-$(TEST_BIN_DIR)/%: $(TEST_DIR)/tridiag/$(TRIDIAG)/%.c $(CORE_SOURCES) $(HEADERS) $(TEST_HEADERS) Makefile
-	mkdir -p $(TEST_BIN_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(CORE_SOURCES) -o $@ -lm
+$(TEST_BIN_DIR)/%: $(TEST_DIR)/tridiag/$(TRIDIAG)/%.c $(CORE_OBJECTS) $(HEADERS) $(TEST_HEADERS) Makefile
+	$(call compile,-Itest $< $(CORE_OBJECTS))
+
+print-test-dir:
+	@printf '%s\n' '$(TEST_BIN_DIR)'
+
+print-build-id:
+	@printf '%s\n' '$(BUILD_ID)'
+
+FORCE:
 
 clean:
-	rm -f $(TARGET) $(TEST_TARGETS)
+	rm -f solver
+	rm -rf build/tests $(BUILD_ROOT)
 
-.PHONY: check clean test tests
+.SECONDARY:
+.PHONY: solver check clean test tests print-test-dir print-build-id FORCE

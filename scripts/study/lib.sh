@@ -36,7 +36,10 @@
 set -euo pipefail
 
 STUDY_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-STUDY_BASE="$STUDY_ROOT/build/study"
+# Results and resume keys belong to the sources AND the toolchain that made
+# them. A new binary must never inherit successful cases from an old solver.
+STUDY_STAMP="$(python3 "$STUDY_ROOT/scripts/study/source_id.py")"
+STUDY_BASE="${STUDY_BASE:-$STUDY_ROOT/build/study/$STUDY_STAMP}"
 STUDY_BIN="$STUDY_BASE/bin"
 
 # Colonne, una volta sola: il resto del file si riferisce a questa riga.
@@ -58,6 +61,25 @@ STUDY_MEASURED_FIELDS=19
 
 study_begin()
 {
+    local identity="$STUDY_BASE/source-toolchain.id"
+    mkdir -p "$STUDY_BASE"
+    if [[ ! -f "$identity" ]]; then
+        if compgen -G "$STUDY_BASE/*/results.csv" > /dev/null; then
+            echo "STUDY_BASE contains results without source identity; choose a new directory" >&2
+            return 2
+        fi
+        # Six phases may start together. Publish complete contents only, and
+        # never overwrite an identity installed concurrently by another job.
+        local identity_tmp
+        identity_tmp="$(mktemp "$STUDY_BASE/.source-id.XXXXXX")"
+        printf '%s\n' "$STUDY_STAMP" > "$identity_tmp"
+        ln "$identity_tmp" "$identity" 2>/dev/null || true
+        rm -f "$identity_tmp"
+    fi
+    if [[ "$(cat "$identity")" != "$STUDY_STAMP" ]]; then
+        echo "STUDY_BASE belongs to different sources/toolchain; choose a new directory" >&2
+        return 2
+    fi
     STUDY_PHASE="$1"
     STUDY_OUT="$STUDY_BASE/$STUDY_PHASE"
     STUDY_CSV="$STUDY_OUT/results.csv"
@@ -282,15 +304,6 @@ study_machine()
 # non stampano la riga `g term'. Le chiavi non ne portavano traccia.
 study_source_stamp()
 {
-    if [[ -z "${STUDY_STAMP:-}" ]]; then
-        STUDY_STAMP="$(
-            {
-                cat "$STUDY_ROOT/Makefile"
-                find "$STUDY_ROOT/include" "$STUDY_ROOT/src" "$STUDY_ROOT/test" \
-                    -type f \( -name '*.c' -o -name '*.h' \) -print0 \
-                    | sort -z | xargs -0 cat
-            } 2> /dev/null | md5sum | cut -c1-10)"
-    fi
     printf '%s' "$STUDY_STAMP"
 }
 
@@ -298,24 +311,30 @@ study_build()
 {
     local backend="$1" simd="$2" omp="$3" mpi="$4" batch="$5"
     local target="${6:-bench}"
-    local key="$target-$backend-simd$simd-omp$omp-mpi$mpi-b$batch-$(study_source_stamp)"
-    local out="$STUDY_BIN/$key"
-
-    if [[ -x "$out" && "${REBUILD:-0}" != "1" ]]; then
-        printf '%s' "$out"
-        return 0
+    local options=(TRIDIAG="$backend" SIMD="$simd" OMP="$omp" MPI="$mpi"
+                   PIPELINE_BATCH_LINES="$batch")
+    if [[ "$mpi" == 1 && -n "${MPICC:-}" ]]; then
+        options+=(CC="$MPICC")
+    elif [[ "$mpi" == 0 && -n "${CC:-}" ]]; then
+        options+=(CC="$CC")
     fi
-
-    if ! make -s -B -C "$STUDY_ROOT" \
-            TRIDIAG="$backend" SIMD="$simd" OMP="$omp" MPI="$mpi" \
-            PIPELINE_BATCH_LINES="$batch" \
-            "build/tests/$target" > "$STUDY_BIN/$key.build.log" 2>&1; then
+    local directory
+    directory="$(make -s --no-print-directory -C "$STUDY_ROOT" "${options[@]}" print-test-dir)" || return 1
+    local key="$target-$backend-simd$simd-omp$omp-mpi$mpi-b$batch-$STUDY_STAMP"
+    local rebuild=()
+    [[ "${REBUILD:-0}" == 1 ]] && rebuild=(-B)
+    # Build directly at the configuration path; no shared bench followed by mv.
+    if ! make -s --no-print-directory ${rebuild[@]+"${rebuild[@]}"} -C "$STUDY_ROOT" \
+            "${options[@]}" "$directory/$target" > "$STUDY_BIN/$key.build.log" 2>&1; then
         echo "build failed: $key" >&2
-        sed 's/^/    /' "$STUDY_BIN/$key.build.log" | head -20 >&2
+        head -20 "$STUDY_BIN/$key.build.log" >&2
         return 1
     fi
-    mv "$STUDY_ROOT/build/tests/$target" "$out"
-    printf '%s' "$out"
+    if [[ "$directory" == /* ]]; then
+        printf '%s' "$directory/$target"
+    else
+        printf '%s' "$STUDY_ROOT/$directory/$target"
+    fi
 }
 
 # Il file di configurazione di una taglia: griglia e passi, niente altro.
@@ -472,6 +491,12 @@ study_case()
     local nx ny nz
     read -r nx ny nz <<< "$grid"
     [[ -z "$label" ]] && label="$backend/r${ranks}t${threads}/${nx}"
+
+    if [[ -n "${STUDY_EXPECTED:-}" ]]; then
+        printf '%s\t%s\n' \
+            "$label|$backend|$batch|$simd|$omp|$mpi|$ranks|$threads|$nx|$ny|$nz|$steps" \
+            "$shape" >> "$STUDY_EXPECTED"
+    fi
 
     # La chiave della ripresa contiene tutto cio' che cambia la misura: due
     # casi con la stessa chiave sono lo stesso caso.

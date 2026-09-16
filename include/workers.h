@@ -56,8 +56,8 @@
  * che il complemento di Schur garantisce fra processi, e la si verifica allo
  * stesso modo.
  *
- * MPI resta confinato fuori dalle regioni parallele: le collettive di Schur e
- * lo scambio degli aloni li chiama sempre il thread principale, quindi basta
+ * MPI resta sul thread principale: fuori dalle regioni parallele oppure
+ * dentro WORKERS_MASTER nei team persistenti dei backend, quindi basta
  * MPI_THREAD_FUNNELED e nessuna implementazione ha bisogno di lock interni.
  *
  * Senza -DUSE_OMP tutto qui dentro descrive un thread solo e le direttive

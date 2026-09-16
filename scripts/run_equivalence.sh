@@ -88,23 +88,41 @@ for backend in schur pipeline; do
     done
 done
 
-awk -F, '
+awk -F, -v tolerance="${TOLERANCE:-1e-10}" '
 function abs(v) { return v < 0 ? -v : v }
+BEGIN {
+    if (tolerance !~ /^[0-9.]+([eE][-+]?[0-9]+)?$/ || tolerance + 0 <= 0) {
+        print "invalid TOLERANCE"; failed = 1; exit 3
+    }
+}
 NR == 1 {
     printf "\n%-9s %5s %7s %4s  %-17s %-17s %-17s %-17s %s\n",
            "backend", "procs", "threads", "simd", "L2 u_x", "L2 u_y", "L2 u_z",
-           "L2 p", "max rel. diff"
+           "L2 p", "max scaled diff"
     next
 }
 NR == 2 { for (c = 5; c <= 8; c++) ref[c] = $c }
 {
+    count++
     worst = 0
     for (c = 5; c <= 8; c++) {
-        d = abs($c - ref[c]) / abs(ref[c])
+        if ($c !~ /^[-+]?[0-9]+([.][0-9]*)?([eE][-+]?[0-9]+)?$/ ||
+            $c + 0 < 0 || $c + 0 > 1e300) {
+            printf "invalid norm in %s, column %d\n", $1, c
+            failed = 1
+        }
+        scale = abs(ref[c]); if (scale < 1) scale = 1
+        d = abs($c - ref[c]) / scale
         if (d > worst) worst = d
     }
+    if (worst > tolerance) failed = 1
     printf "%-9s %5s %7s %4s  %-17s %-17s %-17s %-17s %.1e\n",
            $1, $2, $3, $4, $5, $6, $7, $8, worst
+}
+END {
+    if (count != 16) failed = 1
+    print failed ? "FAILED: incomplete or different results" : "PASSED: all 16 configurations agree"
+    exit failed ? 3 : 0
 }' "$results" | tee -a "$log"
 
 printf '\nresults in %s\nlog in %s\n' "$results" "$log"

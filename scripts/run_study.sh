@@ -80,6 +80,17 @@ resolve_phases()
     done
 }
 
+if [[ "$action" == submit ]]; then
+    for pair in ${STUDY_ENV:-}; do
+        export "${pair?}"
+    done
+fi
+
+# Match lib.sh without sourcing it (its phase functions redirect output).
+if [[ "$action" != help && "$action" != probe ]]; then
+    study_base="${STUDY_BASE:-$root/build/study/$(python3 "$root/scripts/study/source_id.py")}"
+fi
+
 case "$action" in
 
 submit)
@@ -93,17 +104,14 @@ submit)
     # sottomissione ne' nella home. Dirgli dove metterlo e' l'unico modo di
     # vedere un job che muore PRIMA di aprire il proprio log -- che e'
     # esattamente quando serve vederlo.
-    mkdir -p "$root/build/study/pbs"
-    qsub_opts=(-V -o "$root/build/study/pbs/")
+    mkdir -p "$study_base/pbs"
+    qsub_opts=(-V -o "$study_base/pbs/")
     [[ -n "${WALLTIME:-}" ]] && qsub_opts+=(-l "walltime=$WALLTIME")
     # Tutta la catena su un nodo. lib.sh ripete il vincolo a ogni
     # ri-sottomissione: qui vale solo per il primo job.
     if [[ -n "${STUDY_HOST:-}" ]]; then
         qsub_opts+=(-l "select=1:ncpus=${STUDY_NCPUS:-112}:host=$STUDY_HOST")
     fi
-    for pair in ${STUDY_ENV:-}; do
-        export "${pair?}"
-    done
 
     rejected=0
     for phase in "${phases[@]}"; do
@@ -128,7 +136,7 @@ submit)
         echo
     fi
     echo "  qstat -u \"\$USER\"    to follow them"
-    echo "  the results land in build/study/<phase>/results.csv"
+    echo "  the results land in $study_base/<phase>/results.csv"
     ;;
 
 local)
@@ -148,15 +156,15 @@ dry)
     ;;
 
 merge)
-    out="$root/build/study/all.csv"
-    mkdir -p "$root/build/study"
+    out="$study_base/all.csv"
+    mkdir -p "$study_base"
     header=""
     intestazione=$(sed -n "s/^STUDY_HEADER='//p" "$root/scripts/study/lib.sh" \
         | head -1 | sed "s/'$//")
     colonne=$(awk -F, '{print NF}' <<< "$intestazione")
     : > "$out"
     for phase in "${all_phases[@]}"; do
-        csv="$root/build/study/$phase/results.csv"
+        csv="$study_base/$phase/results.csv"
         [[ -f "$csv" ]] || continue
         if [[ -z "$header" ]]; then
             printf '%s\n' "$intestazione" > "$out"
@@ -247,7 +255,7 @@ status)
         | head -1 | awk -F, '{print NF}')
     printf '  %-18s %8s %8s %8s   %s\n' phase cases ok failed updated
     for phase in "${all_phases[@]}"; do
-        csv="$root/build/study/$phase/results.csv"
+        csv="$study_base/$phase/results.csv"
         if [[ ! -f "$csv" ]]; then
             printf '  %-18s %8s\n' "$phase" "-"
             continue

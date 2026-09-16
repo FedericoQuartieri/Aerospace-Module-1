@@ -1,0 +1,9 @@
+{
+  "host": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "compiler": "gcc-15 (Homebrew GCC 15.2.0) 15.2.0",
+  "baseline": "5c7aa7b",
+  "steps": 3,
+  "end": 0.1,
+  "repetitions": 3,
+  "omp_wait_policy": "passive"
+}

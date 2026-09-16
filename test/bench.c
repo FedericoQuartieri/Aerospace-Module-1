@@ -48,22 +48,7 @@
 #include "parallel.h"
 #include "error_norms.h"
 
-/*
- * Da backend.h, che qui non si include: questo file ha un suo backend_name
- * statico, e le due dichiarazioni si scontrerebbero.
- */
-int backend_batch_lines(void);
-
-static const char *backend_name(void)
-{
-#if defined(TRIDIAG_PIPELINE)
-    return "pipeline";
-#elif defined(TRIDIAG_SCHUR)
-    return "schur";
-#else
-    return "unknown";
-#endif
-}
+#include "backend.h"
 
 static int built_with_simd(void)
 {
@@ -104,7 +89,11 @@ static long long peak_rss_kb(void)
     if (getrusage(RUSAGE_SELF, &usage) != 0) {
         return 0;
     }
+#ifdef __APPLE__
+    return (long long)usage.ru_maxrss / 1024;
+#else
     return (long long)usage.ru_maxrss;
+#endif
 }
 
 int main(int argc, char **argv)
@@ -194,6 +183,7 @@ int main(int argc, char **argv)
     /* Il valore, non la sola presenza: gli script esportano sempre la
      * variabile (mpirun -x vuole che esista) e la mettono a 0 quando le norme
      * non servono. */
+    int failed = 0;
     const char *norms_requested = getenv("BENCH_NORMS");
 
     if (norms_requested != NULL && norms_requested[0] != '\0' &&
@@ -209,8 +199,10 @@ int main(int argc, char **argv)
         print_solver_error_norms(&decomp, &errors,
                                  velocity_verification_time,
                                  pressure_verification_time);
+        failed = !isfinite(errors.velocity_x.L2) || !isfinite(errors.velocity_y.L2) ||
+                 !isfinite(errors.velocity_z.L2) || !isfinite(errors.pressure.L2);
     }
 
     par_finalize();
-    return 0;
+    return failed;
 }

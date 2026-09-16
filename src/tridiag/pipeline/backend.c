@@ -9,58 +9,26 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-static void pipeline_size_overflow(const char *what) {
-    if (par_rank() == 0) {
-        fprintf(stderr, "pipeline: size too large for %s\n", what);
-    }
-    par_abort(1);
-}
-
-static size_t checked_mul(size_t a, size_t b, const char *what) {
+static size_t checked_mul(size_t a, size_t b) {
     if (a != 0 && b > SIZE_MAX / a) {
-        pipeline_size_overflow(what);
+        fprintf(stderr, "pipeline: scratch size overflow\n");
+        par_abort(1);
     }
-
     return a * b;
 }
 
-static Real *xmalloc_real_array(size_t count, const char *what) {
-    return xmalloc(checked_mul(count, sizeof(Real), what));
-}
-
-/*
- * Quanti elementi di c'/d' servono per una componente lungo `axis`.
- *
- * I batch sono tutti larghi batch_lines anche quando l'ultimo e' parziale:
- * arrotondare per eccesso costa qualche riga di scratch e in cambio rende
- * l'indirizzamento una moltiplicazione invece di una somma di prefissi.
- */
-static size_t axis_capacity(const Decomp *d, int axis, int batch_lines) {
-    size_t line_count = pipeline_line_count(d, axis);
-    size_t batch_count =
-        (line_count - 1) / (size_t)batch_lines + 1;
-    size_t padded_lines =
-        checked_mul(batch_count, (size_t)batch_lines, "batch of lines");
-
-    return checked_mul(padded_lines, (size_t)d->n[axis], "per-axis scratch");
+static Real *real_array(size_t count) {
+    return xmalloc(checked_mul(count, sizeof(Real)));
 }
 
 #if !defined(PIPELINE_BATCH_LINES)
 /*
  * Linee per batch dai thread del processo.
  *
- * Il batch fa due mestieri. Fra processi e' l'unita' dei messaggi alle
- * giunzioni, e un batch piccolo fa partire prima il processo successivo.
- * Dentro un processo decide quanto lavora ogni thread fra due barriere: con
- * B linee e T thread ciascuno elimina circa B/T celle per livello e poi
- * aspetta gli altri. Un valore fisso non serve i due casi: il 64 di prima
- * restava entro il 4-14% dal migliore senza thread, e con molti thread
- * arrivava a decine di volte.
- *
- * La regola -- la potenza di due piu' vicina, in scala logaritmica, a 256
- * volte i thread, al piu' 4096 -- viene dalla scansione del batch della
- * campagna di misura: sulle 32 curve perde lo 0.5% in mediana e l'11% nel
- * caso peggiore. Oltre 4096 non ci sono misure, e la regola non estrapola.
+ * Mantiene la regola introdotta dalla campagna precedente. Il nuovo ciclo
+ * assegna linee complete ai thread, quindi non paga piu' barriere per livello:
+ * l'ottimo va rimisurato sul cluster prima di cambiare questa euristica.
+ * Gli override a compilazione e da file rimangono disponibili.
  */
 static int batch_lines_for_threads(int threads) {
     long long target = 256LL * (threads > 0 ? threads : 1);
@@ -106,88 +74,99 @@ int backend_batch_lines(void) {
     return chosen_batch_lines;
 }
 
-void backend_init(const Decomp *d, SolverMemState *solver_mem_state) {
-    PipelineBackend *backend = xmalloc(sizeof(PipelineBackend));
-    size_t capacity = 0;
-
-    /*
-     * Lo stesso valore su tutti i processi: i messaggi alle giunzioni
-     * viaggiano un batch alla volta, e due vicini con batch diversi non si
-     * capirebbero. Con thread diversi fra i processi vince il piu' grande.
-     */
-    backend->batch_lines = (int)par_max_long(requested_batch_lines());
-    if (backend->batch_lines < 1) {
-        backend->batch_lines = 1;
+void backend_init(const Decomp *d, SolverMemState *state) {
+    PipelineBackend *backend = xmalloc(sizeof *backend);
+    *backend = (PipelineBackend){0};
+    int max_batch = 1;
+    long long requested = par_max_long(requested_batch_lines());
+    if (requested < 1 || requested > INT_MAX / 2) {
+        fprintf(stderr, "pipeline: batch must be in [1, INT_MAX / 2]\n");
+        par_abort(1);
     }
-    chosen_batch_lines = backend->batch_lines;
+    chosen_batch_lines = (int)requested;
+    backend->worker_slots = workers_available();
 
     for (int axis = 0; axis < 3; axis++) {
-        size_t needed = axis_capacity(d, axis, backend->batch_lines);
-
-        if (needed > capacity) {
-            capacity = needed;
+        PipelineAxis *p = &backend->axes[axis];
+        p->axis = axis;
+        p->length = d->n[axis];
+        p->lines = pipeline_line_count(d, axis);
+        if (p->length < 1 || p->lines == 0) {
+            fprintf(stderr, "pipeline: empty local block\n");
+            par_abort(1);
         }
+        p->batch_lines = (int)(p->lines < (size_t)chosen_batch_lines
+                                  ? p->lines : (size_t)chosen_batch_lines);
+        p->has_lower = par_neighbor(axis, -1) != PAR_NO_NEIGHBOR;
+        p->has_upper = par_neighbor(axis, 1) != PAR_NO_NEIGHBOR;
+        /* Local lines have no MPI batching constraint. Keep at least one
+         * batch per worker so a large requested batch cannot serialize them. */
+        if (!pipeline_distributed(p)) {
+            size_t share = (p->lines - 1) / (size_t)backend->worker_slots + 1;
+            if (share < (size_t)p->batch_lines) p->batch_lines = (int)share;
+        }
+        p->batches = (p->lines - 1) / (size_t)p->batch_lines + 1;
+        if (p->batch_lines > max_batch) max_batch = p->batch_lines;
+        size_t batch_room = checked_mul((size_t)p->length,
+                                        (size_t)p->batch_lines);
+        if (pipeline_distributed(p)) {
+            size_t capacity = checked_mul(p->batches, batch_room);
+            if (capacity > backend->component_capacity)
+                backend->component_capacity = capacity;
+        } else if (batch_room > backend->local_capacity) {
+            backend->local_capacity = batch_room;
+        }
+
+        /* The pressure matrix is identical for all lines and all time steps.
+         * Propagate its factorization ONCE through the ranks, including the
+         * incoming c' at an MPI boundary. Runtime messages need only d'. */
+        p->pressure_a = real_array((size_t)p->length);
+        p->pressure_inverse = real_array((size_t)p->length);
+        p->pressure_c = real_array((size_t)p->length);
+        pressure_matrix(d, axis, p->pressure_a, p->pressure_inverse,
+                        p->pressure_c);
+        Real previous = 0;
+        if (p->has_lower) par_recv_real(axis, -1, &previous, 1, 500 + axis);
+        for (int level = 0; level < p->length; level++) {
+            Real inverse = (Real)1 / (p->pressure_inverse[level] -
+                                      p->pressure_a[level] * previous);
+            p->pressure_inverse[level] = inverse;
+            p->pressure_c[level] *= inverse;
+            previous = p->pressure_c[level];
+        }
+        if (p->has_upper) par_send_real(axis, 1, &previous, 1, 500 + axis);
     }
 
-    /*
-     * Il prezzo della pipeline: per poter fare la sostituzione all'indietro
-     * piu' tardi bisogna tenere c' e d' di tutto il blocco locale, per tutte
-     * e tre le componenti.  Su 128^3 in double sono circa 200 MB oltre allo
-     * stato del solutore.  Schur non li paga, ma paga tre risoluzioni locali
-     * per linea invece di una.
-     */
-    backend->component_capacity = capacity;
-    backend->c_prime =
-        xmalloc_real_array(checked_mul(3, capacity, "c'"), "c'");
-    backend->d_prime =
-        xmalloc_real_array(checked_mul(3, capacity, "d'"), "d'");
-    backend->forward =
-        xmalloc_real_array(checked_mul(2,
-                                       (size_t)backend->batch_lines,
-                                       "forward junctions"),
-                           "forward junctions");
-    backend->backward =
-        xmalloc_real_array((size_t)backend->batch_lines,
-                           "backward junctions");
-
-    /*
-     * Il g di un batch di linee lungo x.  Costa batch_lines * n[0] elementi --
-     * su 128^3 col batch di default sono 64 KB in double, nulla accanto ai c'
-     * e d' qui sopra -- e in cambio toglie g dal ciclo sulle celle.
-     */
-    backend->source_term =
-        xmalloc_real_array(checked_mul((size_t)backend->batch_lines,
-                                       (size_t)d->n[0], "batch g"),
-                           "batch g");
-    backend->abscissa =
-        xmalloc_real_array((size_t)d->n[0], "line abscissas");
-
-    /* La matrice della pressione non cambia mai: si scrive una volta qui. */
-    for (int axis = 0; axis < 3; axis++) {
-        backend->matrix_a[axis] =
-            xmalloc_real_array((size_t)d->n[axis], "pressure matrix a");
-        backend->matrix_b[axis] =
-            xmalloc_real_array((size_t)d->n[axis], "pressure matrix b");
-        backend->matrix_c[axis] =
-            xmalloc_real_array((size_t)d->n[axis], "pressure matrix c");
-        pressure_matrix(d, axis, backend->matrix_a[axis],
-                        backend->matrix_b[axis], backend->matrix_c[axis]);
-    }
-
-    solver_mem_state->backend = backend;
+    /* Distributed momentum retains three components: 6*N*sizeof(Real)
+     * bytes, 96 MiB for a 128^3 local double block without batch padding.
+     * Local axes reuse one batch per thread, shared across components. */
+    size_t distributed = checked_mul(3, backend->component_capacity);
+    size_t local = checked_mul((size_t)workers_available(),
+                               backend->local_capacity);
+    backend->scratch_count = distributed > local ? distributed : local;
+    backend->c_prime = real_array(backend->scratch_count);
+    backend->d_prime = real_array(backend->scratch_count);
+    backend->forward = real_array(checked_mul(2, (size_t)max_batch));
+    backend->backward = real_array((size_t)max_batch);
+    backend->source_term = real_array(checked_mul((size_t)backend->worker_slots,
+                                                  (size_t)d->n[0]));
+    backend->abscissa = real_array(checked_mul(3, (size_t)d->n[0]));
+    backend->source_ns = xmalloc(checked_mul((size_t)backend->worker_slots,
+                                            sizeof *backend->source_ns));
+    for (int c = 0; c < 3; c++)
+        forcing_line_coords(d, c, backend->abscissa + (size_t)c * (size_t)d->n[0]);
+    state->backend = backend;
 }
 
-void backend_free(SolverMemState *solver_mem_state) {
-    PipelineBackend *backend = solver_mem_state->backend;
-
-    if (backend == NULL) {
-        return;
-    }
+void backend_free(SolverMemState *state) {
+    PipelineBackend *backend = state->backend;
+    if (!backend) return;
     for (int axis = 0; axis < 3; axis++) {
-        free(backend->matrix_c[axis]);
-        free(backend->matrix_b[axis]);
-        free(backend->matrix_a[axis]);
+        free(backend->axes[axis].pressure_a);
+        free(backend->axes[axis].pressure_c);
+        free(backend->axes[axis].pressure_inverse);
     }
+    free(backend->source_ns);
     free(backend->abscissa);
     free(backend->source_term);
     free(backend->backward);
@@ -195,9 +174,7 @@ void backend_free(SolverMemState *solver_mem_state) {
     free(backend->d_prime);
     free(backend->c_prime);
     free(backend);
-    solver_mem_state->backend = NULL;
+    state->backend = NULL;
 }
 
-const char *backend_name(void) {
-    return "pipeline";
-}
+const char *backend_name(void) { return "pipeline"; }

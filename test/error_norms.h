@@ -252,10 +252,10 @@ static inline void print_solver_error_norms(const Decomp *d,
            (double)velocity_time);
     printf("  Pressure verification time: %.2e\n",
            (double)pressure_time);
-    printf("  L2 error u_x: %.10e\n", (double)errors->velocity_x.L2);
-    printf("  L2 error u_y: %.10e\n", (double)errors->velocity_y.L2);
-    printf("  L2 error u_z: %.10e\n", (double)errors->velocity_z.L2);
-    printf("  L2 error p:   %.10e\n", (double)errors->pressure.L2);
+    printf("  L2 error u_x: %.17e\n", (double)errors->velocity_x.L2);
+    printf("  L2 error u_y: %.17e\n", (double)errors->velocity_y.L2);
+    printf("  L2 error u_z: %.17e\n", (double)errors->velocity_z.L2);
+    printf("  L2 error p:   %.17e\n", (double)errors->pressure.L2);
 }
 
 static inline int check_solver_error_norms(const SolverErrorNorms *errors,
