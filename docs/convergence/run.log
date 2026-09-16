@@ -1,0 +1,30 @@
+Convergenza di paper_man (scripts/run_convergence.sh): due corse.
+
+results.csv -- corsa sul cluster, 2026-09-16
+  job 32436.login01, coda cpu, select=1:ncpus=28, scripts/run_convergence_cluster.sh
+  build: schur, EXTRA_CFLAGS="-mavx2 -mfma -DUSE_SIMD -fopenmp -DUSE_OMP",
+         thread scelti dallo script (meta' delle CPU concesse)
+  codice: clone /work/u10806848/Aerospace-Module-1, branch unified, pulito e
+          "up to date with origin/unified" al momento del qsub. Il pull e' stato
+          interrotto, quindi il commit esatto non e' registrato qui:
+            git -C /work/u10806848/Aerospace-Module-1 rev-parse --short HEAD
+          I commit del 13-15/09 che potrebbero mancargli toccano commenti, la
+          pipeline e dati, non il percorso Schur di questo studio.
+  spaziale:  N = 32, 64, 128, 256 con dt = 1e-4, 10 passi
+  temporale: 256^3 con dt = 0.05, 0.025, 0.0125, 0.00625 fino a T = 1
+  log completo: build/convergence/cluster.log sul cluster (non copiato)
+
+results-local-128.csv -- corsa sul portatile, 2026-09-16 (ripete quella del 15/09)
+  host federico-MacBookAir, commit f65f8ce; le modifiche non committate non
+  toccano src/ ne' test/paper_man.c
+  stessi flag, OMP_NUM_THREADS=4
+  spaziale:  N = 32, 64, 128; temporale: 128^3, stessi dt
+  Ordini identici alla corsa del 15/09. Ultimo dimezzamento temporale:
+    ux 1.8311  uy 1.6851  uz 1.7008  p 1.1698
+  I livelli spaziali 32, 64 e 128 coincidono cifra per cifra con results.csv,
+  pur con un numero diverso di thread.
+  E' la corsa che la Sezione 7.3 del report cita per il calo a 128^3.
+
+pressure.svg, velocity.svg: vecchi (3e09c51, 31/07, prima di MPI e dei
+backend), non corrispondono a questi dati. La figura del report e'
+report/figures/convergence.pdf, da scripts/plot_paper_convergence.py.
