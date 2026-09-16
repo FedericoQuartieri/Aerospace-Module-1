@@ -100,11 +100,12 @@ typedef struct SolverStats {
      *
      * E' il ramo piu' lungo, non la somma: ogni thread cronometra le proprie
      * linee e si tiene il massimo, cosi' il numero e' confrontabile con
-     * eta_sys, che e' tempo di parete. Lo riempie il backend che prepara g per
-     * linee (schur); il pipeline lo calcola cella per cella dentro il ciclo e
-     * qui lascia zero.
+     * eta_sys, che e' tempo di parete. Entrambi i backend preparano g per
+     * linea; il massimo delle somme per thread misura il lavoro di g senza
+     * includere attese MPI e sincronizzazioni.
      */
     uint64_t momentum_source;
+    uint64_t comm_steps; /* communication inside the timed solve, excluding output */
     uint64_t solve_steps;
     uint64_t wr_output;
 } SolverStats;

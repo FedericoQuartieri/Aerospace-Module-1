@@ -100,6 +100,8 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
         write_to_file(decomp, solver_mem_state, data->name, 0);
     }
 
+    uint64_t comm_start = par_comm_nanoseconds();
+    uint64_t output_comm = 0;
     uint64_t start_ns = time_ns();
     //N.B. il loop parte da t=1, perché il passo t=0 è già stato scritto sopra
     for (int t_step = 1; t_step <= STEPS; t_step++) {
@@ -144,17 +146,21 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
         if (write_enabled) {
             if (t_step % WR_FREQ == 0) {
                 uint64_t wr_start = time_ns();
+                uint64_t wr_comm = par_comm_nanoseconds();
                 /* pressure_step ha appena corretto u: l'anello di contorno
                  * porta ancora i valori di prima della proiezione. */
                 refresh_before_write(decomp, solver_mem_state);
                 write_to_file(decomp, solver_mem_state, data->name, t_step);
                 solver_stats->wr_output += time_ns() - wr_start;
+                output_comm += par_comm_nanoseconds() - wr_comm;
             }
         }
     }
 
     // aggiorna il tempo totale di esecuzione del solver, sottraendo il tempo speso per scrivere su file
     solver_stats->solve_steps = (time_ns() - start_ns) - solver_stats->wr_output;
+
+    solver_stats->comm_steps = par_comm_nanoseconds() - comm_start - output_comm;
 
     // Print solver time statistics
     print_stats(decomp, solver_stats, (size_t)STEPS);

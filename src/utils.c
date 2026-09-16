@@ -33,7 +33,7 @@ void print_stats(const Decomp *d,
         (long long)solver_stats->pressure_update +
         (long long)solver_stats->porosity_fill;
     const long long local_comm_ns =
-        (long long)par_comm_nanoseconds();
+        (long long)solver_stats->comm_steps;
     const long long local_cells =
         (long long)d->n[0] * (long long)d->n[1] * (long long)d->n[2];
 

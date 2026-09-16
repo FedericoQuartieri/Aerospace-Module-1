@@ -1,0 +1,117 @@
+{
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "source_sha256": "374c6d251abbc4c37f432b8f0273ddd16639b34cd49d68dfe95c5def4b634848",
+  "files_checked": 56,
+  "runs": [
+    {
+      "log": "local-check.log",
+      "comparisons": 72,
+      "max_scaled_difference": 0.0,
+      "grids": [
+        [
+          16,
+          16,
+          16
+        ],
+        [
+          17,
+          19,
+          13
+        ]
+      ],
+      "pipeline_batches": [
+        "1",
+        "1024",
+        "3",
+        "64",
+        "auto"
+      ],
+      "threads": [
+        1,
+        4
+      ],
+      "result": "PASSED: 72 full-field comparisons, manufactured cases and pipeline residuals; max scaled difference 0.000e+00"
+    },
+    {
+      "log": "float-check.log",
+      "comparisons": 12,
+      "max_scaled_difference": 6.556510925292969e-07,
+      "grids": [
+        [
+          7,
+          9,
+          5
+        ]
+      ],
+      "pipeline_batches": [
+        "3"
+      ],
+      "threads": [
+        1,
+        4
+      ],
+      "result": "PASSED: 12 full-field comparisons, manufactured cases and pipeline residuals; max scaled difference 6.557e-07"
+    },
+    {
+      "log": "float-vector-check.log",
+      "comparisons": 12,
+      "max_scaled_difference": 5.960464477539062e-07,
+      "grids": [
+        [
+          17,
+          19,
+          13
+        ]
+      ],
+      "pipeline_batches": [
+        "64"
+      ],
+      "threads": [
+        1,
+        4
+      ],
+      "result": "PASSED: 12 full-field comparisons, manufactured cases and pipeline residuals; max scaled difference 5.960e-07"
+    },
+    {
+      "log": "scalar-check.log",
+      "comparisons": 12,
+      "max_scaled_difference": 0.0,
+      "grids": [
+        [
+          7,
+          9,
+          5
+        ]
+      ],
+      "pipeline_batches": [
+        "3"
+      ],
+      "threads": [
+        1,
+        4
+      ],
+      "result": "PASSED: 12 full-field comparisons, manufactured cases and pipeline residuals; max scaled difference 0.000e+00"
+    },
+    {
+      "log": "sanitizer-check.log",
+      "comparisons": 12,
+      "max_scaled_difference": 2.3592239273284576e-15,
+      "grids": [
+        [
+          7,
+          9,
+          5
+        ]
+      ],
+      "pipeline_batches": [
+        "1",
+        "3",
+        "64"
+      ],
+      "threads": [
+        1
+      ],
+      "result": "PASSED: 12 full-field comparisons, manufactured cases and pipeline residuals; max scaled difference 2.359e-15"
+    }
+  ]
+}

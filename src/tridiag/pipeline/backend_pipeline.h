@@ -1,76 +1,56 @@
 #ifndef BACKEND_PIPELINE_H
 #define BACKEND_PIPELINE_H
 
+#include <limits.h>
 #include <stddef.h>
-
 #include "decomp.h"
-#include "types.h"
+#include "solver.h"
+#include "simd_real.h"
 
-/*
- * Lo stato privato del backend pipelined Thomas.  Non esce da
- * src/tridiag/pipeline/.
- *
- * L'idea, in una riga: non si spezza Thomas, si nasconde l'attesa mandando
- * in pipeline tanti sistemi indipendenti.  Su 128^3 ci sono ~16000 linee per
- * direzione, tutte indipendenti; invece di far aspettare il processo 1 mentre
- * il processo 0 lavora sulla sua meta' della stessa linea, si lavora a batch
- * di linee diverse:
- *
- *   proc 0:  [batch 0] [batch 1] [batch 2] ...
- *                    v         v         v      manda (c', d')
- *   proc 1:           [batch 0] [batch 1] [batch 2] ...
- *                              v         v
- *   proc 2:                    [batch 0] [batch 1] ...
- *
- * Dopo il riempimento tutti i processi lavorano insieme, ognuno su un batch
- * diverso.  Il prezzo e' la memoria: per poter fare la sostituzione
- * all'indietro piu' tardi bisogna tenere i c' e d' di tutto il blocco locale,
- * per tutte e tre le componenti.
- *
- * Tre componenti e non una perche' la passata avanti va x, y, z e quella
- * indietro z, y, x: quando l'ultimo processo finisce l'avanti di z puo'
- * iniziare subito l'indietro di z, e la pipeline si gira su se' stessa invece
- * di svuotarsi e riempirsi di nuovo.
- */
+#if defined(PIPELINE_BATCH_LINES) && (PIPELINE_BATCH_LINES < 1 || PIPELINE_BATCH_LINES > INT_MAX / 2)
+#error "PIPELINE_BATCH_LINES must be in [1, INT_MAX / 2]"
+#endif
 
-/*
- * Le linee per batch non sono una costante: backend_init le sceglie all'avvio
- * (backend.c). PIPELINE_BATCH_LINES, se definito a compilazione, le fissa.
- */
+/* Geometry is cached before entering OpenMP: even MPI_Cart_shift must be
+ * called by the initializing thread when MPI_THREAD_FUNNELED is in use. */
+typedef struct PipelineAxis {
+    int axis, length, batch_lines;
+    int has_lower, has_upper;
+    size_t lines, batches;
+    Real *pressure_a;
+    Real *pressure_c;       /* globally propagated normalized superdiagonal */
+    Real *pressure_inverse;
+} PipelineAxis;
 
 typedef struct PipelineBackend {
-    int batch_lines;           /* linee per batch                          */
-    size_t component_capacity; /* elementi di c'/d' per una componente     */
-    Real *c_prime;             /* 3 * component_capacity                   */
-    Real *d_prime;             /* 3 * component_capacity                   */
-    Real *forward;             /* 2 * batch_lines: i (c', d') di giunzione */
-    Real *backward;            /* batch_lines: la soluzione di giunzione   */
-    /*
-     * Il termine fisico g delle linee di un batch lungo x, batch_lines * n[0]
-     * elementi, una linea dietro l'altra.  Lo riempie forward_component prima
-     * di scendere nei livelli: g dipende dalla linea, non dal livello, e
-     * calcolarlo per linea invece che cella per cella e' cio' che permette a
-     * momentum_row di trovarselo pronto (momentum_row.h, source_term).
-     */
-    Real *source_term;
-    Real *abscissa;            /* n[0] ascisse, le stesse per ogni linea   */
-    Real *matrix_a[3];         /* la matrice della pressione, una per asse */
-    Real *matrix_b[3];
-    Real *matrix_c[3];
+    PipelineAxis axes[3];
+    size_t component_capacity; /* full local volume, for distributed axes */
+    size_t local_capacity;     /* one reusable batch per OpenMP thread */
+    size_t scratch_count;      /* elements in EACH of c_prime and d_prime */
+    Real *c_prime, *d_prime;
+    Real *forward, *backward;
+    Real *source_term, *abscissa; /* one g line per worker, three coordinate lines */
+    uint64_t *source_ns;
+    uint64_t last_source_ns;
+    int worker_slots;
 } PipelineBackend;
 
-/* Quante linee indipendenti ha il blocco locale lungo `axis`. */
 static inline size_t pipeline_line_count(const Decomp *d, int axis) {
     if (axis == 0) return (size_t)d->n[1] * (size_t)d->n[2];
     if (axis == 1) return (size_t)d->n[0] * (size_t)d->n[2];
     return (size_t)d->n[0] * (size_t)d->n[1];
 }
 
-/*
- * La cella (i, j, k) del punto `level` della linea `line` lungo `axis`.
- * Le linee sono numerate con la direzione piu' vicina in memoria che scorre
- * per prima, cosi' punti adiacenti restano adiacenti.
- */
+static inline int pipeline_distributed(const PipelineAxis *p) {
+    return p->has_lower || p->has_upper;
+}
+
+static inline int pipeline_active(const PipelineAxis *p, size_t batch) {
+    size_t remaining = p->lines - batch * (size_t)p->batch_lines;
+    return (int)(remaining < (size_t)p->batch_lines ? remaining
+                                                  : (size_t)p->batch_lines);
+}
+
 static inline void pipeline_cell(const Decomp *d, int axis, size_t line,
                                  int level, int cell[3]) {
     if (axis == 0) {
@@ -88,27 +68,20 @@ static inline void pipeline_cell(const Decomp *d, int axis, size_t line,
     }
 }
 
-/*
- * Dove stanno c' e d' del punto `level` della linea `line` del batch.
- *
- * Il layout cambia con l'asse, ed e' una scelta, non un dettaglio.  Lungo X
- * la linea e' contigua in memoria e conviene tenerla tale.  Lungo Y e Z no:
- * li' si mettono vicine le *linee*, cosi' punti allo stesso livello di linee
- * diverse sono adiacenti.  Siccome le linee sono indipendenti per
- * definizione, e' la disposizione che permette di vettorizzare attraverso le
- * linee invece che lungo la linea -- cioe' anche quando quella direzione e'
- * divisa fra processi, dove il percorso di Schur la vettorizzazione la perde.
- */
-static inline size_t pipeline_scratch(const PipelineBackend *backend, int axis,
-                                      int component, size_t batch, int level,
-                                      int line, int length) {
-    size_t base = (size_t)component * backend->component_capacity +
-                  batch * (size_t)length * (size_t)backend->batch_lines;
-
-    if (axis == 0) {
-        return base + (size_t)line * (size_t)length + (size_t)level;
-    }
-    return base + (size_t)level * (size_t)backend->batch_lines + (size_t)line;
+/* X streams a complete contiguous line; Y/Z put neighboring lines together
+ * so a SIMD vector can traverse the entire recurrence without a barrier. */
+static inline size_t pipeline_at(const PipelineAxis *p, int level, int line) {
+    return p->axis == 0 ? (size_t)line * (size_t)p->length + (size_t)level
+                       : (size_t)level * (size_t)p->batch_lines + (size_t)line;
 }
 
+static inline size_t pipeline_batch_offset(const PipelineAxis *p, size_t batch) {
+    return batch * (size_t)p->length * (size_t)p->batch_lines;
+}
+
+/* Private backend entry points, also used by the residual tests. */
+void pipeline_momentum_direction(const Decomp *d, SolverMemState *state,
+                                 Data *data, int axis, int t_step);
+void pipeline_pressure_direction(const Decomp *d, PipelineBackend *backend,
+                                 int axis, const Real *source, Real *target);
 #endif
