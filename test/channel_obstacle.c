@@ -5,9 +5,12 @@
 #define MAX_STREAMWISE_SPEED ((Real)1.0)
 #define FREE_FLUID_PERMEABILITY ((Real)1e30)
 /*
- * With DT = 1/300 and NU = 1, values below DT*NU/2 produce an oscillatory
- * Crank-Nicolson amplification factor for the Brinkman drag.  This value
- * gives a positive factor of about 0.09 while retaining a strong resistance.
+ * Crank-Nicolson multiplies the velocity inside the solid by (1 - a) / (1 + a)
+ * per step, with a = DT*NU / (2K): the factor is negative, and the velocity
+ * oscillates, whenever K < DT*NU/2.  With the default DT = 1/200 the bound is
+ * 2.5e-3 and this K gives about -0.92, so the velocity the initial profile
+ * puts inside the obstacle changes sign at every step before dying out.  The
+ * steady state is not affected, only the first frames of the transient.
  */
 #define SOLID_PERMEABILITY ((Real)1e-4)
 #define OBSTACLE_ANGLE ((Real)(35.0 * M_PI / 180.0))
