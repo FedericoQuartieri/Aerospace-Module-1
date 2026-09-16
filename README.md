@@ -41,7 +41,8 @@ conservative regression thresholds, so they can be used directly in scripts.
 
 For the results of the report, `./scripts/run_equivalence.sh` runs
 `paper_man` under both backends, with and without MPI, threads and SIMD, and
-tabulates the norms in `docs/equivalence/`.
+tabulates the norms in `docs/equivalence/`; `./scripts/run_figures.sh` runs
+the cavity and the two channels into `data/output/<case>/` for ParaView.
 
 Run the fast backend equivalence check with:
 
