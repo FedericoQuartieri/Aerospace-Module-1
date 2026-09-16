@@ -136,6 +136,10 @@ CORE_SOURCES = $(filter-out src/main.c,$(SOURCES))
 TEST_TARGETS = $(patsubst %.c,$(TEST_BIN_DIR)/%,$(notdir $(TEST_SOURCES)))
 CHANNEL_CPPFLAGS = -DDEFAULT_LX=2.0 -DDEFAULT_LY=1.0 -DDEFAULT_LZ=1.0 \
 	-DDEFAULT_WIDTH=192 -DDEFAULT_HEIGHT=96 -DDEFAULT_DEPTH=96
+# A wide, flat channel: the flow depends on y only, and cells far apart along
+# X and Z keep the exact profile on those faces from reaching the measurement.
+BRINKMAN_CPPFLAGS = -DDEFAULT_LX=20.0 -DDEFAULT_LY=1.0 -DDEFAULT_LZ=20.0 \
+	-DDEFAULT_WIDTH=6 -DDEFAULT_HEIGHT=64 -DDEFAULT_DEPTH=6
 
 $(TARGET): $(SOURCES) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCES) -o $(TARGET) -lm
@@ -148,6 +152,7 @@ check:
 	./scripts/check_pipeline.sh
 
 $(TEST_BIN_DIR)/channel_obstacle $(TEST_BIN_DIR)/moving_sphere: override CPPFLAGS += $(CHANNEL_CPPFLAGS)
+$(TEST_BIN_DIR)/brinkman_channel: override CPPFLAGS += $(BRINKMAN_CPPFLAGS)
 
 $(TEST_BIN_DIR)/%: $(TEST_DIR)/%.c $(CORE_SOURCES) $(HEADERS) $(TEST_HEADERS) Makefile
 	mkdir -p $(TEST_BIN_DIR)

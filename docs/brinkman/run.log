@@ -1,0 +1,2794 @@
+commit f65f8ce (with uncommitted changes)
+host federico-MacBookAir, 2026-09-15T22:17:16+02:00
+steps 200, t_end 1.0
+
+Global grid: 6 x 16 x 6
+Local block: 6 x 16 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.091 ms ( 43.9%)
+    g term:    0.029 ms ( 13.9%)
+    eta solve: 0.062 ms ( 30.0%)
+  zeta system: 0.041 ms ( 20.0%)
+  u system:    0.060 ms ( 28.7%)
+  psi system:  0.005 ms (  2.3%)
+  phi low:     0.006 ms (  2.8%)
+  phi high:    0.004 ms (  2.1%)
+  pressure:    0.000 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.208 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 36.067 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 16 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 2.6650725166e-02
+  L2 error u_y: 1.3802359597e-03
+  L2 error u_z: 1.4532742682e-05
+  L2 error p:   2.4066458909e+00
+
+Brinkman channel (uniform):
+  K: 1.000e+00
+  sqrt(K) / dy: 15.5000
+  dy: 6.4516129032e-02
+  body force G: 8.8353961781e+00
+  relative L2 error u: 2.2399388804e-03
+  Linf error u_x: 3.9858355951e-03
+  Linf u_y, u_z: 1.8250031493e-04
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 32 x 6
+Local block: 6 x 32 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.193 ms ( 43.8%)
+    g term:    0.062 ms ( 14.1%)
+    eta solve: 0.131 ms ( 29.8%)
+  zeta system: 0.085 ms ( 19.3%)
+  u system:    0.127 ms ( 28.9%)
+  psi system:  0.010 ms (  2.2%)
+  phi low:     0.015 ms (  3.4%)
+  phi high:    0.009 ms (  2.1%)
+  pressure:    0.001 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.441 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 38.252 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 32 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 6.4985588076e-03
+  L2 error u_y: 3.3613080349e-04
+  L2 error u_z: 3.5754109347e-06
+  L2 error p:   5.7979473828e-01
+
+Brinkman channel (uniform):
+  K: 1.000e+00
+  sqrt(K) / dy: 31.5000
+  dy: 3.1746031746e-02
+  body force G: 8.8353961781e+00
+  relative L2 error u: 5.4618061724e-04
+  Linf error u_x: 1.0400199763e-03
+  Linf u_y, u_z: 4.4364257581e-05
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 64 x 6
+Local block: 6 x 64 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.454 ms ( 43.6%)
+    g term:    0.147 ms ( 14.1%)
+    eta solve: 0.308 ms ( 29.5%)
+  zeta system: 0.199 ms ( 19.1%)
+  u system:    0.301 ms ( 28.8%)
+  psi system:  0.024 ms (  2.3%)
+  phi low:     0.041 ms (  3.9%)
+  phi high:    0.022 ms (  2.1%)
+  pressure:    0.002 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 1.043 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 45.267 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 64 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.6018718881e-03
+  L2 error u_y: 8.2829683046e-05
+  L2 error u_z: 8.8321665327e-07
+  L2 error p:   1.4221267622e-01
+
+Brinkman channel (uniform):
+  K: 1.000e+00
+  sqrt(K) / dy: 63.5000
+  dy: 1.5748031496e-02
+  body force G: 8.8353961781e+00
+  relative L2 error u: 1.3463102374e-04
+  Linf error u_x: 2.6497347967e-04
+  Linf u_y, u_z: 1.0942203414e-05
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 128 x 6
+Local block: 6 x 128 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.726 ms ( 43.2%)
+    g term:    0.235 ms ( 14.0%)
+    eta solve: 0.491 ms ( 29.3%)
+  zeta system: 0.310 ms ( 18.4%)
+  u system:    0.490 ms ( 29.2%)
+  psi system:  0.049 ms (  2.9%)
+  phi low:     0.067 ms (  4.0%)
+  phi high:    0.034 ms (  2.0%)
+  pressure:    0.004 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 1.679 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 36.437 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 128 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 3.9713853729e-04
+  L2 error u_y: 2.0575046190e-05
+  L2 error u_z: 2.1924407111e-07
+  L2 error p:   3.5209502537e-02
+
+Brinkman channel (uniform):
+  K: 1.000e+00
+  sqrt(K) / dy: 127.5000
+  dy: 7.8431372549e-03
+  body force G: 8.8353961781e+00
+  relative L2 error u: 3.3378015444e-05
+  Linf error u_x: 6.5654085352e-05
+  Linf u_y, u_z: 2.7172743649e-06
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 256 x 6
+Local block: 6 x 256 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  1.532 ms ( 43.2%)
+    g term:    0.497 ms ( 14.0%)
+    eta solve: 1.035 ms ( 29.2%)
+  zeta system: 0.660 ms ( 18.6%)
+  u system:    1.037 ms ( 29.3%)
+  psi system:  0.091 ms (  2.6%)
+  phi low:     0.142 ms (  4.0%)
+  phi high:    0.072 ms (  2.0%)
+  pressure:    0.008 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 3.544 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 38.449 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 256 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 9.8520923368e-05
+  L2 error u_y: 5.1539824040e-06
+  L2 error u_z: 5.4555307744e-08
+  L2 error p:   8.7568088665e-03
+
+Brinkman channel (uniform):
+  K: 1.000e+00
+  sqrt(K) / dy: 255.5000
+  dy: 3.9138943249e-03
+  body force G: 8.8353961781e+00
+  relative L2 error u: 8.2804464188e-06
+  Linf error u_x: 1.7039670955e-05
+  Linf u_y, u_z: 6.7986403739e-07
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 512 x 6
+Local block: 6 x 512 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  3.215 ms ( 43.2%)
+    g term:    1.040 ms ( 14.0%)
+    eta solve: 2.176 ms ( 29.2%)
+  zeta system: 1.421 ms ( 19.1%)
+  u system:    2.142 ms ( 28.8%)
+  psi system:  0.180 ms (  2.4%)
+  phi low:     0.312 ms (  4.2%)
+  phi high:    0.153 ms (  2.0%)
+  pressure:    0.021 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 7.443 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 40.383 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 512 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 2.4539257860e-05
+  L2 error u_y: 1.2911585049e-06
+  L2 error u_z: 1.3603464887e-08
+  L2 error p:   2.1833702988e-03
+
+Brinkman channel (uniform):
+  K: 1.000e+00
+  sqrt(K) / dy: 511.5000
+  dy: 1.9550342131e-03
+  body force G: 8.8353961781e+00
+  relative L2 error u: 2.0624839214e-06
+  Linf error u_x: 4.3066369207e-06
+  Linf u_y, u_z: 1.7018077321e-07
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 16 x 6
+Local block: 6 x 16 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.093 ms ( 43.8%)
+    g term:    0.029 ms ( 13.4%)
+    eta solve: 0.065 ms ( 30.3%)
+  zeta system: 0.042 ms ( 19.5%)
+  u system:    0.064 ms ( 30.0%)
+  psi system:  0.005 ms (  2.1%)
+  phi low:     0.005 ms (  2.4%)
+  phi high:    0.004 ms (  1.8%)
+  pressure:    0.001 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.214 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 37.071 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 16 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 4.4184824109e-02
+  L2 error u_y: 2.2393376165e-03
+  L2 error u_z: 1.2705801062e-05
+  L2 error p:   2.8860860632e+00
+
+Brinkman channel (uniform):
+  K: 1.000e-01
+  sqrt(K) / dy: 4.9015
+  dy: 6.4516129032e-02
+  body force G: 1.6522670898e+01
+  relative L2 error u: 3.6240069535e-03
+  Linf error u_x: 7.1090535184e-03
+  Linf u_y, u_z: 2.9355773557e-04
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 32 x 6
+Local block: 6 x 32 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.320 ms ( 43.9%)
+    g term:    0.100 ms ( 13.7%)
+    eta solve: 0.221 ms ( 30.2%)
+  zeta system: 0.129 ms ( 17.7%)
+  u system:    0.228 ms ( 31.3%)
+  psi system:  0.016 ms (  2.2%)
+  phi low:     0.020 ms (  2.7%)
+  phi high:    0.014 ms (  1.9%)
+  pressure:    0.002 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.1%)
+  wall per step: 0.729 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 63.308 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 32 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.0851069069e-02
+  L2 error u_y: 5.4861078438e-04
+  L2 error u_z: 3.1728402422e-06
+  L2 error p:   7.0002305709e-01
+
+Brinkman channel (uniform):
+  K: 1.000e-01
+  sqrt(K) / dy: 9.9612
+  dy: 3.1746031746e-02
+  body force G: 1.6522670898e+01
+  relative L2 error u: 8.8997908488e-04
+  Linf error u_x: 1.9026958843e-03
+  Linf u_y, u_z: 7.1875689041e-05
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 64 x 6
+Local block: 6 x 64 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.399 ms ( 43.2%)
+    g term:    0.123 ms ( 13.3%)
+    eta solve: 0.276 ms ( 29.9%)
+  zeta system: 0.166 ms ( 18.0%)
+  u system:    0.285 ms ( 30.9%)
+  psi system:  0.020 ms (  2.2%)
+  phi low:     0.033 ms (  3.6%)
+  phi high:    0.018 ms (  1.9%)
+  pressure:    0.002 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 0.923 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 40.071 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 64 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 2.6793713425e-03
+  L2 error u_y: 1.3538433327e-04
+  L2 error u_z: 7.8660558083e-07
+  L2 error p:   1.7198624386e-01
+
+Brinkman channel (uniform):
+  K: 1.000e-01
+  sqrt(K) / dy: 20.0805
+  dy: 1.5748031496e-02
+  body force G: 1.6522670898e+01
+  relative L2 error u: 2.1975470318e-04
+  Linf error u_x: 4.9031779492e-04
+  Linf u_y, u_z: 1.7734610451e-05
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 128 x 6
+Local block: 6 x 128 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.881 ms ( 43.1%)
+    g term:    0.275 ms ( 13.5%)
+    eta solve: 0.606 ms ( 29.7%)
+  zeta system: 0.348 ms ( 17.1%)
+  u system:    0.642 ms ( 31.4%)
+  psi system:  0.055 ms (  2.7%)
+  phi low:     0.072 ms (  3.5%)
+  phi high:    0.039 ms (  1.9%)
+  pressure:    0.004 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 2.043 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 44.326 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 128 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 6.6440599882e-04
+  L2 error u_y: 3.3647657563e-05
+  L2 error u_z: 1.9539717380e-07
+  L2 error p:   4.2596974999e-02
+
+Brinkman channel (uniform):
+  K: 1.000e-01
+  sqrt(K) / dy: 40.3190
+  dy: 7.8431372549e-03
+  body force G: 1.6522670898e+01
+  relative L2 error u: 5.4492914467e-05
+  Linf error u_x: 1.2097132122e-04
+  Linf u_y, u_z: 4.4064617974e-06
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 256 x 6
+Local block: 6 x 256 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  2.189 ms ( 43.5%)
+    g term:    0.679 ms ( 13.5%)
+    eta solve: 1.509 ms ( 30.0%)
+  zeta system: 0.882 ms ( 17.5%)
+  u system:    1.547 ms ( 30.7%)
+  psi system:  0.122 ms (  2.4%)
+  phi low:     0.185 ms (  3.7%)
+  phi high:    0.096 ms (  1.9%)
+  pressure:    0.011 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 5.033 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 54.615 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 256 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.6468044619e-04
+  L2 error u_y: 8.4372390314e-06
+  L2 error u_z: 4.8579335115e-08
+  L2 error p:   1.0593271466e-02
+
+Brinkman channel (uniform):
+  K: 1.000e-01
+  sqrt(K) / dy: 80.7962
+  dy: 3.9138943249e-03
+  body force G: 1.6522670898e+01
+  relative L2 error u: 1.3506906897e-05
+  Linf error u_x: 3.1630522049e-05
+  Linf u_y, u_z: 1.1035953991e-06
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 512 x 6
+Local block: 6 x 512 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  3.872 ms ( 43.1%)
+    g term:    1.199 ms ( 13.3%)
+    eta solve: 2.674 ms ( 29.7%)
+  zeta system: 1.609 ms ( 17.9%)
+  u system:    2.763 ms ( 30.7%)
+  psi system:  0.203 ms (  2.3%)
+  phi low:     0.346 ms (  3.9%)
+  phi high:    0.173 ms (  1.9%)
+  pressure:    0.022 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 8.988 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 48.762 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 512 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 4.1000892598e-05
+  L2 error u_y: 2.1150627098e-06
+  L2 error u_z: 1.2105004217e-08
+  L2 error p:   2.6409968662e-03
+
+Brinkman channel (uniform):
+  K: 1.000e-01
+  sqrt(K) / dy: 161.7505
+  dy: 1.9550342131e-03
+  body force G: 1.6522670898e+01
+  relative L2 error u: 3.3628803098e-06
+  Linf error u_x: 7.9859193167e-06
+  Linf u_y, u_z: 2.7642716392e-07
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 16 x 6
+Local block: 6 x 16 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.097 ms ( 43.5%)
+    g term:    0.030 ms ( 13.3%)
+    eta solve: 0.067 ms ( 30.2%)
+  zeta system: 0.043 ms ( 19.3%)
+  u system:    0.068 ms ( 30.5%)
+  psi system:  0.005 ms (  2.1%)
+  phi low:     0.005 ms (  2.5%)
+  phi high:    0.004 ms (  1.9%)
+  pressure:    0.000 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.223 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 38.651 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 16 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.5063549245e-01
+  L2 error u_y: 6.6261160657e-03
+  L2 error u_z: 5.1273701166e-06
+  L2 error p:   1.8033870414e+01
+
+Brinkman channel (uniform):
+  K: 1.000e-02
+  sqrt(K) / dy: 1.5500
+  dy: 6.4516129032e-02
+  body force G: 1.0136593458e+02
+  relative L2 error u: 1.0927400505e-02
+  Linf error u_x: 3.1123103126e-02
+  Linf u_y, u_z: 8.0632111006e-04
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 32 x 6
+Local block: 6 x 32 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.204 ms ( 43.6%)
+    g term:    0.062 ms ( 13.3%)
+    eta solve: 0.141 ms ( 30.3%)
+  zeta system: 0.084 ms ( 18.0%)
+  u system:    0.145 ms ( 31.1%)
+  psi system:  0.010 ms (  2.0%)
+  phi low:     0.015 ms (  3.1%)
+  phi high:    0.009 ms (  1.9%)
+  pressure:    0.001 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 0.467 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 40.540 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 32 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 4.0226782475e-02
+  L2 error u_y: 1.7319734047e-03
+  L2 error u_z: 1.4801976488e-06
+  L2 error p:   4.8658580795e+00
+
+Brinkman channel (uniform):
+  K: 1.000e-02
+  sqrt(K) / dy: 3.1500
+  dy: 3.1746031746e-02
+  body force G: 1.0136593458e+02
+  relative L2 error u: 2.9179925436e-03
+  Linf error u_x: 1.0049599769e-02
+  Linf u_y, u_z: 2.1097822331e-04
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 64 x 6
+Local block: 6 x 64 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.524 ms ( 43.4%)
+    g term:    0.163 ms ( 13.5%)
+    eta solve: 0.361 ms ( 30.0%)
+  zeta system: 0.214 ms ( 17.7%)
+  u system:    0.374 ms ( 31.0%)
+  psi system:  0.027 ms (  2.2%)
+  phi low:     0.042 ms (  3.5%)
+  phi high:    0.022 ms (  1.9%)
+  pressure:    0.002 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 1.206 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 52.347 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 64 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.0144375365e-02
+  L2 error u_y: 4.3438135885e-04
+  L2 error u_z: 3.8065498892e-07
+  L2 error p:   1.2273656683e+00
+
+Brinkman channel (uniform):
+  K: 1.000e-02
+  sqrt(K) / dy: 6.3500
+  dy: 1.5748031496e-02
+  body force G: 1.0136593458e+02
+  relative L2 error u: 7.3585107585e-04
+  Linf error u_x: 2.8048907459e-03
+  Linf u_y, u_z: 5.2990729226e-05
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 128 x 6
+Local block: 6 x 128 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  1.168 ms ( 43.5%)
+    g term:    0.365 ms ( 13.6%)
+    eta solve: 0.803 ms ( 29.9%)
+  zeta system: 0.456 ms ( 17.0%)
+  u system:    0.848 ms ( 31.6%)
+  psi system:  0.067 ms (  2.5%)
+  phi low:     0.090 ms (  3.3%)
+  phi high:    0.050 ms (  1.9%)
+  pressure:    0.007 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 2.686 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 58.288 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 128 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 2.5241208058e-03
+  L2 error u_y: 1.0853370311e-04
+  L2 error u_z: 9.5003769429e-08
+  L2 error p:   3.0598264915e-01
+
+Brinkman channel (uniform):
+  K: 1.000e-02
+  sqrt(K) / dy: 12.7500
+  dy: 7.8431372549e-03
+  body force G: 1.0136593458e+02
+  relative L2 error u: 1.8309491873e-04
+  Linf error u_x: 7.1680792924e-04
+  Linf u_y, u_z: 1.3242010616e-05
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 256 x 6
+Local block: 6 x 256 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  1.798 ms ( 43.3%)
+    g term:    0.539 ms ( 13.0%)
+    eta solve: 1.259 ms ( 30.3%)
+  zeta system: 0.722 ms ( 17.4%)
+  u system:    1.298 ms ( 31.3%)
+  psi system:  0.096 ms (  2.3%)
+  phi low:     0.150 ms (  3.6%)
+  phi high:    0.076 ms (  1.8%)
+  pressure:    0.010 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 4.150 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 45.031 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 256 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 6.2153248271e-04
+  L2 error u_y: 2.7425297633e-05
+  L2 error u_z: 2.3250103217e-08
+  L2 error p:   7.6223288279e-02
+
+Brinkman channel (uniform):
+  K: 1.000e-02
+  sqrt(K) / dy: 25.5500
+  dy: 3.9138943249e-03
+  body force G: 1.0136593458e+02
+  relative L2 error u: 4.5085889926e-05
+  Linf error u_x: 1.8500596689e-04
+  Linf u_y, u_z: 3.3481592124e-06
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 512 x 6
+Local block: 6 x 512 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  3.577 ms ( 43.1%)
+    g term:    1.097 ms ( 13.2%)
+    eta solve: 2.481 ms ( 29.9%)
+  zeta system: 1.446 ms ( 17.4%)
+  u system:    2.594 ms ( 31.3%)
+  psi system:  0.189 ms (  2.3%)
+  phi low:     0.309 ms (  3.7%)
+  phi high:    0.158 ms (  1.9%)
+  pressure:    0.021 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 8.295 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 45.003 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 512 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.5423347192e-04
+  L2 error u_y: 6.9080014338e-06
+  L2 error u_z: 5.7610486291e-09
+  L2 error p:   1.9011934997e-02
+
+Brinkman channel (uniform):
+  K: 1.000e-02
+  sqrt(K) / dy: 51.1500
+  dy: 1.9550342131e-03
+  body force G: 1.0136593458e+02
+  relative L2 error u: 1.1188238060e-05
+  Linf error u_x: 4.6396449860e-05
+  Linf u_y, u_z: 8.4367723234e-07
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 16 x 6
+Local block: 6 x 16 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.108 ms ( 43.4%)
+    g term:    0.033 ms ( 13.3%)
+    eta solve: 0.075 ms ( 30.1%)
+  zeta system: 0.047 ms ( 19.1%)
+  u system:    0.076 ms ( 30.6%)
+  psi system:  0.005 ms (  2.2%)
+  phi low:     0.006 ms (  2.4%)
+  phi high:    0.005 ms (  1.9%)
+  pressure:    0.001 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.248 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 43.077 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 16 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 3.4673928946e-01
+  L2 error u_y: 1.1768149370e-02
+  L2 error u_z: 1.1070013758e-04
+  L2 error p:   8.6624878187e+01
+
+Brinkman channel (uniform):
+  K: 1.000e-03
+  sqrt(K) / dy: 0.4902
+  dy: 6.4516129032e-02
+  body force G: 1.0000002718e+03
+  relative L2 error u: 2.2424260209e-02
+  Linf error u_x: 7.4088770093e-02
+  Linf u_y, u_z: 1.3032864186e-03
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 32 x 6
+Local block: 6 x 32 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.206 ms ( 43.2%)
+    g term:    0.063 ms ( 13.2%)
+    eta solve: 0.143 ms ( 30.0%)
+  zeta system: 0.086 ms ( 18.1%)
+  u system:    0.150 ms ( 31.3%)
+  psi system:  0.010 ms (  2.1%)
+  phi low:     0.015 ms (  3.1%)
+  phi high:    0.009 ms (  1.9%)
+  pressure:    0.001 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.477 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 41.427 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 32 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.6945888317e-01
+  L2 error u_y: 4.9182998456e-03
+  L2 error u_z: 7.6551221330e-05
+  L2 error p:   5.9741777350e+01
+
+Brinkman channel (uniform):
+  K: 1.000e-03
+  sqrt(K) / dy: 0.9961
+  dy: 3.1746031746e-02
+  body force G: 1.0000002718e+03
+  relative L2 error u: 1.0955390964e-02
+  Linf error u_x: 5.3704652499e-02
+  Linf u_y, u_z: 5.6636353705e-04
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 64 x 6
+Local block: 6 x 64 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.442 ms ( 43.2%)
+    g term:    0.136 ms ( 13.3%)
+    eta solve: 0.306 ms ( 29.9%)
+  zeta system: 0.182 ms ( 17.8%)
+  u system:    0.321 ms ( 31.4%)
+  psi system:  0.021 ms (  2.1%)
+  phi low:     0.036 ms (  3.5%)
+  phi high:    0.019 ms (  1.8%)
+  pressure:    0.002 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 1.023 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 44.410 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 64 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 5.1828358561e-02
+  L2 error u_y: 1.4260931794e-03
+  L2 error u_z: 2.4689957183e-05
+  L2 error p:   1.9210353701e+01
+
+Brinkman channel (uniform):
+  K: 1.000e-03
+  sqrt(K) / dy: 2.0080
+  dy: 1.5748031496e-02
+  body force G: 1.0000002718e+03
+  relative L2 error u: 3.3505219832e-03
+  Linf error u_x: 2.1157797339e-02
+  Linf u_y, u_z: 1.6697656804e-04
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 128 x 6
+Local block: 6 x 128 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.840 ms ( 43.0%)
+    g term:    0.257 ms ( 13.2%)
+    eta solve: 0.582 ms ( 29.8%)
+  zeta system: 0.336 ms ( 17.2%)
+  u system:    0.614 ms ( 31.4%)
+  psi system:  0.052 ms (  2.7%)
+  phi low:     0.071 ms (  3.6%)
+  phi high:    0.036 ms (  1.9%)
+  pressure:    0.004 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 1.953 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 42.385 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 128 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.3487079847e-02
+  L2 error u_y: 3.7245862902e-04
+  L2 error u_z: 6.5760993259e-06
+  L2 error p:   5.0984419533e+00
+
+Brinkman channel (uniform):
+  K: 1.000e-03
+  sqrt(K) / dy: 4.0319
+  dy: 7.8431372549e-03
+  body force G: 1.0000002718e+03
+  relative L2 error u: 8.7189202910e-04
+  Linf error u_x: 6.2235467302e-03
+  Linf u_y, u_z: 4.3871790252e-05
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 256 x 6
+Local block: 6 x 256 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  1.707 ms ( 42.9%)
+    g term:    0.523 ms ( 13.2%)
+    eta solve: 1.183 ms ( 29.7%)
+  zeta system: 0.695 ms ( 17.5%)
+  u system:    1.252 ms ( 31.5%)
+  psi system:  0.093 ms (  2.3%)
+  phi low:     0.148 ms (  3.7%)
+  phi high:    0.074 ms (  1.9%)
+  pressure:    0.008 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 3.978 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 43.162 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 256 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 3.2656452393e-03
+  L2 error u_y: 9.7509399051e-05
+  L2 error u_z: 1.6810111428e-06
+  L2 error p:   1.2904415367e+00
+
+Brinkman channel (uniform):
+  K: 1.000e-03
+  sqrt(K) / dy: 8.0796
+  dy: 3.9138943249e-03
+  body force G: 1.0000002718e+03
+  relative L2 error u: 2.1111878592e-04
+  Linf error u_x: 1.5444121677e-03
+  Linf u_y, u_z: 1.1643086603e-05
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 512 x 6
+Local block: 6 x 512 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  3.511 ms ( 43.0%)
+    g term:    1.076 ms ( 13.2%)
+    eta solve: 2.435 ms ( 29.9%)
+  zeta system: 1.432 ms ( 17.6%)
+  u system:    2.547 ms ( 31.2%)
+  psi system:  0.186 ms (  2.3%)
+  phi low:     0.306 ms (  3.8%)
+  phi high:    0.152 ms (  1.9%)
+  pressure:    0.020 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 8.156 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 44.247 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 512 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 8.0129357337e-04
+  L2 error u_y: 2.5033059021e-05
+  L2 error u_z: 4.2380469813e-07
+  L2 error p:   3.2317774100e-01
+
+Brinkman channel (uniform):
+  K: 1.000e-03
+  sqrt(K) / dy: 16.1751
+  dy: 1.9550342131e-03
+  body force G: 1.0000002718e+03
+  relative L2 error u: 5.1803372131e-05
+  Linf error u_x: 3.8395776266e-04
+  Linf u_y, u_z: 3.0134355192e-06
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 16 x 6
+Local block: 6 x 16 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.114 ms ( 44.2%)
+    g term:    0.036 ms ( 14.1%)
+    eta solve: 0.078 ms ( 30.2%)
+  zeta system: 0.049 ms ( 19.0%)
+  u system:    0.075 ms ( 29.0%)
+  psi system:  0.006 ms (  2.4%)
+  phi low:     0.007 ms (  2.8%)
+  phi high:    0.005 ms (  2.1%)
+  pressure:    0.001 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.257 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 44.687 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 16 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 8.9749288248e-02
+  L2 error u_y: 1.9421563452e-03
+  L2 error u_z: 9.4712887474e-05
+  L2 error p:   1.9143209957e+02
+
+Brinkman channel (uniform):
+  K: 1.000e-04
+  sqrt(K) / dy: 0.1550
+  dy: 6.4516129032e-02
+  body force G: 1.0000000000e+04
+  relative L2 error u: 5.6261567433e-03
+  Linf error u_x: 2.1292444336e-02
+  Linf u_y, u_z: 3.2217204073e-04
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 32 x 6
+Local block: 6 x 32 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.245 ms ( 44.1%)
+    g term:    0.079 ms ( 14.3%)
+    eta solve: 0.166 ms ( 29.9%)
+  zeta system: 0.104 ms ( 18.7%)
+  u system:    0.162 ms ( 29.1%)
+  psi system:  0.013 ms (  2.3%)
+  phi low:     0.019 ms (  3.4%)
+  phi high:    0.011 ms (  2.1%)
+  pressure:    0.001 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 0.554 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 48.121 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 32 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.9058041827e-01
+  L2 error u_y: 4.3609248637e-03
+  L2 error u_z: 3.4180369898e-06
+  L2 error p:   1.4625460074e+01
+
+Brinkman channel (uniform):
+  K: 1.000e-04
+  sqrt(K) / dy: 0.3150
+  dy: 3.1746031746e-02
+  body force G: 1.0000000000e+04
+  relative L2 error u: 1.1905515203e-02
+  Linf error u_x: 5.0569040451e-02
+  Linf u_y, u_z: 4.2632723200e-04
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 64 x 6
+Local block: 6 x 64 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.492 ms ( 43.7%)
+    g term:    0.159 ms ( 14.1%)
+    eta solve: 0.333 ms ( 29.5%)
+  zeta system: 0.213 ms ( 18.9%)
+  u system:    0.327 ms ( 29.0%)
+  psi system:  0.025 ms (  2.2%)
+  phi low:     0.044 ms (  3.9%)
+  phi high:    0.023 ms (  2.1%)
+  pressure:    0.002 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 1.128 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 48.943 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 64 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.6363919154e-01
+  L2 error u_y: 2.9194282314e-03
+  L2 error u_z: 2.3021761346e-05
+  L2 error p:   4.6395877656e+01
+
+Brinkman channel (uniform):
+  K: 1.000e-04
+  sqrt(K) / dy: 0.6350
+  dy: 1.5748031496e-02
+  body force G: 1.0000000000e+04
+  relative L2 error u: 1.0218033190e-02
+  Linf error u_x: 7.3578835145e-02
+  Linf u_y, u_z: 3.2749496143e-04
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 128 x 6
+Local block: 6 x 128 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.759 ms ( 43.1%)
+    g term:    0.248 ms ( 14.1%)
+    eta solve: 0.511 ms ( 29.0%)
+  zeta system: 0.326 ms ( 18.5%)
+  u system:    0.517 ms ( 29.3%)
+  psi system:  0.050 ms (  2.8%)
+  phi low:     0.069 ms (  3.9%)
+  phi high:    0.036 ms (  2.0%)
+  pressure:    0.004 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 1.761 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 38.218 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 128 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 6.2099250820e-02
+  L2 error u_y: 1.0916699394e-03
+  L2 error u_z: 1.0971566151e-05
+  L2 error p:   2.1478416208e+01
+
+Brinkman channel (uniform):
+  K: 1.000e-04
+  sqrt(K) / dy: 1.2750
+  dy: 7.8431372549e-03
+  body force G: 1.0000000000e+04
+  relative L2 error u: 3.8775054219e-03
+  Linf error u_x: 3.8213140422e-02
+  Linf u_y, u_z: 1.3047055357e-04
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 256 x 6
+Local block: 6 x 256 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  1.624 ms ( 43.1%)
+    g term:    0.530 ms ( 14.0%)
+    eta solve: 1.094 ms ( 29.0%)
+  zeta system: 0.714 ms ( 18.9%)
+  u system:    1.091 ms ( 28.9%)
+  psi system:  0.101 ms (  2.7%)
+  phi low:     0.153 ms (  4.1%)
+  phi high:    0.077 ms (  2.0%)
+  pressure:    0.010 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 3.770 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 40.912 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 256 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.5396538453e-02
+  L2 error u_y: 3.3973168785e-04
+  L2 error u_z: 3.4276122163e-06
+  L2 error p:   6.3148279754e+00
+
+Brinkman channel (uniform):
+  K: 1.000e-04
+  sqrt(K) / dy: 2.5550
+  dy: 3.9138943249e-03
+  body force G: 1.0000000000e+04
+  relative L2 error u: 9.6140474574e-04
+  Linf error u_x: 9.3238494651e-03
+  Linf u_y, u_z: 4.2979163400e-05
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 512 x 6
+Local block: 6 x 512 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  5.421 ms ( 43.3%)
+    g term:    1.766 ms ( 14.1%)
+    eta solve: 3.655 ms ( 29.2%)
+  zeta system: 2.361 ms ( 18.9%)
+  u system:    3.641 ms ( 29.1%)
+  psi system:  0.302 ms (  2.4%)
+  phi low:     0.508 ms (  4.1%)
+  phi high:    0.257 ms (  2.1%)
+  pressure:    0.032 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 12.525 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 67.951 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 512 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 3.6844718764e-03
+  L2 error u_y: 9.2980217385e-05
+  L2 error u_z: 9.2516727981e-07
+  L2 error p:   1.6435223158e+00
+
+Brinkman channel (uniform):
+  K: 1.000e-04
+  sqrt(K) / dy: 5.1150
+  dy: 1.9550342131e-03
+  body force G: 1.0000000000e+04
+  relative L2 error u: 2.3007712652e-04
+  Linf error u_x: 2.3907267276e-03
+  Linf u_y, u_z: 1.2029258978e-05
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 16 x 6
+Local block: 6 x 16 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.103 ms ( 44.0%)
+    g term:    0.034 ms ( 14.7%)
+    eta solve: 0.069 ms ( 29.3%)
+  zeta system: 0.049 ms ( 21.0%)
+  u system:    0.062 ms ( 26.7%)
+  psi system:  0.006 ms (  2.6%)
+  phi low:     0.007 ms (  2.9%)
+  phi high:    0.005 ms (  2.3%)
+  pressure:    0.001 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.234 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 40.606 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 16 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 3.6863785832e-02
+  L2 error u_y: 1.5206479031e-03
+  L2 error u_z: 2.6474944386e-05
+  L2 error p:   7.4830774083e+00
+
+Brinkman channel (layer):
+  K: 1.000e+00
+  sqrt(K) / dy: 15.5000
+  dy: 6.4516129032e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 1.7644794627e-03
+  Linf error u_x: 6.1466142089e-03
+  Linf u_y, u_z: 2.2703675489e-04
+  porous max |u_x|: numerical 1.0876678672e+00, exact 1.0881375965e+00
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 32 x 6
+Local block: 6 x 32 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.180 ms ( 43.7%)
+    g term:    0.061 ms ( 14.9%)
+    eta solve: 0.118 ms ( 28.8%)
+  zeta system: 0.083 ms ( 20.2%)
+  u system:    0.112 ms ( 27.2%)
+  psi system:  0.011 ms (  2.7%)
+  phi low:     0.015 ms (  3.6%)
+  phi high:    0.009 ms (  2.1%)
+  pressure:    0.002 ms (  0.4%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.1%)
+  wall per step: 0.412 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 35.722 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 32 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 9.5778739353e-03
+  L2 error u_y: 2.6241457693e-04
+  L2 error u_z: 6.8663681052e-06
+  L2 error p:   2.6409445182e+00
+
+Brinkman channel (layer):
+  K: 1.000e+00
+  sqrt(K) / dy: 31.5000
+  dy: 3.1746031746e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 4.5833068130e-04
+  Linf error u_x: 1.6029442181e-03
+  Linf u_y, u_z: 4.3117519889e-05
+  porous max |u_x|: numerical 1.2071029369e+00, exact 1.2066260629e+00
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 64 x 6
+Local block: 6 x 64 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.572 ms ( 43.9%)
+    g term:    0.192 ms ( 14.8%)
+    eta solve: 0.380 ms ( 29.2%)
+  zeta system: 0.265 ms ( 20.4%)
+  u system:    0.349 ms ( 26.8%)
+  psi system:  0.032 ms (  2.5%)
+  phi low:     0.051 ms (  3.9%)
+  phi high:    0.028 ms (  2.2%)
+  pressure:    0.003 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 1.301 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 56.481 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 64 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 3.8782698017e-03
+  L2 error u_y: 1.2908661825e-04
+  L2 error u_z: 1.8757984944e-06
+  L2 error p:   1.0592793200e+00
+
+Brinkman channel (layer):
+  K: 1.000e+00
+  sqrt(K) / dy: 63.5000
+  dy: 1.5748031496e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 1.8563025331e-04
+  Linf error u_x: 4.8425567900e-04
+  Linf u_y, u_z: 2.0986181248e-05
+  porous max |u_x|: numerical 1.2610072914e+00, exact 1.2605775294e+00
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 128 x 6
+Local block: 6 x 128 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.715 ms ( 43.1%)
+    g term:    0.243 ms ( 14.6%)
+    eta solve: 0.472 ms ( 28.4%)
+  zeta system: 0.333 ms ( 20.1%)
+  u system:    0.448 ms ( 27.0%)
+  psi system:  0.051 ms (  3.1%)
+  phi low:     0.072 ms (  4.4%)
+  phi high:    0.037 ms (  2.2%)
+  pressure:    0.004 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 1.661 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 36.036 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 128 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 2.0285041332e-03
+  L2 error u_y: 8.7900773632e-05
+  L2 error u_z: 5.5531015139e-07
+  L2 error p:   4.6607558906e-01
+
+Brinkman channel (layer):
+  K: 1.000e+00
+  sqrt(K) / dy: 127.5000
+  dy: 7.8431372549e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 9.7119111526e-05
+  Linf error u_x: 2.7783743298e-04
+  Linf u_y, u_z: 1.3537571354e-05
+  porous max |u_x|: numerical 1.2865617225e+00, exact 1.2862977006e+00
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 256 x 6
+Local block: 6 x 256 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  1.555 ms ( 43.0%)
+    g term:    0.525 ms ( 14.5%)
+    eta solve: 1.030 ms ( 28.5%)
+  zeta system: 0.736 ms ( 20.4%)
+  u system:    0.975 ms ( 26.9%)
+  psi system:  0.102 ms (  2.8%)
+  phi low:     0.157 ms (  4.3%)
+  phi high:    0.080 ms (  2.2%)
+  pressure:    0.011 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 3.617 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 39.250 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 256 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.0739411804e-03
+  L2 error u_y: 5.0901314387e-05
+  L2 error u_z: 1.8296244506e-07
+  L2 error p:   2.1736014784e-01
+
+Brinkman channel (layer):
+  K: 1.000e+00
+  sqrt(K) / dy: 255.5000
+  dy: 3.9138943249e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 5.1423176092e-05
+  Linf error u_x: 1.4714218729e-04
+  Linf u_y, u_z: 7.5663721217e-06
+  porous max |u_x|: numerical 1.2989965068e+00, exact 1.2988519446e+00
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 512 x 6
+Local block: 6 x 512 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  3.349 ms ( 43.2%)
+    g term:    1.136 ms ( 14.6%)
+    eta solve: 2.213 ms ( 28.5%)
+  zeta system: 1.577 ms ( 20.3%)
+  u system:    2.094 ms ( 27.0%)
+  psi system:  0.206 ms (  2.7%)
+  phi low:     0.333 ms (  4.3%)
+  phi high:    0.171 ms (  2.2%)
+  pressure:    0.022 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 7.753 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 42.063 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 512 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 5.5575679164e-04
+  L2 error u_y: 2.7273034231e-05
+  L2 error u_z: 6.7982808747e-08
+  L2 error p:   1.0478917869e-01
+
+Brinkman channel (layer):
+  K: 1.000e+00
+  sqrt(K) / dy: 511.5000
+  dy: 1.9550342131e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 2.6612366605e-05
+  Linf error u_x: 7.5554356898e-05
+  Linf u_y, u_z: 3.9881405984e-06
+  porous max |u_x|: numerical 1.3051287937e+00, exact 1.3050535882e+00
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 16 x 6
+Local block: 6 x 16 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.090 ms ( 44.0%)
+    g term:    0.029 ms ( 14.5%)
+    eta solve: 0.060 ms ( 29.6%)
+  zeta system: 0.043 ms ( 21.0%)
+  u system:    0.055 ms ( 26.9%)
+  psi system:  0.005 ms (  2.5%)
+  phi low:     0.006 ms (  3.0%)
+  phi high:    0.004 ms (  2.2%)
+  pressure:    0.001 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.203 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 35.300 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 16 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.3361081079e-01
+  L2 error u_y: 5.6688569767e-03
+  L2 error u_z: 3.6414834294e-05
+  L2 error p:   3.1577662298e+01
+
+Brinkman channel (layer):
+  K: 1.000e-01
+  sqrt(K) / dy: 4.9015
+  dy: 6.4516129032e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 6.8979042906e-03
+  Linf error u_x: 1.8267667499e-02
+  Linf u_y, u_z: 8.8028930567e-04
+  porous max |u_x|: numerical 9.3538932394e-01, exact 9.2465239954e-01
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 32 x 6
+Local block: 6 x 32 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.274 ms ( 43.8%)
+    g term:    0.091 ms ( 14.5%)
+    eta solve: 0.183 ms ( 29.3%)
+  zeta system: 0.126 ms ( 20.2%)
+  u system:    0.171 ms ( 27.4%)
+  psi system:  0.015 ms (  2.5%)
+  phi low:     0.023 ms (  3.6%)
+  phi high:    0.014 ms (  2.2%)
+  pressure:    0.002 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.626 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 54.322 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 32 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 7.0465200476e-02
+  L2 error u_y: 3.3069863293e-03
+  L2 error u_z: 1.4239242926e-05
+  L2 error p:   1.4548918899e+01
+
+Brinkman channel (layer):
+  K: 1.000e-01
+  sqrt(K) / dy: 9.9612
+  dy: 3.1746031746e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 3.6383815908e-03
+  Linf error u_x: 9.8382661910e-03
+  Linf u_y, u_z: 4.9324887875e-04
+  porous max |u_x|: numerical 1.0459604160e+00, exact 1.0381646031e+00
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 64 x 6
+Local block: 6 x 64 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.501 ms ( 43.6%)
+    g term:    0.167 ms ( 14.5%)
+    eta solve: 0.334 ms ( 29.0%)
+  zeta system: 0.236 ms ( 20.5%)
+  u system:    0.309 ms ( 26.9%)
+  psi system:  0.027 ms (  2.4%)
+  phi low:     0.048 ms (  4.2%)
+  phi high:    0.026 ms (  2.2%)
+  pressure:    0.002 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 1.149 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 49.856 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 64 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 3.6467580988e-02
+  L2 error u_y: 1.7778709559e-03
+  L2 error u_z: 6.1472257250e-06
+  L2 error p:   6.9704447244e+00
+
+Brinkman channel (layer):
+  K: 1.000e-01
+  sqrt(K) / dy: 20.0805
+  dy: 1.5748031496e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 1.8830508361e-03
+  Linf error u_x: 5.0778885443e-03
+  Linf u_y, u_z: 2.6049004267e-04
+  porous max |u_x|: numerical 1.0969245778e+00, exact 1.0923753810e+00
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 128 x 6
+Local block: 6 x 128 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.742 ms ( 42.9%)
+    g term:    0.248 ms ( 14.4%)
+    eta solve: 0.493 ms ( 28.5%)
+  zeta system: 0.342 ms ( 19.8%)
+  u system:    0.477 ms ( 27.6%)
+  psi system:  0.051 ms (  3.0%)
+  phi low:     0.074 ms (  4.3%)
+  phi high:    0.039 ms (  2.2%)
+  pressure:    0.004 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 1.730 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 37.534 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 128 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.8577896436e-02
+  L2 error u_y: 9.2046372865e-04
+  L2 error u_z: 2.8354669900e-06
+  L2 error p:   3.4100375954e+00
+
+Brinkman channel (layer):
+  K: 1.000e-01
+  sqrt(K) / dy: 40.3190
+  dy: 7.8431372549e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 9.5931359427e-04
+  Linf error u_x: 2.5744464764e-03
+  Linf u_y, u_z: 1.3384463667e-04
+  porous max |u_x|: numerical 1.1213604421e+00, exact 1.1189166962e+00
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 256 x 6
+Local block: 6 x 256 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  1.627 ms ( 43.0%)
+    g term:    0.547 ms ( 14.4%)
+    eta solve: 1.080 ms ( 28.5%)
+  zeta system: 0.769 ms ( 20.3%)
+  u system:    1.028 ms ( 27.2%)
+  psi system:  0.103 ms (  2.7%)
+  phi low:     0.163 ms (  4.3%)
+  phi high:    0.084 ms (  2.2%)
+  pressure:    0.010 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 3.785 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 41.075 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 256 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 9.3790512670e-03
+  L2 error u_y: 4.6813387845e-04
+  L2 error u_z: 1.3589182871e-06
+  L2 error p:   1.6863267981e+00
+
+Brinkman channel (layer):
+  K: 1.000e-01
+  sqrt(K) / dy: 80.7962
+  dy: 3.9138943249e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 4.8431400457e-04
+  Linf error u_x: 1.2908224297e-03
+  Linf u_y, u_z: 6.7804729931e-05
+  porous max |u_x|: numerical 1.1333207998e+00, exact 1.1320546627e+00
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 512 x 6
+Local block: 6 x 512 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  3.446 ms ( 43.0%)
+    g term:    1.159 ms ( 14.5%)
+    eta solve: 2.286 ms ( 28.5%)
+  zeta system: 1.644 ms ( 20.5%)
+  u system:    2.164 ms ( 27.0%)
+  psi system:  0.211 ms (  2.6%)
+  phi low:     0.356 ms (  4.4%)
+  phi high:    0.178 ms (  2.2%)
+  pressure:    0.022 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 8.021 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 43.517 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 512 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 4.7125465972e-03
+  L2 error u_y: 2.3605777077e-04
+  L2 error u_z: 6.6489074094e-07
+  L2 error p:   8.3850558761e-01
+
+Brinkman channel (layer):
+  K: 1.000e-01
+  sqrt(K) / dy: 161.7505
+  dy: 1.9550342131e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 2.4334685051e-04
+  Linf error u_x: 6.4578383103e-04
+  Linf u_y, u_z: 3.4124443496e-05
+  porous max |u_x|: numerical 1.1392337153e+00, exact 1.1385914732e+00
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 16 x 6
+Local block: 6 x 16 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.087 ms ( 44.0%)
+    g term:    0.028 ms ( 14.4%)
+    eta solve: 0.058 ms ( 29.6%)
+  zeta system: 0.041 ms ( 20.7%)
+  u system:    0.054 ms ( 27.4%)
+  psi system:  0.005 ms (  2.5%)
+  phi low:     0.006 ms (  2.9%)
+  phi high:    0.004 ms (  2.2%)
+  pressure:    0.000 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.197 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 34.215 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 16 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 5.5797955803e-01
+  L2 error u_y: 2.5803257319e-02
+  L2 error u_z: 1.6294230456e-04
+  L2 error p:   1.1051460411e+02
+
+Brinkman channel (layer):
+  K: 1.000e-02
+  sqrt(K) / dy: 1.5500
+  dy: 6.4516129032e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 3.8728063234e-02
+  Linf error u_x: 8.1346635661e-02
+  Linf u_y, u_z: 3.7985092944e-03
+  porous max |u_x|: numerical 4.0731883067e-01, exact 3.6815199783e-01
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 32 x 6
+Local block: 6 x 32 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.170 ms ( 43.8%)
+    g term:    0.056 ms ( 14.5%)
+    eta solve: 0.113 ms ( 29.3%)
+  zeta system: 0.079 ms ( 20.4%)
+  u system:    0.106 ms ( 27.3%)
+  psi system:  0.009 ms (  2.4%)
+  phi low:     0.014 ms (  3.7%)
+  phi high:    0.009 ms (  2.2%)
+  pressure:    0.001 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.388 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 33.679 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 32 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 2.6579539879e-01
+  L2 error u_y: 1.2544882512e-02
+  L2 error u_z: 8.2753115195e-05
+  L2 error p:   5.1037141862e+01
+
+Brinkman channel (layer):
+  K: 1.000e-02
+  sqrt(K) / dy: 3.1500
+  dy: 3.1746031746e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 1.8449319028e-02
+  Linf error u_x: 4.0004500038e-02
+  Linf u_y, u_z: 1.8506607098e-03
+  porous max |u_x|: numerical 4.8597826993e-01, exact 4.5816280146e-01
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 64 x 6
+Local block: 6 x 64 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.476 ms ( 43.3%)
+    g term:    0.159 ms ( 14.5%)
+    eta solve: 0.316 ms ( 28.8%)
+  zeta system: 0.224 ms ( 20.4%)
+  u system:    0.297 ms ( 27.1%)
+  psi system:  0.027 ms (  2.5%)
+  phi low:     0.046 ms (  4.2%)
+  phi high:    0.025 ms (  2.3%)
+  pressure:    0.002 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 1.098 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 47.649 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 64 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.2983668794e-01
+  L2 error u_y: 6.1898282875e-03
+  L2 error u_z: 4.1373909221e-05
+  L2 error p:   2.4363963907e+01
+
+Brinkman channel (layer):
+  K: 1.000e-02
+  sqrt(K) / dy: 6.3500
+  dy: 1.5748031496e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 9.0123033500e-03
+  Linf error u_x: 1.9675309500e-02
+  Linf u_y, u_z: 9.0864063423e-04
+  porous max |u_x|: numerical 5.2748109815e-01, exact 5.1106902868e-01
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 128 x 6
+Local block: 6 x 128 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.719 ms ( 42.9%)
+    g term:    0.241 ms ( 14.4%)
+    eta solve: 0.478 ms ( 28.5%)
+  zeta system: 0.336 ms ( 20.1%)
+  u system:    0.454 ms ( 27.1%)
+  psi system:  0.053 ms (  3.2%)
+  phi low:     0.072 ms (  4.3%)
+  phi high:    0.036 ms (  2.2%)
+  pressure:    0.003 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 1.674 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 36.335 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 128 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 6.4201280518e-02
+  L2 error u_y: 3.0753017327e-03
+  L2 error u_z: 2.0662660300e-05
+  L2 error p:   1.1884398676e+01
+
+Brinkman channel (layer):
+  K: 1.000e-02
+  sqrt(K) / dy: 12.7500
+  dy: 7.8431372549e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 4.4563938126e-03
+  Linf error u_x: 9.7279463974e-03
+  Linf u_y, u_z: 4.5057923443e-04
+  porous max |u_x|: numerical 5.4871579449e-01, exact 5.3981334984e-01
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 256 x 6
+Local block: 6 x 256 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  1.815 ms ( 43.2%)
+    g term:    0.610 ms ( 14.5%)
+    eta solve: 1.205 ms ( 28.7%)
+  zeta system: 0.855 ms ( 20.3%)
+  u system:    1.132 ms ( 26.9%)
+  psi system:  0.117 ms (  2.8%)
+  phi low:     0.185 ms (  4.4%)
+  phi high:    0.093 ms (  2.2%)
+  pressure:    0.009 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 4.206 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 45.639 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 256 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 3.1928164979e-02
+  L2 error u_y: 1.5328737016e-03
+  L2 error u_z: 1.0323272694e-05
+  L2 error p:   5.8669180297e+00
+
+Brinkman channel (layer):
+  K: 1.000e-02
+  sqrt(K) / dy: 25.5500
+  dy: 3.9138943249e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 2.2162276722e-03
+  Linf error u_x: 4.8096173239e-03
+  Linf u_y, u_z: 2.2430538417e-04
+  porous max |u_x|: numerical 5.5944087454e-01, exact 5.5480021921e-01
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 512 x 6
+Local block: 6 x 512 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  3.206 ms ( 43.1%)
+    g term:    1.080 ms ( 14.5%)
+    eta solve: 2.126 ms ( 28.6%)
+  zeta system: 1.523 ms ( 20.5%)
+  u system:    2.009 ms ( 27.0%)
+  psi system:  0.192 ms (  2.6%)
+  phi low:     0.331 ms (  4.4%)
+  phi high:    0.163 ms (  2.2%)
+  pressure:    0.021 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 7.446 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 40.398 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 512 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.5921879534e-02
+  L2 error u_y: 7.6527319750e-04
+  L2 error u_z: 5.1594719780e-06
+  L2 error p:   2.9145446064e+00
+
+Brinkman channel (layer):
+  K: 1.000e-02
+  sqrt(K) / dy: 51.1500
+  dy: 1.9550342131e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 1.1051850208e-03
+  Linf error u_x: 2.3884604050e-03
+  Linf u_y, u_z: 1.1191448805e-04
+  porous max |u_x|: numerical 5.6481177085e-01, exact 5.6245273605e-01
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 16 x 6
+Local block: 6 x 16 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.096 ms ( 44.3%)
+    g term:    0.031 ms ( 14.4%)
+    eta solve: 0.065 ms ( 29.9%)
+  zeta system: 0.045 ms ( 20.7%)
+  u system:    0.058 ms ( 26.9%)
+  psi system:  0.006 ms (  2.6%)
+  phi low:     0.006 ms (  2.9%)
+  phi high:    0.005 ms (  2.2%)
+  pressure:    0.001 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.216 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 37.534 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 16 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 9.1238111775e-01
+  L2 error u_y: 3.8700316285e-02
+  L2 error u_z: 2.9555949259e-04
+  L2 error p:   1.7761827089e+02
+
+Brinkman channel (layer):
+  K: 1.000e-03
+  sqrt(K) / dy: 0.4902
+  dy: 6.4516129032e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 7.9726190152e-02
+  Linf error u_x: 1.4515511588e-01
+  Linf u_y, u_z: 5.8087148030e-03
+  porous max |u_x|: numerical 7.0503576852e-02, exact 4.1244071186e-02
+  threshold: relative L2 <= 5.00e-02  FAILED
+Global grid: 6 x 32 x 6
+Local block: 6 x 32 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.157 ms ( 43.8%)
+    g term:    0.053 ms ( 14.8%)
+    eta solve: 0.104 ms ( 29.0%)
+  zeta system: 0.073 ms ( 20.3%)
+  u system:    0.098 ms ( 27.3%)
+  psi system:  0.009 ms (  2.4%)
+  phi low:     0.013 ms (  3.7%)
+  phi high:    0.008 ms (  2.2%)
+  pressure:    0.001 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.358 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 31.072 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 32 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 3.9431690361e-01
+  L2 error u_y: 1.6781170480e-02
+  L2 error u_z: 1.3992474930e-04
+  L2 error p:   7.7020607310e+01
+
+Brinkman channel (layer):
+  K: 1.000e-03
+  sqrt(K) / dy: 0.9961
+  dy: 3.1746031746e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 3.4455038148e-02
+  Linf error u_x: 6.7159759150e-02
+  Linf u_y, u_z: 2.5182810949e-03
+  porous max |u_x|: numerical 1.0830528677e-01, exact 8.1200174154e-02
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 64 x 6
+Local block: 6 x 64 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.362 ms ( 43.5%)
+    g term:    0.121 ms ( 14.6%)
+    eta solve: 0.241 ms ( 28.9%)
+  zeta system: 0.170 ms ( 20.5%)
+  u system:    0.226 ms ( 27.1%)
+  psi system:  0.020 ms (  2.4%)
+  phi low:     0.035 ms (  4.2%)
+  phi high:    0.018 ms (  2.2%)
+  pressure:    0.002 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 0.833 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 36.142 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 64 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.7699565066e-01
+  L2 error u_y: 7.5680921624e-03
+  L2 error u_z: 6.4913003368e-05
+  L2 error p:   3.4330939731e+01
+
+Brinkman channel (layer):
+  K: 1.000e-03
+  sqrt(K) / dy: 2.0080
+  dy: 1.5748031496e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 1.5465699429e-02
+  Linf error u_x: 3.0836211381e-02
+  Linf u_y, u_z: 1.1367920715e-03
+  porous max |u_x|: numerical 1.3751326692e-01, exact 1.1850833089e-01
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 128 x 6
+Local block: 6 x 128 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.907 ms ( 43.1%)
+    g term:    0.305 ms ( 14.5%)
+    eta solve: 0.602 ms ( 28.6%)
+  zeta system: 0.420 ms ( 19.9%)
+  u system:    0.574 ms ( 27.3%)
+  psi system:  0.064 ms (  3.0%)
+  phi low:     0.090 ms (  4.3%)
+  phi high:    0.046 ms (  2.2%)
+  pressure:    0.004 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 2.106 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 45.702 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 128 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 8.3133339024e-02
+  L2 error u_y: 3.5637846622e-03
+  L2 error u_z: 3.0898109569e-05
+  L2 error p:   1.6000802381e+01
+
+Brinkman channel (layer):
+  K: 1.000e-03
+  sqrt(K) / dy: 4.0319
+  dy: 7.8431372549e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 7.2640971324e-03
+  Linf error u_x: 1.4546265696e-02
+  Linf u_y, u_z: 5.3463503611e-04
+  porous max |u_x|: numerical 1.5539145971e-01, exact 1.4400909817e-01
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 256 x 6
+Local block: 6 x 256 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  1.415 ms ( 42.9%)
+    g term:    0.476 ms ( 14.4%)
+    eta solve: 0.939 ms ( 28.5%)
+  zeta system: 0.673 ms ( 20.4%)
+  u system:    0.890 ms ( 27.0%)
+  psi system:  0.094 ms (  2.9%)
+  phi low:     0.145 ms (  4.4%)
+  phi high:    0.072 ms (  2.2%)
+  pressure:    0.007 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 3.297 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 35.775 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 256 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 4.0214144342e-02
+  L2 error u_y: 1.7260255145e-03
+  L2 error u_z: 1.5034665927e-05
+  L2 error p:   7.6995683362e+00
+
+Brinkman channel (layer):
+  K: 1.000e-03
+  sqrt(K) / dy: 8.0796
+  dy: 3.9138943249e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 3.5138626318e-03
+  Linf error u_x: 6.9648788303e-03
+  Linf u_y, u_z: 2.5872737388e-04
+  porous max |u_x|: numerical 1.6517915871e-01, exact 1.5891683651e-01
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 512 x 6
+Local block: 6 x 512 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  2.969 ms ( 42.9%)
+    g term:    1.001 ms ( 14.5%)
+    eta solve: 1.968 ms ( 28.4%)
+  zeta system: 1.426 ms ( 20.6%)
+  u system:    1.859 ms ( 26.9%)
+  psi system:  0.183 ms (  2.6%)
+  phi low:     0.309 ms (  4.5%)
+  phi high:    0.152 ms (  2.2%)
+  pressure:    0.020 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 6.918 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 37.534 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 512 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.9769731796e-02
+  L2 error u_y: 8.4903838984e-04
+  L2 error u_z: 7.4115909903e-06
+  L2 error p:   3.7737818155e+00
+
+Brinkman channel (layer):
+  K: 1.000e-03
+  sqrt(K) / dy: 16.1751
+  dy: 1.9550342131e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 1.7274538086e-03
+  Linf error u_x: 3.4298861131e-03
+  Linf u_y, u_z: 1.2721658287e-04
+  porous max |u_x|: numerical 1.7023259440e-01, exact 1.6697657594e-01
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 16 x 6
+Local block: 6 x 16 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.085 ms ( 43.9%)
+    g term:    0.028 ms ( 14.4%)
+    eta solve: 0.057 ms ( 29.5%)
+  zeta system: 0.040 ms ( 20.8%)
+  u system:    0.052 ms ( 27.2%)
+  psi system:  0.005 ms (  2.5%)
+  phi low:     0.006 ms (  3.1%)
+  phi high:    0.004 ms (  2.2%)
+  pressure:    0.000 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.193 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 33.427 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 16 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 1.1970739921e+00
+  L2 error u_y: 4.8396405485e-02
+  L2 error u_z: 3.5436052600e-04
+  L2 error p:   2.2885722330e+02
+
+Brinkman channel (layer):
+  K: 1.000e-04
+  sqrt(K) / dy: 0.1550
+  dy: 6.4516129032e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 1.1264673285e-01
+  Linf error u_x: 1.9476104270e-01
+  Linf u_y, u_z: 7.3032213288e-03
+  porous max |u_x|: numerical 7.8245203085e-03, exact 1.6081865073e-03
+  threshold: relative L2 <= 5.00e-02  FAILED
+Global grid: 6 x 32 x 6
+Local block: 6 x 32 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.181 ms ( 44.1%)
+    g term:    0.060 ms ( 14.7%)
+    eta solve: 0.120 ms ( 29.4%)
+  zeta system: 0.083 ms ( 20.2%)
+  u system:    0.111 ms ( 27.1%)
+  psi system:  0.010 ms (  2.4%)
+  phi low:     0.015 ms (  3.7%)
+  phi high:    0.009 ms (  2.2%)
+  pressure:    0.001 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.1%)
+  wall per step: 0.409 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 35.540 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 32 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 5.3806649210e-01
+  L2 error u_y: 2.1577072250e-02
+  L2 error u_z: 1.7835731817e-04
+  L2 error p:   1.0445988610e+02
+
+Brinkman channel (layer):
+  K: 1.000e-04
+  sqrt(K) / dy: 0.3150
+  dy: 3.1746031746e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 5.0624698194e-02
+  Linf error u_x: 9.5402344972e-02
+  Linf u_y, u_z: 3.2698354890e-03
+  porous max |u_x|: numerical 1.5392552423e-02, exact 4.6935073174e-03
+  threshold: relative L2 <= 5.00e-02  FAILED
+Global grid: 6 x 64 x 6
+Local block: 6 x 64 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.359 ms ( 42.8%)
+    g term:    0.119 ms ( 14.2%)
+    eta solve: 0.240 ms ( 28.6%)
+  zeta system: 0.171 ms ( 20.4%)
+  u system:    0.235 ms ( 28.0%)
+  psi system:  0.020 ms (  2.4%)
+  phi low:     0.034 ms (  4.1%)
+  phi high:    0.018 ms (  2.1%)
+  pressure:    0.002 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 0.839 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 36.423 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 64 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 2.2932676356e-01
+  L2 error u_y: 9.2105124231e-03
+  L2 error u_z: 7.9748362821e-05
+  L2 error p:   4.4787244902e+01
+
+Brinkman channel (layer):
+  K: 1.000e-04
+  sqrt(K) / dy: 0.6350
+  dy: 1.5748031496e-02
+  body force G: 1.4222222222e+01
+  relative L2 error u: 2.1576027655e-02
+  Linf error u_x: 4.2250804607e-02
+  Linf u_y, u_z: 1.3972426440e-03
+  porous max |u_x|: numerical 2.6170450384e-02, exact 1.4685616426e-02
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 128 x 6
+Local block: 6 x 128 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  0.731 ms ( 42.9%)
+    g term:    0.246 ms ( 14.5%)
+    eta solve: 0.485 ms ( 28.5%)
+  zeta system: 0.340 ms ( 20.0%)
+  u system:    0.465 ms ( 27.3%)
+  psi system:  0.053 ms (  3.1%)
+  phi low:     0.074 ms (  4.3%)
+  phi high:    0.038 ms (  2.2%)
+  pressure:    0.003 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 1.703 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 36.957 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 128 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 9.8849687206e-02
+  L2 error u_y: 3.9790456323e-03
+  L2 error u_z: 3.5071126924e-05
+  L2 error p:   1.9298667869e+01
+
+Brinkman channel (layer):
+  K: 1.000e-04
+  sqrt(K) / dy: 1.2750
+  dy: 7.8431372549e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 9.3001604588e-03
+  Linf error u_x: 1.8405092791e-02
+  Linf u_y, u_z: 6.0367926241e-04
+  porous max |u_x|: numerical 3.6933996160e-02, exact 2.7910073121e-02
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 256 x 6
+Local block: 6 x 256 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  1.483 ms ( 43.0%)
+    g term:    0.498 ms ( 14.4%)
+    eta solve: 0.985 ms ( 28.6%)
+  zeta system: 0.703 ms ( 20.4%)
+  u system:    0.931 ms ( 27.0%)
+  psi system:  0.096 ms (  2.8%)
+  phi low:     0.151 ms (  4.4%)
+  phi high:    0.076 ms (  2.2%)
+  pressure:    0.008 ms (  0.2%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.000 ms (  0.0%)
+  wall per step: 3.449 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 37.420 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 256 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 4.4760978849e-02
+  L2 error u_y: 1.8041759761e-03
+  L2 error u_z: 1.6015495976e-05
+  L2 error p:   8.7176713008e+00
+
+Brinkman channel (layer):
+  K: 1.000e-04
+  sqrt(K) / dy: 2.5550
+  dy: 3.9138943249e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 4.2112803259e-03
+  Linf error u_x: 8.3340639963e-03
+  Linf u_y, u_z: 2.7361688767e-04
+  porous max |u_x|: numerical 4.4621313419e-02, exact 3.8778274011e-02
+  threshold: relative L2 <= 5.00e-02  ok
+Global grid: 6 x 512 x 6
+Local block: 6 x 512 x 6
+Processes: 1
+Process grid: 1 x 1 x 1
+Critical rank: 0
+Threads per process: 1
+Tridiagonal backend: schur
+Directional policy: auto
+Time steps: 200
+Solver time stats (max per rank, average per time step):
+  eta system:  3.399 ms ( 43.1%)
+    g term:    1.140 ms ( 14.5%)
+    eta solve: 2.258 ms ( 28.7%)
+  zeta system: 1.604 ms ( 20.4%)
+  u system:    2.129 ms ( 27.0%)
+  psi system:  0.204 ms (  2.6%)
+  phi low:     0.347 ms (  4.4%)
+  phi high:    0.174 ms (  2.2%)
+  pressure:    0.022 ms (  0.3%)
+  porosity:    0.000 ms (  0.0%)
+  write file:  0.000 ms
+  unaccounted: 0.001 ms (  0.0%)
+  wall per step: 7.881 ms
+  mpi per step:  0.000 ms (  0.0%)
+  per cell-step: 42.755 1e-8s
+
+Manufactured-solution error report:
+  Grid: 6 x 512 x 6
+  dt: 5.00e-03
+  T:  1.00e+00
+  Velocity verification time: 1.00e+00
+  Pressure verification time: 9.98e-01
+  L2 error u_x: 2.1162791759e-02
+  L2 error u_y: 8.5352627900e-04
+  L2 error u_z: 7.5997067990e-06
+  L2 error p:   4.1126551350e+00
+
+Brinkman channel (layer):
+  K: 1.000e-04
+  sqrt(K) / dy: 5.1150
+  dy: 1.9550342131e-03
+  body force G: 1.4222222222e+01
+  relative L2 error u: 1.9910730475e-03
+  Linf error u_x: 3.9474948863e-03
+  Linf u_y, u_z: 1.2940583743e-04
+  porous max |u_x|: numerical 4.9022510140e-02, exact 4.5762576199e-02
+  threshold: relative L2 <= 5.00e-02  ok
