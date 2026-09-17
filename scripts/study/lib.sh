@@ -23,7 +23,7 @@
 #
 #   binari in cache   compilare e' l'unica cosa che non si vuole ripetere: una
 #                variante (backend, simd, omp, mpi, batch) si costruisce una
-#                volta e resta in build/study/bin.
+#                volta per fase e resta in $STUDY_BASE/variants/<fase>.
 #
 #   budget       la coda `scalability' concede 30 minuti per job
 #                (resources_max.walltime = 00:30:00) e lo studio ne vuole molte
@@ -311,8 +311,16 @@ study_build()
 {
     local backend="$1" simd="$2" omp="$3" mpi="$4" batch="$5"
     local target="${6:-bench}"
+    local lines="$batch"
+    [[ "$batch" == auto ]] && lines=""
+    # Un albero di compilazione per fase. Il Makefile separa gia' le
+    # configurazioni, ma due fasi che partono insieme compilano la stessa
+    # configurazione negli stessi oggetti, e un oggetto scritto a meta' da un
+    # job lo linka l'altro. Le catene di una fase sono in fila, quindi
+    # dentro una fase la cache resta.
     local options=(TRIDIAG="$backend" SIMD="$simd" OMP="$omp" MPI="$mpi"
-                   PIPELINE_BATCH_LINES="$batch")
+                   PIPELINE_BATCH_LINES="$lines"
+                   BUILD_ROOT="$STUDY_BASE/variants/$STUDY_PHASE")
     if [[ "$mpi" == 1 && -n "${MPICC:-}" ]]; then
         options+=(CC="$MPICC")
     elif [[ "$mpi" == 0 && -n "${CC:-}" ]]; then
@@ -449,7 +457,12 @@ study_placement()
 study_case()
 {
     local backend="${CASE_BACKEND:-schur}"
-    local batch="${CASE_BATCH:-64}"
+    # auto: il binario non fissa il batch e la pipeline lo sceglie all'avvio,
+    # come fa il solutore compilato senza opzioni. Un numero lo fissa a
+    # compilazione, ed e' quello che serve alla scansione della 13. Prima il
+    # default era 64, e le fasi che non spazzano il batch misuravano un
+    # valore che il codice non usa piu'.
+    local batch="${CASE_BATCH:-auto}"
     local simd="${CASE_SIMD:-1}"
     local omp="${CASE_OMP:-1}"
     local mpi="${CASE_MPI:-1}"
@@ -550,7 +563,7 @@ study_case()
     [[ -n "$STUDY_NOTE" ]] && note="${note:+$note; }$STUDY_NOTE"
 
     local best_wall="" best_line="" status="ok" started
-    local repeat out line wall
+    local repeat out line wall chosen=""
     started="$(date +%s)"
 
     # Nessun caso puo' durare piu' del budget che resta: oltre quello lo
@@ -656,6 +669,7 @@ study_case()
             sed 's/^/      /' <<< "$out" | tail -15
             break
         fi
+        chosen="$(awk '/^  bench batch:/ { print $3; exit }' <<< "$out")"
 
         # px,py,pz sono i primi tre campi: il tempo e' il quarto.
         wall="$(cut -d, -f4 <<< "$line")"
@@ -689,6 +703,13 @@ study_case()
         study_done "$key" "$status"
         printf '%s (%ds)\n' "$status" "$seconds"
         return 0
+    fi
+
+    # La colonna batch resta `auto', come la chiave della ripresa e l'elenco
+    # atteso della 15: e' la configurazione. Il valore che la pipeline ha
+    # scelto lo stampa bench, e va nella nota.
+    if [[ "$batch" == auto && "$backend" == pipeline && -n "$chosen" ]]; then
+        note="${note:+$note; }batch scelto $chosen"
     fi
 
     study_record "$label" "$backend" "$batch" "$simd" "$omp" "$mpi" \

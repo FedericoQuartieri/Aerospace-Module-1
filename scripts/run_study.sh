@@ -40,6 +40,8 @@
 #   DRY_RUN=1   list the cases and run nothing
 #   REPEATS     repeats per case (default 2, the best one is kept)
 #   STEPS       time steps per case
+#   CASE_BATCH  pipeline batch of the phases that do not sweep it: auto (the
+#               default, chosen at start-up as the solver does) or a number
 
 set -euo pipefail
 

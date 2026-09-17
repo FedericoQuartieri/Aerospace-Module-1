@@ -13,14 +13,20 @@
 #   fra processi   batch piccoli riempiono la pipeline prima, quindi meno
 #                  tempo morto all'inizio, ma mandano piu' messaggi.
 #   fra thread     dentro un batch le linee sono indipendenti e i thread se le
-#                  spartiscono, ma ogni livello e' una barriera: batch piccoli
-#                  vuol dire poco lavoro fra una barriera e la successiva.
-#                  Misurato in locale: da 64 a 1024 il guadagno a 4 thread
-#                  passa da 1.29x a 1.76x.
+#                  spartiscono, una linea intera ciascuno. Fino a 46146d6 ogni
+#                  livello era una barriera e i batch piccoli lasciavano ai
+#                  thread quasi niente da fare fra due attese; ora la barriera
+#                  e' una per batch, e l'ottimo va ritrovato.
+#
+# Su un asse che nessun processo divide la pipeline taglia il batch a uno per
+# worker, quindi con un processo solo il batch cambia poco piu' della memoria
+# di lavoro. Per sapere quale batch vogliono molti thread servono piazzamenti
+# con piu' processi e molti thread ciascuno: 14x4, 8x7, 4x14, 2x28.
 #
 # Quindi il batch ottimo NON e' un numero, e' una funzione di quanti rank,
 # quanti thread e quanto e' grande il blocco locale. Questa fase la campiona:
-# dieci batch per sette piazzamenti per due taglie.
+# undici batch per dieci piazzamenti per due taglie. Il riepilogo in fondo
+# confronta il migliore con quello della regola usata all'avvio.
 #
 # Le righe schur sono il riferimento: allo stesso piazzamento, quanto fa
 # l'altro backend, che di manopole non ne ha.
@@ -43,10 +49,12 @@ study_begin 13_matrix_batch
 study_machine
 
 GRIDS="${GRIDS:-128 224}"
-BATCHES="${BATCHES:-8 16 32 64 128 256 512 1024 2048 4096}"
+# 8192 oltre il tetto della regola (4096): senza, un minimo sul bordo non
+# dice se il tetto costa qualcosa.
+BATCHES="${BATCHES:-8 16 32 64 128 256 512 1024 2048 4096 8192}"
 # rank x thread: le colonne del rettangolo della 12 che contano qui. Il primo
 # numero sono i rank, il secondo i thread.
-PLACEMENTS="${PLACEMENTS:-1x1 1x14 1x28 1x56 8x1 8x7 28x2 56x1}"
+PLACEMENTS="${PLACEMENTS:-1x1 1x14 1x56 8x1 56x1 14x4 28x2 8x7 4x14 2x28}"
 
 CASE_BACKEND=pipeline
 CASE_OMP=1
@@ -102,31 +110,48 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
     echo "=== the best batch, per placement ==="
     awk -F, -v phase=13_matrix_batch '
+    # La stessa regola di batch_lines_for_threads in
+    # src/tridiag/pipeline/backend.c: se cambia la, va cambiata qui.
+    function rule(t,    target, power) {
+        target = 256 * (t > 0 ? t : 1)
+        power = 1
+        while (power * 2 <= target) power *= 2
+        if (target * target > 2 * power * power) power *= 2
+        return power < 4096 ? power : 4096
+    }
     NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
     # Come sopra: i riferimenti collidono col piazzamento 1x1.
     $2 ~ / (seriale|T\(1\))$/ { next }
     {
         k = $10 "," $5 "," $8 "x" $9
         if ($3 == "schur") { ref[k] = $17 + 0; next }
+        at[k, $4] = $17 + 0
         if (!(k in best) || $17 + 0 < best[k]) { best[k] = $17 + 0; bb[k] = $4 }
         if (!(k in worst) || $17 + 0 > worst[k]) { worst[k] = $17 + 0; wb[k] = $4 }
         if (!(k in seen)) { keys[++nk] = k; seen[k] = 1 }
     }
     END {
-        printf "  %-7s %-5s %-8s %9s %7s %9s %7s %7s %9s\n",
+        printf "  %-7s %-5s %-8s %9s %6s %9s %6s %7s %6s %7s %9s\n",
                "grid", "simd", "rankxthr", "best", "batch",
-               "worst", "batch", "spread", "schur"
+               "worst", "batch", "spread", "rule", "loss", "schur"
         for (i = 1; i <= nk; i++) {
-            split(keys[i], p, ",")
-            printf "  %-7s %-5s %-8s %9.1f %7s %9.1f %7s %6.2fx %9s\n",
+            k = keys[i]
+            split(k, p, ",")
+            split(p[3], rt, "x")
+            r = rule(rt[2])
+            loss = "-"
+            if (((k, r) in at) && best[k] > 0)
+                loss = sprintf("%+.1f%%", 100 * (at[k, r] / best[k] - 1))
+            printf "  %-7s %-5s %-8s %9.1f %6s %9.1f %6s %6.2fx %6s %7s %9s\n",
                    p[1], p[2], p[3],
-                   best[keys[i]], bb[keys[i]], worst[keys[i]], wb[keys[i]],
-                   (best[keys[i]] > 0 ? worst[keys[i]] / best[keys[i]] : 0),
-                   (keys[i] in ref ? sprintf("%.1f", ref[keys[i]]) : "-")
+                   best[k], bb[k], worst[k], wb[k],
+                   (best[k] > 0 ? worst[k] / best[k] : 0), r, loss,
+                   (k in ref ? sprintf("%.1f", ref[k]) : "-")
         }
         print ""
-        print "  If the `best batch\x27 column changes with the placement, then the"
-        print "  default 64 is right only for the placement it was chosen on."
+        print "  rule is the batch the solver picks at start-up for that many"
+        print "  threads per process, loss how much slower it is than the best."
+        print "  A large loss means the rule in backend.c has to change."
     }' "$STUDY_CSV"
 fi
 
