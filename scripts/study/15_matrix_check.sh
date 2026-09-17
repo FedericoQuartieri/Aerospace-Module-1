@@ -48,7 +48,9 @@ study_machine
 GRID="${CHECK_GRID:-64}"
 CHECK_RANKS="${CHECK_RANKS:-1 2 4 7 8 14 28}"
 CHECK_THREADS="${CHECK_THREADS:-1 2 7 8}"
-CHECK_BATCHES="${CHECK_BATCHES:-1 7 64 1024}"
+# auto e' il batch scelto all'avvio, quello che usano le altre fasi: deve
+# dare le stesse norme dei valori fissati a compilazione.
+CHECK_BATCHES="${CHECK_BATCHES:-1 7 64 1024 auto}"
 
 grid="$GRID $GRID $GRID"
 steps="$(matrix_steps "$GRID")"

@@ -1108,8 +1108,10 @@ def fig_batch(rows, outdir):
     parts = []
     for k, (r, t) in enumerate(piazzamenti):
         qui = pick(data, ranks=r, threads=t)
+        # batch=auto non ha un'ascissa: sta fuori dalla curva.
         pipe = sorted((g["batch"], g["wall_ms"])
-                      for g in pick(qui, backend="pipeline"))
+                      for g in pick(qui, backend="pipeline")
+                      if g["batch"] is not None)
         schur = [g["wall_ms"] for g in pick(qui, backend="schur")]
         if not pipe:
             continue
