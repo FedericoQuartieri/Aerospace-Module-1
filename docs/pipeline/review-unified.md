@@ -117,9 +117,7 @@ la pressione con termini noti differenti per verificare il riuso dei fattori.
 
 Sono inoltre presenti test automatici per il validatore dello studio, il
 confronto dei campi, l'identità delle sorgenti e il cambio di configurazione
-nel Makefile. Il workflow GitHub Actions aggiunto esegue matrici double/float,
-SIMD attiva/disattiva, MPI/OpenMP e una verifica con AddressSanitizer/UBSan.
-La sua esecuzione remota avverrà solo dopo il push dell'utente.
+nel Makefile.
 
 I risultati delle esecuzioni di questa revisione sono riportati in
 `validation.md`, accanto a questo documento.

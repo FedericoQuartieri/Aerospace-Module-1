@@ -1,6 +1,6 @@
 # Validazione delle modifiche alla pipeline
 
-Base: `5c7aa7b4b2db0fe691acda24f96c6c08bdc9a55d`, verificata nuovamente sul remoto il 16 settembre 2026. Nessun push eseguito.
+Base: `5c7aa7b4b2db0fe691acda24f96c6c08bdc9a55d`, verificata nuovamente sul remoto il 16 settembre 2026. Tutte le verifiche di questa pagina sono state eseguite a mano, in locale.
 
 ## Correttezza
 
@@ -61,4 +61,4 @@ MPI=1 OMP=1 SIMD=1 THREADS="1 2" RANKS=4 GRIDS="4 5 6" PIPELINE_BATCHES="auto 1 
 MPI=1 OMP=1 SIMD=1 PRECISION=float THREADS="1 2" RANKS=4 GRIDS="17 19 13" PIPELINE_BATCHES="64" T_END=0.1 MPIEXEC_ARGS="--oversubscribe" OMP_WAIT_POLICY=passive ./scripts/check_pipeline.sh
 ~~~
 
-Il workflow GitHub Actions è stato aggiunto ma non eseguito da remoto: partirà dopo il push. Prima di interpretare nuove campagne di performance sul cluster, eseguire la fase 15 e usare la nuova directory di campagna, senza mescolare le misure storiche.
+Le verifiche non sono automatizzate: si lanciano a mano con i comandi della sezione Riproduzione. Prima di interpretare nuove campagne di performance sul cluster, eseguire la fase 15 e usare la nuova directory di campagna, senza mescolare le misure storiche.
