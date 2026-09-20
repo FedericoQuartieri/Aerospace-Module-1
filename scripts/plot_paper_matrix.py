@@ -8,8 +8,7 @@ the report: hybrid.pdf, every processes x threads pair at 224^3 for both
 backends (phase 12), and shapes.pdf, the fastest and the slowest process
 grid for each number of processes (phase 11).  The memory table (phase 14)
 has no figure: its numbers are printed with the others, for the text.
-All three use SIMD; the pipeline runs with the fixed batch of 64 lines the
-campaign used.
+All three use SIMD; the pipeline runs with the batch it chooses at start-up.
 """
 
 import argparse
@@ -25,10 +24,10 @@ from matplotlib.ticker import FixedLocator, NullLocator
 import paperfig
 
 GRID = ("224", "224", "224")
-BACKENDS = [("schur", "Schur"), ("pipeline", "pipeline, $B=64$")]
+BACKENDS = [("schur", "Schur"), ("pipeline", "pipeline")]
 # The shapes of phase 11 were all measured on this node from two processes
 # up; the few rows elsewhere repeat a shape and would mix two machines.
-SHAPE_NODE = "cpu05"
+SHAPE_NODE = "cpu02"
 # What MPI_Dims_create returns for these counts in three dimensions.
 DEFAULT_SHAPE = {1: "1x1x1", 2: "2x1x1", 4: "2x2x1", 7: "7x1x1",
                  8: "2x2x2", 14: "7x2x1", 28: "7x2x2", 56: "7x4x2"}
