@@ -157,9 +157,9 @@ steps="$(matrix_steps "$BLOCK")"
 # 96x96x5376 -- would answer a question nobody asks, and would cost 6-8 GB and
 # minutes at random.
 for backend in $MATRIX_BACKENDS; do
-    study_baseline label="cubo $backend blocco ${BLOCK}^3" \
+    study_baseline label="cube $backend block ${BLOCK}^3" \
         backend="$backend" simd=1 grid="$BLOCK $BLOCK $BLOCK" \
-        steps="$steps" note="riferimento a blocco locale"
+        steps="$steps" note="reference at local block"
 done
 for backend in $MATRIX_BACKENDS; do
     for n in $RANKS; do
@@ -167,11 +167,11 @@ for backend in $MATRIX_BACKENDS; do
         mapfile -t forme < <(matrix_shapes "$n")
         for forma in "${forme[@]}"; do
             read -r px py pz <<< "$forma"
-            study_case label="cubo $backend R=$n ${px}x${py}x${pz}" \
+            study_case label="cube $backend R=$n ${px}x${py}x${pz}" \
                 backend="$backend" ranks="$n" shape="$px $py $pz" simd=1 \
                 grid="$(( px * BLOCK )) $(( py * BLOCK )) $(( pz * BLOCK ))" \
                 steps="$steps" \
-                note="blocco locale ${BLOCK}^3, globale al seguito"
+                note="local block ${BLOCK}^3, global follows"
         done
     done
 done
@@ -196,15 +196,15 @@ for n in $ASPETTO_RANKS; do
             for simd in $MATRIX_SIMD; do
                 # Same reasoning as block 2: the denominator is that same block
                 # shape done by a single process.
-                study_baseline label="aspetto $backend ${bx}x${by}x${bz} s$simd" \
+                study_baseline label="aspect $backend ${bx}x${by}x${bz} s$simd" \
                     backend="$backend" simd="$simd" \
                     grid="$bx $by $bz" steps="$(matrix_steps "$bx")" \
-                    note="riferimento a blocco locale ${bx}x${by}x${bz}"
-                study_case label="aspetto $backend ${bx}x${by}x${bz} s$simd" \
+                    note="reference at local block ${bx}x${by}x${bz}"
+                study_case label="aspect $backend ${bx}x${by}x${bz} s$simd" \
                     backend="$backend" ranks="$n" shape="$shape" simd="$simd" \
                     grid="$(( px * bx )) $(( py * by )) $(( pz * bz ))" \
                     steps="$(matrix_steps "$bx")" \
-                    note="blocco locale ${bx}x${by}x${bz}"
+                    note="local block ${bx}x${by}x${bz}"
             done
         done
     done
@@ -218,7 +218,7 @@ for backend in $MATRIX_BACKENDS; do
     for n in 1 8 56; do
         shape="$(study_auto_shape "$n")"
         [[ -n "$shape" ]] || continue
-        study_case label="$backend ponte R=$n omp=1" backend="$backend" \
+        study_case label="$backend bridge R=$n omp=1" backend="$backend" \
             ranks="$n" shape="$shape" simd=1 omp=1 \
             grid="$FULL_GRID $FULL_GRID $FULL_GRID" \
             steps="$(matrix_steps "$FULL_GRID")"
@@ -230,11 +230,11 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo "=== the best and the worst shape, for each rank count ==="
     awk -F, -v phase=11_matrix_mpi '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
-    $2 ~ /ponte|^cubo |^aspetto / { next }
+    $2 ~ /bridge|^cube |^aspect / { next }
     # The references are not shapes: they must be excluded, or they would
     # appear as the best shape of every row, since they run on a single
     # process.
-    $2 ~ / (seriale|T\(1\))$/ { next }
+    $2 ~ / (serial|T\(1\))$/ { next }
     {
         k = $3 "," $5 "," $10 "," $8
         s = $14 "x" $15 "x" $16
@@ -267,7 +267,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
     echo "=== fixed local block: the time of the three pure splits, by axis ==="
     awk -F, -v phase=11_matrix_mpi '
-    NR == 1 || $1 != phase || $(NF - 1) != "ok" || $2 !~ /^cubo / { next }
+    NR == 1 || $1 != phase || $(NF - 1) != "ok" || $2 !~ /^cube / { next }
     {
         # Pure cut: all the processes on a single axis.
         asse = ""

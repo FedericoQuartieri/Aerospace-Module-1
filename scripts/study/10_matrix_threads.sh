@@ -94,7 +94,7 @@ for backend in $MATRIX_BACKENDS; do
                 backend="$backend" simd=1 threads="$t" bind="$bind" \
                 grid="$BIND_GRID $BIND_GRID $BIND_GRID" \
                 steps="$(matrix_steps "$BIND_GRID")" \
-                note="piazzamento $bind"
+                note="placement $bind"
         done
     done
 done
@@ -112,7 +112,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
         # The two reference rows are not points of the curve: they are the
         # denominators. They must be recognised first, or they would end up
         # overwriting the T=1 column, which has the same ranks and threads.
-        if ($2 ~ / seriale$/) { ser[key] = $17; next }
+        if ($2 ~ / serial$/) { ser[key] = $17; next }
         if ($2 ~ / T\(1\)$/) { t1[key] = $17; next }
         wall[key "," $9] = $17
     }

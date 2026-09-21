@@ -109,10 +109,10 @@ for backend in $MATRIX_BACKENDS; do
         matrix_shape_fits "$shape" "$grid" || continue
         # Two ways of spending the same units: all ranks, or one rank with as
         # many threads. The difference is the cost of dividing.
-        study_case label="$backend forte R=$n T=1" backend="$backend" \
+        study_case label="$backend strong R=$n T=1" backend="$backend" \
             ranks="$n" threads=1 shape="$shape" simd=1 \
             grid="$grid" steps="$steps"
-        study_case label="$backend forte R=1 T=$n" backend="$backend" \
+        study_case label="$backend strong R=1 T=$n" backend="$backend" \
             ranks=1 threads="$n" shape="1 1 1" simd=1 \
             grid="$grid" steps="$steps"
     done
@@ -131,11 +131,11 @@ for entry in "${weak[@]}"; do
 
     for backend in $MATRIX_BACKENDS; do
         for simd in $MATRIX_SIMD; do
-            study_case label="$backend debole R=$n s$simd" \
+            study_case label="$backend weak R=$n s$simd" \
                 backend="$backend" simd="$simd" ranks="$n" threads=1 \
                 shape="$shape" grid="$grid" \
                 steps="$(matrix_steps "$wx")" \
-                note="debole, ${wx}x${wy}x${wz}"
+                note="weak, ${wx}x${wy}x${wz}"
         done
     done
 done
@@ -146,7 +146,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     awk -F, -v phase=14_matrix_size '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" || $2 !~ / N=/ { next }
     # The reference labels also contain " N=".
-    $2 ~ / (seriale|T\(1\))$/ { next }
+    $2 ~ / (serial|T\(1\))$/ { next }
     {
         k = $3 "," $5 "," $8 "x" $9
         cell[k "," $10] = $28 + 0

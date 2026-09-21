@@ -78,7 +78,7 @@ for n in $GRIDS; do
         done
         study_baseline label="schur ${n}^3 s$simd" \
             backend=schur simd="$simd" grid="$grid" steps="$steps" \
-            note="riferimento per il batch"
+            note="reference for the batch"
 
         echo "=== ${n}^3 simd=$simd: the batch, for every placement ==="
         for place in $PLACEMENTS; do
@@ -100,7 +100,7 @@ for n in $GRIDS; do
             study_case label="schur ${n}^3 s$simd $place" \
                 backend=schur simd="$simd" ranks="$r" threads="$t" \
                 shape="$shape" grid="$grid" steps="$steps" \
-                note="riferimento per il batch"
+                note="reference for the batch"
         done
         echo
     done
@@ -122,7 +122,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     }
     NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
     # As above: the references collide with the 1x1 placement.
-    $2 ~ / (seriale|T\(1\))$/ { next }
+    $2 ~ / (serial|T\(1\))$/ { next }
     {
         k = $10 "," $5 "," $8 "x" $9
         if ($3 == "schur") { ref[k] = $17 + 0; next }

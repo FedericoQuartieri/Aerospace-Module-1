@@ -35,7 +35,7 @@ def parse_args():
 
 def load(path):
     if not path.exists():
-        raise SystemExit(f"manca {path}\nLancia prima ./scripts/run_scaling.sh")
+        raise SystemExit(f"missing {path}\nRun ./scripts/run_scaling.sh first")
     with path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     out = {}
@@ -56,25 +56,25 @@ def asse_x(procs, x0):
 def pannello(parts, indice, titolo, sotto, y_max, y_label):
     x0 = MARGINE_X + indice * PANNELLO
     y0 = MARGINE_Y
-    parts.append(f'<text x="{x0}" y="{y0 - 26}" class="titolo">{titolo}</text>')
-    parts.append(f'<text x="{x0}" y="{y0 - 10}" class="sotto">{sotto}</text>')
+    parts.append(f'<text x="{x0}" y="{y0 - 26}" class="title">{titolo}</text>')
+    parts.append(f'<text x="{x0}" y="{y0 - 10}" class="subtitle">{sotto}</text>')
     parts.append(f'<rect x="{x0}" y="{y0}" width="{GRAFICO_W}" '
-                 f'height="{GRAFICO_H}" class="riquadro"/>')
+                 f'height="{GRAFICO_H}" class="panel"/>')
     for frazione in (0, 0.25, 0.5, 0.75, 1.0):
         y = y0 + GRAFICO_H * (1 - frazione)
         parts.append(f'<line x1="{x0}" y1="{y:.1f}" x2="{x0 + GRAFICO_W}" '
-                     f'y2="{y:.1f}" class="griglia"/>')
-        parts.append(f'<text x="{x0 - 8}" y="{y + 4:.1f}" class="tacca-y">'
+                     f'y2="{y:.1f}" class="grid"/>')
+        parts.append(f'<text x="{x0 - 8}" y="{y + 4:.1f}" class="tick-y">'
                      f'{frazione * y_max:.0f}</text>')
     parts.append(f'<text x="{x0 - 44}" y="{y0 + GRAFICO_H / 2}" '
-                 f'class="asse" transform="rotate(-90 {x0 - 44} '
+                 f'class="axis" transform="rotate(-90 {x0 - 44} '
                  f'{y0 + GRAFICO_H / 2})">{y_label}</text>')
     parts.append(f'<text x="{x0 + GRAFICO_W / 2}" y="{y0 + GRAFICO_H + 40}" '
-                 f'class="asse">processi</text>')
+                 f'class="axis">processes</text>')
     for procs in (1, 2, 4, 8):
         x = asse_x(procs, x0)
         parts.append(f'<text x="{x:.1f}" y="{y0 + GRAFICO_H + 20}" '
-                     f'class="tacca-x">{procs}</text>')
+                     f'class="tick-x">{procs}</text>')
     return x0, y0
 
 
@@ -98,7 +98,7 @@ def legenda(parts, x0, y0, voci):
         y = y0 + 14 + i * 17
         parts.append(f'<line x1="{x0 + 12}" y1="{y}" x2="{x0 + 38}" y2="{y}" '
                      f'stroke="{colore}" stroke-width="2.2" {tratteggio}/>')
-        parts.append(f'<text x="{x0 + 44}" y="{y + 4}" class="legenda">'
+        parts.append(f'<text x="{x0 + 44}" y="{y + 4}" class="legend">'
                      f'{testo}</text>')
 
 
@@ -116,7 +116,7 @@ def barre(parts, x0, y0, serie, y_max):
                      f'width="{larghezza}" height="{h_mpi:.1f}" '
                      f'fill="{ROSSO}" opacity="0.9"/>')
         parts.append(f'<text x="{x + larghezza / 2:.1f}" '
-                     f'y="{y0 + GRAFICO_H - h_tot - 6:.1f}" class="valore">'
+                     f'y="{y0 + GRAFICO_H - h_tot - 6:.1f}" class="value">'
                      f'{100 * mpi / wall:.0f}%</text>')
 
 
@@ -130,22 +130,22 @@ def main():
         f'height="{ALTEZZA}" viewBox="0 0 {LARGHEZZA} {ALTEZZA}">',
         '<style>',
         'text{font-family:"DejaVu Sans",sans-serif;fill:#1e293b}',
-        '.titolo{font-size:15px;font-weight:600}',
-        '.sotto{font-size:11px;fill:#64748b}',
-        '.asse{font-size:12px;fill:#475569;text-anchor:middle}',
-        '.tacca-x{font-size:11px;fill:#475569;text-anchor:middle}',
-        '.tacca-y{font-size:11px;fill:#475569;text-anchor:end}',
-        '.legenda{font-size:11px;fill:#334155}',
-        '.valore{font-size:10px;fill:#475569;text-anchor:middle}',
-        '.riquadro{fill:#f8fafc;stroke:#cbd5e1}',
-        '.griglia{stroke:#e2e8f0;stroke-width:1}',
+        '.title{font-size:15px;font-weight:600}',
+        '.subtitle{font-size:11px;fill:#64748b}',
+        '.axis{font-size:12px;fill:#475569;text-anchor:middle}',
+        '.tick-x{font-size:11px;fill:#475569;text-anchor:middle}',
+        '.tick-y{font-size:11px;fill:#475569;text-anchor:end}',
+        '.legend{font-size:11px;fill:#334155}',
+        '.value{font-size:10px;fill:#475569;text-anchor:middle}',
+        '.panel{fill:#f8fafc;stroke:#cbd5e1}',
+        '.grid{stroke:#e2e8f0;stroke-width:1}',
         '</style>',
         f'<rect width="{LARGHEZZA}" height="{ALTEZZA}" fill="white"/>',
     ]
 
     # 1. strong scaling: how much the time shortens
     x0, y0 = pannello(parts, 0, "Strong scaling",
-                      "problema fisso 128x128x128", 8, "speedup")
+                      "fixed problem 128x128x128", 8, "speedup")
     curva(parts, x0, y0, [(p, p) for p, _, _ in scalare["strong"]], 8,
           GRIGIO, 'stroke-dasharray="5,4"')
     base = scalare["strong"][0][1]
@@ -154,12 +154,12 @@ def main():
     base = simd["strong"][0][1]
     curva(parts, x0, y0, [(p, base / w) for p, w, _ in simd["strong"]], 8,
           ROSSO)
-    legenda(parts, x0, y0, [(GRIGIO, "ideale", 'stroke-dasharray="5,4"'),
-                            (BLU, "scalare", ""), (ROSSO, "con SIMD", "")])
+    legenda(parts, x0, y0, [(GRIGIO, "ideal", 'stroke-dasharray="5,4"'),
+                            (BLU, "scalar", ""), (ROSSO, "with SIMD", "")])
 
     # 2. weak scaling: the time should stay constant
     x0, y0 = pannello(parts, 1, "Weak scaling",
-                      "64x64x64 per processo", 100, "efficienza  %")
+                      "64x64x64 per process", 100, "efficiency  %")
     curva(parts, x0, y0, [(p, 100) for p, _, _ in scalare["weak"]], 100,
           GRIGIO, 'stroke-dasharray="5,4"')
     base = scalare["weak"][0][1]
@@ -168,15 +168,15 @@ def main():
     base = simd["weak"][0][1]
     curva(parts, x0, y0, [(p, 100 * base / w) for p, w, _ in simd["weak"]],
           100, ROSSO)
-    legenda(parts, x0, y0, [(GRIGIO, "ideale", 'stroke-dasharray="5,4"'),
-                            (BLU, "scalare", ""), (ROSSO, "con SIMD", "")])
+    legenda(parts, x0, y0, [(GRIGIO, "ideal", 'stroke-dasharray="5,4"'),
+                            (BLU, "scalar", ""), (ROSSO, "with SIMD", "")])
 
     # 3. where the time goes
     y_max = max(w for _, w, _ in scalare["strong"]) * 1.15
-    x0, y0 = pannello(parts, 2, "Dove va il tempo",
-                      "strong scaling, scalare", y_max, "ms per passo")
+    x0, y0 = pannello(parts, 2, "Where the time goes",
+                      "strong scaling, scalar", y_max, "ms per step")
     barre(parts, x0, y0, scalare["strong"], y_max)
-    legenda(parts, x0, y0, [(BLU, "calcolo", ""), (ROSSO, "dentro MPI", "")])
+    legenda(parts, x0, y0, [(BLU, "computation", ""), (ROSSO, "inside MPI", "")])
 
     parts.append("</svg>")
 

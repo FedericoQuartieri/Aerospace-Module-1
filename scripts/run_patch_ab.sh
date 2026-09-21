@@ -186,7 +186,7 @@ corri()
 # instead of starting over. A case that is already complete -- all the
 # repetitions, for both revisions -- is skipped.
 if [[ ! -f "$csv" || "${FRESH:-0}" == "1" ]]; then
-    printf 'revisione,sha,scenario,backend,simd,omp,mpi,ranks,threads,nx,steps,ripetizione,'\
+    printf 'revision,sha,scenario,backend,simd,omp,mpi,ranks,threads,nx,steps,repetition,'\
 'wall_ms,mpi_ms,eta_ms,zeta_ms,u_ms,psi_ms,philow_ms,phihigh_ms,pressure_ms,'\
 'porosity_ms,untimed_ms,cellstep_1e8s,rss_mb,g_ms\n' > "$csv"
 fi
@@ -245,7 +245,7 @@ for n in $GRIDS; do
                         riga="$(leggi <<< "$out")" || riga=""
                         [[ -z "$riga" ]] && continue
                         etichetta="$( [[ "$rev" == "$sha_prima" ]] \
-                                      && echo prima || echo dopo )"
+                                      && echo before || echo after )"
                         printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
                             "$etichetta" "$rev" "$scenario" "$backend" \
                             "$simd" "$omp" "$mpi" "$ranks" "$threads" "$n" \
@@ -297,8 +297,8 @@ END {
         split(casi[c], p, "|")
         printf "  %-16s %-9s %-5s %-8s %-6s", p[1], p[2], p[3], p[4], p[5]
         for (s = 1; s <= ns; s++) {
-            a = mediana(casi[c] "|prima|" stadi[s])
-            b = mediana(casi[c] "|dopo|" stadi[s])
+            a = mediana(casi[c] "|before|" stadi[s])
+            b = mediana(casi[c] "|after|" stadi[s])
             if (a == "" || b == "" || a == 0) { printf " %19s", "-"; continue }
             printf " %8.1f>%-6.1f %3.0f%%", a, b, 100 * (a - b) / a
         }

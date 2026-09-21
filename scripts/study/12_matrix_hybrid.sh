@@ -101,7 +101,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
     # The references have one rank and one thread: without this they would end
     # up in the cell R=1 T=1 of the rectangle, where a real case sits.
-    $2 ~ / (seriale|T\(1\))$/ { next }
+    $2 ~ / (serial|T\(1\))$/ { next }
     {
         k = $3 "," $5 "," $10
         wall[k "," $8 "," $9] = $17 + 0

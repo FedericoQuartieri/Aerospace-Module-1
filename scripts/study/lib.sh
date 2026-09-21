@@ -430,7 +430,7 @@ study_placement()
         # `slot:PE=n' gives each rank n distinct cores whatever the number of
         # ranks: one loses NUMA locality, not one's sanity.
         STUDY_MPI_OPTS=("${smt[@]}" --map-by "slot:PE=$threads" --bind-to "$bind_unit")
-        STUDY_NOTE="$ranks rank non si dividono fra $STUDY_SOCKETS socket: niente localita' NUMA"
+        STUDY_NOTE="$ranks ranks do not divide among $STUDY_SOCKETS sockets: no NUMA locality"
     fi
 
     if [[ $(( ranks * threads )) -gt "$STUDY_LOGICAL" ]]; then
@@ -438,7 +438,7 @@ study_placement()
         # cores and would fail before starting. The case is not comparable with
         # the others anyway, and the note in the CSV says so.
         STUDY_MPI_OPTS=(--oversubscribe --bind-to none)
-        STUDY_NOTE="${STUDY_NOTE:+$STUDY_NOTE; }in sovrannumero, senza binding"
+        STUDY_NOTE="${STUDY_NOTE:+$STUDY_NOTE; }oversubscribed, no binding"
         # With more threads than cores, the busy-waiting of OpenMP burns the
         # cores by contending them with whoever is working: an oversubscribed
         # case can slow down by orders of magnitude instead of linearly.
@@ -452,7 +452,7 @@ study_placement()
     # replaces everything.
     if [[ -n "${PLACEMENT_OVERRIDE:-}" ]]; then
         STUDY_MPI_OPTS=($PLACEMENT_OVERRIDE)
-        STUDY_NOTE="${STUDY_NOTE:+$STUDY_NOTE; }piazzamento imposto dalla fase"
+        STUDY_NOTE="${STUDY_NOTE:+$STUDY_NOTE; }placement imposed by the phase"
     fi
 }
 
@@ -721,7 +721,7 @@ study_case()
     # of phase 15: it is the configuration. The value that the pipeline chose
     # is printed by bench, and goes into the note.
     if [[ "$batch" == auto && "$backend" == pipeline && -n "$chosen" ]]; then
-        note="${note:+$note; }batch scelto $chosen"
+        note="${note:+$note; }chosen batch $chosen"
     fi
 
     study_record "$label" "$backend" "$batch" "$simd" "$omp" "$mpi" \
@@ -773,7 +773,7 @@ study_baseline()
         esac
     done
 
-    study_case "${rest[@]}" label="$label seriale" \
+    study_case "${rest[@]}" label="$label serial" \
         omp=0 mpi=0 ranks=1 threads=1
     study_case "${rest[@]}" label="$label T(1)" \
         omp=0 mpi=1 ranks=1 threads=1

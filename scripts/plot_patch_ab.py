@@ -31,22 +31,22 @@ MEGLIO = "#2a78d6"
 PEGGIO = "#e34948"
 
 # The stages, in the order in which the step executes them. The pair is
-# (column, readable name); `non contato' is not a stage but what is left over,
+# (column, readable name); `unaccounted' is not a stage but what is left over,
 # and it stays at the bottom because that is where one looks when the accounts
 # do not add up.
 STADI = [
-    ("eta_ms", "eta, tutto"),
-    ("g_ms", "  g, termine noto"),
-    ("eta_solve", "  eta, il sistema"),
-    ("zeta_ms", "zeta, asse y"),
-    ("u_ms", "u, asse z"),
+    ("eta_ms", "eta, all"),
+    ("g_ms", "  g, right-hand side"),
+    ("eta_solve", "  eta, the system"),
+    ("zeta_ms", "zeta, y axis"),
+    ("u_ms", "u, z axis"),
     ("psi_ms", "psi"),
-    ("philow_ms", "phi basso"),
-    ("phihigh_ms", "phi alto"),
-    ("pressure_ms", "pressione"),
-    ("porosity_ms", "porosita'"),
-    ("untimed_ms", "non contato"),
-    ("mpi_ms", "dentro MPI"),
+    ("philow_ms", "phi low"),
+    ("phihigh_ms", "phi high"),
+    ("pressure_ms", "pressure"),
+    ("porosity_ms", "porosity"),
+    ("untimed_ms", "unaccounted"),
+    ("mpi_ms", "inside MPI"),
 ]
 
 # The stages that the change of this series does NOT touch: they are the
@@ -110,16 +110,16 @@ def casi(righe):
         if chiave not in visti:
             visti.append(chiave)
     for chiave in visti:
-        caso = {"chiave": chiave, "prima": {}, "dopo": {}}
-        for quando in ("prima", "dopo"):
+        caso = {"key": chiave, "before": {}, "after": {}}
+        for quando in ("before", "after"):
             gruppo = [r for r in righe
                       if (r["backend"], r["simd"],
                           f'{r["ranks"]}x{r["threads"]}', r["nx"]) == chiave
-                      and r["revisione"] == quando]
+                      and r["revision"] == quando]
             for key, _ in STADI:
                 caso[quando][key] = mediana([r[key] for r in gruppo])
             caso[quando]["wall_ms"] = mediana([r["wall_ms"] for r in gruppo])
-        if caso["prima"]["wall_ms"] and caso["dopo"]["wall_ms"]:
+        if caso["before"]["wall_ms"] and caso["after"]["wall_ms"]:
             fuori.append(caso)
     return fuori
 
@@ -130,8 +130,8 @@ def titolo_caso(chiave):
 
 
 def intestazione(parts, x, y, titolo, sottotitolo):
-    parts.append(f'<text x="{x}" y="{y - 26}" class="titolo">{titolo}</text>')
-    parts.append(f'<text x="{x}" y="{y - 10}" class="sotto">{sottotitolo}'
+    parts.append(f'<text x="{x}" y="{y - 26}" class="title">{titolo}</text>')
+    parts.append(f'<text x="{x}" y="{y - 10}" class="subtitle">{sottotitolo}'
                  f'</text>')
 
 
@@ -142,7 +142,7 @@ def scrivi(outdir, nome, larghezza, altezza, parts):
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{larghezza}" '
         f'height="{altezza}" viewBox="0 0 {larghezza} {altezza}">\n'
         f'<style>{STILE}</style>\n'
-        f'<rect width="{larghezza}" height="{altezza}" fill="var(--fondo)"/>\n'
+        f'<rect width="{larghezza}" height="{altezza}" fill="var(--background)"/>\n'
         + "\n".join(parts) + "\n</svg>\n", encoding="utf-8")
     print(f"  {path}")
 
@@ -164,44 +164,44 @@ def fig_stadi(lista, outdir, sha_prima, sha_dopo):
     for k, caso in enumerate(lista):
         x0 = ML + (k % colonne) * passo_x + SINISTRA
         y0 = MT + (k // colonne) * passo_y
-        massimo = max([v for quando in ("prima", "dopo")
+        massimo = max([v for quando in ("before", "after")
                        for v in caso[quando].values() if v] + [1e-9])
 
-        intestazione(parts, x0 - SINISTRA, y0, titolo_caso(caso["chiave"]),
-                     "millisecondi per passo, da prima a dopo")
+        intestazione(parts, x0 - SINISTRA, y0, titolo_caso(caso["key"]),
+                     "milliseconds per step, from before to after")
         for i, (key, nome) in enumerate(STADI):
             y = y0 + i * RIGA + RIGA / 2
-            a = caso["prima"].get(key) or 0.0
-            b = caso["dopo"].get(key) or 0.0
+            a = caso["before"].get(key) or 0.0
+            b = caso["after"].get(key) or 0.0
             xa = x0 + LARGA * a / massimo
             xb = x0 + LARGA * b / massimo
             colore = MEGLIO if b < a else (PEGGIO if b > a else NEUTRO)
             stile = ' font-style="italic"' if key in CONTROLLO else ""
-            parts.append(f'<text x="{x0 - 8}" y="{y + 4:.1f}" class="tacca-y"'
+            parts.append(f'<text x="{x0 - 8}" y="{y + 4:.1f}" class="tick-y"'
                          f'{stile}>{nome}</text>')
             parts.append(f'<line x1="{x0}" y1="{y:.1f}" x2="{x0 + LARGA}" '
-                         f'y2="{y:.1f}" class="griglia"/>')
+                         f'y2="{y:.1f}" class="grid"/>')
             parts.append(f'<line x1="{xa:.1f}" y1="{y:.1f}" x2="{xb:.1f}" '
                          f'y2="{y:.1f}" stroke="{colore}" stroke-width="3" '
                          f'stroke-linecap="round"/>')
             parts.append(f'<circle cx="{xa:.1f}" cy="{y:.1f}" r="4.5" '
-                         f'fill="var(--fondo)" stroke="{colore}" '
+                         f'fill="var(--background)" stroke="{colore}" '
                          f'stroke-width="2"/>')
             parts.append(f'<circle cx="{xb:.1f}" cy="{y:.1f}" r="4.5" '
                          f'fill="{colore}"/>')
             parts.append(f'<text x="{x0 + LARGA + 8}" y="{y + 4:.1f}" '
-                         f'class="valore" text-anchor="start">{b:.2f}</text>')
+                         f'class="value" text-anchor="start">{b:.2f}</text>')
         y = y0 + len(STADI) * RIGA + 16
-        parts.append(f'<text x="{x0}" y="{y}" class="tacca-x" '
+        parts.append(f'<text x="{x0}" y="{y}" class="tick-x" '
                      f'text-anchor="start">0</text>')
-        parts.append(f'<text x="{x0 + LARGA}" y="{y}" class="tacca-x" '
+        parts.append(f'<text x="{x0 + LARGA}" y="{y}" class="tick-x" '
                      f'text-anchor="end">{massimo:.1f} ms</text>')
 
     altezza = MT + righe_fig * passo_y + 40
     larghezza = ML + colonne * passo_x
-    parts.append(f'<text x="{ML}" y="{altezza - 18}" class="nota">'
-                 f'Vuoto: {sha_prima}. Pieno: {sha_dopo}. In corsivo gli stadi '
-                 f'che la modifica non tocca.</text>')
+    parts.append(f'<text x="{ML}" y="{altezza - 18}" class="note">'
+                 f'Empty: {sha_prima}. Filled: {sha_dopo}. In italics the stages '
+                 f'that the change does not touch.</text>')
     scrivi(outdir, "patch-ab-stadi.svg", larghezza, altezza, parts)
 
 
@@ -226,16 +226,16 @@ def fig_guadagno(lista, outdir, sha_prima, sha_dopo):
         y0 = MT + (k // colonne) * passo_y
         variazioni = []
         for key, nome in STADI:
-            a = caso["prima"].get(key) or 0.0
-            b = caso["dopo"].get(key) or 0.0
+            a = caso["before"].get(key) or 0.0
+            b = caso["after"].get(key) or 0.0
             variazioni.append(100 * (a - b) / a if a > 0 else 0.0)
         limite = max(10.0, max(abs(v) for v in variazioni) * 1.1)
 
-        intestazione(parts, x0 - SINISTRA, y0, titolo_caso(caso["chiave"]),
-                     "percento risparmiato; a sinistra dello zero e' peggiorato")
+        intestazione(parts, x0 - SINISTRA, y0, titolo_caso(caso["key"]),
+                     "percent saved; to the left of zero it got worse")
         parts.append(f'<line x1="{x0 + meta}" y1="{y0 - 4}" '
                      f'x2="{x0 + meta}" y2="{y0 + len(STADI) * RIGA}" '
-                     f'stroke="var(--linea)" stroke-width="1"/>')
+                     f'stroke="var(--line)" stroke-width="1"/>')
         for i, ((key, nome), v) in enumerate(zip(STADI, variazioni)):
             y = y0 + i * RIGA + RIGA / 2
             larghezza_barra = meta * v / limite
@@ -243,7 +243,7 @@ def fig_guadagno(lista, outdir, sha_prima, sha_dopo):
                       else (MEGLIO if v >= 0 else PEGGIO))
             x = x0 + meta + (0 if v >= 0 else larghezza_barra)
             parts.append(f'<text x="{x0 - 8}" y="{y + 4:.1f}" '
-                         f'class="tacca-y">{nome}</text>')
+                         f'class="tick-y">{nome}</text>')
             parts.append(f'<rect x="{x:.1f}" y="{y - 7:.1f}" '
                          f'width="{abs(larghezza_barra):.1f}" height="14" '
                          f'rx="3" fill="{colore}"/>')
@@ -259,20 +259,20 @@ def fig_guadagno(lista, outdir, sha_prima, sha_dopo):
             else:
                 ancora = "start" if v >= 0 else "end"
                 scarto = 8 if v >= 0 else -8
-                colore_testo = "var(--inchiostro-2)"
+                colore_testo = "var(--ink-2)"
             parts.append(f'<text x="{fine + scarto:.1f}" y="{y + 4:.1f}" '
-                         f'class="valore" text-anchor="{ancora}" '
+                         f'class="value" text-anchor="{ancora}" '
                          f'style="fill:{colore_testo}">{v:+.0f}%</text>')
         y = y0 + len(STADI) * RIGA + 16
-        parts.append(f'<text x="{x0 + meta}" y="{y}" class="tacca-x">0</text>')
+        parts.append(f'<text x="{x0 + meta}" y="{y}" class="tick-x">0</text>')
 
     altezza = MT + righe_fig * passo_y + 40
     larghezza = ML + colonne * passo_x
-    parts.append(f'<text x="{ML}" y="{altezza - 18}" class="nota">'
-                 f'{sha_prima} contro {sha_dopo}. In grigio gli stadi che la '
-                 f'modifica non tocca: la loro escursione e\' il rumore del '
-                 f'nodo, e un guadagno piu\' corto di quelle barre non e\' un '
-                 f'guadagno.</text>')
+    parts.append(f'<text x="{ML}" y="{altezza - 18}" class="note">'
+                 f'{sha_prima} against {sha_dopo}. In grey the stages that the '
+                 f'change does not touch: their excursion is the noise of the '
+                 f'node, and a gain shorter than those bars is not a '
+                 f'gain.</text>')
     scrivi(outdir, "patch-ab-guadagno.svg", larghezza, altezza, parts)
 
 
@@ -289,8 +289,8 @@ def main():
     righe = load(args.csv)
     if not righe:
         return
-    sha_prima = next((r["sha"] for r in righe if r["revisione"] == "prima"), "?")
-    sha_dopo = next((r["sha"] for r in righe if r["revisione"] == "dopo"), "?")
+    sha_prima = next((r["sha"] for r in righe if r["revision"] == "before"), "?")
+    sha_dopo = next((r["sha"] for r in righe if r["revision"] == "after"), "?")
     lista = casi(righe)
     fig_stadi(lista, args.outdir, sha_prima, sha_dopo)
     fig_guadagno(lista, args.outdir, sha_prima, sha_dopo)

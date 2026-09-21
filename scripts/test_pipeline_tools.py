@@ -30,7 +30,7 @@ class GateTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.directory = Path(self.tmp.name)
         self.csv = self.directory/'results.csv'; self.expected = self.directory/'expected.tsv'
-        self.reference = dict(zip(gate.KEYS,('riferimento seriale','schur','64','0','0','0','1','1','8','8','8','4')))
+        self.reference = dict(zip(gate.KEYS,('serial reference','schur','64','0','0','0','1','1','8','8','8','4')))
         self.reference.update(phase='15_matrix_check',status='ok',px='1',py='1',pz='1',l2_ux='0.01',l2_p='0.1')
         self.candidate = self.reference | dict(label='pipeline',backend='pipeline',mpi='1',ranks='2',px='2')
         self.expected.write_text(''.join('|'.join(r[k] for k in gate.KEYS)+'\t'+
