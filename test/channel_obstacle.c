@@ -152,7 +152,7 @@ int main(void)
     const int write_enabled = 1;
     Decomp decomp;
 
-    /* Tutti zero: la forma della griglia di processi la sceglie MPI. */
+    /* All zeros: MPI chooses the shape of the process grid. */
     const int process_grid[3] = {0, 0, 0};
     par_topology_init(process_grid);
     decomp_init_mpi(&decomp);

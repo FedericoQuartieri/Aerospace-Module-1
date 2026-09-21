@@ -32,12 +32,13 @@
 #endif
 
 /*
- * Quanto scratch consuma un kernel SIMD in una passata: una linea intera
- * dell'asse piu' lungo, per il numero di linee che porta avanti insieme.
+ * How much scratch a SIMD kernel consumes in one sweep: a whole line of the
+ * longest axis, times the number of lines it carries forward together.
  *
- * Sta qui perche' lo devono sapere in due: chi alloca (solver_solve) e chi
- * indicizza per thread (i kernel).  Se le due formule divergessero, i thread
- * si scriverebbero addosso, quindi la formula e' una sola.
+ * It lives here because two parties must know it: whoever allocates
+ * (solver_solve) and whoever indexes per thread (the kernels). If the two
+ * formulas diverged, the threads would write over one another, so there is
+ * only one formula.
  */
 static inline size_t momentum_scratch_slice(const Decomp *d) {
     int big = d->n[0] > d->n[1] ? d->n[0] : d->n[1];
@@ -46,7 +47,7 @@ static inline size_t momentum_scratch_slice(const Decomp *d) {
     return (size_t)big * MOMENTUM_SIMD_MAX_LINES;
 }
 
-/* momentum_step e' dichiarata in backend.h: e' l'interfaccia condivisa. */
+/* momentum_step is declared in backend.h: it is the shared interface. */
 
 #if defined(USE_SIMD) && SIMD_AVAILABLE
 void update_zeta_simd(const Decomp *d,

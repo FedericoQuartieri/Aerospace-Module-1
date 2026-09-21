@@ -4,17 +4,17 @@
 #include <stdbool.h>
 
 /*
- * Politica usata dai solver a linee. AUTO e' il comportamento normale;
- * PLANES, LINES e SERIAL esistono soltanto per confrontare le due strutture
- * di cicli (e il controllo senza entrambe) a parita' di problema, con un
- * processo e senza i kernel SIMD.
+ * Policy used by the line-based solvers. AUTO is the normal behaviour; PLANES,
+ * LINES and SERIAL exist only to compare the two loop structures (and the
+ * control with neither) on the same problem, with one process and without the
+ * SIMD kernels.
  *
- * I valori simbolici permettono di compilare, per esempio, con
+ * The symbolic values make it possible to compile, for example, with
  *   -DWORKERS_LINE_POLICY=WORKERS_LINE_POLICY_LINES
- * senza lasciare numeri magici negli script di misura.
+ * without leaving magic numbers in the measurement scripts.
  */
-/* Si parte da 1: nel preprocessore un identificatore sconosciuto vale 0,
- * quindi un nome scritto male deve cadere nel controllo qui sotto. */
+/* It starts from 1: in the preprocessor an unknown identifier evaluates to 0,
+ * so a misspelt name must fall into the check below. */
 #define WORKERS_LINE_POLICY_AUTO   1
 #define WORKERS_LINE_POLICY_PLANES 2
 #define WORKERS_LINE_POLICY_LINES  3
@@ -31,10 +31,10 @@
 #error "WORKERS_LINE_POLICY must be AUTO, PLANES, LINES or SERIAL"
 #endif
 
-/* Una politica forzata e' un esperimento locale, non una modalita' del
- * solutore distribuito. PLANES non e' sicuro quando una direzione attraversa
- * piu' rank; SIMD, invece, scavalcherebbe questa scelta lungo Y e Z e renderebbe
- * il confronto incompleto. */
+/* A forced policy is a local experiment, not a mode of the distributed solver.
+ * PLANES is not safe when a direction crosses several ranks; SIMD, on the
+ * other hand, would override this choice along Y and Z and make the comparison
+ * incomplete. */
 #if WORKERS_LINE_POLICY != WORKERS_LINE_POLICY_AUTO && !defined(USE_OMP)
 #error "a forced WORKERS_LINE_POLICY requires USE_OMP"
 #endif
@@ -46,22 +46,22 @@
 #endif
 
 /*
- * I thread di calcolo, e il poco che serve per non doverli nominare ovunque.
+ * The compute threads, and the little that is needed so they do not have to be
+ * named everywhere.
  *
- * Il parallelismo a memoria condivisa di questo solutore ha una sola forma:
- * le linee lungo cui si risolvono i sistemi tridiagonali sono indipendenti
- * fra loro, quindi si spartiscono fra i thread. Una linea non viene mai
- * spezzata: le sue somme restano nello stesso ordine, e il risultato resta
- * identico cifra per cifra a quello di un thread solo. E' la stessa proprieta'
- * che il complemento di Schur garantisce fra processi, e la si verifica allo
- * stesso modo.
+ * The shared-memory parallelism of this solver has a single form: the lines
+ * along which the tridiagonal systems are solved are independent of each
+ * other, so they are shared out among the threads. A line is never split: its
+ * sums stay in the same order, and the result stays identical digit for digit
+ * to that of a single thread. It is the same property that the Schur
+ * complement guarantees between processes, and it is verified in the same way.
  *
- * MPI resta sul thread principale: fuori dalle regioni parallele oppure
- * dentro WORKERS_MASTER nei team persistenti dei backend, quindi basta
- * MPI_THREAD_FUNNELED e nessuna implementazione ha bisogno di lock interni.
+ * MPI stays on the main thread: outside the parallel regions or inside
+ * WORKERS_MASTER in the persistent teams of the backends, so
+ * MPI_THREAD_FUNNELED is enough and no implementation needs internal locks.
  *
- * Senza -DUSE_OMP tutto qui dentro descrive un thread solo e le direttive
- * spariscono, cosi' la build seriale resta quella di prima.
+ * Without -DUSE_OMP everything in here describes a single thread and the
+ * directives disappear, so the serial build stays what it was.
  */
 
 #ifdef USE_OMP
@@ -69,46 +69,46 @@
 #include <omp.h>
 
 #define WORKERS_PRAGMA(x) _Pragma(#x)
-/* schedule(static): i piani costano tutti uguale, e la ripartizione fissa
- * rende la spartizione riproducibile da un'esecuzione all'altra. */
+/* schedule(static): the planes all cost the same, and the fixed partition
+ * makes the distribution reproducible from one run to the next. */
 #define WORKERS_PARALLEL_FOR(cond) \
     WORKERS_PRAGMA(omp parallel for schedule(static) if (cond))
 
 /*
- * La stessa cosa, ma spartendo due cicli annidati invece di uno.
+ * The same thing, but distributing two nested loops instead of one.
  *
- * Serve dove il ciclo esterno da solo puo' avere meno iterazioni dei thread.
- * Riempire un campo scorre i piani lungo Z, e quando MPI divide proprio quella
- * direzione un blocco puo' averne una manciata: con 56 thread e 4 piani
- * cinquantadue thread non riceverebbero niente. Collassando i due cicli si
- * spartiscono le righe, che sono sempre abbastanza.
+ * It is needed where the outer loop alone can have fewer iterations than there
+ * are threads. Filling a field walks the planes along Z, and when MPI splits
+ * exactly that direction a block can have only a handful: with 56 threads and
+ * 4 planes, fifty-two threads would receive nothing. By collapsing the two
+ * loops the rows are distributed, and there are always enough of them.
  *
- * I due cicli devono essere perfettamente annidati -- niente fra la graffa del
- * primo e il `for' del secondo -- altrimenti collapse non si applica.
+ * The two loops must be perfectly nested -- nothing between the brace of the
+ * first and the `for' of the second -- otherwise collapse does not apply.
  */
 #define WORKERS_PARALLEL_FOR_2(cond) \
     WORKERS_PRAGMA(omp parallel for schedule(static) collapse(2) if (cond))
 
 /*
- * Un team aperto una volta sola, con dentro piu' cicli spartiti.
+ * A team opened only once, with several distributed loops inside it.
  *
- * WORKERS_PARALLEL_FOR apre e chiude un team a ogni ciclo, il che va bene
- * quando il ciclo e' uno solo. Dove invece ce ne sono due separati da una
- * chiamata MPI -- assembla, comunica, riporta -- aprirne uno per ciascuno
- * significa aprirne due per piano, e i piani sono centinaia.
+ * WORKERS_PARALLEL_FOR opens and closes a team at every loop, which is fine
+ * when there is a single loop. Where instead there are two separated by an MPI
+ * call -- assemble, communicate, write back -- opening one for each means
+ * opening two per plane, and there are hundreds of planes.
  *
- * Con queste il team si apre fuori dal ciclo sui piani e resta vivo: dentro,
- * WORKERS_FOR sparisce le linee e WORKERS_MASTER isola la chiamata MPI a un
- * thread solo, che essendo il team al livello piu' esterno e' lo stesso che
- * ha chiamato MPI_Init. E' esattamente cio' che MPI_THREAD_FUNNELED richiede,
- * quindi il livello di thread-safety non cambia.
+ * With these the team is opened outside the loop over the planes and stays
+ * alive: inside, WORKERS_FOR distributes the lines and WORKERS_MASTER isolates
+ * the MPI call to a single thread, which, the team being at the outermost
+ * level, is the same one that called MPI_Init. This is exactly what
+ * MPI_THREAD_FUNNELED requires, so the thread-safety level does not change.
  *
- * Attenzione a due asimmetrie di OpenMP, perche' sbagliarle non da' errori di
- * compilazione ma risultati sbagliati:
- *   - WORKERS_FOR ha una barriera implicita in USCITA, non in ingresso;
- *   - WORKERS_MASTER non ha nessuna barriera, ne' prima ne' dopo.
- * Quindi dopo il master serve sempre un WORKERS_BARRIER esplicito, altrimenti
- * gli altri thread iniziano a leggere cio' che il master sta ancora scrivendo.
+ * Beware of two OpenMP asymmetries, because getting them wrong gives no
+ * compile errors but wrong results:
+ *   - WORKERS_FOR has an implicit barrier on EXIT, not on entry;
+ *   - WORKERS_MASTER has no barrier at all, neither before nor after.
+ * So after the master an explicit WORKERS_BARRIER is always needed, otherwise
+ * the other threads start reading what the master is still writing.
  */
 #define WORKERS_PARALLEL(cond) WORKERS_PRAGMA(omp parallel if (cond))
 #define WORKERS_FOR WORKERS_PRAGMA(omp for schedule(static))
@@ -120,13 +120,14 @@ static inline int workers_id(void) { return omp_get_thread_num(); }
 
 #else
 
-/* Senza OpenMP la condizione non la legge nessuno, ma va comunque consumata:
- * cosi' chi la calcola non deve scusarsi con il compilatore di non usarla. */
+/* Without OpenMP nobody reads the condition, but it must still be consumed:
+ * this way the code that computes it gets no unused-variable warning. */
 #define WORKERS_PARALLEL_FOR(cond) (void)(cond);
 #define WORKERS_PARALLEL_FOR_2(cond) (void)(cond);
 
-/* Senza OpenMP il blocco che segue WORKERS_PARALLEL e' un blocco e basta, e
- * i cicli dentro girano in fila: e' gia' il comportamento voluto. */
+/* Without OpenMP the block that follows WORKERS_PARALLEL is just a block, and
+ * the loops inside run one after the other: that is already the intended
+ * behaviour. */
 #define WORKERS_PARALLEL(cond) (void)(cond);
 #define WORKERS_FOR
 #define WORKERS_MASTER
@@ -137,17 +138,17 @@ static inline int workers_id(void) { return 0; }
 
 #endif
 
-/* Se il thread e' uno solo non si apre nessuna regione parallela: aprirla
- * costa comunque, e non c'e' niente da spartire. */
+/* If there is only one thread no parallel region is opened: opening it costs
+ * something anyway, and there is nothing to distribute. */
 static inline bool workers_many(void) {
     return workers_available() > 1;
 }
 
 /*
- * Quanti insiemi di array di lavoro servono per `items` iterazioni
- * indipendenti: uno per thread, ma senza sprecarne piu' di quante siano le
- * iterazioni.  `allowed` e' falso dove la comunicazione impone di procedere
- * in fila.
+ * How many sets of work arrays are needed for `items` independent iterations:
+ * one per thread, but without wasting more than there are iterations.
+ * `allowed` is false where communication forces the work to proceed in
+ * sequence.
  */
 static inline int workers_slots(int allowed, int items) {
     int workers;
@@ -160,9 +161,9 @@ static inline int workers_slots(int allowed, int items) {
 }
 
 /*
- * Le due cose non possono essere scelte separatamente: spartendo i piani
- * serve uno scratch slot per ciascun thread attivo; spartendo le linee tutti
- * lavorano su porzioni disgiunte di un solo slot condiviso.
+ * The two things cannot be chosen separately: when distributing the planes one
+ * scratch slot is needed for each active thread; when distributing the lines
+ * everyone works on disjoint portions of a single shared slot.
  */
 typedef struct {
     int slots;
@@ -181,14 +182,14 @@ static inline WorkersLineSchedule workers_line_schedule(bool planes_allowed,
     (void)planes_allowed;
     (void)planes;
     schedule.slots = 1;
-    /* Forza davvero il ramo LINES anche con OMP_NUM_THREADS=1: quel punto e'
-     * il controllo del costo strutturale delle due implementazioni. */
+    /* It really forces the LINES branch even with OMP_NUM_THREADS=1: that
+     * point is the check of the structural cost of the two implementations. */
     schedule.split_lines = true;
 #elif WORKERS_LINE_POLICY == WORKERS_LINE_POLICY_SERIAL
     (void)planes_allowed;
     (void)planes;
-    /* Controllo del valore del ramo LINES: il resto del solutore conserva i
-     * thread, ma i solver direzionali percorrono i piani in serie. */
+    /* Check on the value of the LINES branch: the rest of the solver keeps the
+     * threads, but the directional solvers walk the planes in series. */
     schedule.slots = 1;
     schedule.split_lines = false;
 #else
@@ -211,7 +212,7 @@ static inline const char *workers_line_policy_name(void) {
 #endif
 }
 
-/* Lo slot di chi chiama, valido anche fuori da una regione parallela. */
+/* The caller's slot, valid also outside a parallel region. */
 static inline int workers_slot(int slots) {
     int id;
 

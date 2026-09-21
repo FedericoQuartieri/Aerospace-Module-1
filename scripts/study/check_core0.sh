@@ -5,21 +5,21 @@
 #PBS -l walltime=00:30:00
 #PBS -j oe
 #
-# Il binario seriale e' piu' lento su un core che su un altro?
+# Is the serial binary slower on one core than on another?
 #
-# Nella seconda campagna, su cpu04 e solo li', il seriale risultava piu' lento
-# di T(1), fino al 15% a 224^3; sugli altri nodi T(1) costa il 2-3% in piu',
-# come deve. Lo studio inchioda il seriale con `taskset -c 0' e non lega T(1)
-# a niente, e il core 0 e' di solito quello che serve gli interrupt.
+# In the second campaign, on cpu04 and only there, the serial came out slower
+# than T(1), up to 15% at 224^3; on the other nodes T(1) costs 2-3% more, as it
+# should. The study pins the serial with `taskset -c 0' and does not bind T(1)
+# to anything, and core 0 is usually the one that serves the interrupts.
 #
-# Questo job misura lo stesso binario su core diversi dello stesso nodo, e
-# conta gli interrupt di ogni core mentre misura. Va lanciato sul nodo
-# sospetto e su uno di controllo:
+# This job measures the same binary on different cores of the same node, and
+# counts the interrupts of each core while measuring. It must be launched on
+# the suspect node and on a control one:
 #
 #   qsub -l select=1:ncpus=112:host=cpu04 scripts/study/check_core0.sh
 #   qsub -l select=1:ncpus=112:host=cpu03 scripts/study/check_core0.sh
 #
-# Il risultato finisce in build/study/check_core0/<nodo>.txt.
+# The result ends up in build/study/check_core0/<node>.txt.
 
 cd "${PBS_O_WORKDIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)}" || exit 1
 if [[ ! -f scripts/study/lib.sh ]]; then
@@ -40,8 +40,8 @@ mkdir -p "$STUDY_OUT" "$STUDY_BIN"
 node="$(hostname -s)"
 exec > >(tee "$STUDY_OUT/$node.txt") 2>&1
 
-# Tre CPU: il core 0, un altro core fisico dello stesso socket (non il suo
-# gemello SMT), il primo core dell'altro socket. lscpu -p numera per CPU logica.
+# Three CPUs: core 0, another physical core of the same socket (not its SMT
+# twin), the first core of the other socket. lscpu -p numbers by logical CPU.
 read -r c0 c_stesso c_altro < <(lscpu -p=CPU,CORE,SOCKET | awk -F, '
     /^#/ { next }
     { n++; cpu[n] = $1; core[n] = $2; sock[n] = $3 }
@@ -52,7 +52,7 @@ read -r c0 c_stesso c_altro < <(lscpu -p=CPU,CORE,SOCKET | awk -F, '
         print 0, stesso, altro
     }')
 
-# Gli interrupt serviti da ogni CPU logica, sommati su tutte le righe.
+# The interrupts served by each logical CPU, summed over all the rows.
 interrupts()
 {
     awk 'NR == 1 { n = NF; next }
@@ -60,8 +60,8 @@ interrupts()
          END { for (c = 0; c < n; c++) print c, s[c] + 0 }' /proc/interrupts
 }
 
-# Il tempo migliore su REPEATS corse, in ms per passo, in MIS; vuoto se il
-# programma non ha stampato i tempi.
+# The best time over REPEATS runs, in ms per step, in MIS; empty if the program
+# did not print the times.
 misura()
 {
     local out wall r

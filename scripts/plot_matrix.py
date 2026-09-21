@@ -26,19 +26,19 @@ import math
 import sys
 from pathlib import Path
 
-# ------------------------------------------------------------- i riquadri
+# ----------------------------------------------------------------- panels
 #
-# Geometria dei pannelli: margini, tacche, scale logaritmiche, barre. Stava in
-# plot_study.py, lo script dello studio a dieci fasi; quello e' stato tolto
-# insieme alle fasi che disegnava, e la classe si e' trasferita qui.
+# Geometry of the panels: margins, ticks, logarithmic scales, bars. It used to
+# be in plot_study.py, the script of the ten-phase study; that one has been
+# removed together with the phases it drew, and the class has moved here.
 
-W, H = 300, 250          # area di disegno di un pannello
-ML, MT = 74, 58          # margini attorno
+W, H = 300, 250          # drawing area of a panel
+ML, MT = 74, 58          # margins around it
 MR, MB = 26, 62
 
 
 def nice_step(raw):
-    """Il passo `tondo` piu' vicino: 1, 2, 2.5 o 5 per la potenza di dieci."""
+    """The nearest `round` step: 1, 2, 2.5 or 5 times the power of ten."""
     if raw <= 0:
         return 1.0
     magnitude = 10 ** math.floor(math.log10(raw))
@@ -49,9 +49,9 @@ def nice_step(raw):
 
 
 class Panel:
-    """Un riquadro con assi. Le x sono sempre logaritmiche in base 2 quando
-    contano unita' di calcolo: raddoppiano, e su scala lineare le prime cinque
-    finirebbero tutte addosso all'origine."""
+    """A panel with axes. The x axes are always base-2 logarithmic when they
+    count compute units: they double, and on a linear scale the first five
+    would all pile up on the origin."""
 
     def __init__(self, parts, col, row, title, subtitle, xlabel, ylabel,
                  xs, ys, xlog=True, ylog=False, ymin=0.0):
@@ -59,9 +59,9 @@ class Panel:
         self.x0 = ML + col * (W + ML + MR)
         self.y0 = MT + row * (H + MT + MB)
         self.xlog, self.ylog = xlog, ylog
-        # Dove il riquadro e' gia' occupato, in pixel: linee, marcatori,
-        # etichette. Legenda ed etichette delle serie ci guardano per
-        # scegliere un posto che non copra i dati.
+        # Where the panel is already occupied, in pixels: lines, markers,
+        # labels. The legend and the series labels look at it to choose a place
+        # that does not cover the data.
         self.occupati = []
         xs = [x for x in xs if x > 0] or [1]
         ys = [y for y in ys if y > 0 or not ylog] or [1]
@@ -90,9 +90,9 @@ class Panel:
         if self.ylog:
             lo = int(math.floor(math.log10(self.ymin)))
             hi = int(math.ceil(math.log10(self.ymax)))
-            # Le sole potenze di dieci lasciano un asse con un numero, o
-            # nessuno, quando i dati stanno dentro una decada: allora si
-            # scende a 1-2-5, e se non basta a tutti i multipli.
+            # Powers of ten alone leave an axis with one number, or none, when
+            # the data lie within a decade: then it falls back to 1-2-5, and if
+            # that is not enough to all the multiples.
             values = []
             for multipli in ((1,), (1, 2, 5), tuple(range(1, 10))):
                 values = [m * 10 ** e for e in range(lo, hi + 1)
@@ -100,9 +100,9 @@ class Panel:
                 if sum(self.ymin <= v <= self.ymax for v in values) >= 3:
                     break
         else:
-            # Tacche su numeri tondi: una scala che dice 2.16 e 1.62 si legge
-            # peggio di una che dice 2 e 1.5, e il grafico non guadagna niente
-            # dalla precisione dell'estremo.
+            # Ticks on round numbers: a scale that says 2.16 and 1.62 reads
+            # worse than one that says 2 and 1.5, and the plot gains nothing
+            # from the precision of the endpoint.
             step = nice_step((self.ymax - self.ymin) / 4)
             self.ymax = math.ceil(self.ymax / step) * step
             values = [self.ymin + step * i
@@ -112,8 +112,8 @@ class Panel:
             if not (self.ymin <= value <= self.ymax):
                 continue
             y = self.py(value)
-            # Due etichette a meno di 13 pixel si sovrappongono: la seconda
-            # si salta, insieme alla sua riga di griglia.
+            # Two labels less than 13 pixels apart overlap: the second is
+            # skipped, together with its grid line.
             if ultima is not None and abs(y - ultima) < 13:
                 continue
             ultima = y
@@ -134,7 +134,8 @@ class Panel:
                               f'class="griglia"/>')
 
     def px_raw(self, x):
-        """La x in pixel senza fermarla al bordo: serve a tagliare le linee."""
+        """The x in pixels without clamping it at the edge: it is needed to
+        clip the lines."""
         if self.xlog:
             span = math.log2(self.xmax) - math.log2(self.xmin) or 1
             f = (math.log2(max(x, 1e-9)) - math.log2(self.xmin)) / span
@@ -186,9 +187,9 @@ class Panel:
             self.parts.append(f'<text x="{x + width / 2:.1f}" '
                               f'y="{top - 5:.1f}" class="valore">'
                               f'{value:.0f}</text>')
-            # Allineata a destra sulla tacca e ruotata: il testo scende a
-            # sinistra della sua barra invece di allargarsi dai due lati, e
-            # non arriva al titolo dell'asse.
+            # Right-aligned on the tick and rotated: the text descends to the
+            # left of its bar instead of spreading on both sides, and does not
+            # reach the axis title.
             self.parts.append(
                 f'<text x="{x + width / 2:.1f}" y="{self.y0 + H + 14}" '
                 f'class="tacca-x" style="text-anchor:end" '
@@ -205,19 +206,19 @@ class Panel:
             self.parts.append(f'<text x="{self.x0 + dx + 30}" y="{y + 4}" '
                               f'class="legenda">{testo}</text>')
 
-# --------------------------------------------------------------------- colori
+# -------------------------------------------------------------------- colours
 #
-# Scala categorica, nell'ordine: e' l'ordine a garantire la separazione fra
-# tinte vicine, quindi le serie si assegnano dalla prima in poi e non si
-# rimescolano quando un filtro ne toglie una. Una nona serie non esiste: si
-# accorpa o si divide la figura.
+# Categorical scale, in order: it is the order that guarantees the separation
+# between close hues, so the series are assigned from the first onwards and are
+# not reshuffled when a filter removes one. A ninth series does not exist: the
+# figure is merged or split.
 
 SERIE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
 SERIE_SCURO = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181"]
 NEUTRO = "#8a8a83"
 
-# Scala sequenziale per le mappe di calore: una tinta sola, dal chiaro allo
-# scuro. Mai un arcobaleno: le tinte non hanno un ordine naturale, i valori si.
+# Sequential scale for the heat maps: a single hue, from light to dark. Never a
+# rainbow: hues have no natural order, values do.
 RAMPA = ["#cde2fb", "#b7d3f6", "#9ec5f4", "#86b6ef", "#6da7ec", "#5598e7",
          "#3987e5", "#2a78d6", "#256abf", "#1c5cab", "#184f95", "#104281",
          "#0d366b"]
@@ -243,8 +244,8 @@ text{font-family:"DejaVu Sans",sans-serif;fill:var(--inchiostro)}
 .griglia{stroke:var(--griglia);stroke-width:1}
 """
 
-# Le tinte scure si applicano riscrivendo la variabile: un blocco per ogni
-# serie usata, generato quando serve.
+# The dark hues are applied by rewriting the variable: one block for each
+# series used, generated when needed.
 
 
 def stile_serie(n):
@@ -278,7 +279,7 @@ def write(outdir, name, cols, rows, parts, serie=4, altezza_extra=0):
     print(f"  {path}")
 
 
-# ----------------------------------------------------------------- i dati
+# --------------------------------------------------------------- the data
 
 
 NUMERICHE = ("batch", "simd", "omp", "mpi", "ranks", "threads", "nx", "ny",
@@ -289,11 +290,11 @@ NUMERICHE = ("batch", "simd", "omp", "mpi", "ranks", "threads", "nx", "ny",
 
 
 def load(path):
-    """Le righe riuscite, con i numeri gia' convertiti.
+    """The successful rows, with the numbers already converted.
 
-    Un caso fallito o in timeout porta colonne vuote: tenerlo vorrebbe dire
-    disegnare uno zero dove non c'e' una misura, ed e' il modo piu' rapido di
-    leggere un buco come un risultato."""
+    A failed or timed-out case carries empty columns: keeping it would mean
+    drawing a zero where there is no measurement, and it is the quickest way of
+    reading a hole as a result."""
     if not path.exists():
         sys.exit(f"missing {path}\n  ./scripts/run_study.sh merge")
 
@@ -311,10 +312,9 @@ def load(path):
                     row[key] = None
             if row["wall_ms"] in (None, 0):
                 continue
-            # Le due righe di riferimento di ogni configurazione si
-            # riconoscono dal suffisso che study_baseline mette in coda
-            # all'etichetta. Marcarle qui costa una volta sola e permette a
-            # pick() di tenerle fuori dalle curve.
+            # The two reference rows of each configuration are recognised by
+            # the suffix that study_baseline appends to the label. Marking them
+            # here costs once and allows pick() to keep them out of the curves.
             label = row.get("label") or ""
             if label.endswith(" seriale"):
                 row["baseline"] = "seriale"
@@ -328,12 +328,13 @@ def load(path):
 
 
 def pick(rows, **filtri):
-    """Le righe che soddisfano i filtri, riferimenti esclusi.
+    """The rows that satisfy the filters, references excluded.
 
-    Seriale e T(1) non sono punti di una curva, sono i denominatori: hanno un
-    rank e un thread, quindi senza questo finirebbero dentro ogni grafico come
-    se fossero il caso a un processo -- che pero' c'e' gia' ed e' un altro.
-    Per averli si chiede baseline="seriale" o baseline="T(1)"."""
+    Serial and T(1) are not points of a curve, they are the denominators: they
+    have one rank and one thread, so without this they would end up inside
+    every plot as if they were the single-process case -- which, however,
+    already exists and is another one. To get them, pass baseline="seriale" or
+    baseline="T(1)"."""
     filtri.setdefault("baseline", None)
     out = []
     for row in rows:
@@ -355,7 +356,7 @@ def valori(rows, key):
 
 
 def _conta(panel, riquadro, margine=2.0):
-    """Quanti punti gia' disegnati cadono dentro un riquadro (x, y, w, h)."""
+    """How many already-drawn points fall inside a panel (x, y, w, h)."""
     x, y, w, h = riquadro
     return sum(1 for a, b in panel.occupati
                if x - margine <= a <= x + w + margine
@@ -379,7 +380,7 @@ def _campiona(panel, a, b, passo=5.0):
 
 
 def _taglia(panel, a, b):
-    """Il tratto a-b ristretto al riquadro (Liang-Barsky), oppure None."""
+    """The segment a-b clipped to the panel (Liang-Barsky), or None."""
     (x1, y1), (x2, y2) = a, b
     dx, dy = x2 - x1, y2 - y1
     t0, t1 = 0.0, 1.0
@@ -407,20 +408,20 @@ def _dentro(panel, x, y):
 
 
 def etichetta_fine(parts, panel, points, colore, testo):
-    """L'etichetta accanto all'ultimo punto della linea.
+    """The label next to the last point of the line.
 
-    Due delle quattro tinte non arrivano a 3:1 di contrasto sul fondo chiaro:
-    la legenda da sola non basta a distinguerle, e l'etichetta attaccata alla
-    serie e' quello che rende la figura leggibile anche stampata in bianco e
-    nero."""
+    Two of the four hues do not reach 3:1 contrast on the light background: the
+    legend alone is not enough to tell them apart, and the label attached to
+    the series is what makes the figure readable even when printed in black and
+    white."""
     if not points:
         return
     x, y = points[-1]
     X, Y = panel.px(x), panel.py(y)
     larghezza = len(testo) * 6.2 + 4
-    # Dentro il riquadro, allineata a destra sull'ultimo punto: fuori
-    # finirebbe addosso all'asse del riquadro accanto, che e' a 26 pixel.
-    # Sopra o sotto il punto, dove non esce dal riquadro e copre meno dati.
+    # Inside the panel, right-aligned on the last point: outside it would land
+    # on the axis of the neighbouring panel, which is 26 pixels away. Above or
+    # below the point, where it does not leave the panel and covers less data.
     def punteggio(base):
         fuori = base - 11 < panel.y0 + 2 or base + 3 > panel.y0 + H - 2
         return (fuori, _conta(panel, (X - 6 - larghezza, base - 11,
@@ -433,22 +434,22 @@ def etichetta_fine(parts, panel, points, colore, testo):
 
 
 def piazzamento(r, t):
-    """`1 processo x 1 thread', non `1 processi'."""
+    """Singular/plural agreement: `1 processo x 1 thread', not `1 processi'."""
     return (f"{r:.0f} process{'o' if r == 1 else 'i'} x "
             f"{t:.0f} thread")
 
 
 def linea(parts, panel, punti, colore, tratteggio="", marcatori=True):
-    """Una serie. Tratto sottile, marcatori da 9px: sotto quella misura un
-    punto si perde, sopra i marcatori diventano il grafico."""
+    """A series. Thin stroke, 9px markers: below that size a point gets lost,
+    above it the markers become the plot."""
     punti = [p for p in punti if p[1] is not None]
     if not punti:
         return
     grezze = [(panel.px_raw(x), panel.py_raw(y)) for x, y in punti]
     dash = f' stroke-dasharray="{tratteggio}"' if tratteggio else ""
-    # Una linea che esce dalla scala si taglia al bordo del riquadro. Prima si
-    # schiacciava sul bordo, e un tratto piatto lungo l'asse sembrava una
-    # misura: la retta ideale dei thread pareva fermarsi a 14.
+    # A line that leaves the scale is clipped at the edge of the panel. Before,
+    # it was squashed onto the edge, and a flat stretch along the axis looked
+    # like a measurement: the ideal thread line seemed to stop at 14.
     tratti, corrente = [], []
     for a, b in zip(grezze, grezze[1:]):
         pezzo = _taglia(panel, a, b)
@@ -485,13 +486,13 @@ def linea(parts, panel, punti, colore, tratteggio="", marcatori=True):
 
 
 def legenda(parts, panel, voci, angolo="auto"):
-    """La legenda, su un piatto del colore del riquadro, nell'angolo che copre
-    meno dati.
+    """The legend, on a plate of the panel colour, in the corner that covers
+    the least data.
 
-    Il piatto da solo non basta: nasconde le curve che ha dietro. In un angolo
-    fisso finiva sopra la pipeline dei thread, che sale proprio a destra.
-    L'angolo si sceglie contando i punti gia' disegnati sotto ciascuno dei
-    quattro, per questo la legenda va chiamata dopo le serie."""
+    The plate alone is not enough: it hides the curves behind it. In a fixed
+    corner it ended up over the thread pipeline, which rises exactly on the
+    right. The corner is chosen by counting the points already drawn under each
+    of the four, which is why the legend must be called after the series."""
     if not voci:
         return
     larghezza = 8 + 26 + 6 + max(len(t) for _, t, _ in voci) * 6.2 + 8
@@ -522,10 +523,10 @@ def legenda(parts, panel, voci, angolo="auto"):
 
 
 def legenda_riga(parts, x, y, voci):
-    """La legenda su una riga, sotto i riquadri, una volta per la figura.
+    """The legend on one row, below the panels, once per figure.
 
-    Quando le curve occupano tutti e quattro gli angoli nessun angolo e'
-    libero, e un piatto dentro il riquadro copre sempre qualcosa."""
+    When the curves occupy all four corners no corner is free, and a plate
+    inside the panel always covers something."""
     for colore, testo, tratteggio in voci:
         dash = f' stroke-dasharray="{tratteggio}"' if tratteggio else ""
         parts.append(f'<line x1="{x:.1f}" y1="{y:.1f}" x2="{x + 26:.1f}" '
@@ -536,9 +537,9 @@ def legenda_riga(parts, x, y, voci):
 
 
 def tacche(panel, valori_, formato=lambda v: f"{v:.0f}", minimo=20):
-    """Le tacche, diradate: due etichette a meno di `minimo` pixel l'una
-    dall'altra si sovrappongono, e su scala logaritmica capita sempre fra 7 e
-    8 o fra 96 e 128."""
+    """The ticks, thinned out: two labels less than `minimo` pixels from each
+    other overlap, and on a logarithmic scale that always happens between 7 and
+    8 or between 96 and 128."""
     tenute = []
     ultimo = None
     for v in valori_:
@@ -552,17 +553,17 @@ def tacche(panel, valori_, formato=lambda v: f"{v:.0f}", minimo=20):
 def griglia_calore(parts, x0, y0, larghezza, altezza, righe, colonne, valori_,
                    etichetta_riga, etichetta_col, titolo, sottotitolo, unita,
                    scala=None):
-    """Una mappa di calore: piu' scuro vuol dire piu' lento.
+    """A heat map: darker means slower.
 
-    Una tinta sola dal chiaro allo scuro, perche' il valore ha un ordine e le
-    tinte no. Le celle vuote sono le configurazioni che non stanno nel nodo, e
-    restano vuote invece di essere disegnate a zero."""
+    A single hue from light to dark, because the value has an order and hues do
+    not. The empty cells are the configurations that do not fit in the node,
+    and they stay empty instead of being drawn as zero."""
     buoni = [v for v in valori_.values() if v is not None]
     if not buoni:
         return
-    # La scala arriva da fuori quando i riquadri sono piu' di uno: due mappe
-    # affiancate con scale diverse invitano a confrontare i colori, ed e' il
-    # confronto sbagliato.
+    # The scale comes from outside when there is more than one panel: two maps
+    # side by side with different scales invite comparing the colours, and it
+    # is the wrong comparison.
     lo, hi = scala if scala else (min(buoni), max(buoni))
     span = math.log10(hi / lo) if hi > lo > 0 else 1.0
 
@@ -583,8 +584,9 @@ def griglia_calore(parts, x0, y0, larghezza, altezza, righe, colonne, valori_,
                 continue
             f = math.log10(value / lo) / span if span else 0.0
             passo = RAMPA[min(int(f * (len(RAMPA) - 1) + 0.5), len(RAMPA) - 1)]
-            # 2px di fondo fra una cella e l'altra: senza, le celle vicine si
-            # fondono e la mappa sembra a macchie invece che a griglia.
+            # 2px of background between one cell and the next: without it,
+            # neighbouring cells merge and the map looks blotchy instead of
+            # gridded.
             parts.append(f'<rect x="{x + 1:.1f}" y="{y + 1:.1f}" '
                          f'width="{cw - 2:.1f}" height="{ch - 2:.1f}" '
                          f'fill="{passo}"/>')
@@ -603,7 +605,7 @@ def griglia_calore(parts, x0, y0, larghezza, altezza, righe, colonne, valori_,
 
 
 def scala_calore(parts, x0, y0, lo, hi, larghezza=180, altezza=10):
-    """La legenda della mappa: senza, i colori non hanno unita' di misura."""
+    """The map legend: without it, the colours have no unit of measure."""
     passo = larghezza / len(RAMPA)
     for i, colore in enumerate(RAMPA):
         parts.append(f'<rect x="{x0 + i * passo:.1f}" y="{y0}" '
@@ -617,15 +619,16 @@ def scala_calore(parts, x0, y0, lo, hi, larghezza=180, altezza=10):
                  f'class="legenda" text-anchor="middle">ms per passo</text>')
 
 
-# ------------------------------------------------------------------ le figure
+# ---------------------------------------------------------------- the figures
 
 
 def cubica(row):
-    """Le righe della fase 11 a griglia globale cubica, cioe' il caso reale.
+    """The rows of phase 11 on a cubic global grid, that is the real case.
 
-    Gli altri due blocchi della fase misurano la stessa domanda tenendo fisso
-    il blocco locale o la sua forma: sono righe con griglie diverse fra loro,
-    e mescolarle a queste vorrebbe dire confrontare problemi diversi."""
+    The other two blocks of the phase measure the same question holding the
+    local block or its shape fixed: they are rows with different grids from one
+    another, and mixing them with these would mean comparing different
+    problems."""
     label = row["label"]
     if "ponte" in label or label.startswith(("cubo ", "aspetto ")):
         return False
@@ -633,12 +636,12 @@ def cubica(row):
 
 
 def fig_asse_puro(rows, outdir):
-    """Fase 11, blocco 2: quale asse costa, a blocco locale costante.
+    """Phase 11, block 2: which axis costs, at constant local block.
 
-    Su griglia cubica tagliare z in 56 significa anche ridurre il blocco a una
-    lamina, e dal tempo non si distingue quale delle due cose l'ha rallentato.
-    Qui il blocco locale e' lo stesso in ogni riga -- la griglia globale segue
-    la forma -- quindi l'unica differenza rimasta e' l'asse."""
+    On a cubic grid, cutting z into 56 also means reducing the block to a slab,
+    and from the time one cannot tell which of the two things slowed it down.
+    Here the local block is the same in every row -- the global grid follows
+    the shape -- so the only remaining difference is the axis."""
     data = [r for r in pick(rows, phase="11_matrix_mpi")
             if r["label"].startswith("cubo ") and r["ranks"] and r["ranks"] > 1]
     if not data:
@@ -660,7 +663,7 @@ def fig_asse_puro(rows, outdir):
         for k, backend in enumerate(("schur", "pipeline")):
             punti = []
             for n in ranks:
-                # Il taglio puro: tutti i processi allineati su un asse solo.
+                # The pure cut: all the processes aligned on a single axis.
                 gruppo = [r["wall_ms"] for r in pick(data, backend=backend,
                                                      ranks=n)
                           if (r["px"], r["py"], r["pz"]).count(1.0) == 2
@@ -677,7 +680,7 @@ def fig_asse_puro(rows, outdir):
     voci.append((NEUTRO, "continuo: schur", ""))
     voci.append((NEUTRO, "tratteggio: pipeline", "6,4"))
     legenda(parts, panel, voci)
-    # Due righe: una sola sfonderebbe la larghezza del riquadro singolo.
+    # Two rows: a single one would exceed the width of the single panel.
     parts.append(f'<text x="{ML}" y="{MT + H + 56}" class="nota">'
                  f'Lavoro per processo costante: se l\'asse non</text>')
     parts.append(f'<text x="{ML}" y="{MT + H + 72}" class="nota">'
@@ -687,13 +690,12 @@ def fig_asse_puro(rows, outdir):
 
 
 def fig_aspetto(rows, outdir):
-    """Fase 11, blocco 3: la forma del blocco locale, a volume costante.
+    """Phase 11, block 3: the shape of the local block, at constant volume.
 
-    Stessi processi, stessa forma della griglia di processi, stesso numero di
-    celle per processo: cambia solo se il blocco e' un cubo, una barra o una
-    lamina. Su uno stencil e' la forma a decidere quante linee di cache si
-    riusano, e questa e' l'altra meta' di quello che la griglia cubica teneva
-    insieme all'asse."""
+    Same processes, same shape of the process grid, same number of cells per
+    process: only whether the block is a cube, a bar or a slab changes. On a
+    stencil it is the shape that decides how many cache lines are reused, and
+    this is the other half of what the cubic grid kept tied to the axis."""
     data = [r for r in pick(rows, phase="11_matrix_mpi", simd=1.0)
             if r["label"].startswith("aspetto ")]
     if not data:
@@ -716,24 +718,24 @@ def fig_aspetto(rows, outdir):
             valori_.append(min(gruppo) if gruppo else 0.0)
         if not any(valori_):
             continue
-        # Il titolo dell'asse lo mette la figura, piu' in basso del solito:
-        # le etichette ruotate delle barre occupano il posto dove starebbe.
+        # The axis title is put by the figure, lower than usual: the rotated
+        # labels of the bars occupy the place where it would be.
         panel = Panel(parts, col, 0, f"Forma del blocco, {backend}",
                       "stesse celle per processo, proporzioni diverse",
                       "", "ms per passo",
                       [0, len(forme)], valori_, xlog=False, ylog=False)
-        # Una serie sola, quindi un colore solo: colorare ogni barra
-        # diversamente direbbe due volte quello che dice gia' l'altezza.
+        # A single series, hence a single colour: colouring every bar
+        # differently would say twice what the height already says.
         panel.bars(forme, valori_, [SERIE[0]])
         parts.append(f'<text x="{panel.x0 + W / 2}" y="{panel.y0 + H + 64}" '
                      f'class="asse">blocco locale</text>')
     write(outdir, "matrix-11-aspetto.svg", 2, 1, parts, serie=1)
 
 
-# Gli stadi, raggruppati per stare dentro i cinque colori verificati. I tre
-# passi della quantita' di moto restano separati perche' la loro asimmetria e'
-# meta' di quello che la campagna misura; i tre della pressione no, perche' si
-# muovono insieme.
+# The stages, grouped to stay within the five verified colours. The three
+# momentum steps stay separate because their asymmetry is half of what the
+# campaign measures; the three of the pressure do not, because they move
+# together.
 COMPOSIZIONE = [
     (("g_ms",), "g, termine noto"),
     (("eta_solve",), "eta, il sistema"),
@@ -744,25 +746,24 @@ COMPOSIZIONE = [
 
 
 def fig_composizione(rows, outdir):
-    """Dove va il tempo di un passo, stadio per stadio.
+    """Where the time of a step goes, stage by stage.
 
-    Il CSV cronometra ogni sezione separatamente, e questa e' la figura che
-    usa quelle colonne: barre impilate in millisecondi, non in percentuale,
-    cosi' si legge insieme la composizione e il totale. Una percentuale da
-    sola nasconde che una configurazione e' tre volte piu' lenta di quella
-    sopra."""
+    The CSV times every section separately, and this is the figure that uses
+    those columns: stacked bars in milliseconds, not in percent, so that the
+    composition and the total are read together. A percentage alone hides that
+    one configuration is three times slower than the one above."""
     data = pick(rows, phase="12_matrix_hybrid", simd=1.0)
-    # Le misure prese prima che il binario cronometrasse g hanno la colonna
-    # vuota. Qui non basta leggerla come zero: la fetta `g' sparirebbe dalla
-    # barra e sembrerebbe un risultato invece che un dato mancante.
+    # The measurements taken before the binary timed g have the column empty.
+    # Here it is not enough to read it as zero: the `g' slice would vanish from
+    # the bar and look like a result instead of a missing datum.
     data = [r for r in data if r["g_ms"] is not None]
     if not data:
         return
     grid = max(valori(data, "nx"))
     data = pick(data, nx=grid)
 
-    # Qualche piazzamento rappresentativo, non tutti: la figura serve a
-    # vedere come cambia la composizione, non a elencare il rettangolo.
+    # A few representative placements, not all: the figure is there to show how
+    # the composition changes, not to list the rectangle.
     voluti = [(1, 1), (1, 28), (1, 56), (8, 7), (28, 2), (56, 1)]
     barre = []
     negativi = False
@@ -773,18 +774,20 @@ def fig_composizione(rows, outdir):
             if not gruppo:
                 continue
             migliore = min(gruppo, key=lambda g: g["wall_ms"])
-            # `eta il sistema' non e' una colonna: e' eta meno g, perche' g
-            # sta dentro eta e non accanto.
+            # The `eta il sistema' slice (the eta system proper) is not a
+            # column: it is eta minus g, because g sits inside eta and not
+            # beside it.
             migliore = dict(migliore)
             migliore["eta_solve"] = max((migliore["eta_ms"] or 0.0)
                                         - (migliore["g_ms"] or 0.0), 0.0)
             pezzi = []
             for chiavi, nome in COMPOSIZIONE:
                 valore = sum(migliore[k] or 0.0 for k in chiavi)
-                # Con piu' processi ogni stadio e' il massimo sui processi, e
-                # la somma dei massimi puo' superare il passo: il non contato
-                # esce negativo. Un pezzo negativo non si disegna, e vale zero
-                # anche per la quota, che altrimenti sfonderebbe il cento.
+                # With several processes every stage is the maximum over the
+                # processes, and the sum of the maxima can exceed the step: the
+                # unaccounted comes out negative. A negative piece is not
+                # drawn, and it counts as zero also for the share, which would
+                # otherwise exceed one hundred.
                 if valore < 0:
                     negativi = True
                 pezzi.append(max(valore, 0.0))
@@ -794,10 +797,11 @@ def fig_composizione(rows, outdir):
         return
 
     massimo = max(max(b[2], sum(b[1])) for b in barre) or 1.0
-    # Due colonne di barre: a sinistra i millisecondi con una scala sola, a
-    # destra la stessa riga normalizzata a cento. La prima dice quanto costa,
-    # la seconda com'e' fatta -- e con trenta volte fra la riga piu' lenta e
-    # la piu' veloce, la prima da sola non fa vedere la composizione.
+    # Two columns of bars: on the left the milliseconds with a single scale, on
+    # the right the same row normalised to one hundred. The first says how much
+    # it costs, the second what it is made of -- and with a factor of thirty
+    # between the slowest and the fastest row, the first alone does not show
+    # the composition.
     larghezza_area = 330
     larghezza_quota = 200
     sinistra = 190
@@ -821,8 +825,8 @@ def fig_composizione(rows, outdir):
             larghezza = larghezza_area * valore / massimo
             if larghezza <= 0:
                 continue
-            # 2 pixel di fondo fra un segmento e l'altro: attaccati, due
-            # tinte vicine sembrano una sola.
+            # 2 pixels of background between one segment and the next:
+            # attached, two close hues look like one.
             parts.append(f'<rect x="{x:.1f}" y="{y + 4:.1f}" '
                          f'width="{max(larghezza - 2, 0.5):.1f}" height="16" '
                          f'fill="{SERIE[j]}"/>')
@@ -834,7 +838,7 @@ def fig_composizione(rows, outdir):
         parts.append(f'<text x="{x + 8:.1f}" y="{y + 17:.1f}" class="valore" '
                      f'text-anchor="start">{totale:.0f}</text>')
 
-        # La stessa riga in quota percentuale, a destra.
+        # The same row as a percentage share, on the right.
         somma = sum(pezzi) or 1.0
         xq = x0 + larghezza_area + 72
         for j, valore in enumerate(pezzi):
@@ -851,7 +855,7 @@ def fig_composizione(rows, outdir):
                              f'{100 * valore / somma:.0f}</text>')
             xq += larghezza
 
-    # La legenda sotto, in riga: cinque voci non stanno in un angolo.
+    # The legend below, in a row: five entries do not fit in a corner.
     y = y0 + len(barre) * riga + 22
     x = x0
     for j, (_, nome) in enumerate(COMPOSIZIONE):
@@ -885,7 +889,7 @@ def fig_composizione(rows, outdir):
 
 
 def fig_thread(rows, outdir):
-    """Fase 10: un rank, thread crescenti. Quattro serie, backend x SIMD."""
+    """Phase 10: one rank, increasing threads. Four series, backend x SIMD."""
     data = [r for r in pick(rows, phase="10_matrix_threads")
             if "bind=" not in r["label"] and "omp=0" not in r["label"]]
     if not data:
@@ -893,9 +897,9 @@ def fig_thread(rows, outdir):
     grids = valori(data, "nx")
     parts = []
     voci_legenda = []
-    # Due dimensioni, due canali: la tinta dice il backend, il tratteggio dice
-    # se c'e' SIMD. Quattro tinte direbbero la stessa cosa con il doppio dei
-    # colori, e due di esse sarebbero vicine.
+    # Two dimensions, two channels: the hue says the backend, the dashing says
+    # whether SIMD is on. Four hues would say the same thing with twice the
+    # colours, and two of them would be close.
     for col, grid in enumerate(grids):
         here = pick(data, nx=grid)
         panel = Panel(parts, col, 0, f"Thread, {grid:.0f}^3",
@@ -925,24 +929,25 @@ def fig_thread(rows, outdir):
             linea(parts, panel, [(t, y0 * t0 / t) for t, _ in base], NEUTRO,
                   marcatori=False)
             voci.append((NEUTRO, "ideale", ""))
-        # Le etichette dopo tutte le linee: ciascuna sceglie il suo posto
-        # guardando quello che e' gia' disegnato.
+        # The labels after all the lines: each one chooses its place by looking
+        # at what is already drawn.
         for punti, colore, testo in etichette:
             etichetta_fine(parts, panel, punti, colore, testo)
         voci_legenda = voci or voci_legenda
-    # La legenda sotto, una sola: la pipeline sale a destra, Schur e l'ideale
-    # scendono da sinistra, e a 224^3 nessun angolo del riquadro resta libero.
+    # The legend below, a single one: the pipeline rises on the right, Schur
+    # and the ideal descend from the left, and at 224^3 no corner of the panel
+    # remains free.
     legenda_riga(parts, ML, MT + H + MB + 8, voci_legenda)
     write(outdir, "matrix-10-thread.svg", len(grids), 1, parts, serie=2,
           altezza_extra=24)
 
 
 def fig_forme(rows, outdir):
-    """Fase 11: quanto cambia il tempo a seconda di COME si divide.
+    """Phase 11: how much the time changes depending on HOW it is divided.
 
-    Per ogni numero di rank si misurano tutte le terne (px, py, pz). Qui si
-    disegna l'intervallo fra la forma migliore e la peggiore: e' quello il
-    costo di sbagliare la divisione, ed e' la domanda della fase."""
+    For each number of ranks all the triples (px, py, pz) are measured. Here
+    the interval between the best and the worst shape is drawn: it is the cost
+    of getting the division wrong, and it is the question of the phase."""
     data = [r for r in pick(rows, phase="11_matrix_mpi")
             if cubica(r)]
     if not data:
@@ -971,8 +976,8 @@ def fig_forme(rows, outdir):
                 if not gruppo:
                     continue
                 lo, hi = min(gruppo), max(gruppo)
-                # Lo scostamento laterale separa i due backend: senza, i due
-                # intervalli si sovrappongono sullo stesso x e non si leggono.
+                # The lateral offset separates the two backends: without it,
+                # the two intervals overlap on the same x and cannot be read.
                 x = panel.px(n) + (i - 0.5) * 7
                 parts.append(f'<line x1="{x:.1f}" y1="{panel.py(lo):.1f}" '
                              f'x2="{x:.1f}" y2="{panel.py(hi):.1f}" '
@@ -996,11 +1001,11 @@ def fig_forme(rows, outdir):
 
 
 def fig_asse_diviso(rows, outdir):
-    """Fase 11, la seconda domanda: quale asse conviene dividere.
+    """Phase 11, the second question: which axis is worth dividing.
 
-    Per ogni backend, il tempo medio delle forme che dividono un dato asse.
-    La previsione dal codice e' che i due backend diano risposte diverse, e
-    questa figura e' dove si vede o non si vede."""
+    For each backend, the mean time of the shapes that divide a given axis. The
+    prediction from the code is that the two backends give different answers,
+    and this figure is where it shows or does not show."""
     data = [r for r in pick(rows, phase="11_matrix_mpi", simd=1.0)
             if cubica(r)]
     data = [r for r in data if r["ranks"] and r["ranks"] > 1]
@@ -1031,8 +1036,8 @@ def fig_asse_diviso(rows, outdir):
                         punti.append((n, gruppo[len(gruppo) // 2]))
                 if not punti:
                     continue
-                # Le tre serie sono gli assi; il backend e' il tratteggio,
-                # cosi' l'identita' non e' affidata al colore due volte.
+                # The three series are the axes; the backend is the dashing, so
+                # identity is not entrusted to colour twice.
                 linea(parts, panel, punti, SERIE[i],
                       "" if k == 0 else "6,4", marcatori=(k == 0))
                 if k == 0:
@@ -1044,7 +1049,7 @@ def fig_asse_diviso(rows, outdir):
 
 
 def fig_rettangolo(rows, outdir):
-    """Fase 12: il rettangolo pieno rank x thread, una mappa per backend."""
+    """Phase 12: the full rank x thread rectangle, one map per backend."""
     data = pick(rows, phase="12_matrix_hybrid", simd=1.0)
     if not data:
         return
@@ -1089,11 +1094,11 @@ def fig_rettangolo(rows, outdir):
 
 
 def fig_batch(rows, outdir):
-    """Fase 13: il batch della pipeline, un riquadro per piazzamento.
+    """Phase 13: the pipeline batch, one panel per placement.
 
-    Una serie per riquadro piu' il riferimento Schur in grigio: la domanda e'
-    dove sta il minimo di ogni curva, non come si confrontano fra loro, e
-    otto curve sovrapposte l'avrebbero nascosta."""
+    One series per panel plus the Schur reference in grey: the question is
+    where the minimum of each curve lies, not how they compare with one
+    another, and eight overlapping curves would have hidden it."""
     data = pick(rows, phase="13_matrix_batch", simd=1.0)
     if not data:
         return
@@ -1108,7 +1113,7 @@ def fig_batch(rows, outdir):
     parts = []
     for k, (r, t) in enumerate(piazzamenti):
         qui = pick(data, ranks=r, threads=t)
-        # batch=auto non ha un'ascissa: sta fuori dalla curva.
+        # batch=auto has no abscissa: it sits outside the curve.
         pipe = sorted((g["batch"], g["wall_ms"])
                       for g in pick(qui, backend="pipeline")
                       if g["batch"] is not None)
@@ -1131,7 +1136,8 @@ def fig_batch(rows, outdir):
                          f'stroke="{NEUTRO}" stroke-width="2"/>')
             _campiona(panel, (panel.x0, panel.py(y)), (panel.x0 + W, panel.py(y)))
             voci.append((NEUTRO, "schur, stesso piazzamento", ""))
-        # Il minimo, marcato: e' l'unica cosa che il lettore deve portarsi via.
+        # The minimum, marked: it is the only thing the reader has to take
+        # away.
         bx, by = min(pipe, key=lambda p: p[1])
         parts.append(f'<circle cx="{panel.px(bx):.1f}" cy="{panel.py(by):.1f}" '
                      f'r="7" fill="none" stroke="{SERIE[0]}" '
@@ -1150,12 +1156,12 @@ def fig_batch(rows, outdir):
 
 
 def fig_taglia(rows, outdir):
-    """Fase 14: il costo per cella al crescere della taglia.
+    """Phase 14: the cost per cell as the size grows.
 
-    Se il lavoro fosse solo aritmetica il costo per cella resterebbe piatto.
-    Dove sale, il blocco locale e' uscito dalla cache: e' il muro della banda
-    di memoria, e sapere dove sta e' quello che permette di leggere tutte le
-    altre figure."""
+    If the work were only arithmetic the cost per cell would stay flat. Where
+    it rises, the local block has left the cache: it is the memory-bandwidth
+    wall, and knowing where it lies is what allows reading all the other
+    figures."""
     data = [r for r in pick(rows, phase="14_matrix_size")
             if " N=" in r["label"]]
     if not data:
@@ -1194,11 +1200,11 @@ def fig_taglia(rows, outdir):
 
 
 def fig_memoria(rows, outdir):
-    """Fase 14: la memoria di picco, che per la pipeline e' il suo prezzo.
+    """Phase 14: the peak memory, which for the pipeline is its price.
 
-    Tiene c' e d' di tutto il blocco locale per tre componenti: paga in
-    memoria quello che Schur paga in aritmetica. Su un asse a se', perche' due
-    grandezze non vanno mai su due scale y dello stesso riquadro."""
+    It keeps c' and d' of the whole local block for three components: it pays
+    in memory what Schur pays in arithmetic. On an axis of its own, because two
+    quantities never go on two y scales of the same panel."""
     data = [r for r in pick(rows, phase="14_matrix_size")
             if " N=" in r["label"] and r["rss_mb"]]
     if not data:
@@ -1228,7 +1234,7 @@ def fig_memoria(rows, outdir):
 
 
 def fig_scaling(rows, outdir):
-    """Fase 14: scaling forte e debole, con la retta ideale accanto."""
+    """Phase 14: strong and weak scaling, with the ideal line beside it."""
     forte = [r for r in pick(rows, phase="14_matrix_size")
              if " forte " in r["label"]]
     debole = [r for r in pick(rows, phase="14_matrix_size")
@@ -1240,9 +1246,9 @@ def fig_scaling(rows, outdir):
 
     if forte:
         unita = sorted({max(r["ranks"], r["threads"]) for r in forte})
-        # Le serie prima del riquadro: la scala deve contenere anche gli
-        # speedup sotto uno -- la pipeline sui thread ci scende -- o quei punti
-        # restano fuori dal riquadro.
+        # The series before the panel: the scale must also contain the speedups
+        # below one -- the pipeline on threads goes down there -- or those
+        # points stay outside the panel.
         serie_forti = []
         i = 0
         for backend in ("schur", "pipeline"):
@@ -1263,9 +1269,9 @@ def fig_scaling(rows, outdir):
         panel = Panel(parts, 0, 0, "Scaling forte",
                       "stesso problema, piu' unita' di calcolo",
                       "unita' (processi oppure thread)", "speedup",
-                      # Log su entrambi gli assi: cosi' la retta ideale e'
-                      # una retta, e lo scarto si legge uguale a 2 unita' e a
-                      # 56 invece di schiacciarsi in basso a sinistra.
+                      # Log on both axes: this way the ideal line is a straight
+                      # line, and the deviation reads the same at 2 units and
+                      # at 56 instead of being squashed at the bottom left.
                       unita, speedup + [1, max(unita)], xlog=True, ylog=True)
         tacche(panel, unita)
         voci = []
@@ -1297,18 +1303,19 @@ def fig_scaling(rows, outdir):
         voci.append((NEUTRO, "ideale", ""))
         voci_legenda = voci_legenda or voci
 
-    # Una legenda sola, sotto i due riquadri: nel forte le cinque serie
-    # occupavano ogni angolo, e il debole usa le stesse tinte e lo stesso tratto.
+    # A single legend, below the two panels: in the strong case the five series
+    # occupied every corner, and the weak one uses the same hues and the same
+    # stroke.
     legenda_riga(parts, ML, MT + H + MB + 8, voci_legenda)
     write(outdir, "matrix-14-scaling.svg", 2, 1, parts, serie=2,
           altezza_extra=24)
 
 
 def fig_norme(rows, outdir):
-    """Fase 15: la campagna risolve ancora il problema giusto?
+    """Phase 15: does the campaign still solve the right problem?
 
-    Un numero solo, e quindi non un grafico: quanto si discosta la
-    configurazione peggiore dal riferimento. Atteso zero, non `piccolo'."""
+    A single number, and therefore not a plot: how far the worst configuration
+    departs from the reference. Expected zero, not `small'."""
     data = [r for r in pick(rows, phase="15_matrix_check") if r["l2_ux"]]
     if not data:
         return

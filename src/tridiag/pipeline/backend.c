@@ -23,12 +23,12 @@ static Real *real_array(size_t count) {
 
 #if !defined(PIPELINE_BATCH_LINES)
 /*
- * Linee per batch dai thread del processo.
+ * Lines per batch from the threads of the process.
  *
- * Mantiene la regola introdotta dalla campagna precedente. Il nuovo ciclo
- * assegna linee complete ai thread, quindi non paga piu' barriere per livello:
- * l'ottimo va rimisurato sul cluster prima di cambiare questa euristica.
- * Gli override a compilazione e da file rimangono disponibili.
+ * It keeps the rule introduced by the previous campaign. The new loop assigns
+ * complete lines to the threads, so it no longer pays barriers per level: the
+ * optimum must be re-measured on the cluster before changing this heuristic.
+ * The compile-time and file overrides remain available.
  */
 static int batch_lines_for_threads(int threads) {
     long long target = 256LL * (threads > 0 ? threads : 1);
@@ -45,10 +45,10 @@ static int batch_lines_for_threads(int threads) {
 #endif
 
 /*
- * Chi decide, dal piu' forte: PIPELINE_BATCH_LINES a compilazione -- la
- * scansione del batch e check_pipeline.sh devono misurare esattamente il
- * valore del binario --, poi pipeline_batch_lines nel file di
- * configurazione, poi la regola.
+ * Who decides, from the strongest: PIPELINE_BATCH_LINES at compile time -- the
+ * batch scan and check_pipeline.sh must measure exactly the value of the
+ * binary --, then pipeline_batch_lines in the configuration file, then the
+ * rule.
  */
 static int requested_batch_lines(void) {
 #if defined(PIPELINE_BATCH_LINES)

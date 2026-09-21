@@ -11,69 +11,69 @@
 #include "types.h"
 
 /*
- * La riga del sistema di quantita' di moto per un punto, e nient'altro.
+ * The row of the momentum system for a point, and nothing else.
  *
- * Questo file esiste per una ragione sola: la fisica di un punto deve stare
- * scritta in un posto solo, anche quando i modi di risolvere il sistema sono
- * due.  Il complemento di Schur ha bisogno delle quattro diagonali scritte per
- * esteso, perche' rilegge la matrice tre volte (una per il termine noto, due
- * per le funzioni di influenza).  Il Thomas pipelined le consuma sul posto e
- * non le scrive mai.  Sono due layout di memoria incompatibili, ma le formule
- * sono le stesse, e sono queste.
+ * This file exists for a single reason: the physics of a point must be written
+ * in one place only, even when there are two ways of solving the system. The
+ * Schur complement needs the four diagonals written out in full, because it
+ * rereads the matrix three times (once for the right-hand side, twice for the
+ * influence functions). The pipelined Thomas consumes them on the spot and
+ * never writes them. These are two incompatible memory layouts, but the
+ * formulas are the same, and they are these.
  *
- * Percio' quello che si condivide e' *la riga*, non l'eliminazione: chi
- * assembla la mette in un array, chi elimina la consuma nei registri.
+ * Therefore what is shared is *the row*, not the elimination: whoever
+ * assembles puts it in an array, whoever eliminates consumes it in registers.
  *
- * Ed e' `static inline` e non un puntatore a funzione apposta: cosi' la riga
- * non arriva mai in memoria, e chi la consuma sul posto non paga niente per
- * averla chiesta a una funzione condivisa.
+ * And it is `static inline` and not a function pointer on purpose: this way
+ * the row never reaches memory, and whoever consumes it on the spot pays
+ * nothing for having asked a shared function for it.
  */
 
-/* a*x[t-1] + b*x[t] + c*x[t+1] = f, con a del primo punto e c dell'ultimo
- * mai letti. */
+/* a*x[t-1] + b*x[t] + c*x[t+1] = f, with the a of the first point and the c of
+ * the last one never read. */
 typedef struct MomentumRow {
     Real a, b, c, f;
 } MomentumRow;
 
 /*
- * Quello che non cambia da un punto all'altro della stessa direzione e della
- * stessa componente.  Si costruisce una volta fuori dai cicli: dentro, la
- * riga costa solo i conti che dipendono davvero dalla cella.
+ * What does not change from one point to another of the same direction and the
+ * same component. It is built once outside the loops: inside, the row costs
+ * only the computations that really depend on the cell.
  */
 typedef struct MomentumLine {
     const Decomp *d;
     const SolverMemState *state;
     const Data *data;
-    const Real *k_porosity;  /* permeabilita' della componente          */
-    const Real *source;      /* lo stadio da cui si parte               */
-    const Real *target;      /* lo stadio in cui si arriva (in lettura) */
-    Real inverse_square;     /* 1/h^2 lungo questo asse                 */
+    const Real *k_porosity;  /* permeability of the component */
+    const Real *source;      /* the stage one starts from */
+    const Real *target;      /* the stage one arrives at (when reading) */
+    Real inverse_square;     /* 1/h^2 along this axis */
     /*
-     * Il termine fisico g della linea lungo x, gia' calcolato, indicizzato
-     * dalla posizione lungo l'asse -- oppure NULL.
+     * The physical term g of the line along x, already computed, indexed by
+     * the position along the axis -- or NULL.
      *
-     * Lungo x, nel passo eta, lo riempiono entrambi i backend con g_line e lo
-     * puntano qui: ogni thread prepara una linea prima di eliminarla, usando
-     * un buffer privato che riutilizza sulla linea successiva.  Il guadagno
-     * non e' solo la chiamata indiretta alla forzante che sparisce dal ciclo
-     * interno: sulla linea il supporto di g e la scelta del nodo fantasma non
-     * cambiano, quindi si decidono una volta e quel che resta si vettorizza.
+     * Along x, in the eta step, both backends fill it with g_line and point it
+     * here: each thread prepares a line before eliminating it, using a private
+     * buffer that it reuses on the next line. The gain is not only the
+     * indirect call to the forcing that disappears from the inner loop: on the
+     * line the support of g and the choice of the ghost node do not change, so
+     * they are decided once and what remains is vectorised.
      *
-     * NULL vuol dire "non l'ho preparato": si ripiega su g_value_here cella
-     * per cella.  Sugli assi y e z il puntatore non si legge nemmeno, perche'
-     * g non entra; lungo x oggi nessun chiamante arriva con NULL.
+     * NULL means "I did not prepare it": one falls back to g_value_here cell
+     * by cell. On the y and z axes the pointer is not even read, because g
+     * does not enter; along x today no caller arrives with NULL.
      */
     const Real *source_term;
     int axis;
     int v_comp;
     int t_step;
-    int last_global;         /* ultimo indice globale lungo l'asse      */
-    bool same_direction;     /* componente normale alla parete          */
+    int last_global;         /* last global index along the axis */
+    bool same_direction;     /* component normal to the wall */
 } MomentumLine;
 
 /*
- * eta parte da u, zeta parte da eta, u parte da zeta: la catena dei tre
- * stadi del direction splitting.
+ * eta starts from u, zeta starts from eta, u starts from zeta: the chain of
+ * the three stages of direction splitting.
  */
 static inline MomentumLine momentum_line(const Decomp *d,
                                          const SolverMemState *state,
@@ -124,10 +124,10 @@ static inline MomentumLine momentum_line(const Decomp *d,
 }
 
 /*
- * La riga del punto `cell` (indici locali), che nell'array dei campi sta in
- * `here`.  L'offset lo passa il chiamante perche' lo ha gia': i cicli lo
- * calcolano una volta per linea e poi lo incrementano, e ricalcolarlo qui
- * dentro con decomp_index sarebbe una moltiplicazione per cella buttata.
+ * The row of point `cell` (local indices), which in the field array is at
+ * `here`. The offset is passed by the caller because it already has it: the
+ * loops compute it once per line and then increment it, and recomputing it in
+ * here with decomp_index would be one wasted multiplication per cell.
  */
 static inline MomentumRow momentum_row(const MomentumLine *line,
                                        const int cell[3], size_t here) {
@@ -140,7 +140,7 @@ static inline MomentumRow momentum_row(const MomentumLine *line,
     MomentumRow row;
 
     if (along == 0) {
-        /* Parete inferiore del dominio: valore imposto. */
+        /* Lower wall of the domain: prescribed value. */
         row.a = 0.0;
         row.b = 1.0;
         row.c = 0.0;
@@ -153,12 +153,12 @@ static inline MomentumRow momentum_row(const MomentumLine *line,
     Real w_i = -gamma_from_k(k_i) * line->inverse_square;
     Real rhs = line->source[here] - line->target[here];
 
-    /* Solo il primo passo porta il termine fisico g. */
+    /* Only the first step carries the physical term g. */
     if (axis == 0) {
-        /* Senza il termine gia' pronto si passa da g_value_here, che valuta
-         * la forzante dove ha gia' le coordinate: chiamare forcing_at_cell e
-         * girarne il risultato a g_value costerebbe le stesse tre coordinate
-         * globali calcolate due volte, per ogni cella. */
+        /* Without the term already prepared one goes through g_value_here,
+         * which evaluates the forcing where it already has the coordinates:
+         * calling forcing_at_cell and passing its result to g_value would cost
+         * the same three global coordinates computed twice, for every cell. */
         Real source = (line->source_term != NULL)
             ? line->source_term[cell[0]]
             : g_value_here(d, cell[0], cell[1], cell[2], line->t_step, k_i,
@@ -179,8 +179,8 @@ static inline MomentumRow momentum_row(const MomentumLine *line,
         row.f = bc_right(line->data->bc_velocity, gi, gj, gk,
                          line->t_step, line->v_comp);
     } else {
-        /* Parete superiore, componente tangente: nodo fantasma eliminato con
-         * la condizione al contorno. */
+        /* Upper wall, tangential component: ghost node eliminated with the
+         * boundary condition. */
         Real right_value = bc_right(line->data->bc_velocity, gi, gj, gk,
                                     line->t_step, line->v_comp);
         row.a = w_i;

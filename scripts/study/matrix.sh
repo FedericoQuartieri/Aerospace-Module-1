@@ -1,60 +1,63 @@
 # shellcheck shell=bash
 #
-# La parte comune alle fasi 10-15, la campagna esaustiva.
+# The part common to phases 10-15, the exhaustive campaign.
 #
-# Lo studio che precedeva questa campagna faceva una domanda per fase e
-# variava una cosa per volta; e' stato tolto, e queste sei lo contengono.
-# Riempiono la matrice: ogni backend per ogni SIMD per ogni numero di rank per
-# ogni forma della griglia di processi per ogni numero di thread, e le taglie
-# sopra a tutto. Non c'e' una previsione da falsificare, c'e' una superficie da
-# misurare, e il suo valore e' che dopo si possono fare domande che oggi non
-# sappiamo ancora di avere.
+# The study that preceded this campaign asked one question per phase and varied
+# one thing at a time; it has been removed, and these six contain it. They fill
+# the matrix: every backend for every SIMD for every number of ranks for every
+# shape of the process grid for every number of threads, and the sizes on top
+# of everything. There is no prediction to falsify, there is a surface to
+# measure, and its value is that afterwards one can ask questions that today we
+# do not yet know we have.
 #
-# Sei fasi e non una perche' ognuna e' un job PBS a se': chiedono tutte un nodo
-# intero, quindi PBS le mette su sei nodi diversi e girano insieme. Ognuna si
-# ri-sottomette da sola finche' non ha finito, e ognuna riprende da dove era
-# arrivata, cosi' la campagna dura quanto le serve senza che nessuno la segua.
+# Six phases and not one because each is a PBS job of its own: they all ask for
+# a whole node, so PBS puts them on six different nodes and they run together.
+# Each resubmits itself until it is done, and each resumes from where it had
+# got to, so the campaign lasts as long as it needs without anybody following
+# it.
 #
-#   10_matrix_threads   un rank, thread crescenti: la macchina da sola
-#   11_matrix_mpi       un thread, rank crescenti, OGNI forma della griglia
-#   12_matrix_hybrid    il prodotto pieno rank x thread
-#   13_matrix_batch     il batch della pipeline contro il piazzamento
-#   14_matrix_size      la taglia del problema, forte e debole
-#   15_matrix_check     le norme: la matrice risolve ancora il problema giusto
+#   10_matrix_threads   one rank, increasing threads: the machine on its own
+#   11_matrix_mpi       one thread, increasing ranks, EVERY shape of the grid
+#   12_matrix_hybrid    the full rank x thread product
+#   13_matrix_batch     the pipeline batch against the placement
+#   14_matrix_size      the problem size, strong and weak
+#   15_matrix_check     the norms: the matrix still solves the right problem
 #
-# Tutte scrivono le stesse colonne di lib.sh, quindi
-# `./scripts/run_study.sh merge' le unisce in un CSV solo. `./scripts/plot_matrix.py' disegna da quello.
+# They all write the same columns of lib.sh, so `./scripts/run_study.sh merge'
+# merges them into a single CSV. `./scripts/plot_matrix.py' draws from that
+# one.
 #
-# Quanto dura: con i default sono circa 1800 casi. Distribuiti su sei catene
-# in parallelo sono qualche ora ciascuna. Per usare davvero quattro giorni si
-# allargano gli assi dall'ambiente, che e' il motivo per cui sono tutti
-# variabili:
+# How long it takes: with the defaults it is about 1800 cases. Spread over six
+# chains in parallel it is a few hours each. To really use four days the axes
+# are widened from the environment, which is why they are all variables:
 #
 #   GRIDS="128 224 256" REPEATS=3 ./scripts/run_study.sh submit
 #
-# Un avvertimento che vale per tutta la campagna: il multi-nodo qui non c'e'.
-# Su questo cluster non esiste un modo funzionante di lanciare processi su piu'
-# nodi -- ne' plm tm, ne' ssh, ne' pbs_tmrsh -- quindi il tetto e' un nodo: 56 core fisici, 112
-# cpu logiche. Ogni caso che chiede piu' di 112 unita' non viene emesso.
+# A warning that holds for the whole campaign: there is no multi-node here. On
+# this cluster there is no working way to launch processes on several nodes --
+# neither plm tm, nor ssh, nor pbs_tmrsh -- so the ceiling is one node: 56
+# physical cores, 112 logical cpus. Every case that asks for more than 112
+# units is not emitted.
 
-# I valori che tornano in piu' fasi. Sono divisori di 56 perche' e' il numero
-# di core fisici del nodo: numeri che non lo dividono lasciano un socket
-# spaiato e misurano il piazzamento invece dell'algoritmo.
+# The values that come back in several phases. They are divisors of 56 because
+# that is the number of physical cores of the node: numbers that do not divide
+# it leave a socket unpaired and measure the placement instead of the
+# algorithm.
 MATRIX_RANKS="${MATRIX_RANKS:-1 2 4 7 8 14 28 56}"
 MATRIX_THREADS="${MATRIX_THREADS:-1 2 4 7 8 14 28 56 112}"
 MATRIX_BACKENDS="${MATRIX_BACKENDS:-schur pipeline}"
 MATRIX_SIMD="${MATRIX_SIMD:-0 1}"
 
-# Il tetto di unita' (rank x thread). Di norma le cpu logiche del nodo; si
-# abbassa a mano per provare la campagna su una macchina piccola.
+# The ceiling of units (rank x thread). Normally the logical cpus of the node;
+# it is lowered by hand to try the campaign on a small machine.
 matrix_units()
 {
     echo "${MATRIX_UNITS:-${STUDY_LOGICAL:-$(nproc --all)}}"
 }
 
-# Quanti passi temporali per una taglia. Il prodotto passi x celle e' quello
-# che decide quanto dura un caso, e i casi devono durare tutti piu' o meno
-# uguale: altrimenti la parte grossa della campagna se ne va in due righe.
+# How many time steps for a size. The product steps x cells is what decides how
+# long a case lasts, and the cases must all last roughly the same: otherwise
+# the bulk of the campaign goes in two rows.
 matrix_steps()
 {
     local n="$1"
@@ -70,13 +73,14 @@ matrix_steps()
     fi
 }
 
-# TUTTE le forme (px, py, pz) con px*py*pz = n, nell'ordine degli assi.
+# ALL the shapes (px, py, pz) with px*py*pz = n, in axis order.
 #
-# Le permutazioni NON sono doppioni. I tre assi non sono intercambiabili: x e'
-# la direzione contigua in memoria, e i due backend la trattano diversamente --
-# Schur ci perde i kernel a linea intera appena la divide, la pipeline ci mette
-# le linee non adiacenti. "Quale asse viene diviso" e' esattamente una delle
-# variabili che questa campagna deve misurare, non una da quozientare via.
+# The permutations are NOT duplicates. The three axes are not interchangeable:
+# x is the direction contiguous in memory, and the two backends treat it
+# differently -- Schur loses the whole-line kernels there as soon as it divides
+# it, the pipeline puts the non-adjacent lines there. "Which axis is divided"
+# is exactly one of the variables that this campaign must measure, not one to
+# be factored away.
 matrix_shapes()
 {
     local n="$1" px py pz rest
@@ -92,7 +96,7 @@ matrix_shapes()
     done
 }
 
-# Le coppie (rank, thread) che ci stanno nel nodo.
+# The (rank, thread) pairs that fit in the node.
 matrix_pairs()
 {
     local units r t
@@ -105,9 +109,9 @@ matrix_pairs()
     done
 }
 
-# Una forma non deve chiedere piu' blocchi che celle lungo un asse: decomp
-# chiude il programma se lo fa, e sarebbe un caso fallito invece di un caso
-# saltato.
+# A shape must not ask for more blocks than cells along an axis: decomp shuts
+# the program down if it does, and it would be a failed case instead of a
+# skipped case.
 matrix_shape_fits()
 {
     local px py pz nx ny nz
@@ -117,7 +121,7 @@ matrix_shape_fits()
     [[ "$px" -le "$nx" && "$py" -le "$ny" && "$pz" -le "$nz" ]]
 }
 
-# Le fasi della campagna durano piu' di una catena normale: quattro giorni di
-# job da mezz'ora sono quasi duecento anelli. Il tetto resta, perche' serve a
-# fermare una catena che gira a vuoto, ma sta molto piu' in alto.
+# The phases of the campaign last longer than a normal chain: four days of
+# half-hour jobs are almost two hundred links. The ceiling stays, because it
+# serves to stop a chain that runs idle, but it sits much higher.
 MATRIX_CHAIN_MAX="${MATRIX_CHAIN_MAX:-200}"

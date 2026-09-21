@@ -1,6 +1,6 @@
-# Apre una cartella di .pvti come UNA serie temporale.
+# Opens a folder of .pvti files as ONE time series.
 #   paraview --script=scripts/paraview/open_series.py -- data/output/cavity
-# Senza argomenti usa data/output/cavity.
+# Without arguments it uses data/output/cavity.
 from paraview.simple import *
 import glob, os, sys
 
@@ -24,7 +24,7 @@ view = GetActiveViewOrCreate('RenderView')
 disp = Show(reader, view)
 disp.SetRepresentationType('Surface')
 ColorBy(disp, ('POINTS', 'velocity', 'Magnitude'))
-# scala di colori sull'ultimo istante, non sul primo che e' nullo
+# colour scale on the last instant, not on the first one, which is null
 GetAnimationScene().UpdateAnimationUsingDataTimeSteps()
 view.ViewTime = times[-1]
 Render()

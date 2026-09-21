@@ -6,12 +6,12 @@
 #include "workers.h"
 
 /*
- * Rinfresca l'anello di celle di contorno dei campi che i conti leggono un
- * passo oltre il proprio blocco.
+ * Refreshes the ring of boundary cells of the fields that the computations
+ * read one step beyond their own block.
  *
- * g_value calcola tre derivate seconde, una per asse: guarda eta lungo X,
- * zeta lungo Y e u lungo Z, piu' la pressione estrapolata in tutte e tre.
- * Gli altri campi vengono letti solo nella cella in cui si trovano.
+ * g_value computes three second derivatives, one per axis: it looks at eta
+ * along X, zeta along Y and u along Z, plus the extrapolated pressure in all
+ * three. The other fields are read only in the cell where they sit.
  */
 static void refresh_vector_halo(const Decomp *d, VectorField *field) {
     par_exchange_halo(d, field->v_x);
@@ -20,16 +20,17 @@ static void refresh_vector_halo(const Decomp *d, VectorField *field) {
 }
 
 /*
- * Chi ha un vicino sopra scrive anche il primo piano di celle del vicino, che
- * legge dall'anello di contorno: senza quel piano condiviso i pezzi del file
- * .pvti lascerebbero scoperta una fila di celle a ogni interfaccia.
+ * Whoever has a neighbour above also writes the first plane of cells of the
+ * neighbour, which it reads from the boundary ring: without that shared plane
+ * the pieces of the .pvti file would leave a row of cells uncovered at every
+ * interface.
  *
- * L'anello va quindi aggiornato subito prima di scrivere: la pressione e' stata
- * appena riscritta senza scambio, la permeabilita' non ne fa mai, e al passo
- * zero non ne e' ancora avvenuto nessuno.
+ * The ring must therefore be refreshed right before writing: the pressure has
+ * just been rewritten without an exchange, the permeability never makes one,
+ * and at step zero none has happened yet.
  *
- * Serve anche al riporto della velocita' sui nodi centrati, che sul confine
- * fra due blocchi media con la cella appena oltre.
+ * It is also needed for carrying the velocity over to the cell-centred nodes,
+ * which on the boundary between two blocks averages with the cell just beyond.
  */
 static void refresh_before_write(const Decomp *d, SolverMemState *state) {
     par_exchange_halo(d, state->pressure.v);
@@ -41,8 +42,8 @@ void solver_init(const Decomp *decomp,
                  SolverMemState *solver_mem_state,
                  Data *data,
                  const char *data_name) {
-    /* Senza nome si tiene lo scenario che il chiamante ha gia' messo in `data`:
-     * e' quello che fanno i test, che costruiscono il proprio. */
+    /* Without a name the scenario that the caller has already put in `data` is
+     * kept: that is what the tests do, since they build their own. */
     if (data_name != NULL) {
         const Data *found = data_by_name(data_name);
 
@@ -88,13 +89,15 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
     ScalarField pressure_buffer;
     scalarField_alloc(decomp, &pressure_buffer);
 
-    /* Lo scratch che serve al backend tridiagonale lo alloca lui: da qui e'
-     * un puntatore opaco, e quale dei due sia non si vede. */
+    /* The scratch needed by the tridiagonal backend is allocated by the
+     * backend itself: from here it is an opaque pointer, and which of the two
+     * it is cannot be seen. */
     backend_init(decomp, solver_mem_state);
 
-    /* La scrittura riporta la velocita' dai punti staggered ai nodi, e sul
-     * confine fra due blocchi la media chiede la cella appena oltre: l'anello
-     * di contorno va aggiornato prima di ogni dump, non solo prima dei conti. */
+    /* Writing carries the velocity from the staggered points to the nodes, and
+     * on the boundary between two blocks the average asks for the cell just
+     * beyond: the boundary ring must be refreshed before every dump, not only
+     * before the computations. */
     if (write_enabled) {
         refresh_before_write(decomp, solver_mem_state);
         write_to_file(decomp, solver_mem_state, data->name, 0);
@@ -103,15 +106,17 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
     uint64_t comm_start = par_comm_nanoseconds();
     uint64_t output_comm = 0;
     uint64_t start_ns = time_ns();
-    //N.B. il loop parte da t=1, perché il passo t=0 è già stato scritto sopra
+    // N.B. the loop starts from t=1, because step t=0 has already been written
+    // above
     for (int t_step = 1; t_step <= STEPS; t_step++) {
-        //viene riaggiornato l'anello di contorno per i 4 valori necessari a g
+        // the boundary ring is refreshed again for the 4 values needed by g
         refresh_vector_halo(decomp, &solver_mem_state->eta);
         refresh_vector_halo(decomp, &solver_mem_state->zeta);
         refresh_vector_halo(decomp, &solver_mem_state->u);
         par_exchange_halo(decomp, solver_mem_state->pressure_star.v);
 
-        //se la porosità dipende dal tempo, la aggiorna a metà passo temporale
+        // if the porosity depends on time, it is updated at the middle of the
+        // time step
         if (data->porosity_time_dependent) {
             uint64_t fill_start = time_ns();
             Real midpoint_step = (Real)t_step - (Real)0.5;
@@ -123,32 +128,33 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
         }
 
         // Momentum system
-        //aggiorna la velocità e la pressione_star, usando i valori di pressione e porosità correnti
+        // updates the velocity and pressure_star, using the current pressure
+        // and porosity values
         momentum_step(decomp, solver_mem_state, data, t_step, solver_stats);
 
 
-        /* compute_div guarda una cella indietro nella velocita' appena
-         * aggiornata, su tutti e tre gli assi. altrimenti la divergenza
-         * sul bordo basso del blocco sarebbe vecchia di un passo
+        /* compute_div looks one cell back in the velocity just updated, on all
+         * three axes. Otherwise the divergence on the lower edge of the block
+         * would be one step old.
          */
-        //aggiorna l'anello di contorno della velocità appena calcolata: lo legge
-        // compute_div, nel pressure_step qui sotto
+        // updates the boundary ring of the velocity just computed: compute_div
+        // reads it, in the pressure_step below
         refresh_vector_halo(decomp, &solver_mem_state->u);
 
         // Pressure system
-        //aggiorna la pressione, usando i valori di velocità e porosità correnti
+        // updates the pressure, using the current velocity and porosity values
         pressure_step(decomp, solver_mem_state, &pressure_buffer,
                       solver_stats);
 
         // Write to file
-        //scrive su file i valori correnti di velocità, pressione e porosità,
-        // se write_enabled è settato
+        // writes to file the current values of velocity, pressure and porosity,
+        // if write_enabled is set
         if (write_enabled) {
             if (t_step % WR_FREQ == 0) {
                 uint64_t wr_start = time_ns();
                 uint64_t wr_comm = par_comm_nanoseconds();
-                /* pressure_step ha appena corretto u: l'anello di contorno
-                 * porta ancora i valori di prima della proiezione. */
+                /* pressure_step has just corrected u: the boundary ring still
+                 * carries the values from before the projection. */
                 refresh_before_write(decomp, solver_mem_state);
                 write_to_file(decomp, solver_mem_state, data->name, t_step);
                 solver_stats->wr_output += time_ns() - wr_start;
@@ -157,7 +163,8 @@ void solver_solve(const Decomp *decomp, SolverMemState *solver_mem_state,
         }
     }
 
-    // aggiorna il tempo totale di esecuzione del solver, sottraendo il tempo speso per scrivere su file
+    // updates the total execution time of the solver, subtracting the time
+    // spent writing to file
     solver_stats->solve_steps = (time_ns() - start_ns) - solver_stats->wr_output;
 
     solver_stats->comm_steps = par_comm_nanoseconds() - comm_start - output_comm;

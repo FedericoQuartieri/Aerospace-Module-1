@@ -75,7 +75,7 @@ static inline ErrorNorms compute_error_norms(const Decomp *d,
         }
     }
 
-    /* Le norme sono somme su tutta la griglia, non solo sul blocco. */
+    /* The norms are sums over the whole grid, not just over the block. */
     error.L1 = par_sum_real(error.L1) * dV;
     error.L2 = (Real)sqrt((double)(par_sum_real(error.L2) * dV));
     error.Linf = par_max_real(error.Linf);

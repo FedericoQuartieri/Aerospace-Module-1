@@ -30,9 +30,10 @@ from plot_matrix import STILE, NEUTRO, ML, MT  # noqa: E402
 MEGLIO = "#2a78d6"
 PEGGIO = "#e34948"
 
-# Gli stadi, nell'ordine in cui il passo li esegue. La coppia e' (colonna,
-# nome leggibile); `non contato' non e' uno stadio ma quello che avanza, e
-# resta in fondo perche' e' li' che si guarda quando i conti non tornano.
+# The stages, in the order in which the step executes them. The pair is
+# (column, readable name); `non contato' is not a stage but what is left over,
+# and it stays at the bottom because that is where one looks when the accounts
+# do not add up.
 STADI = [
     ("eta_ms", "eta, tutto"),
     ("g_ms", "  g, termine noto"),
@@ -48,16 +49,18 @@ STADI = [
     ("mpi_ms", "dentro MPI"),
 ]
 
-# Gli stadi che la modifica di questa serie NON tocca: sono il controllo.
+# The stages that the change of this series does NOT touch: they are the
+# control.
 CONTROLLO = {"zeta_ms", "u_ms", "psi_ms", "philow_ms", "phihigh_ms",
              "pressure_ms"}
 
-# Righe che sono gia' dentro un'altra: nel totale non vanno contate due volte.
+# Rows that are already inside another one: in the total they must not be
+# counted twice.
 DENTRO_ETA = {"g_ms", "eta_solve"}
 
-RIGA = 22          # altezza di una riga di stadio
-LARGA = 300        # larghezza dell'area di disegno
-SINISTRA = 108     # spazio per i nomi degli stadi
+RIGA = 22          # height of a stage row
+LARGA = 300        # width of the drawing area
+SINISTRA = 108     # space for the names of the stages
 
 
 def load(path):
@@ -96,9 +99,9 @@ def mediana(valori):
 
 
 def casi(righe):
-    """Le configurazioni misurate, ognuna con la mediana di ogni stadio nelle
-    due revisioni. La mediana e non la migliore: qui interessa il centro delle
-    corse, non la piu' fortunata."""
+    """The measured configurations, each with the median of every stage in the
+    two revisions. The median and not the best: what matters here is the centre
+    of the runs, not the luckiest one."""
     fuori = []
     visti = []
     for riga in righe:
@@ -145,11 +148,11 @@ def scrivi(outdir, nome, larghezza, altezza, parts):
 
 
 def fig_stadi(lista, outdir, sha_prima, sha_dopo):
-    """Da prima a dopo, stadio per stadio, in millisecondi.
+    """From before to after, stage by stage, in milliseconds.
 
-    Una barretta per stadio: pallino vuoto dove stava, pieno dove sta. La
-    lunghezza della barretta e' il guadagno in millisecondi, che e' la cosa che
-    conta quando si decide se una modifica vale la pena."""
+    One small bar per stage: an empty dot where it was, a filled one where it
+    is. The length of the bar is the gain in milliseconds, which is what counts
+    when deciding whether a change is worth it."""
     if not lista:
         return
     colonne = min(3, len(lista))
@@ -203,12 +206,12 @@ def fig_stadi(lista, outdir, sha_prima, sha_dopo):
 
 
 def fig_guadagno(lista, outdir, sha_prima, sha_dopo):
-    """La percentuale risparmiata, con il controllo nella stessa figura.
+    """The percentage saved, with the control in the same figure.
 
-    Barre a partire dallo zero: a destra dove il tempo e' calato, a sinistra
-    dove e' cresciuto. Gli stadi che la modifica non tocca sono in grigio, e
-    la loro escursione e' il rumore: un guadagno piu' corto di quelle barre
-    grigie non e' un guadagno."""
+    Bars starting from zero: to the right where the time has dropped, to the
+    left where it has grown. The stages that the change does not touch are in
+    grey, and their excursion is the noise: a gain shorter than those grey bars
+    is not a gain."""
     if not lista:
         return
     colonne = min(3, len(lista))
@@ -244,9 +247,9 @@ def fig_guadagno(lista, outdir, sha_prima, sha_dopo):
             parts.append(f'<rect x="{x:.1f}" y="{y - 7:.1f}" '
                          f'width="{abs(larghezza_barra):.1f}" height="14" '
                          f'rx="3" fill="{colore}"/>')
-            # L'etichetta va dentro la barra quando c'e' spazio, fuori quando
-            # non ce n'e': una barra lunga spinge il numero fin sopra i nomi
-            # degli stadi, e li' non si legge piu' niente.
+            # The label goes inside the bar when there is room, outside when
+            # there is not: a long bar pushes the number over the stage names,
+            # and there nothing can be read any more.
             fine = x0 + meta + larghezza_barra
             dentro = abs(larghezza_barra) > 42
             if dentro:

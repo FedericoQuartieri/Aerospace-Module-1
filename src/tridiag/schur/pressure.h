@@ -6,12 +6,12 @@
 
 
 /*
- * Prepara le tre matrici della cascata di pressione, una per asse.  Vanno
- * costruite una volta prima del ciclo temporale e liberate alla fine.
+ * Prepares the three matrices of the pressure cascade, one per axis. They must
+ * be built once before the time loop and freed at the end.
  */
 void pressure_plans_init(const Decomp *d, SchurPlan plan[3]);
 void pressure_plans_free(SchurPlan plan[3]);
 
-/* pressure_step e' dichiarata in backend.h: e' l'interfaccia condivisa. */
+/* pressure_step is declared in backend.h: it is the shared interface. */
 
 #endif

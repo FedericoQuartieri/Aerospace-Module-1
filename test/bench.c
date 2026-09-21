@@ -1,42 +1,44 @@
 /*
- * Il binario delle misure: paper_data, griglia da file, forma della griglia
- * di processi imposta dalla riga di comando.
+ * The measurement binary: paper_data, grid from file, shape of the process
+ * grid imposed by the command line.
  *
- * Esiste perche' nessuno dei due binari gia' presenti sa fare entrambe le
- * cose, e uno studio di scaling ha bisogno di tutte e due:
+ * It exists because neither of the two binaries already present can do both
+ * things, and a scaling study needs both:
  *
- *   src/main.c      legge il file di configurazione (griglia a runtime, un
- *                   binario per tutte le taglie) ma lascia scegliere la forma
- *                   a MPI_Dims_create, che non si puo' contraddire.
- *   test/paper_man  accetta la forma sulla riga di comando ma ha la griglia
- *                   cablata a compilazione, e ricalcola la permeabilita' a
- *                   ogni passo con i cicli seriali di field.c -- lavoro che
- *                   non scala e che coprirebbe l'effetto cercato.
+ *   src/main.c      reads the configuration file (grid at run time, one
+ *                   binary for all the sizes) but leaves the choice of shape
+ *                   to MPI_Dims_create, which cannot be contradicted.
+ *   test/paper_man  accepts the shape on the command line but has the grid
+ *                   wired in at compile time, and recomputes the permeability
+ *                   at every step with the serial loops of field.c -- work
+ *                   that does not scale and that would mask the effect being
+ *                   sought.
  *
- * Qui la griglia si legge da file e la forma si impone, cosi' "quale asse
- * viene diviso" diventa una variabile dello studio invece di una conseguenza.
- * Lo scenario e' `paper_data` (K statico), lo stesso delle misure di
+ * Here the grid is read from a file and the shape is imposed, so "which axis
+ * is divided" becomes a variable of the study instead of a consequence. The
+ * scenario is `paper_data` (static K), the same as the measurements of
  * MULTITHREAD.md §9.
  *
- * Stampa, oltre alle statistiche di print_stats, le righe che servono a
- * riconoscere la configurazione nel log senza fidarsi di come e' stato
- * lanciato: backend compilato, batch della pipeline, forma effettiva della
- * griglia di processi, memoria di picco. Sono l'unico modo di accorgersi che
- * si stanno confrontando due cose diverse credendole uguali.
+ * Besides the statistics of print_stats, it prints the lines needed to
+ * recognise the configuration in the log without trusting how it was launched:
+ * compiled backend, pipeline batch, actual shape of the process grid, peak
+ * memory. They are the only way to notice that two different things are being
+ * compared believing them equal.
  *
- *   uso: bench <config> [px py pz]
+ *   usage: bench <config> [px py pz]
  *
- * Con BENCH_NORMS=1 nell'ambiente calcola anche le norme dell'errore contro
- * la soluzione esatta: la stessa configurazione che si sta cronometrando dice
- * pure se sta risolvendo il problema giusto, che e' la premessa di qualunque
- * tempo misurato.
+ * With BENCH_NORMS=1 in the environment it also computes the error norms
+ * against the exact solution: the same configuration that is being timed also
+ * says whether it is solving the right problem, which is the premise of any
+ * measured time.
  *
- * BENCH_SCENARIO=<nome> cambia lo scenario; senza, e' `paper_data'.  Serve
- * perche' non tutti costano uguale: il termine forzante lo fornisce lo
- * scenario, e paper_data e' l'unico che ne pubblica la versione a linea
- * (forcing_line_fn).  Misurare solo lui vuol dire misurare solo il caso
- * migliore, e una modifica al termine noto sembrerebbe valere per tutti
- * quanto vale per uno.  I nomi sono quelli di data_print_names.
+ * BENCH_SCENARIO=<name> changes the scenario; without it, it is `paper_data'.
+ * It is needed because not all of them cost the same: the forcing term is
+ * supplied by the scenario, and paper_data is the only one that publishes its
+ * line version (forcing_line_fn). Measuring only it means measuring only the
+ * best case, and a change to the right-hand side would seem to be worth for
+ * all of them as much as it is for one. The names are those of
+ * data_print_names.
  */
 
 #include <stdio.h>
@@ -78,9 +80,9 @@ static int built_with_mpi(void)
 }
 
 /*
- * Il massimo fra i processi, non quello del rank 0: la pipeline tiene c' e d'
- * di tutto il blocco locale, e con una decomposizione sbilanciata il blocco
- * piu' grande e' quello che decide se il caso ci sta in memoria.
+ * The maximum among the processes, not that of rank 0: the pipeline keeps c'
+ * and d' of the whole local block, and with an unbalanced decomposition the
+ * largest block is the one that decides whether the case fits in memory.
  */
 static long long peak_rss_kb(void)
 {
@@ -115,8 +117,8 @@ int main(int argc, char **argv)
 
     params_load(argv[1]);
 
-    /* Lo scenario: quello di default, o quello chiesto dall'ambiente. Un nome
-     * sbagliato ferma qui invece di misurare in silenzio un'altra cosa. */
+    /* The scenario: the default one, or the one requested by the environment.
+     * A wrong name stops here instead of silently measuring something else. */
     const char *scenario = getenv("BENCH_SCENARIO");
     const Data *scelto = NULL;
 
@@ -132,8 +134,8 @@ int main(int argc, char **argv)
         }
     }
 
-    /* Tutti zero: la forma la sceglie MPI. Tre numeri la impongono, ed e' il
-     * motivo per cui questo binario esiste. */
+    /* All zeros: MPI chooses the shape. Three numbers impose it, and that is
+     * the reason this binary exists. */
     int process_grid[3] = {0, 0, 0};
 
     if (argc == 5) {
@@ -156,8 +158,8 @@ int main(int argc, char **argv)
     solver_solve(&decomp, &solver_mem_state, &data, &solver_stats,
                  write_enabled);
 
-    /* Prima delle norme: calcolarle alloca due campi in piu' e falserebbe la
-     * memoria di picco del caso che si sta misurando. */
+    /* Before the norms: computing them allocates two more fields and would
+     * falsify the peak memory of the case being measured. */
     const long long rss_kb = par_max_long(peak_rss_kb());
 
     int dims[3];
@@ -165,8 +167,8 @@ int main(int argc, char **argv)
 
     if (par_rank() == 0) {
         printf("  bench backend:     %s\n", backend_name());
-        /* Lo scenario nell'output, non solo nell'ambiente: un CSV che non lo
-         * riporta non dice quale problema ha cronometrato. */
+        /* The scenario in the output, not only in the environment: a CSV that
+         * does not report it does not say which problem it timed. */
         printf("  bench scenario:    %s\n", data.name);
         printf("  bench batch:       %d\n", backend_batch_lines());
         printf("  bench build:       simd=%d omp=%d mpi=%d\n",
@@ -180,9 +182,9 @@ int main(int argc, char **argv)
         fflush(stdout);
     }
 
-    /* Il valore, non la sola presenza: gli script esportano sempre la
-     * variabile (mpirun -x vuole che esista) e la mettono a 0 quando le norme
-     * non servono. */
+    /* The value, not just the presence: the scripts always export the variable
+     * (mpirun -x wants it to exist) and set it to 0 when the norms are not
+     * needed. */
     int failed = 0;
     const char *norms_requested = getenv("BENCH_NORMS");
 

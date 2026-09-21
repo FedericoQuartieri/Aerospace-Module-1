@@ -7,52 +7,54 @@
 #include "workers.h"
 
 /*
- * I tre passi della quantita' di moto sono la stessa operazione ripetuta su
- * assi diversi (Lecture 5, p. 6):
+ * The three momentum steps are the same operation repeated on different axes
+ * (Lecture 5, p. 6):
  *
  *   (I - g d_xx)(eta^{n+1}  - eta^n)  = xi^{n+1}  - eta^n
  *   (I - g d_yy)(zeta^{n+1} - zeta^n) = eta^{n+1} - zeta^n
  *   (I - g d_zz)(u^{n+1}    - u^n)    = zeta^{n+1} - u^n
  *
- * Cambiano l'asse, il campo di partenza e quello di arrivo; il resto e'
- * identico. Questa funzione li fa tutti e tre, e la si chiama con l'asse.
+ * The axis, the starting field and the arrival field change; the rest is
+ * identical. This function does all three, and it is called with the axis.
  *
- * Il sistema di ogni linea viene scritto per esteso nelle tre diagonali e nel
- * termine noto, e passato a schur_solve_mpi: se lungo quell'asse c'e' un solo
- * processo lui usa Thomas normale, altrimenti ricuce i pezzi delle linee
- * spezzate. Le linee di uno stesso gruppo vengono risolte insieme, cosi' il
- * gruppo costa una comunicazione invece di una per linea.
+ * The system of each line is written out in full in the three diagonals and
+ * the right-hand side, and passed to schur_solve_mpi: if along that axis there
+ * is a single process it uses plain Thomas, otherwise it stitches together the
+ * pieces of the split lines. The lines of the same group are solved together,
+ * so the group costs one communication instead of one per line.
  */
 /*
- * Il contesto di una linea: quello che il corpo del ciclo deve sapere e che non
- * cambia da una linea all'altra.
+ * The context of a line: what the loop body must know and does not change from
+ * one line to the next.
  *
- * Serve perche' lo stesso corpo e' ora percorso da due strutture di cicli
- * diverse -- una che sparisce i piani fra i thread, una che sparisce le linee
- * dentro il piano -- e ripetere gli stessi argomenti in due punti sarebbe il
- * modo piu' facile per farle divergere senza accorgersene.
+ * It is needed because the same body is now walked by two different loop
+ * structures -- one that distributes the planes among the threads, one that
+ * distributes the lines within the plane -- and repeating the same arguments
+ * in two places would be the easiest way to make them diverge without
+ * noticing.
  *
- * La fisica non e' qui dentro: sta in `mline`, cioe' in momentum_row.h, che e'
- * condiviso con l'altro backend. Questa struttura porta solo la geometria.
+ * The physics is not in here: it is in `mline`, that is in momentum_row.h,
+ * which is shared with the other backend. This structure carries only the
+ * geometry.
  */
 typedef struct {
     const MomentumLine *mline;
     const Decomp *d;
     Real *target;
     /*
-     * Le ascisse delle celle di una linea lungo x, o NULL fuori dal passo
-     * eta.  Sono le stesse per ogni linea del blocco, per ogni componente e
-     * per ogni passo: si riempiono una volta e i thread le leggono e basta.
+     * The abscissae of the cells of a line along x, or NULL outside the eta
+     * step. They are the same for every line of the block, for every component
+     * and for every step: they are filled once and the threads just read them.
      */
     const Real *abscissa;
     /*
-     * Dove ogni thread somma i nanosecondi che spende a preparare g.
+     * Where each thread adds up the nanoseconds it spends preparing g.
      *
-     * Un contatore per thread e non uno solo: due thread che incrementano la
-     * stessa variabile la corrompono, e una sola protetta da atomica
-     * costerebbe piu' della cosa che misura. Sono distanziati di una linea di
-     * cache perche' contatori vicini si rimpallano fra i core, e quello che
-     * si finirebbe per misurare e' il rimpallo.
+     * One counter per thread and not just one: two threads incrementing the
+     * same variable corrupt it, and a single one protected by an atomic would
+     * cost more than the thing it measures. They are spaced one cache line
+     * apart because neighbouring counters bounce between the cores, and what
+     * one would end up measuring is the bouncing.
      */
     uint64_t *g_ns;
     int axis;
@@ -62,15 +64,16 @@ typedef struct {
     size_t step;
 } MomentumLines;
 
-/* Un contatore per thread, distanziati di una linea di cache. */
+/* One counter per thread, spaced one cache line apart. */
 #define COUNTER_STRIDE 8
 
 /*
- * Scrive nelle tre diagonali e nel termine noto il sistema di UNA linea.
+ * Writes into the three diagonals and the right-hand side the system of ONE
+ * line.
  *
- * `source_term` e' lo spazio di lavoro dove mettere il termine fisico g della
- * linea, o NULL fuori dal passo eta: lo riempie questa funzione, una chiamata
- * sola invece di una per cella, e momentum_row poi ci pesca dentro.
+ * `source_term` is the work space where to put the physical term g of the
+ * line, or NULL outside the eta step: this function fills it, a single call
+ * instead of one per cell, and momentum_row then picks from it.
  */
 static void momentum_assemble_line(const MomentumLines *ml, int b, int a,
                                    Real *restrict lower,
@@ -82,38 +85,38 @@ static void momentum_assemble_line(const MomentumLines *ml, int b, int a,
     const int axis = ml->axis;
     const int length = ml->length;
     /*
-     * Una copia della linea condivisa, con il proprio g attaccato: la
-     * struttura di momentum_row.h e' una sola per direzione, mentre il pezzo
-     * di scratch e' di questo thread e di questa linea.
+     * A copy of the shared line, with its own g attached: the structure of
+     * momentum_row.h is one per direction, while the piece of scratch belongs
+     * to this thread and this line.
      */
     MomentumLine mline = *ml->mline;
     int cell[3];
 
-    // Tre indici annidati: b (outer) -> a (group) -> t (lungo l'asse);
-    // i due esterni sono i cicli del chiamante, il terzo e' qui sotto.
+    // Three nested indices: b (outer) -> a (group) -> t (along the axis); the
+    // two outer ones are the caller's loops, the third is below here.
     cell[ml->outer] = b;
     cell[ml->group] = a;
     cell[axis] = 0;
 
-    //inizio linea di memoria
+    // start of the line in memory
     size_t start = decomp_index(d, cell[0], cell[1], cell[2]);
 
-    //inizio linea nei buffer
+    // start of the line in the buffers
     size_t line = (size_t)a * (size_t)length;
 
     /*
-     * Il termine fisico di tutta la linea, in una chiamata sola.  Solo il
-     * passo eta porta g, e le sue linee corrono lungo x: qui dentro y, z e il
-     * tempo sono costanti, i test che governano g non cambiano da una cella
-     * all'altra e le celle sono contigue in memoria.  E' quello che g_line
-     * sfrutta.
+     * The physical term of the whole line, in a single call. Only the eta step
+     * carries g, and its lines run along x: in here y, z and the time are
+     * constant, the tests that govern g do not change from one cell to the
+     * next and the cells are contiguous in memory. That is what g_line
+     * exploits.
      */
     if (axis == 0) {
-        /* Cronometrato a parte: g e' il termine noto, non il sistema, e
-         * finche' i due costi stavano insieme dentro eta_sys non si poteva
-         * sapere quanto restasse da guadagnare su ciascuno. Due letture
-         * dell'orologio per linea, cioe' meno di mezzo percento del passo
-         * alle taglie che contano. */
+        /* Timed separately: g is the right-hand side, not the system, and as
+         * long as the two costs were together inside eta_sys there was no way
+         * of knowing how much was left to gain on each. Two clock readings per
+         * line, that is less than half a percent of the step at the sizes that
+         * matter. */
         uint64_t g_start = time_ns();
 
         g_line(d, mline.data, mline.state, mline.k_porosity,
@@ -137,7 +140,7 @@ static void momentum_assemble_line(const MomentumLines *ml, int b, int a,
     }
 }
 
-/* Somma al campo di arrivo il riporto di UNA linea. */
+/* Adds the write-back of ONE line to the arrival field. */
 static void momentum_writeback_line(const MomentumLines *ml, int b, int a,
                                     const Real *restrict increment) {
     const Decomp *restrict d = ml->d;
@@ -163,15 +166,17 @@ static void momentum_direction(const Decomp *d,
                                Data *data, int t_step, int v_comp, int axis,
                                SolverStats *solver_stats) {
     /*
-     * La fisica di un punto sta in momentum_row.h, che e' condiviso con
-     * l'altro backend: qui si fissa la linea una volta e poi si chiede la
-     * riga cella per cella.  La riga non arriva mai in memoria, la funzione
-     * e' inline.
+     * The physics of a point is in momentum_row.h, which is shared with the
+     * other backend: here the line is fixed once and then the row is requested
+     * cell by cell. The row never reaches memory, the function is inline.
      */
     const MomentumLine mline =
         momentum_line(d, solver_mem_state, data, t_step, v_comp, axis);
 
-    /* Lo stadio di arrivo, in scrittura: il riporto ci si somma alla fine. */
+    /*
+     * The arrival stage, for writing: the write-back is added to it at the
+     * end.
+     */
     VectorField *to = (axis == 0) ? &solver_mem_state->eta
                     : (axis == 1) ? &solver_mem_state->zeta
                                   : &solver_mem_state->u;
@@ -180,9 +185,9 @@ static void momentum_direction(const Decomp *d,
                                  : to->v_z;
 
     /*
-     * Le linee corrono lungo `axis`; delle altre due direzioni, `group`
-     * raccoglie le linee risolte insieme ed e' quella piu' vicina in memoria,
-     * `outer` e' il ciclo esterno.
+     * The lines run along `axis`; of the other two directions, `group`
+     * collects the lines solved together and is the one closest in memory,
+     * `outer` is the outer loop.
      */
     const int group = (axis == 0) ? 1 : 0;
     const int outer = (axis == 2) ? 1 : 2;
@@ -194,20 +199,20 @@ static void momentum_direction(const Decomp *d,
     const size_t line_room = (size_t)lines * (size_t)length;
 
     /*
-     * I piani sono indipendenti, ma gli array di lavoro no: ogni thread che ne
-     * prende uno deve avere i propri.  Sono allocati in un blocco solo, cinque
-     * per slot -- sei nel passo eta, dove il sesto e' il termine fisico g -- e
-     * ogni slot appartiene a un thread per tutta la durata del ciclo.
+     * The planes are independent, but the work arrays are not: every thread
+     * that takes one must have its own. They are allocated in a single block,
+     * five per slot -- six in the eta step, where the sixth is the physical
+     * term g -- and each slot belongs to one thread for the whole duration of
+     * the loop.
      *
-     * Il sesto si indicizza per linea come `known`: stessa proprieta', quindi
-     * e' al sicuro sia quando a spartirsi il lavoro sono i piani sia quando
-     * sono le linee.
+     * The sixth is indexed per line like `known`: same property, so it is safe
+     * both when it is the planes that are shared out and when it is the lines.
      *
-     * I piani si possono spartire solo se lungo questo asse il processo tiene
-     * tutta la linea: altrimenti ogni gruppo passa da schur_solve_mpi, che
-     * comunica, e le collettive vanno tutte nello stesso ordine su tutti i
-     * processi.  In quel caso i thread si spartiscono le linee dentro il
-     * piano, dove non si comunica affatto.
+     * The planes can be shared out only if along this axis the process holds
+     * the whole line: otherwise every group goes through schur_solve_mpi,
+     * which communicates, and the collectives must all go in the same order on
+     * all the processes. In that case the threads share out the lines inside
+     * the plane, where there is no communication at all.
      */
     const bool whole_axis = (d->n[axis] == d->n_global[axis]);
     const WorkersLineSchedule schedule =
@@ -216,9 +221,9 @@ static void momentum_direction(const Decomp *d,
     const bool split_lines = schedule.split_lines;
 
     /*
-     * Le ascisse invece sono le stesse per tutte le linee del blocco -- lungo
-     * x la linea e' sempre la stessa fila di coordinate -- quindi si riempiono
-     * una volta e i thread se le leggono e basta.
+     * The abscissae, instead, are the same for all the lines of the block --
+     * along x the line is always the same row of coordinates -- so they are
+     * filled once and the threads just read them.
      */
     const int arrays = (axis == 0) ? 6 : 5;
     Real *abscissa = NULL;
@@ -252,20 +257,20 @@ static void momentum_direction(const Decomp *d,
 
     if (split_lines) {
         /*
-         * Asse diviso fra processi. I piani devono andare in fila, perche'
-         * ognuno passa da una collettiva e le collettive vanno nello stesso
-         * ordine su tutti i processi; a spartirsi sono le linee dentro il
-         * piano, dove non si comunica affatto.
+         * Axis divided among processes. The planes must go one after the
+         * other, because each goes through a collective and the collectives go
+         * in the same order on all the processes; what is shared out is the
+         * lines inside the plane, where there is no communication at all.
          *
-         * Il team si apre UNA volta, qui fuori dal ciclo sui piani. Prima se
-         * ne apriva uno per ciascuno dei due cicli interni, cioe' due per
-         * piano: a 256^3 con quattro processi facevano circa 4100 aperture
-         * per passo temporale, ed erano quelle il costo dominante.
-         * A rank fissi, con lavoro MPI identico riga per riga, il
-         * passo andava da 1295 ms con un thread a 5094 con quattordici.
+         * The team is opened ONCE, here outside the loop over the planes.
+         * Before, one was opened for each of the two inner loops, that is two
+         * per plane: at 256^3 with four processes that made about 4100
+         * openings per time step, and that was the dominant cost. With fixed
+         * ranks, with identical MPI work row by row, the step went from 1295
+         * ms with one thread to 5094 with fourteen.
          *
-         * Restano tre barriere per piano, ma una barriera dentro un team gia'
-         * vivo e' un'altra cosa dal crearlo e distruggerlo.
+         * Three barriers per plane remain, but a barrier inside a team that is
+         * already alive is a different thing from creating and destroying it.
          */
         Real *restrict lower = pool;
         Real *restrict diagonal = pool + line_room;
@@ -284,15 +289,15 @@ static void momentum_direction(const Decomp *d,
                                            lower, diagonal, upper, known,
                                            source_term);
                 }
-                /* Barriera implicita di WORKERS_FOR: il sistema e' completo. */
+                /* Implicit barrier of WORKERS_FOR: the system is complete. */
 
                 WORKERS_MASTER
                 schur_solve_mpi(axis, lines, length,
                                 lower, diagonal, upper, known, increment);
 
-                /* WORKERS_MASTER non ha barriera propria: senza questa gli
-                 * altri thread leggerebbero `increment' mentre il master lo
-                 * sta ancora scrivendo. */
+                /* WORKERS_MASTER has no barrier of its own: without this the
+                 * other threads would read `increment' while the master is
+                 * still writing it. */
                 WORKERS_BARRIER
 
                 WORKERS_FOR
@@ -303,10 +308,10 @@ static void momentum_direction(const Decomp *d,
         }
     } else {
         /*
-         * Asse tutto locale, oppure un thread solo: i piani sono indipendenti
-         * e si spartiscono direttamente, un team per l'intera direzione. Qui
-         * ogni thread ha bisogno dei propri array di lavoro, ed e' per questo
-         * che il pool ha piu' di uno slot.
+         * Axis entirely local, or a single thread: the planes are independent
+         * and are shared out directly, one team for the whole direction. Here
+         * every thread needs its own work arrays, and that is why the pool has
+         * more than one slot.
          */
         WORKERS_PARALLEL_FOR(slots > 1)
         for (int b = 0; b < planes; b++) {
@@ -336,9 +341,10 @@ static void momentum_direction(const Decomp *d,
     }
 
     /*
-     * Il ramo piu' lungo, non la somma: i thread lavorano insieme, quindi il
-     * tempo di parete speso su g e' quello del thread che ne ha fatto di piu'.
-     * E' cosi' che il numero resta confrontabile con eta_sys, che e' parete.
+     * The longest branch, not the sum: the threads work together, so the
+     * wall-clock time spent on g is that of the thread that did the most of
+     * it. That is how the number stays comparable with eta_sys, which is
+     * wall-clock.
      */
     uint64_t slowest = 0;
     for (int i = 0; i < counters; i++) {
@@ -366,8 +372,8 @@ void momentum_step(const Decomp *decomp,
     (void)tmp;
 
     /*
-     * Le versioni vettorizzate risolvono la linea intera in un colpo solo,
-     * quindi valgono finche' quell'asse non e' diviso fra piu' processi.
+     * The vectorised versions solve the whole line in one go, so they are
+     * valid as long as that axis is not divided among several processes.
      */
     uint64_t start_ns = time_ns();
     for (int v_comp = 0; v_comp < 3; v_comp++) {
@@ -379,8 +385,8 @@ void momentum_step(const Decomp *decomp,
     start_ns = time_ns();
     for (int v_comp = 0; v_comp < 3; v_comp++) {
 #if defined(USE_SIMD) && SIMD_AVAILABLE
-        //questa condizione nell'if significa che l'asse y non
-        // e' diviso in piu' processi, quindi si puo' usare la versione SIMD
+        // this condition in the if means that the y axis is not divided among
+        // several processes, so the SIMD version can be used
         if (decomp->n[1] == decomp->n_global[1]) {
             update_zeta_simd(decomp, solver_mem_state, rhs, tmp, data, t_step,
                              v_comp, ZETA_SIMD_LINES);

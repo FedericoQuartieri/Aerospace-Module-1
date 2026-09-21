@@ -16,32 +16,32 @@ typedef Real (*VectorFunction)(Real x, Real y, Real z, Real t, int component);
 typedef Real (*ScalarFunction)(Real x, Real y, Real z, Real t);
 
 /*
- * Il termine forzante di una linea intera lungo x, in un colpo solo.
+ * The forcing term of a whole line along x, in one go.
  *
- * Il core la chiama una volta per linea invece di una volta per cella.  La
- * chiamata indiretta si ammortizza su `n` celle, ma soprattutto sparisce dal
- * ciclo interno: finche' c'e', il compilatore non puo' ne' inlinare ne'
- * vettorizzare, ed e' il motivo per cui il passo eta e' l'unico dei tre senza
- * kernel SIMD.
+ * The core calls it once per line instead of once per cell. The indirect call
+ * is amortised over `n` cells, but above all it disappears from the inner
+ * loop: as long as it is there, the compiler can neither inline nor vectorise,
+ * and that is why the eta step is the only one of the three without SIMD
+ * kernels.
  *
- * Chi la implementa vede la linea intera, quindi tutto cio' che dipende solo
- * da y, z e t lo calcola una volta prima del ciclo.  Li' sta il guadagno
- * vero: per una forzante separabile come quella del paper, delle cinque
- * chiamate trigonometriche per cella ne resta una.
+ * Whoever implements it sees the whole line, so everything that depends only
+ * on y, z and t is computed once before the loop. That is where the real gain
+ * lies: for a separable forcing such as that of the paper, of the five
+ * trigonometric calls per cell one remains.
  *
- * Le linee corrono lungo x perche' g entra solo nel passo eta, che e' quello
- * lungo x.  Se un giorno entrasse anche negli altri, la firma andrebbe
- * generalizzata con un asse.
+ * The lines run along x because g enters only the eta step, which is the one
+ * along x. If one day it entered the others too, the signature would have to
+ * be generalised with an axis.
  *
- * `out` ha `n` elementi e la cella i sta in (xs[i], y, z).  Le ascisse
- * arrivano gia' calcolate e gia' sfalsate per la componente richiesta: le
- * prepara il core con le stesse operazioni del percorso scalare, cosi' chi
- * implementa questa funzione non puo' valutarla nel punto sbagliato ne'
- * cambiarne l'ultimo bit ricostruendo le coordinate per conto suo.
+ * `out` has `n` elements and cell i is at (xs[i], y, z). The abscissae arrive
+ * already computed and already staggered for the requested component: the core
+ * prepares them with the same operations as the scalar path, so whoever
+ * implements this function cannot evaluate it at the wrong point nor change
+ * its last bit by rebuilding the coordinates on their own.
  *
- * Puo' restare NULL.  In quel caso il core ripiega su forcing_fn cella per
- * cella e lo scenario si comporta esattamente come prima, quindi gli scenari
- * che non hanno niente da guadagnare non vanno toccati.
+ * It may stay NULL. In that case the core falls back to forcing_fn cell by
+ * cell and the scenario behaves exactly as before, so scenarios that have
+ * nothing to gain do not need to be touched.
  */
 typedef void (*VectorLineFunction)(Real *restrict out, const Real *restrict xs,
                                    int n, Real y, Real z, Real t,
@@ -51,8 +51,7 @@ typedef struct Data {
     const char *name;
     VectorFunction bc_velocity;
     VectorFunction forcing_fn;
-    /* Versione a linea della stessa forzante, o NULL: vedi
-     * VectorLineFunction. */
+    /* Line version of the same forcing, or NULL: see VectorLineFunction. */
     VectorLineFunction forcing_line_fn;
     VectorFunction porosity_fn;
     int porosity_time_dependent;
@@ -80,29 +79,30 @@ typedef struct SolverStats {
     uint64_t phi_high_sys;
     uint64_t pressure_update;
     /*
-     * Il riempimento della permeabilita', quando dipende dal tempo.
+     * The filling of the permeability, when it depends on time.
      *
-     * Non era cronometrato, e per questo era invisibile: la somma degli stadi
-     * non faceva il totale e nessuno lo controllava. Su 256^3 mancava un
-     * quarto del passo a un thread e quasi due terzi a cinquantasei, ed era
-     * quello a fissare il tetto dello speedup mentre lo si cercava altrove.
+     * It was not timed, and for that reason it was invisible: the sum of the
+     * stages did not make the total and nobody checked. On 256^3 a quarter of
+     * the step was missing with one thread and almost two thirds with
+     * fifty-six, and it was what set the ceiling of the speedup while it was
+     * being looked for elsewhere.
      */
     uint64_t porosity_fill;
     /*
-     * Quanto del passo eta se ne va a preparare il termine fisico g, invece
-     * che a risolvere il sistema.
+     * How much of the eta step goes into preparing the physical term g,
+     * instead of solving the system.
      *
-     * g non e' il sistema: e' il termine noto, e ha un costo suo -- una
-     * chiamata allo scenario, uno stencil a tre punti per asse, il gradiente
-     * di pressione. Finche' stava dentro eta_sys non si poteva sapere se una
-     * modifica al termine noto valesse la pena, ne' quanto restasse da
-     * guadagnare. Adesso eta_sys meno questo e' il solutore puro.
+     * g is not the system: it is the right-hand side, and it has a cost of its
+     * own -- a call to the scenario, a three-point stencil per axis, the
+     * pressure gradient. As long as it was inside eta_sys there was no way of
+     * knowing whether a change to the right-hand side was worthwhile, nor how
+     * much was left to gain. Now eta_sys minus this is the pure solver.
      *
-     * E' il ramo piu' lungo, non la somma: ogni thread cronometra le proprie
-     * linee e si tiene il massimo, cosi' il numero e' confrontabile con
-     * eta_sys, che e' tempo di parete. Entrambi i backend preparano g per
-     * linea; il massimo delle somme per thread misura il lavoro di g senza
-     * includere attese MPI e sincronizzazioni.
+     * It is the longest branch, not the sum: each thread times its own lines
+     * and keeps the maximum, so the number is comparable with eta_sys, which
+     * is wall-clock time. Both backends prepare g per line; the maximum of the
+     * per-thread sums measures the work of g without including MPI waits and
+     * synchronisations.
      */
     uint64_t momentum_source;
     uint64_t comm_steps; /* communication inside the timed solve, excluding output */

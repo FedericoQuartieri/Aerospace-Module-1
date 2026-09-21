@@ -48,7 +48,7 @@ def load(path):
 
 
 def asse_x(procs, x0):
-    """I conteggi di processi raddoppiano: li spaziamo in modo uniforme."""
+    """The process counts double: we space them uniformly."""
     passi = [1, 2, 4, 8, 16, 32]
     return x0 + GRAFICO_W * passi.index(procs) / (len(passi) - 3)
 
@@ -103,7 +103,7 @@ def legenda(parts, x0, y0, voci):
 
 
 def barre(parts, x0, y0, serie, y_max):
-    """Calcolo e comunicazione impilati, per vedere dove va il tempo."""
+    """Computation and communication stacked, to see where the time goes."""
     larghezza = 34
     for procs, wall, mpi in serie:
         x = asse_x(procs, x0) - larghezza / 2
@@ -143,7 +143,7 @@ def main():
         f'<rect width="{LARGHEZZA}" height="{ALTEZZA}" fill="white"/>',
     ]
 
-    # 1. strong scaling: quanto si accorcia il tempo
+    # 1. strong scaling: how much the time shortens
     x0, y0 = pannello(parts, 0, "Strong scaling",
                       "problema fisso 128x128x128", 8, "speedup")
     curva(parts, x0, y0, [(p, p) for p, _, _ in scalare["strong"]], 8,
@@ -157,7 +157,7 @@ def main():
     legenda(parts, x0, y0, [(GRIGIO, "ideale", 'stroke-dasharray="5,4"'),
                             (BLU, "scalare", ""), (ROSSO, "con SIMD", "")])
 
-    # 2. weak scaling: il tempo dovrebbe restare costante
+    # 2. weak scaling: the time should stay constant
     x0, y0 = pannello(parts, 1, "Weak scaling",
                       "64x64x64 per processo", 100, "efficienza  %")
     curva(parts, x0, y0, [(p, 100) for p, _, _ in scalare["weak"]], 100,
@@ -171,7 +171,7 @@ def main():
     legenda(parts, x0, y0, [(GRIGIO, "ideale", 'stroke-dasharray="5,4"'),
                             (BLU, "scalare", ""), (ROSSO, "con SIMD", "")])
 
-    # 3. dove va il tempo
+    # 3. where the time goes
     y_max = max(w for _, w, _ in scalare["strong"]) * 1.15
     x0, y0 = pannello(parts, 2, "Dove va il tempo",
                       "strong scaling, scalare", y_max, "ms per passo")

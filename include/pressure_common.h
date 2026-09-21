@@ -6,35 +6,35 @@
 #include "types.h"
 
 /*
- * La parte della cascata di pressione che non dipende dal backend.
+ * The part of the pressure cascade that does not depend on the backend.
  *
- * Fra il termine noto e l'aggiornamento finale ci sono tre risoluzioni
- * tridiagonali, ed e' solo quelle che i due backend fanno diversamente.  Il
- * resto -- costruire il termine noto, scrivere la matrice, ricomporre la
- * pressione -- e' la stessa fisica, e sta scritto una volta sola.
+ * Between the right-hand side and the final update there are three tridiagonal
+ * solves, and those are the only thing the two backends do differently. The
+ * rest -- building the right-hand side, writing the matrix, recomposing the
+ * pressure -- is the same physics, and it is written just once.
  */
 
 /*
- * Assembla -div(u) / DT nei punti di pressione.  Le tre facce inferiori
- * globali (i == 0, j == 0 o k == 0) sono messe a zero.
+ * Assembles -div(u) / DT at the pressure points. The three global lower faces
+ * (i == 0, j == 0 or k == 0) are set to zero.
  */
 void compute_div(const Decomp *restrict d,
                  Real *restrict u_div,
                  const VectorField *restrict u);
 
 /*
- * La matrice di una linea lungo `axis`, in tre array di d->n[axis] elementi.
+ * The matrix of a line along `axis`, in three arrays of d->n[axis] elements.
  *
- * A differenza della quantita' di moto, qui la matrice e' la stessa per tutte
- * le linee dell'asse e non cambia mai nel tempo: ogni riga dipende solo dalla
- * posizione globale del suo punto.  E' per questo che il pezzo condiviso e'
- * la linea e non la cella -- chiederla cella per cella vorrebbe dire
- * ricalcolare per ogni punto una cosa che si sa dall'avvio.
+ * Unlike momentum, here the matrix is the same for all the lines of the axis
+ * and never changes in time: each row depends only on the global position of
+ * its point. That is why the shared piece is the line and not the cell --
+ * asking for it cell by cell would mean recomputing for every point something
+ * known from the start.
  */
 void pressure_matrix(const Decomp *restrict d, int axis,
                      Real *restrict a, Real *restrict b, Real *restrict c);
 
-/* p^{n+1} = p^n + phi, e la pressione estrapolata per il passo seguente. */
+/* p^{n+1} = p^n + phi, and the extrapolated pressure for the next step. */
 void update_pressure(const Decomp *restrict d,
                      SolverMemState *restrict solver_mem_state);
 

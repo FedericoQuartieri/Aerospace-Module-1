@@ -5,45 +5,44 @@
 #PBS -l walltime=00:30:00
 #PBS -j oe
 #
-# Quanto vale davvero una modifica: la stessa misura su due revisioni.
+# How much a change is really worth: the same measurement on two revisions.
 #
-#   ./scripts/run_patch_ab.sh                 HEAD~1 contro HEAD
-#   ./scripts/run_patch_ab.sh e64ef95 HEAD    due revisioni qualsiasi
-#   qsub scripts/run_patch_ab.sh              sul cluster
-#
-# ----------------------------------------------------------------------------
-# Perche' non basta misurare dopo
-# ----------------------------------------------------------------------------
-#
-# Un guadagno del 5% non si vede confrontando un numero di oggi con uno scritto
-# in un log di tre settimane fa: in mezzo sono cambiati il compilatore, i
-# vicini di nodo, la frequenza della macchina. L'unico confronto che regge e'
-# fra due binari costruiti adesso, dagli stessi sorgenti tranne la modifica,
-# lanciati alternandoli nello stesso job.
-#
-# Da qui tre scelte:
-#
-#   due alberi veri      ogni revisione viene estratta con `git archive' in una
-#                        cartella sua e compilata li'. Niente checkout, niente
-#                        stash: l'albero di lavoro non viene toccato.
-#   corse alternate      prima-dopo-prima-dopo, non tutte le prime e poi tutte
-#                        le seconde. Se la macchina rallenta a meta' job, il
-#                        rallentamento si divide fra le due invece di regalarsi
-#                        a una.
-#   ogni ripetizione     nel CSV finiscono tutte le corse, non la migliore. Un
-#                        guadagno piu' piccolo della dispersione non e' un
-#                        guadagno, e per dirlo serve vedere la dispersione.
+#   ./scripts/run_patch_ab.sh                 HEAD~1 against HEAD
+#   ./scripts/run_patch_ab.sh e64ef95 HEAD    any two revisions
+#   qsub scripts/run_patch_ab.sh              on the cluster
 #
 # ----------------------------------------------------------------------------
-# Le colonne per stadio
+# Why measuring afterwards is not enough
 # ----------------------------------------------------------------------------
 #
-# print_stats cronometra separatamente i tre passi della quantita' di moto, i
-# tre della pressione, l'aggiornamento, il riempimento della permeabilita' e
-# cio' che non e' attribuito a nessuno. Il CSV le tiene tutte, ed e' il punto:
-# una modifica che tocca un solo stadio si deve vedere in quello stadio e in
-# nessun altro. Gli altri stadi sono il gruppo di controllo che il confronto si
-# porta dietro gratis.
+# A 5% gain cannot be seen by comparing a number from today with one written in
+# a log three weeks ago: in between, the compiler, the node neighbours and the
+# frequency of the machine have changed. The only comparison that holds is
+# between two binaries built now, from the same sources except for the change,
+# launched alternately in the same job.
+#
+# Hence three choices:
+#
+#   two real trees      each revision is extracted with `git archive' into a
+#                       folder of its own and compiled there. No checkout, no
+#                       stash: the working tree is not touched.
+#   alternating runs    before-after-before-after, not all the firsts and then
+#                       all the seconds. If the machine slows down halfway
+#                       through the job, the slowdown is split between the two
+#                       instead of being handed to one.
+#   every repetition    all the runs end up in the CSV, not the best one. A gain
+#                       smaller than the dispersion is not a gain, and to say
+#                       so one must see the dispersion.
+#
+# ----------------------------------------------------------------------------
+# The per-stage columns
+# ----------------------------------------------------------------------------
+#
+# print_stats times separately the three momentum steps, the three pressure
+# ones, the update, the filling of the permeability and what is attributed to
+# nobody. The CSV keeps them all, and that is the point: a change that touches
+# a single stage must show up in that stage and in no other. The other stages
+# are the control group that the comparison carries along for free.
 
 set -euo pipefail
 
@@ -60,23 +59,23 @@ exec > >(tee -a "$log") 2>&1
 
 GRIDS="${GRIDS:-128 224}"
 REPEATS="${REPEATS:-3}"
-# Le configurazioni: rank x thread. Servono sia quelle dove la modifica agisce
-# sia quelle dove non deve agire.
+# The configurations: rank x thread. Both those where the change acts and those
+# where it must not act are needed.
 CONFIGS="${CONFIGS:-1x1 1x14 1x56 8x7 56x1}"
 BACKENDS="${BACKENDS:-schur pipeline}"
 SIMDS="${SIMDS:-0 1}"
-# Gli scenari. Non e' un dettaglio: il termine forzante lo fornisce lo
-# scenario, e `paper_data' e' l'unico che ne pubblica la versione a linea
-# (forcing_line_fn in src/data.c). Su di lui una modifica al termine noto
-# rende al massimo; su `zero_pressure', che quella versione non ce l'ha, si
-# vede quanto resta senza. Misurare un solo scenario vuol dire misurare il
-# caso migliore e chiamarlo il caso.
+# The scenarios. It is not a detail: the forcing term is supplied by the
+# scenario, and `paper_data' is the only one that publishes its line version
+# (forcing_line_fn in src/data.c). On it, a change to the right-hand side pays
+# off at most; on `zero_pressure', which does not have that version, one sees
+# how much is left without it. Measuring a single scenario means measuring the
+# best case and calling it the case.
 SCENARI="${SCENARI:-paper_data zero_pressure}"
 
-# I passi temporali per taglia: il costo di una corsa e' passi per celle, e le
-# corse devono durare tutte piu' o meno uguale. A 224^3 con un thread solo un
-# passo costa gia' qualche secondo, e dieci passi per tre ripetizioni per due
-# revisioni sarebbero mezz'ora per un caso solo.
+# The time steps per size: the cost of a run is steps times cells, and the runs
+# must all last roughly the same. At 224^3 with a single thread one step
+# already costs a few seconds, and ten steps for three repetitions for two
+# revisions would be half an hour for a single case.
 passi_per()
 {
     [[ -n "${STEPS:-}" ]] && { echo "$STEPS"; return; }
@@ -101,10 +100,10 @@ if [[ "$sha_prima" == "$sha_dopo" ]]; then
     exit 1
 fi
 
-# ------------------------------------------------------------- i due alberi
+# ------------------------------------------------------------ the two trees
 #
-# `git archive' invece di un checkout: l'albero di lavoro resta dov'e', e le
-# modifiche non committate non entrano nella misura per sbaglio.
+# `git archive' instead of a checkout: the working tree stays where it is, and
+# uncommitted changes do not enter the measurement by mistake.
 
 for rev in "$sha_prima" "$sha_dopo"; do
     albero="$base/$rev"
@@ -116,7 +115,7 @@ for rev in "$sha_prima" "$sha_dopo"; do
 done
 echo
 
-# --------------------------------------------------------------- compilare
+# ----------------------------------------------------------------- compile
 
 costruisci()
 {
@@ -136,7 +135,7 @@ costruisci()
     printf '%s' "$out"
 }
 
-# ------------------------------------------------------------------ una corsa
+# -------------------------------------------------------------------- one run
 
 leggi()
 {
@@ -182,10 +181,10 @@ corri()
         timeout 900 "${comando[@]}" 2>&1
 }
 
-# Il CSV si scrive in coda e non da capo: la misura vera dura piu' del
-# walltime di un job, e ri-sottomettere deve continuare invece di ricominciare.
-# Un caso gia' completo -- tutte le ripetizioni, per tutte e due le revisioni --
-# viene saltato.
+# The CSV is written at the end and not from scratch: the real measurement
+# lasts longer than the walltime of a job, and resubmitting must continue
+# instead of starting over. A case that is already complete -- all the
+# repetitions, for both revisions -- is skipped.
 if [[ ! -f "$csv" || "${FRESH:-0}" == "1" ]]; then
     printf 'revisione,sha,scenario,backend,simd,omp,mpi,ranks,threads,nx,steps,ripetizione,'\
 'wall_ms,mpi_ms,eta_ms,zeta_ms,u_ms,psi_ms,philow_ms,phihigh_ms,pressure_ms,'\
@@ -238,7 +237,7 @@ for n in $GRIDS; do
                 done
                 [[ "$saltare" == "1" ]] && { echo "skipped"; continue; }
 
-                # Alternate: prima, dopo, prima, dopo...
+                # Alternate: before, after, before, after...
                 for (( r = 1; r <= REPEATS; r++ )); do
                     for rev in "$sha_prima" "$sha_dopo"; do
                         out="$(corri "${exe[$rev]}" "$config" "$ranks" \
@@ -266,7 +265,7 @@ awk -F, '
 function mediana(chiave, quante,   i, v, n) {
     n = conta[chiave]
     if (n == 0) return ""
-    # I valori arrivano in ordine di corsa; la mediana li vuole ordinati.
+    # The values arrive in run order; the median wants them sorted.
     for (i = 1; i <= n; i++) v[i] = val[chiave "," i]
     for (i = 2; i <= n; i++) {
         t = v[i]; j = i - 1

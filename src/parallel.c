@@ -1,9 +1,9 @@
 /*
- * Le due implementazioni delle funzioni dichiarate in parallel.h: quella
- * vera, che chiama MPI, e quella finta, che descrive un processo solo.
- * Sceglie il compilatore in base a -DUSE_MPI, cioè a `make MPI=1`.
+ * The two implementations of the functions declared in parallel.h: the real
+ * one, which calls MPI, and the fake one, which describes a single process.
+ * The compiler chooses based on -DUSE_MPI, that is `make MPI=1`.
  *
- * È l'unico file del progetto che include <mpi.h>.
+ * It is the only file of the project that includes <mpi.h>.
  */
 #include "parallel.h"
 #include "utils.h"
@@ -22,36 +22,36 @@
 #define PAR_REAL MPI_DOUBLE
 #endif
 
-/* Tempo speso dentro MPI, per il rendiconto di fine simulazione. */
+/* Time spent inside MPI, for the end-of-simulation report. */
 static unsigned long long comm_ns = 0;
 
 unsigned long long par_comm_nanoseconds(void) {
     return comm_ns;
 }
 
-/* La griglia di processi, creata una volta da par_topology_init. */
+/* The process grid, created once by par_topology_init. */
 static MPI_Comm cart_comm = MPI_COMM_NULL;
 static int cart_dims[3] = {1, 1, 1};
 static int cart_coords[3] = {0, 0, 0};
 
-/* Un comunicatore per direzione, con i soli processi allineati lungo di essa:
- * è il gruppo che si scambia le interfacce nel complemento di Schur. */
+/* One communicator per direction, with only the processes aligned along it: it
+ * is the group that exchanges the interfaces in the Schur complement. */
 static MPI_Comm line_comm[3];
 
-/* I quattro pacchetti dello scambio degli aloni (due da spedire, due da
- * ricevere), tenuti da un passo all'altro: le facce hanno sempre la stessa
- * dimensione, quindi allocarle e liberarle a ogni chiamata era lavoro
- * ripetuto per niente.  Lo scambio avviene una decina di volte per passo. */
+/* The four packets of the halo exchange (two to send, two to receive), kept
+ * from one step to the next: the faces always have the same size, so
+ * allocating and freeing them at every call was work repeated for nothing. The
+ * exchange happens about ten times per step. */
 static Real *halo_packets = NULL;
 static size_t halo_capacity = 0;
 
 void par_init(int *argc, char ***argv) {
 #ifdef USE_OMP
     /*
-     * I thread non chiamano mai MPI: le collettive del complemento di Schur e
-     * lo scambio degli aloni stanno fuori dalle regioni parallele, e le fa il
-     * thread principale.  FUNNELED e' esattamente questa promessa, ed e' il
-     * livello che ogni implementazione fornisce senza prendere lock interni.
+     * The threads never call MPI: the collectives of the Schur complement and
+     * the halo exchange are outside the parallel regions, and the main thread
+     * does them. FUNNELED is exactly this promise, and it is the level that
+     * every implementation provides without taking internal locks.
      */
     int provided = MPI_THREAD_SINGLE;
 
@@ -98,18 +98,18 @@ int par_size(void) {
 void par_topology_init(const int procs[3]) {
     int size = par_size();
     int dims[3] = {procs[0], procs[1], procs[2]};
-    int periods[3] = {0, 0, 0};  /* le pareti non sono periodiche */
+    int periods[3] = {0, 0, 0};  /* the walls are not periodic */
 
-    /* Riempie con una scomposizione equilibrata le direzioni lasciate a 0. */
+    /* Fills the directions left at 0 with a balanced decomposition. */
     MPI_Dims_create(size, 3, dims);
 
-    /* reorder = 0: i rank della griglia restano quelli di MPI_COMM_WORLD,
-     * così par_rank() e la posizione nella griglia non divergono mai. */
+    /* reorder = 0: the ranks of the grid stay those of MPI_COMM_WORLD, so
+     * par_rank() and the position in the grid never diverge. */
     MPI_Cart_create(MPI_COMM_WORLD, 3, dims, periods, 0, &cart_comm);
     MPI_Cart_get(cart_comm, 3, cart_dims, periods, cart_coords);
 
-    /* MPI_Cart_sub è la forma cartesiana di MPI_Comm_split: tiene una sola
-     * direzione e raggruppa i processi che condividono le altre due. */
+    /* MPI_Cart_sub is the Cartesian form of MPI_Comm_split: it keeps a single
+     * direction and groups the processes that share the other two. */
     for (int c = 0; c < 3; c++) {
         int keep[3] = {0, 0, 0};
         keep[c] = 1;
@@ -148,7 +148,7 @@ int par_neighbor(int axis, int step) {
     int upper;
 
     require_topology();
-    /* MPI restituisce MPI_PROC_NULL dove la griglia finisce. */
+    /* MPI returns MPI_PROC_NULL where the grid ends. */
     MPI_Cart_shift(cart_comm, axis, 1, &lower, &upper);
 
     int neighbor = (step < 0) ? lower : upper;
@@ -210,8 +210,8 @@ Real par_max_real(Real value) {
     return largest;
 }
 
-/* MPI_PROC_NULL fa sì che una send o una recv verso il vuoto non facciano
- * niente, così non serve distinguere il caso del bordo. */
+/* MPI_PROC_NULL makes a send or a recv towards nothing do nothing, so there is
+ * no need to distinguish the edge case. */
 static int mpi_neighbor(int axis, int step) {
     int neighbor = par_neighbor(axis, step);
     return (neighbor == PAR_NO_NEIGHBOR) ? MPI_PROC_NULL : neighbor;
@@ -251,13 +251,13 @@ void par_line_allgather(int axis, const Real *send, int count, Real *recv) {
 }
 
 /*
- * Copia una faccia del blocco fra il campo e un pacchetto contiguo.
- * `slot` è l'indice lungo `axis`: 0 e n-1 sono le facce possedute,
- * -1 e n sono i due anelli di celle di contorno.
+ * Copies a face of the block between the field and a contiguous packet. `slot`
+ * is the index along `axis`: 0 and n-1 are the owned faces, -1 and n are the
+ * two rings of boundary cells.
  *
- * MPI saprebbe descrivere una faccia non contigua da sé, con i tipi derivati,
- * ma internamente farebbe comunque questa stessa copia in un'area contigua.
- * Farla a mano costa uguale e si legge.
+ * MPI could describe a non-contiguous face by itself, with derived types, but
+ * internally it would still make this same copy into a contiguous area. Doing
+ * it by hand costs the same and is readable.
  */
 static void face_copy(const Decomp *d, Real *field, int axis, int slot,
                       Real *packet, int packing) {
@@ -268,12 +268,12 @@ static void face_copy(const Decomp *d, Real *field, int axis, int slot,
     size_t position = 0;
 
     /*
-     * La faccia comprende anche l'anello nelle due direzioni trasverse.  Serve
-     * per le celle di spigolo, che appartengono a un vicino in diagonale e che
-     * nessuno scambio raggiungerebbe altrimenti: facendo gli assi in ordine,
-     * X riempie il proprio anello, Y lo rispedisce insieme al suo, e Z chiude
-     * anche i vertici.  Il solutore non legge mai in diagonale, ma la
-     * scrittura dei file sì, sulle facce che condivide con i vicini.
+     * The face also includes the ring in the two transverse directions. It is
+     * needed for the edge cells, which belong to a diagonal neighbour and
+     * which no exchange would otherwise reach: doing the axes in order, X
+     * fills its own ring, Y sends it back together with its own, and Z closes
+     * the corners as well. The solver never reads diagonally, but the writing
+     * of the files does, on the faces it shares with the neighbours.
      */
     cell[axis] = slot;
     for (int b = -halo; b < d->n[second] + halo; b++) {
@@ -292,7 +292,7 @@ static void face_copy(const Decomp *d, Real *field, int axis, int slot,
     }
 }
 
-/* Cresce i pacchetti se la faccia più grande non ci sta ancora. */
+/* Grows the packets if the largest face does not fit yet. */
 static void halo_packets_reserve(size_t face) {
     if (face <= halo_capacity) {
         return;
@@ -304,21 +304,23 @@ static void halo_packets_reserve(size_t face) {
 }
 
 /*
- * Le due direzioni di un asse non dipendono l'una dall'altra, quindi non c'è
- * motivo di aspettare la prima per cominciare la seconda: i quattro messaggi
- * partono tutti e si attende una volta sola alla fine.
+ * The two directions of an axis do not depend on each other, so there is no
+ * reason to wait for the first to start the second: all four messages start
+ * and one waits just once at the end.
  *
- * Le ricezioni sono aperte prima delle spedizioni (Lecture MPI, p. 31): così
- * il messaggio trova già pronto il posto dove andare, e la libreria non deve
- * parcheggiarlo altrove per poi ricopiarlo.
+ * The receives are opened before the sends (Lecture MPI, p. 31): this way the
+ * message finds the place to go already prepared, and the library does not
+ * have to park it elsewhere and then copy it again.
  *
- * Il tag dice il verso di marcia, 0 in su e 1 in giù, così le due ricezioni
- * aperte insieme non possono raccogliere il messaggio sbagliato.
+ * The tag says the direction of travel, 0 up and 1 down, so the two receives
+ * opened together cannot pick up the wrong message.
  *
- * N.B. Questo non è sovrapporre comunicazione e calcolo: fra la partenza dei
- * messaggi e l'attesa non c'è nulla da calcolare, e le slide (p. 29) avvertono
- * che quella sovrapposizione richiede una scheda di rete che se ne occupi da
- * sola.  Qui si guadagna perché i due versi viaggiano insieme.
+ * N.B. This is not overlapping communication and computation: between the
+ * start of the messages and the wait there is nothing to compute, and the
+ * slides (p.
+ * 29) warn that such an overlap requires a network card that takes care of it
+ *     by itself. Here the gain comes from the two directions travelling
+ *     together.
  */
 void par_exchange_halo(const Decomp *d, Real *field) {
     require_topology();
@@ -328,7 +330,7 @@ void par_exchange_halo(const Decomp *d, Real *field) {
         int above = mpi_neighbor(axis, +1);
 
         if (below == MPI_PROC_NULL && above == MPI_PROC_NULL) {
-            continue;  /* direzione non divisa: niente da scambiare */
+            continue;  /* direction not divided: nothing to exchange */
         }
 
         int face = (d->n[(axis + 1) % 3] + 2 * d->halo) *
@@ -340,7 +342,10 @@ void par_exchange_halo(const Decomp *d, Real *field) {
         Real *from_below = halo_packets + 2 * (size_t)face;
         Real *from_above = halo_packets + 3 * (size_t)face;
 
-        /* La mia ultima faccia va a chi sta sopra, la prima a chi sta sotto. */
+        /*
+         * My last face goes to whoever is above, the first to whoever is
+         * below.
+         */
         face_copy(d, field, axis, d->n[axis] - 1, to_above, 1);
         face_copy(d, field, axis, 0, to_below, 1);
 
@@ -359,8 +364,8 @@ void par_exchange_halo(const Decomp *d, Real *field) {
         MPI_Waitall(4, wait_for, MPI_STATUSES_IGNORE);
         comm_ns += time_ns() - begin;
 
-        /* Dove il vicino non c'è finisce il dominio: quell'anello resta alle
-         * condizioni al contorno e non va toccato. */
+        /* Where the neighbour does not exist the domain ends: that ring is
+         * left to the boundary conditions and must not be touched. */
         if (below != MPI_PROC_NULL) {
             face_copy(d, field, axis, -1, from_below, 0);
         }
@@ -372,7 +377,7 @@ void par_exchange_halo(const Decomp *d, Real *field) {
 
 #else
 
-/* Costruzione seriale: un processo solo, che occupa tutto il dominio. */
+/* Serial build: a single process, occupying the whole domain. */
 
 void par_init(int *argc, char ***argv) {
     (void)argc;
@@ -431,7 +436,7 @@ int par_rank_of_max_long(long long value) {
 }
 
 unsigned long long par_comm_nanoseconds(void) {
-    return 0;   /* senza MPI non si comunica */
+    return 0;   /* without MPI there is no communication */
 }
 
 Real par_sum_real(Real value) {
@@ -444,7 +449,7 @@ Real par_max_real(Real value) {
 
 void par_shift_real(int axis, int step,
                     const Real *send, Real *recv, int count) {
-    /* Nessun vicino: chi chiama tiene quello che aveva messo in recv. */
+    /* No neighbour: the caller keeps what it had put in recv. */
     (void)axis;
     (void)step;
     (void)send;
@@ -453,7 +458,7 @@ void par_shift_real(int axis, int step,
 }
 
 void par_send_real(int axis, int step, const Real *send, int count, int tag) {
-    /* Nessun vicino: non c'e' nessuno a cui mandare. */
+    /* No neighbour: there is nobody to send to. */
     (void)axis;
     (void)step;
     (void)send;
@@ -462,7 +467,7 @@ void par_send_real(int axis, int step, const Real *send, int count, int tag) {
 }
 
 void par_recv_real(int axis, int step, Real *recv, int count, int tag) {
-    /* Nessun vicino: chi chiama tiene quello che aveva messo in recv. */
+    /* No neighbour: the caller keeps what it had put in recv. */
     (void)axis;
     (void)step;
     (void)recv;
@@ -479,7 +484,7 @@ void par_line_allgather(int axis, const Real *send, int count, Real *recv) {
 
 
 void par_exchange_halo(const Decomp *d, Real *field) {
-    /* Nessun vicino da cui copiare: l'anello resta com'è. */
+    /* No neighbour to copy from: the ring stays as it is. */
     (void)d;
     (void)field;
 }

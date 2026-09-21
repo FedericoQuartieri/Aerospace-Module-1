@@ -25,15 +25,16 @@ import sys
 from pathlib import Path
 
 NODO = re.compile(r'^(?:nodo|node):\s+(\S+)')
-# Una misura: `<etichetta>  <n> ms  NxNxN  non contato|unaccounted ...'.
+# A measurement: `<label>  <n> ms  NxNxN  non contato|unaccounted ...'.
 MISURA = re.compile(r'^  (.+?)\s+(-?\d+\.\d+) ms\s+\d+x\d+x\d+\s+'
                     r'(?:non contato|unaccounted)\s')
-# Un esito senza misura che scrive comunque una riga, sulla stessa riga.
+# An outcome without a measurement that nevertheless writes a row, on the same
+# line.
 ESITO = re.compile(r'^  (.+?)\s+(?:timeout|fallito|failed|illeggibile|'
                    r'unreadable) \(\d+s\)\s*$')
-# Un fallimento stampa l'uscita del programma prima del suo esito, che finisce
-# su una riga a se', lontano dall'etichetta: non si abbina con sicurezza, e la
-# fase si rifiuta invece di indovinare.
+# A failure prints the output of the program before its outcome, which ends up
+# on a line of its own, far from the label: it cannot be matched with
+# confidence, and the phase refuses instead of guessing.
 ORFANO = re.compile(r'^(?:fallito|failed|illeggibile|unreadable) \(\d+s\)')
 
 
@@ -108,8 +109,9 @@ def main():
         copia = fase / 'results.csv.before-node'
         if not copia.exists():
             shutil.copy2(percorso, copia)
-        # Il nodo va subito prima di stato e nota, come le colonne aggiunte
-        # prima di lui: stato e nota restano il penultimo e l'ultimo campo.
+        # The node goes right before status and note, like the columns added
+        # before it: status and note remain the second-to-last and the last
+        # field.
         nuove = [intestazione[:-2] + ['node'] + intestazione[-2:]]
         nuove += [riga[:-2] + [nodo] + riga[-2:]
                   for (_, _, nodo), riga in zip(trovati, righe)]

@@ -1,37 +1,37 @@
 # shellcheck shell=bash
 #
-# Le parti comuni alle fasi dello studio di scaling.
+# The parts common to the phases of the scaling study.
 #
-# Ogni fase e' uno script indipendente, sottomettibile da solo con qsub, che
-# fa una domanda sola. Quello che condividono sta qui: come si descrive la
-# macchina, come si compila una variante, come si esegue un caso e come lo si
-# scrive nel CSV. Una riga di CSV ha sempre le stesse 33 colonne, qualunque
-# fase l'abbia prodotta, cosi' i risultati si concatenano e si confrontano
-# senza adattatori.
+# Every phase is an independent script, submittable on its own with qsub, that
+# asks a single question. What they share lives here: how the machine is
+# described, how a variant is compiled, how a case is run and how it is written
+# to the CSV. A CSV row always has the same 33 columns, whichever phase
+# produced it, so the results can be concatenated and compared without
+# adapters.
 #
-# Tre scelte che valgono per tutte le fasi:
+# Three choices that hold for all the phases:
 #
-#   ripresa      il CSV si scrive una riga alla volta e ogni caso concluso
-#                lascia la sua chiave in done.keys. Se il walltime uccide il
-#                job, ri-sottometterlo riparte da dove era arrivato invece di
-#                rifare tutto. FRESH=1 ricomincia da capo.
+#   resume      the CSV is written one row at a time and every finished case
+#               leaves its key in done.keys. If the walltime kills the job,
+#               resubmitting it restarts from where it had got to instead of
+#               redoing everything. FRESH=1 starts over.
 #
-#   timeout      ogni caso ha un tetto di tempo. Una configurazione che va in
-#                stallo -- e nella zona mista qualcuna ci va vicino -- non si
-#                porta via il resto del job: lascia una riga con status
-#                `timeout` e si prosegue.
+#   timeout     every case has a time ceiling. A configuration that stalls --
+#               and in the mixed zone some come close to it -- does not take
+#               the rest of the job with it: it leaves a row with status
+#               `timeout` and one goes on.
 #
-#   binari in cache   compilare e' l'unica cosa che non si vuole ripetere: una
-#                variante (backend, simd, omp, mpi, batch) si costruisce una
-#                volta per fase e resta in $STUDY_BASE/variants/<fase>.
+#   cached binaries   compiling is the only thing one does not want to repeat:
+#               a variant (backend, simd, omp, mpi, batch) is built once per
+#               phase and stays in $STUDY_BASE/variants/<phase>.
 #
-#   budget       la coda `scalability' concede 30 minuti per job
-#                (resources_max.walltime = 00:30:00) e lo studio ne vuole molte
-#                di piu'. Ogni fase lavora quindi a budget: quando il tempo
-#                utile e' finito smette PRIMA di essere uccisa -- cosi' il caso
-#                in corso non viene troncato a meta' -- e si ri-sottomette da
-#                sola per continuare. Un walltime scaduto non perde niente e
-#                non richiede nessun intervento.
+#   budget      the `scalability' queue grants 30 minutes per job
+#               (resources_max.walltime = 00:30:00) and the study wants many
+#               more. Every phase therefore works on a budget: when the useful
+#               time is over it stops BEFORE being killed -- so the case in
+#               progress is not cut in half -- and resubmits itself to
+#               continue. An expired walltime loses nothing and requires no
+#               intervention.
 
 set -euo pipefail
 
@@ -42,22 +42,23 @@ STUDY_STAMP="$(python3 "$STUDY_ROOT/scripts/study/source_id.py")"
 STUDY_BASE="${STUDY_BASE:-$STUDY_ROOT/build/study/$STUDY_STAMP}"
 STUDY_BIN="$STUDY_BASE/bin"
 
-# Colonne, una volta sola: il resto del file si riferisce a questa riga.
-# g_ms sta in fondo, dopo l2_p, e non accanto a eta_ms dove sarebbe il suo
-# posto: gli awk di riepilogo delle fasi leggono le colonne per POSIZIONE, e
-# infilarla in mezzo le sposterebbe tutte. In fondo ne sposta due, status e
-# note, ed e' un cambio di una riga per fase.
+# Columns, once and for all: the rest of the file refers to this row. g_ms is
+# at the end, after l2_p, and not next to eta_ms where its place would be: the
+# summary awks of the phases read the columns by POSITION, and inserting it in
+# the middle would shift them all. At the end it shifts two, status and note,
+# and it is a one-line change per phase.
 #
-# g_ms e' il tempo speso a preparare il termine noto del passo eta. Sta DENTRO
-# eta_ms, non accanto: eta_ms meno g_ms e' il solutore puro. Non va sommato
-# agli altri stadi, o il passo risulta piu' lungo di quello che e'.
+# g_ms is the time spent preparing the right-hand side of the eta step. It
+# lives INSIDE eta_ms, not beside it: eta_ms minus g_ms is the pure solver. It
+# must not be added to the other stages, or the step comes out longer than it
+# is.
 STUDY_HEADER='phase,label,backend,batch,simd,omp,mpi,ranks,threads,nx,ny,nz,steps,px,py,pz,wall_ms,mpi_ms,eta_ms,zeta_ms,u_ms,psi_ms,philow_ms,phihigh_ms,pressure_ms,porosity_ms,untimed_ms,cellstep_1e8s,rss_mb,l2_ux,l2_p,g_ms,node,status,note'
 
-# Quanti campi produce l'awk di lettura: serve a riempire di vuoti la riga di
-# un caso fallito senza sfasare le colonne.
+# How many fields the reading awk produces: it is needed to fill the row of a
+# failed case with blanks without shifting the columns.
 STUDY_MEASURED_FIELDS=19
 
-# ---------------------------------------------------------------- avvio fase
+# --------------------------------------------------------------- phase start
 
 study_begin()
 {
@@ -84,12 +85,13 @@ study_begin()
     STUDY_OUT="$STUDY_BASE/$STUDY_PHASE"
     STUDY_CSV="$STUDY_OUT/results.csv"
     STUDY_KEYS="$STUDY_OUT/done.keys"
-    # RETRY_FAILED=1 rimette in gioco i casi falliti una volta sola, qui, nel
-    # primo job: le loro chiavi spariscono (con una copia accanto) e da quel
-    # momento sono casi da fare come gli altri. Ignorarle a ogni lettura non
-    # basta: study_resubmit passava l'ambiente al job dopo, un timeout vero
-    # registrato in questo job veniva ritentato in ogni job della catena, e un
-    # caso ritentato ma rinviato ritrovava la vecchia chiave e si perdeva.
+    # RETRY_FAILED=1 puts the cases that failed back into play only once, here,
+    # in the first job: their keys disappear (with a copy alongside) and from
+    # that moment they are cases to do like the others. Ignoring them at every
+    # read is not enough: study_resubmit passed the environment to the next
+    # job, a real timeout recorded in this job was retried in every job of the
+    # chain, and a case retried but postponed found the old key again and got
+    # lost.
     if [[ "${RETRY_FAILED:-0}" == "1" && "${DRY_RUN:-0}" != "1" &&
           -f "$STUDY_KEYS" ]] && grep -q '^!' "$STUDY_KEYS"; then
         local back_in_play
@@ -112,34 +114,36 @@ study_begin()
     if [[ "${FRESH:-0}" == "1" ]]; then
         rm -f "$STUDY_CSV" "$STUDY_KEYS" "$STUDY_OUT/chain.count"
         echo "FRESH=1: starting over, previous results are deleted"
-        # E soltanto per questo job: la ri-sottomissione passa l'ambiente con
-        # `qsub -V', e un FRESH ereditato farebbe cancellare a ogni anello
-        # della catena quello che l'anello prima ha appena misurato.
+        # And only for this job: the resubmission passes the environment with
+        # `qsub -V', and an inherited FRESH would make every link of the chain
+        # delete what the previous link has just measured.
         export FRESH=0
     fi
 
-    # Lavoro utile per job. Il resto del walltime serve alla compilazione, al
-    # riepilogo e al margine per chiudere il caso in corso senza essere uccisi
-    # nel mezzo: una misura troncata dal walltime non finisce nel CSV, e il
-    # tempo speso a produrla e' perso.
+    # Useful work per job. The rest of the walltime is for compilation, the
+    # summary and the margin to finish the case in progress without being
+    # killed halfway: a measurement truncated by the walltime does not end up
+    # in the CSV, and the time spent producing it is lost.
     STUDY_BUDGET="${STUDY_BUDGET:-1500}"
-    # Il numero del job nella catena si tiene in un file, non nell'ambiente:
-    # passandolo con `qsub -v STUDY_CHAIN=n+1' insieme a `-V', quest'ultimo
-    # riesportava il valore vecchio sopra il nuovo e il contatore restava
-    # fermo a 2 per sempre -- quindi il tetto non scattava e la catena non
-    # finiva mai. Un file, letto dopo FRESH, non ha questo problema.
+    # The number of the job in the chain is kept in a file, not in the
+    # environment: passing it with `qsub -v STUDY_CHAIN=n+1' together with
+    # `-V', the latter re-exported the old value over the new one and the
+    # counter stayed stuck at 2 forever -- so the ceiling never triggered and
+    # the chain never ended. A file, read after FRESH, does not have this
+    # problem.
     STUDY_CHAIN=$(( $(cat "$STUDY_OUT/chain.count" 2> /dev/null || echo 0) + 1 ))
     echo "$STUDY_CHAIN" > "$STUDY_OUT/chain.count"
     STUDY_CHAIN_MAX="${STUDY_CHAIN_MAX:-40}"
-    # Le fasi si ri-sottomettono da sole finche' non hanno finito, salvo chi
-    # mette questo a 0 perche' o riesce in un minuto o non riesce affatto.
+    # The phases resubmit themselves until they are done, except whoever sets
+    # this to 0 because it either succeeds in a minute or does not succeed at
+    # all.
     STUDY_CHAINABLE="${STUDY_CHAINABLE:-1}"
     [[ -f "$STUDY_CSV" ]] || printf '%s\n' "$STUDY_HEADER" > "$STUDY_CSV"
     touch "$STUDY_KEYS"
 
-    # Su questo sito il .o<jobid> di PBS non arriva ne' nella directory di
-    # sottomissione ne' nella home: il log va tenuto accanto al CSV, e in
-    # append perche' una ripresa non deve cancellare quello di prima.
+    # On this site PBS's .o<jobid> arrives neither in the submission directory
+    # nor in the home: the log must be kept next to the CSV, and in append mode
+    # because a resume must not delete the previous one.
     exec > >(tee -a "$STUDY_LOG") 2>&1
 
     echo "==============================================================="
@@ -173,10 +177,10 @@ study_end()
     printf '%d cases left: this job has run out of budget.\n' \
         "$STUDY_PENDING"
 
-    # Se questo job non ha concluso nemmeno un caso, il prossimo si
-    # comporterebbe identico: stessa coda, stesso primo caso, stesso esito.
-    # Meglio fermarsi e dirlo che ripetere il ciclo -- e' esattamente cosi'
-    # che due casi in timeout hanno occupato 31 job di fila.
+    # If this job has not finished even one case, the next one would behave
+    # identically: same queue, same first case, same outcome. Better to stop
+    # and say so than to repeat the cycle -- it is exactly how two cases in
+    # timeout occupied 31 jobs in a row.
     if [[ "$STUDY_CASES" -eq 0 && "$STUDY_FAILED" -eq 0 ]]; then
         echo "this job completed no case: stopping instead of repeating"
         echo "the same loop. Read the log above and resubmit by hand"
@@ -186,10 +190,9 @@ study_end()
     study_resubmit
 }
 
-# Continuare da soli, invece di chiedere a qualcuno di ri-sottomettere ogni
-# mezz'ora. Il numero della catena viaggia con il job e la limita: se qualcosa
-# va storto in modo ripetibile, lo studio si ferma da solo invece di riempire
-# la coda.
+# Continue on our own, instead of asking someone to resubmit every half hour.
+# The chain number travels with the job and limits it: if something goes wrong
+# in a repeatable way, the study stops by itself instead of filling the queue.
 study_resubmit()
 {
     local script="$STUDY_ROOT/scripts/study/$STUDY_PHASE.sh"
@@ -210,14 +213,15 @@ study_resubmit()
 
     local next pin=()
     mkdir -p "$STUDY_BASE/pbs"
-    # Una catena fissata su un nodo ci resta. Il vincolo di `submit' vale solo
-    # per il primo job: senza ripeterlo qui, dal secondo anello in poi la
-    # catena andrebbe sul primo nodo libero.
+    # A chain pinned to a node stays there. The `submit' constraint holds only
+    # for the first job: without repeating it here, from the second link on the
+    # chain would go to the first free node.
     if [[ -n "${STUDY_HOST:-}" ]]; then
         pin=(-l "select=1:ncpus=${STUDY_NCPUS:-112}:host=$STUDY_HOST")
     fi
-    # Senza RETRY_FAILED: i falliti li ha gia' rimessi in gioco il primo job
-    # della catena, e un timeout vero registrato qui il job dopo non lo rifa'.
+    # Without RETRY_FAILED: the failed ones were already put back into play by
+    # the first job of the chain, and a real timeout recorded here the next job
+    # does not redo.
     if next="$(env -u RETRY_FAILED qsub -V ${pin[@]+"${pin[@]}"} -o "$STUDY_BASE/pbs/" "$script" 2>&1)"; then
         echo "continues in job $next"
     else
@@ -226,7 +230,7 @@ study_resubmit()
     fi
 }
 
-# ------------------------------------------------------------------ macchina
+# ------------------------------------------------------------------- machine
 
 study_machine()
 {
@@ -234,18 +238,20 @@ study_machine()
     STUDY_PER_SOCKET=$(lscpu | awk -F: '/^Core\(s\) per socket/ {gsub(/ /,"",$2); print $2}')
     : "${STUDY_SOCKETS:=1}" "${STUDY_PER_SOCKET:=1}"
 
-    # Quante CPU ha il nodo, e quante ne ha date a noi. Non sono la stessa
-    # cosa e distinguerle e' tutto:
+    # How many CPUs the node has, and how many it gave to us. They are not the
+    # same thing and telling them apart is everything:
     #
-    #   nproc --all      le CPU del nodo, sempre, qualunque cosa ci abbiano dato
-    #   NCPUS            quelle che PBS ha assegnato a questo job
-    #   nproc            NON e' affidabile qui: rispetta OMP_NUM_THREADS, che
-    #                    PBS imposta al numero di CPU del chunk, e su un nodo
-    #                    da 112 CPU con 7 assegnate rispondeva 7 -- numero
-    #                    giusto per caso e per il motivo sbagliato.
-    #   Cpus_allowed     su questo cluster vale 0-111 anche quando le CPU
-    #                    concesse sono 7: la maschera di affinita' non e'
-    #                    ristretta, quindi da sola non dice se il nodo e' nostro.
+    #   nproc --all      the CPUs of the node, always, whatever they gave us
+    #   NCPUS            those that PBS assigned to this job
+    #   nproc            is NOT reliable here: it respects OMP_NUM_THREADS,
+    #                    which PBS sets to the number of CPUs of the chunk,
+    #                    and on a 112-CPU node with 7 assigned it answered 7
+    #                    -- the right number by chance and for the wrong
+    #                    reason.
+    #   Cpus_allowed     on this cluster it is 0-111 even when the CPUs
+    #                    granted are 7: the affinity mask is not restricted,
+    #                    so by itself it does not say whether the node is
+    #                    ours.
     local node_logical="$(nproc --all)"
     STUDY_LOGICAL="${NCPUS:-$node_logical}"
     STUDY_PHYSICAL=$(( STUDY_SOCKETS * STUDY_PER_SOCKET ))
@@ -272,9 +278,9 @@ study_machine()
         fi
     fi
 
-    # Il nodo e' davvero tutto nostro? Su questo cluster la risposta e' stata
-    # no due volte su tre, e le misure raccolte in quei casi erano inservibili
-    # senza che niente nell'output lo dicesse.
+    # Is the node really all ours? On this cluster the answer was no two times
+    # out of three, and the measurements collected in those cases were unusable
+    # without anything in the output saying so.
     if [[ "$STUDY_LOGICAL" -ge "$node_logical" ]]; then
         STUDY_EXCLUSIVE=1
         printf 'exclusive:     yes\n'
@@ -289,19 +295,20 @@ study_machine()
     echo
 }
 
-# --------------------------------------------------------------- compilazione
+# ---------------------------------------------------------------- compilation
 #
-# Il Makefile e' l'unica fonte di verita' sui flag: qui si passano solo le
-# variabili che esso documenta, e il binario prodotto si sposta nella cache col
-# nome della variante. Cosi' una differenza fra studio e build normale non puo'
-# nascere per divergenza di flag copiati a mano.
+# The Makefile is the only source of truth on the flags: here only the
+# variables it documents are passed, and the binary produced is moved into the
+# cache under the name of the variant. This way a difference between the study
+# and the normal build cannot arise from flags copied by hand diverging.
 
-# Un'impronta delle sorgenti, calcolata una volta sola per job. Entra nella
-# chiave della cache dei binari: senza, un eseguibile compilato da una
-# revisione diversa resta li' e la campagna misura codice che non e' quello di
-# adesso. E' successo, e in grande: 1706 casi su 1888 della prima campagna sono
-# stati misurati con i binari della campagna precedente, riconoscibili perche'
-# non stampano la riga `g term'. Le chiavi non ne portavano traccia.
+# A fingerprint of the sources, computed once per job. It goes into the key of
+# the binary cache: without it, an executable compiled from a different
+# revision stays there and the campaign measures code that is not the current
+# one. It happened, and on a large scale: 1706 cases out of 1888 of the first
+# campaign were measured with the binaries of the previous campaign,
+# recognisable because they do not print the `g term' line. The keys carried no
+# trace of it.
 study_source_stamp()
 {
     printf '%s' "$STUDY_STAMP"
@@ -313,11 +320,11 @@ study_build()
     local target="${6:-bench}"
     local lines="$batch"
     [[ "$batch" == auto ]] && lines=""
-    # Un albero di compilazione per fase. Il Makefile separa gia' le
-    # configurazioni, ma due fasi che partono insieme compilano la stessa
-    # configurazione negli stessi oggetti, e un oggetto scritto a meta' da un
-    # job lo linka l'altro. Le catene di una fase sono in fila, quindi
-    # dentro una fase la cache resta.
+    # One build tree per phase. The Makefile already separates the
+    # configurations, but two phases that start together compile the same
+    # configuration into the same objects, and an object half-written by one
+    # job is linked by the other. The chains of a phase are queued one after
+    # the other, so within a phase the cache stays.
     local options=(TRIDIAG="$backend" SIMD="$simd" OMP="$omp" MPI="$mpi"
                    PIPELINE_BATCH_LINES="$lines"
                    BUILD_ROOT="$STUDY_BASE/variants/$STUDY_PHASE")
@@ -345,7 +352,7 @@ study_build()
     fi
 }
 
-# Il file di configurazione di una taglia: griglia e passi, niente altro.
+# The configuration file of a size: grid and steps, nothing else.
 study_config()
 {
     local nx="$1" ny="$2" nz="$3" steps="$4"
@@ -356,12 +363,12 @@ study_config()
     printf '%s' "$path"
 }
 
-# --------------------------------------------------------------- piazzamento
+# ----------------------------------------------------------------- placement
 #
-# Meta' del risultato, e la meta' che nessun output segnala quando e' sbagliata.
-# Per default mpirun inchioda ogni processo a un core solo e i suoi thread se
-# lo spartiscono: la colonna dei thread misura allora zero guadagno, ed e' un
-# errore che sembra un risultato (MULTITHREAD.md §8.1).
+# Half of the result, and the half that no output reports when it is wrong. By
+# default mpirun pins every process to a single core and its threads share it
+# out: the threads column then measures zero gain, and it is an error that
+# looks like a result (MULTITHREAD.md §8.1).
 
 study_placement()
 {
@@ -369,12 +376,12 @@ study_placement()
 
     : "${STUDY_SOCKETS:=1}" "${STUDY_LOGICAL:=$(nproc)}" "${STUDY_PHYSICAL:=1}"
 
-    # Oltre i core fisici si entra nell'SMT, e li' il conto di Open MPI cambia:
-    # `PE=n' chiede n *cpu*, e per default un cpu e' un core. Con 56 core
-    # fisici, 2 rank x 56 thread ne chiedono 112 e il lancio viene rifiutato
-    # ("binding more processes than cpus on a resource"): e' cosi' che sono
-    # fallite tutte le configurazioni a prodotto 112. Con --use-hwthread-cpus
-    # un cpu diventa un thread hardware, e i 112 ci sono.
+    # Beyond the physical cores one enters SMT, and there the Open MPI count
+    # changes: `PE=n' asks for n *cpus*, and by default a cpu is a core. With
+    # 56 physical cores, 2 ranks x 56 threads ask for 112 and the launch is
+    # refused ("binding more processes than cpus on a resource"): that is how
+    # all the configurations with product 112 failed. With --use-hwthread-cpus
+    # a cpu becomes a hardware thread, and the 112 are there.
     local units=$(( ranks * threads ))
     local smt=()
     local bind_unit=core
@@ -389,79 +396,82 @@ study_placement()
     STUDY_NOTE=""
 
     if [[ "$ranks" -eq 1 ]]; then
-        # Un rank solo deve coprire tutti i socket, e a distribuirlo e' OpenMP:
-        # --bind-to none toglie di mezzo MPI, spread manda i thread su tutti i
-        # canali di memoria invece che su quelli di un socket solo.
+        # A single rank must cover all the sockets, and it is OpenMP that
+        # distributes it: --bind-to none takes MPI out of the way, spread sends
+        # the threads to all the memory channels instead of those of a single
+        # socket.
         STUDY_MPI_OPTS=(--bind-to none)
         STUDY_OMP_BIND="spread"
     elif [[ "$threads" -eq 1 ]]; then
         STUDY_MPI_OPTS=("${smt[@]}" --map-by "$bind_unit" --bind-to "$bind_unit")
-        # Un thread solo: OpenMP non deve legare niente. Lasciare
-        # OMP_PROC_BIND=close con 56 rank e' costato fra 1.7x e 2.3x --
-        # ogni rank interpreta OMP_PLACES sulla topologia globale e ci
-        # ri-lega sopra il proprio thread principale, disfacendo il
-        # piazzamento che mpirun aveva appena fatto.
+        # A single thread: OpenMP must not bind anything. Leaving
+        # OMP_PROC_BIND=close with 56 ranks cost between 1.7x and 2.3x -- every
+        # rank interprets OMP_PLACES on the global topology and re-binds its
+        # main thread on top of it, undoing the placement that mpirun had just
+        # made.
         STUDY_OMP_BIND="false"
     elif [[ $(( ranks % STUDY_SOCKETS )) -eq 0 ]]; then
-        # Un gruppo di rank per socket, e i thread di ciascuno dentro il
-        # proprio socket: senza questo i thread di rank diversi si mescolano
-        # sui due socket e si misura quel disastro invece del dominio diviso.
+        # One group of ranks per socket, and the threads of each inside its own
+        # socket: without this the threads of different ranks mix across the
+        # two sockets and one measures that disaster instead of the divided
+        # domain.
         STUDY_MPI_OPTS=("${smt[@]}"
                         --map-by "ppr:$(( ranks / STUDY_SOCKETS )):socket:PE=$threads"
                         --bind-to "$bind_unit")
     else
-        # Un numero di rank che non si divide fra i socket non puo' avere un
-        # gruppo per socket. La risposta NON e' --bind-to none: cosi' ogni
-        # rank vede tutti i core della macchina e ci sparge i suoi thread,
-        # quelli di rank diversi finiscono sugli stessi core e si contendono
-        # a vicenda mentre girano in attesa attiva. Misurato: 7x4 sulla
-        # pipeline dava 4708 ms con il 93% del tempo dentro MPI, e le due
-        # configurazioni schur corrispondenti non finivano affatto.
+        # A number of ranks that does not divide among the sockets cannot have
+        # one group per socket. The answer is NOT --bind-to none: that way
+        # every rank sees all the cores of the machine and spreads its threads
+        # over them, those of different ranks end up on the same cores and
+        # contend with each other while they spin in busy-wait. Measured: 7x4
+        # on the pipeline gave 4708 ms with 93% of the time inside MPI, and the
+        # two corresponding schur configurations did not finish at all.
         #
-        # `slot:PE=n' da' a ciascun rank n core distinti qualunque sia il
-        # numero di rank: si perde la localita' NUMA, non la sanita' mentale.
+        # `slot:PE=n' gives each rank n distinct cores whatever the number of
+        # ranks: one loses NUMA locality, not one's sanity.
         STUDY_MPI_OPTS=("${smt[@]}" --map-by "slot:PE=$threads" --bind-to "$bind_unit")
         STUDY_NOTE="$ranks rank non si dividono fra $STUDY_SOCKETS socket: niente localita' NUMA"
     fi
 
     if [[ $(( ranks * threads )) -gt "$STUDY_LOGICAL" ]]; then
-        # Piu' unita' che cpu: mpirun rifiuta di legare i processi ai core e
-        # fallirebbe prima di partire. Il caso non e' comunque confrontabile
-        # con gli altri, e la nota nel CSV lo dice.
+        # More units than cpus: mpirun refuses to bind the processes to the
+        # cores and would fail before starting. The case is not comparable with
+        # the others anyway, and the note in the CSV says so.
         STUDY_MPI_OPTS=(--oversubscribe --bind-to none)
         STUDY_NOTE="${STUDY_NOTE:+$STUDY_NOTE; }in sovrannumero, senza binding"
-        # Con piu' thread che core, l'attesa attiva di OpenMP brucia i core
-        # contendendoli a chi sta lavorando: un caso in sovrannumero puo'
-        # rallentare di ordini di grandezza invece che linearmente. `passive'
-        # li fa dormire. Vale solo qui: dove la misura conta, l'attesa attiva
-        # e' quella giusta.
+        # With more threads than cores, the busy-waiting of OpenMP burns the
+        # cores by contending them with whoever is working: an oversubscribed
+        # case can slow down by orders of magnitude instead of linearly.
+        # `passive' makes them sleep. It holds only here: where the measurement
+        # matters, busy-waiting is the right one.
         STUDY_OMP_WAIT="passive"
     fi
 
-    # Una fase che sa meglio come vanno piazzati i processi -- il multi-nodo,
-    # dove serve un hostfile e una mappatura per nodo -- sostituisce tutto.
+    # A phase that knows better how the processes should be placed --
+    # multi-node, where a hostfile and a per-node mapping are needed --
+    # replaces everything.
     if [[ -n "${PLACEMENT_OVERRIDE:-}" ]]; then
         STUDY_MPI_OPTS=($PLACEMENT_OVERRIDE)
         STUDY_NOTE="${STUDY_NOTE:+$STUDY_NOTE; }piazzamento imposto dalla fase"
     fi
 }
 
-# ------------------------------------------------------------------- un caso
+# ------------------------------------------------------------------ one case
 #
 # study_case backend=schur ranks=8 threads=1 grid="256 256 256" shape="2 2 2"
 #
-# Argomenti nella forma chiave=valore, tutti facoltativi: quelli non dati
-# vengono dai default della fase (CASE_*). Le chiavi sconosciute fermano lo
-# script, perche' un parametro scritto male e' un risultato sbagliato.
+# Arguments in the form key=value, all optional: those not given come from the
+# defaults of the phase (CASE_*). Unknown keys stop the script, because a
+# misspelt parameter is a wrong result.
 
 study_case()
 {
     local backend="${CASE_BACKEND:-schur}"
-    # auto: il binario non fissa il batch e la pipeline lo sceglie all'avvio,
-    # come fa il solutore compilato senza opzioni. Un numero lo fissa a
-    # compilazione, ed e' quello che serve alla scansione della 13. Prima il
-    # default era 64, e le fasi che non spazzano il batch misuravano un
-    # valore che il codice non usa piu'.
+    # auto: the binary does not fix the batch and the pipeline chooses it at
+    # start-up, as the solver compiled without options does. A number fixes it
+    # at compile time, and it is what the scan of phase 13 needs. Before, the
+    # default was 64, and the phases that do not sweep the batch measured a
+    # value the code no longer uses.
     local batch="${CASE_BATCH:-auto}"
     local simd="${CASE_SIMD:-1}"
     local omp="${CASE_OMP:-1}"
@@ -511,8 +521,8 @@ study_case()
             "$shape" >> "$STUDY_EXPECTED"
     fi
 
-    # La chiave della ripresa contiene tutto cio' che cambia la misura: due
-    # casi con la stessa chiave sono lo stesso caso.
+    # The resume key contains everything that changes the measurement: two
+    # cases with the same key are the same case.
     local key="$STUDY_PHASE|$label|$backend|$batch|$simd|$omp|$mpi|$ranks|$threads|$nx|$ny|$nz|$steps|${shape// /-}|${wrap// /-}|$bind"
 
     if [[ "${RESUME:-1}" == "1" ]] && study_already_done "$key"; then
@@ -521,9 +531,9 @@ study_case()
         return 0
     fi
 
-    # Il tempo che resta decide se questo caso si comincia. Cominciarne uno che
-    # non fa in tempo a finire vuol dire farsi uccidere dal walltime nel mezzo:
-    # la misura non finisce nel CSV e il tempo e' buttato.
+    # The remaining time decides whether this case is started. Starting one
+    # that will not finish in time means being killed by the walltime halfway:
+    # the measurement does not end up in the CSV and the time is thrown away.
     local remaining=$(( STUDY_BUDGET - ( $(date +%s) - STUDY_STARTED ) ))
     if [[ "${DRY_RUN:-0}" != "1" && "$remaining" -lt "${CASE_MIN_TIME:-90}" ]]; then
         if [[ "$STUDY_OUT_OF_TIME" -eq 0 ]]; then
@@ -556,9 +566,9 @@ study_case()
     config="$(study_config "$nx" "$ny" "$nz" "$steps")"
 
     study_placement "$ranks" "$threads"
-    # bind= forza il piazzamento dei thread quando lo studio e' proprio quello:
-    # gli stessi thread su un socket o su due sono la stessa potenza di calcolo
-    # e meta' o tutti i canali di memoria.
+    # bind= forces the placement of the threads when that is exactly what is
+    # being studied: the same threads on one socket or on two are the same
+    # computing power and half or all of the memory channels.
     [[ -n "$bind" ]] && STUDY_OMP_BIND="$bind"
     [[ -n "$STUDY_NOTE" ]] && note="${note:+$note; }$STUDY_NOTE"
 
@@ -566,17 +576,17 @@ study_case()
     local repeat out line wall chosen=""
     started="$(date +%s)"
 
-    # Nessun caso puo' durare piu' del budget che resta: oltre quello lo
-    # ucciderebbe comunque il walltime, e senza lasciare traccia.
-    # case_timeout e' gia' tagliato dal budget, phase_timeout no: e' con
-    # quello che si distingue un caso troppo lento da uno partito tardi.
+    # No case can last longer than the budget that remains: beyond that the
+    # walltime would kill it anyway, without leaving any trace. case_timeout is
+    # already cut by the budget, phase_timeout is not: it is with that one that
+    # a case that is too slow is told apart from one that started late.
     local phase_timeout="${CASE_TIMEOUT:-1500}"
     local case_timeout="$phase_timeout"
     [[ "$remaining" -lt "$case_timeout" ]] && case_timeout="$remaining"
 
-    # Un binario senza MPI non si lancia con mpirun: si esegue e basta,
-    # inchiodato a un core solo perche' il caso seriale e' un riferimento e
-    # non deve migrare fra i socket a meta' misura.
+    # A binary without MPI is not launched with mpirun: it is just executed,
+    # pinned to a single core because the serial case is a reference and must
+    # not migrate between the sockets in the middle of the measurement.
     local -a command
     if [[ "$mpi" == "0" ]]; then
         command=()
@@ -590,8 +600,8 @@ study_case()
                  -x OMP_NUM_THREADS -x OMP_PLACES -x OMP_PROC_BIND
                  -x OMP_WAIT_POLICY -x BENCH_NORMS
                  -n "$ranks")
-        # Il wrapper sta fra mpirun e l'eseguibile: e' ogni rank a doverne
-        # ereditare i vincoli, non il lanciatore.
+        # The wrapper sits between mpirun and the executable: it is every rank
+        # that must inherit its constraints, not the launcher.
         [[ -n "$wrap" ]] && command+=($wrap)
         command+=("$exe" "$config")
         [[ -n "$shape" ]] && command+=($shape)
@@ -599,16 +609,17 @@ study_case()
 
     local left repeat_timeout repeat_started last_seconds=0
     for (( repeat = 0; repeat < repeats; repeat++ )); do
-        # Il budget si ricontrolla prima di ogni ripetizione. Prima si
-        # calcolava una volta per caso e ogni ripetizione riceveva
-        # case_timeout intero: due ripetizioni potevano durare il doppio di
-        # quello che restava, il walltime uccideva il job a meta' caso, e la
-        # ri-sottomissione -- che sta in fondo allo script -- non partiva.
-        # Cosi' la 13 si e' fermata a 374 casi su 440 con la coda vuota.
+        # The budget is re-checked before every repetition. Before, it was
+        # computed once per case and every repetition received the whole
+        # case_timeout: two repetitions could last twice what remained, the
+        # walltime killed the job halfway through a case, and the resubmission
+        # -- which is at the bottom of the script -- did not start. That is how
+        # phase 13 stopped at 374 cases out of 440 with the queue empty.
         left=$(( STUDY_BUDGET - ( $(date +%s) - STUDY_STARTED ) ))
         if [[ "$repeat" -gt 0 && "$left" -le "$last_seconds" ]]; then
-            # Un'altra ripetizione non ci starebbe. La misura che c'e' e'
-            # valida: si tiene, e la nota dice su quante ripetizioni e' presa.
+            # Another repetition would not fit. The measurement that exists is
+            # valid: it is kept, and the note says how many repetitions it is
+            # taken over.
             note="${note:+$note; }ripetizioni: $repeat su $repeats (budget)"
             break
         fi
@@ -617,10 +628,10 @@ study_case()
         repeat_started="$(date +%s)"
 
         set +e
-        # stdin chiuso: mpirun lo legge e lo consuma, e una fase che genera i
-        # casi con `while read ... done < <(...)' si vedrebbe sparire la lista
-        # dopo il primo caso. E' successo: la 12 ha misurato 6 casi su 276 e
-        # si e' dichiarata completa.
+        # stdin closed: mpirun reads it and consumes it, and a phase that
+        # generates the cases with `while read ... done < <(...)' would see the
+        # list vanish after the first case. It happened: phase 12 measured 6
+        # cases out of 276 and declared itself complete.
         out="$(OMP_NUM_THREADS="$threads" \
                OMP_PLACES="${OMP_PLACES:-cores}" \
                OMP_PROC_BIND="$STUDY_OMP_BIND" \
@@ -633,20 +644,21 @@ study_case()
         last_seconds=$(( $(date +%s) - repeat_started ))
 
         if [[ $code -eq 124 || $code -eq 137 ]]; then
-            # Tagliata dal budget e non dal proprio timeout, con una misura
-            # gia' presa: la configurazione e' la stessa, e quella misura resta.
+            # Cut by the budget and not by its own timeout, with a measurement
+            # already taken: the configuration is the same, and that
+            # measurement stays.
             if [[ -n "$best_line" && "$repeat_timeout" -lt "$phase_timeout" ]]; then
                 note="${note:+$note; }ripetizioni: $repeat su $repeats (budget)"
                 break
             fi
-            # Tagliata dal budget alla prima ripetizione: non si sa quanto
-            # dura, si sa solo che non ci stava in quello che restava. Scriverla
-            # come timeout la marcherebbe fallita per sempre, quindi si rinvia:
-            # il prossimo job ci arriva per primo, con tutto il budget. Solo se
-            # questo job ha gia' concluso qualcosa, pero': il primo caso di un
-            # job ha avuto il massimo che un job puo' dare, e per lui timeout e'
-            # la risposta vera. Altrimenti un caso piu' lungo di un job intero
-            # si rinvierebbe all'infinito.
+            # Cut by the budget at the first repetition: it is not known how
+            # long it lasts, it is only known that it did not fit in what
+            # remained. Writing it as a timeout would mark it as failed
+            # forever, so it is postponed: the next job gets to it first, with
+            # the whole budget. Only if this job has already finished
+            # something, though: the first case of a job had the maximum that a
+            # job can give, and for it timeout is the true answer. Otherwise a
+            # case longer than a whole job would be postponed forever.
             if [[ "$repeat_timeout" -lt "$phase_timeout" &&
                   $(( STUDY_CASES + STUDY_FAILED )) -gt 0 ]]; then
                 status="deferred"
@@ -671,7 +683,7 @@ study_case()
         fi
         chosen="$(awk '/^  bench batch:/ { print $3; exit }' <<< "$out")"
 
-        # px,py,pz sono i primi tre campi: il tempo e' il quarto.
+        # px,py,pz are the first three fields: the time is the fourth.
         wall="$(cut -d, -f4 <<< "$line")"
         if [[ -z "$best_wall" ]] || awk "BEGIN{exit !($wall < $best_wall)}"; then
             best_wall="$wall"
@@ -681,7 +693,7 @@ study_case()
 
     local seconds=$(( $(date +%s) - started ))
 
-    # Niente riga e niente chiave: per la ripresa il caso non e' mai esistito.
+    # No row and no key: for the resume the case never existed.
     if [[ "$status" == "deferred" ]]; then
         STUDY_OUT_OF_TIME=1
         STUDY_PENDING=$(( STUDY_PENDING + 1 ))
@@ -694,20 +706,20 @@ study_case()
         study_record "$label" "$backend" "$batch" "$simd" "$omp" "$mpi" \
             "$ranks" "$threads" "$nx" "$ny" "$nz" "$steps" "" \
             "$status" "$note"
-        # Anche un caso andato male e' un caso concluso: senza questa riga
-        # ogni job della catena lo ritenta, spende tutto il budget nello
-        # stesso timeout e non arriva mai ai casi dopo. E' successo: due casi
-        # hanno consumato 31 job di fila senza far progredire niente.
-        # RETRY_FAILED=1 li rimette in gioco, quando si e' cambiato qualcosa
-        # che potrebbe farli riuscire.
+        # A case that went badly is also a finished case: without this row
+        # every job of the chain retries it, spends the whole budget on the
+        # same timeout and never gets to the cases after it. It happened: two
+        # cases consumed 31 jobs in a row without making anything progress.
+        # RETRY_FAILED=1 puts them back into play, when something has been
+        # changed that might make them succeed.
         study_done "$key" "$status"
         printf '%s (%ds)\n' "$status" "$seconds"
         return 0
     fi
 
-    # La colonna batch resta `auto', come la chiave della ripresa e l'elenco
-    # atteso della 15: e' la configurazione. Il valore che la pipeline ha
-    # scelto lo stampa bench, e va nella nota.
+    # The batch column stays `auto', like the resume key and the expected list
+    # of phase 15: it is the configuration. The value that the pipeline chose
+    # is printed by bench, and goes into the note.
     if [[ "$batch" == auto && "$backend" == pipeline && -n "$chosen" ]]; then
         note="${note:+$note; }batch scelto $chosen"
     fi
@@ -726,26 +738,26 @@ study_case()
         "$best_wall" "$shape_out" "$untimed" "$rss" "$seconds"
 }
 
-# I due riferimenti da cui si normalizzano gli speedup di una configurazione.
+# The two references from which the speedups of a configuration are normalised.
 #
-#   seriale  MPI=0 OMP=0.  Il binario non collega MPI e non compila OpenMP: le
-#            direttive sono macro vuote e le funzioni MPI stub che rispondono
-#            "un processo, nessun vicino".  Non e' il codice parallelo a un
-#            processo, e' un binario in cui il codice parallelo non esiste.  E'
-#            il T_s dello speedup assoluto.
+#   serial  MPI=0 OMP=0.  The binary does not link MPI and does not compile
+#           OpenMP: the directives are empty macros and the MPI functions are
+#           stubs that answer "one process, no neighbour".  It is not the
+#           parallel code at one process, it is a binary in which the parallel
+#           code does not exist.  It is the T_s of the absolute speedup.
 #
-#   T(1)     MPI=1 OMP=0, un rank.  Stessa sorgente con la macchineria
-#            parallela compilata dentro, ma un processo solo.
+#   T(1)    MPI=1 OMP=0, one rank.  The same source with the parallel
+#           machinery compiled in, but a single process.
 #
-# Averli tutti e due non e' ridondanza: la loro differenza E' la misura del
-# costo della macchineria parallela a vuoto.  Finche' resta dentro al rumore,
-# usare T(1) come denominatore e' legittimo, e lo si dimostra invece di
-# affermarlo.  Entrambi a un thread, perche' il confronto dev'essere fra
-# configurazioni identiche in tutto tranne lo strato che si sta misurando.
+# Having both is not redundancy: their difference IS the measure of the cost of
+# the idle parallel machinery.  As long as it stays within the noise, using
+# T(1) as the denominator is legitimate, and it is demonstrated instead of
+# asserted. Both at one thread, because the comparison must be between
+# configurations identical in everything except the layer being measured.
 #
-# Prende gli stessi argomenti di study_case tranne omp, mpi, ranks e threads,
-# che sono fissati qui: passarli vorrebbe dire misurare un'altra cosa, e
-# infatti fermano lo script.
+# It takes the same arguments as study_case except omp, mpi, ranks and threads,
+# which are fixed here: passing them would mean measuring something else, and
+# indeed they stop the script.
 study_baseline()
 {
     local label="" arg
@@ -767,9 +779,10 @@ study_baseline()
         omp=0 mpi=1 ranks=1 threads=1
 }
 
-# Legge l'output di bench. I pattern sono ancorati: "eta system" senza ancora
-# matcherebbe anche "zeta system", e si leggerebbero i tempi di zeta credendoli
-# di eta -- numeri plausibili, di un'altra cosa (MULTITHREAD.md §8.3).
+# Reads the output of bench. The patterns are anchored: "eta system" without an
+# anchor would also match "zeta system", and the times of zeta would be read
+# believing them to be those of eta -- plausible numbers, of something else
+# (MULTITHREAD.md §8.3).
 study_parse()
 {
     awk '
@@ -792,16 +805,16 @@ study_parse()
         END {
             if (wall == "") { exit 1 }
             sum = eta + zeta + u + psi + lo + hi + pr + po
-            # g NON entra nella somma: sta dentro eta, e sommarlo
-            # conterebbe il passo eta due volte.
+            # g does NOT enter the sum: it is inside eta, and adding it would
+            # count the eta step twice.
             printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%.3f,%s,%s,%s,%s,%s",
                    px, py, pz, wall, mpi, eta, zeta, u, psi, lo, hi, pr, po,
                    wall - sum, cell, rss, lux, lp, g
         }'
 }
 
-# Una riga di CSV, sempre con lo stesso numero di colonne anche quando il caso
-# non ha prodotto niente: un buco che sfasa le colonne si scopre settimane dopo.
+# A CSV row, always with the same number of columns even when the case produced
+# nothing: a hole that shifts the columns is discovered weeks later.
 study_record()
 {
     local label="$1" backend="$2" batch="$3" simd="$4" omp="$5" mpi="$6"
@@ -812,18 +825,19 @@ study_record()
         measured="$(printf ',%.0s' $(seq 2 "$STUDY_MEASURED_FIELDS"))"
     fi
 
-    # Il nodo in ogni riga: i nodi della coda dichiarano la stessa macchina e a
-    # pieno carico non lo sono (cpu04 fino a 1.7x piu' lento di cpu03). Senza
-    # questa colonna lo si ricostruiva solo incrociando run.log riga per riga.
+    # The node in every row: the nodes of the queue declare the same machine
+    # and at full load they are not (cpu04 up to 1.7x slower than cpu03).
+    # Without this column it could only be reconstructed by cross-checking
+    # run.log line by line.
     printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
         "$STUDY_PHASE" "$label" "$backend" "$batch" "$simd" "$omp" "$mpi" \
         "$ranks" "$threads" "$nx" "$ny" "$nz" "$steps" "$measured" \
         "$(hostname -s)" "$status" "${note//,/;}" >> "$STUDY_CSV"
 }
 
-# Un caso concluso -- riuscito o no -- lascia la sua chiave, cosi' la ripresa
-# lo salta. Le chiavi dei casi falliti portano un marcatore, perche' con
-# RETRY_FAILED=1 si possano ritentare senza rifare anche quelli riusciti.
+# A finished case -- succeeded or not -- leaves its key, so the resume skips
+# it. The keys of failed cases carry a marker, so that with RETRY_FAILED=1 they
+# can be retried without redoing the successful ones too.
 study_done()
 {
     local marker=""
@@ -838,9 +852,10 @@ study_already_done()
     grep -qxF "!$1" "$STUDY_KEYS"
 }
 
-# Le due forme di griglia di processi che questo studio usa piu' spesso.
-# MPI_Dims_create le sceglie cosi', e averle scritte qui permette di imporre
-# la stessa forma anche dove la si vuole diversa dal default.
+# The two shapes of process grid that this study uses most often.
+# MPI_Dims_create chooses them like this, and having them written here makes it
+# possible to impose the same shape also where one wants it different from the
+# default.
 study_auto_shape()
 {
     case "$1" in

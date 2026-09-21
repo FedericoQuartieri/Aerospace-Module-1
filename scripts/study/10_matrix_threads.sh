@@ -5,30 +5,31 @@
 #PBS -l walltime=00:30:00
 #PBS -j oe
 #
-# Fase 10 -- un rank solo, thread crescenti, per tutte le varianti.
+# Phase 10 -- a single rank, increasing threads, for all the variants.
 #
-# La 02 chiede se i thread rendono. Questa riempie la riga: i due backend, con
-# e senza SIMD, su tre taglie, da un thread a tutte le cpu logiche. Serve a
-# separare tre cose che nelle misure vecchie stavano insieme:
+# Phase 02 asks whether the threads pay off. This one fills the row: the two
+# backends, with and without SIMD, on three sizes, from one thread to all the
+# logical cpus. It serves to separate three things that in the old measurements
+# were together:
 #
-#   - quanto scala ogni backend da solo, senza dominio diviso;
-#   - quanto di quello scaling e' SIMD e quanto sono thread, che non si
-#     sommano: i kernel vettoriali saturano la banda prima dei thread;
-#   - dove si ferma, e se il punto in cui si ferma dipende dalla taglia. Su
-#     uno stencil il tetto e' la banda di memoria, e la banda per core
-#     peggiora con la taglia.
+#   - how much each backend scales on its own, without a divided domain;
+#   - how much of that scaling is SIMD and how much is threads, which do not
+#     add up: the vector kernels saturate the bandwidth before the threads do;
+#   - where it stops, and whether the point where it stops depends on the
+#     size. On a stencil the ceiling is the memory bandwidth, and the
+#     bandwidth per core gets worse with the size.
 #
-# Le righe con OMP=0 sono il riferimento: la build a thread costa circa l'1%
-# anche quando i thread sono uno, e senza quelle righe quell'1% finisce dentro
-# lo speedup.
+# The rows with OMP=0 are the reference: the threaded build costs about 1% even
+# when the threads are one, and without those rows that 1% ends up inside the
+# speedup.
 #
-# La coda del piazzamento: gli stessi 28 thread su un socket o distribuiti su
-# due sono la stessa potenza di calcolo con meta' o con tutti i canali di
-# memoria. Su uno stencil questa differenza e' spesso piu' grande di quella
-# fra due algoritmi.
+# The tail of the placement: the same 28 threads on one socket or distributed
+# over two are the same computing power with half or all of the memory
+# channels. On a stencil this difference is often larger than that between two
+# algorithms.
 #
 #   qsub scripts/study/10_matrix_threads.sh
-#   GRIDS=128 qsub scripts/study/10_matrix_threads.sh      una taglia sola
+#   GRIDS=128 qsub scripts/study/10_matrix_threads.sh      a single size
 
 cd "${PBS_O_WORKDIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)}" || exit 1
 
@@ -60,12 +61,11 @@ for n in $GRIDS; do
     echo "=== ${n}^3, $steps steps: one rank, increasing threads ==="
     for backend in $MATRIX_BACKENDS; do
         for simd in $MATRIX_SIMD; do
-            # I due riferimenti della configurazione: il seriale vero --
-            # niente MPI collegato, niente OpenMP compilato -- e la stessa
-            # cosa con la macchineria parallela dentro ma un processo e un
-            # thread soli. Gli speedup di questa fase si normalizzano su di
-            # loro, e la loro differenza dice quanto costa quella macchineria
-            # a vuoto.
+            # The two references of the configuration: the true serial -- no
+            # MPI linked, no OpenMP compiled -- and the same thing with the
+            # parallel machinery inside but a single process and thread. The
+            # speedups of this phase are normalised on them, and their
+            # difference says how much that machinery costs when idle.
             study_baseline label="$backend ${n}^3 s$simd" \
                 backend="$backend" simd="$simd" \
                 grid="$n $n $n" steps="$steps"
@@ -81,9 +81,9 @@ for n in $GRIDS; do
     echo
 done
 
-# Il piazzamento, a parita' di thread: `close' li stringe sul primo socket
-# finche' ci stanno, `spread' li distribuisce su tutti. Meta' dei canali di
-# memoria contro tutti.
+# The placement, at equal threads: `close' packs them onto the first socket as
+# long as they fit, `spread' distributes them over all of them. Half of the
+# memory channels against all.
 BIND_GRID="${BIND_GRID:-224}"
 BIND_THREADS="${BIND_THREADS:-14 28}"
 echo "=== ${BIND_GRID}^3: the same threads, packed or spread ==="
@@ -102,16 +102,16 @@ done
 if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
     echo "=== result: ms/step and speedup against its own 1-thread case ==="
-    # La lista dei thread arriva dalla shell: ordinarla dentro awk vorrebbe
-    # asort, che e' di gawk, e sul cluster awk puo' essere mawk.
+    # The list of threads comes from the shell: sorting it inside awk would
+    # need asort, which belongs to gawk, and on the cluster awk may be mawk.
     awk -F, -v phase=10_matrix_threads -v tlist="$THREADS" '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" || $2 ~ /bind=/ { next }
     {
         key = $3 "," $5 "," $10
         if (!(key in seen)) { keys[++nk] = key; seen[key] = 1 }
-        # Le due righe di riferimento non sono punti della curva: sono i
-        # denominatori. Vanno riconosciute prima, o finirebbero a
-        # sovrascrivere la colonna T=1, che ha gli stessi rank e thread.
+        # The two reference rows are not points of the curve: they are the
+        # denominators. They must be recognised first, or they would end up
+        # overwriting the T=1 column, which has the same ranks and threads.
         if ($2 ~ / seriale$/) { ser[key] = $17; next }
         if ($2 ~ / T\(1\)$/) { t1[key] = $17; next }
         wall[key "," $9] = $17

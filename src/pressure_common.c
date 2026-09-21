@@ -3,25 +3,24 @@
 #include "workers.h"
 
 /*
- * La fisica della pressione che non dipende da come si risolve il sistema.
+ * The pressure physics that does not depend on how the system is solved.
  *
- * Il termine noto, la matrice di una linea e l'aggiornamento finale sono gli
- * stessi qualunque sia il backend tridiagonale: cambia solo chi risolve, in
- * mezzo.  Per la quantita' di moto il pezzo condiviso e' la riga di una
- * *cella*, perche' gamma segue la permeabilita' punto per punto; qui e' la
- * matrice di una *linea* intera, perche' non dipende ne' dal tempo ne' da
- * quale linea sia.  Sono due forme diverse per una ragione fisica, non per
- * gusto.
+ * The right-hand side, the matrix of a line and the final update are the same
+ * whatever the tridiagonal backend is: only who solves, in the middle,
+ * changes. For momentum the shared piece is the row of a *cell*, because gamma
+ * follows the permeability point by point; here it is the matrix of a whole
+ * *line*, because it depends neither on time nor on which line it is. They are
+ * two different forms for a physical reason, not for taste.
  */
 
 /*
- * Divergenza della velocita', divisa per il passo temporale: e' il termine
- * noto del primo dei tre passi della pressione.
+ * Divergence of the velocity, divided by the time step: it is the right-hand
+ * side of the first of the three pressure steps.
  *
- * Sulle tre facce inferiori del dominio vale zero (la velocita' e' a
- * divergenza nulla). Sono facce globali: un processo che non le tocca calcola
- * la divergenza anche li', leggendo la cella precedente dall'anello di
- * contorno.
+ * On the three lower faces of the domain it is zero (the velocity is
+ * divergence-free). They are global faces: a process that does not touch them
+ * computes the divergence there too, reading the previous cell from the
+ * boundary ring.
  */
 void compute_div(const Decomp *restrict d,
                  Real *restrict u_div,
@@ -68,16 +67,16 @@ void compute_div(const Decomp *restrict d,
 }
 
 /*
- * La matrice di una linea della cascata di pressione.
+ * The matrix of a line of the pressure cascade.
  *
- * E' la stessa per tutte le linee dell'asse e non cambia mai nel tempo: ogni
- * riga dipende solo dalla posizione globale del suo punto.
+ * It is the same for all the lines of the axis and never changes in time: each
+ * row depends only on the global position of its point.
  *
- * Le righe agli estremi sono quelle della condizione di Neumann omogenea
- * (Lecture 5, pp. 15-16), e spettano solo a chi tocca davvero la parete: un
- * processo in mezzo al dominio usa ovunque la riga interna. Sono asimmetriche
- * perche' lo e' la discretizzazione: a sinistra il nodo fantasma dista due
- * mezze celle, a destra una.
+ * The rows at the ends are those of the homogeneous Neumann condition (Lecture
+ * 5, pp. 15-16), and belong only to whoever really touches the wall: a process
+ * in the middle of the domain uses the interior row everywhere. They are
+ * asymmetric because the discretisation is: on the left the ghost node is two
+ * half cells away, on the right one.
  */
 void pressure_matrix(const Decomp *restrict d, int axis,
                             Real *restrict a,

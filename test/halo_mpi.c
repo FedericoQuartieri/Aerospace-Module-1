@@ -1,16 +1,16 @@
 /*
- * Le celle di contorno contengono davvero i dati del vicino?
+ * Do the boundary cells really contain the neighbour's data?
  *
- * Ogni processo riempie le celle che possiede con un numero che dipende solo
- * dalla posizione della cella nel dominio, e mette un valore riconoscibile
- * nell'anello di contorno. Dopo lo scambio, ogni cella dell'anello deve
- * contenere il numero che spetta alla sua posizione: è una copia, quindi
- * l'errore atteso è esattamente zero.
+ * Each process fills the cells it owns with a number that depends only on the
+ * position of the cell in the domain, and puts a recognisable value in the
+ * boundary ring. After the exchange, every cell of the ring must contain the
+ * number that belongs to its position: it is a copy, so the expected error is
+ * exactly zero.
  *
- * Si controlla anche il caso opposto: dove il vicino non c'è, perché lì
- * finisce il dominio, l'anello deve essere rimasto intatto. Se qualcuno
- * scrivesse lì dei dati, il solutore userebbe valori inventati al posto delle
- * condizioni al contorno.
+ * The opposite case is also checked: where the neighbour does not exist,
+ * because the domain ends there, the ring must have stayed intact. If someone
+ * wrote data there, the solver would use invented values in place of the
+ * boundary conditions.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,8 +23,8 @@
 #define SEGNAPOSTO ((Real)-987654.0)
 
 /*
- * Numero che identifica una cella dalla sua posizione nel dominio: e' il suo
- * indice globale, quindi due celle diverse hanno sempre numeri diversi.
+ * Number that identifies a cell by its position in the domain: it is its
+ * global index, so two different cells always have different numbers.
  */
 static Real tag_of(const Decomp *d, int gi, int gj, int gk) {
     long long plane = (long long)d->n_global[0] * d->n_global[1];
@@ -49,8 +49,8 @@ int main(int argc, char **argv)
 
     Real *field = xmalloc(d.n_cells * sizeof(Real));
 
-    /* Tutto segnaposto, comprese le celle possedute: cosi' un anello che non
-     * viene riempito resta riconoscibile. */
+    /* All placeholder, owned cells included: this way a ring that is not
+     * filled stays recognisable. */
     for (size_t i = 0; i < d.n_cells; i++) {
         field[i] = SEGNAPOSTO;
     }
@@ -68,14 +68,14 @@ int main(int argc, char **argv)
 
     par_exchange_halo(&d, field);
 
-    long long wrong_values = 0;   /* anello riempito male          */
-    long long wrong_walls = 0;    /* anello scritto dove non serve */
+    long long wrong_values = 0;   /* ring filled wrongly */
+    long long wrong_walls = 0;    /* ring written where it is not needed */
 
     for (int axis = 0; axis < 3; axis++) {
         int first = (axis + 1) % 3;
         int second = (axis + 2) % 3;
 
-        /* I due anelli: sotto la prima faccia e sopra l'ultima. */
+        /* The two rings: below the first face and above the last. */
         for (int side = 0; side < 2; side++) {
             int slot = (side == 0) ? -1 : d.n[axis];
             int step = (side == 0) ? -1 : +1;

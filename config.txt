@@ -1,36 +1,36 @@
-# Parametri della simulazione, letti all'avvio da ./solver.
+# Simulation parameters, read at start-up by ./solver.
 #
 #   mpirun -n 8 ./solver config.txt paper_data
 #
-# Ogni chiave e' opzionale: quelle che ometti restano al valore di default
-# scelto a compilazione.  Le righe vuote e quelle che cominciano per '#' sono
-# commenti.  Una chiave sconosciuta o un valore fuori posto fermano il
-# programma indicando file e numero di riga.
+# Every key is optional: the ones you omit keep the default value chosen at
+# compile time. Blank lines and those starting with '#' are comments. An
+# unknown key or an invalid value stops the program, reporting the file and
+# line number.
 
-# --- griglia ---------------------------------------------------------------
+# --- grid ------------------------------------------------------------------
 width  = 64
 height = 64
 depth  = 64
 
-# --- dominio fisico --------------------------------------------------------
+# --- physical domain -------------------------------------------------------
 lx = 3.141592653589793
 ly = 3.141592653589793
 lz = 3.141592653589793
 
-# --- tempo -----------------------------------------------------------------
-# dt viene ricavato: dt = t_end / steps
+# --- time ------------------------------------------------------------------
+# dt is derived: dt = t_end / steps
 t_end = 0.25
 steps = 50
 
-# --- fisica ----------------------------------------------------------------
+# --- physics ---------------------------------------------------------------
 nu = 1.0
 
 # --- output ----------------------------------------------------------------
-# Ogni quanti passi scrivere.  Oggi ./solver non scrive comunque nulla:
-# vedi la nota sul flag di scrittura.
+# How often to write. Today ./solver writes nothing anyway: see the note on the
+# write flag.
 wr_freq = 5
 
 # --- pipeline ----------------------------------------------------------------
-# Linee per batch del backend pipeline. 0 le fa scegliere all'avvio in base ai
-# thread per processo; Schur ignora la chiave.
+# Lines per batch of the pipeline backend. 0 lets it choose at start-up based
+# on the threads per process; Schur ignores the key.
 # pipeline_batch_lines = 0

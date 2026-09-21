@@ -5,27 +5,27 @@
 #PBS -l walltime=00:30:00
 #PBS -j oe
 #
-# Fase 12 -- il prodotto pieno rank x thread.
+# Phase 12 -- the full rank x thread product.
 #
-# La 05 misura la diagonale: rank x thread costante, uguale ai core fisici.
-# Quella diagonale confonde tre cose -- quanti thread ha ogni rank, quanto e'
-# carica la macchina, e come e' diviso il dominio -- e infatti la lettura di
-# MULTITHREAD.md 9.2 ci si e' rotta sopra (vedi hybrid-collapse).
+# Phase 05 measures the diagonal: rank x thread constant, equal to the physical
+# cores. That diagonal confounds three things -- how many threads each rank
+# has, how loaded the machine is, and how the domain is divided -- and indeed
+# the reading of MULTITHREAD.md 9.2 broke on it (see hybrid-collapse).
 #
-# Questa fase riempie il rettangolo invece della diagonale: OGNI coppia (rank,
-# thread) che sta nel nodo, per entrambi i backend, con e senza SIMD. Con il
-# rettangolo pieno le tre cose si separano da sole:
+# This phase fills the rectangle instead of the diagonal: EVERY (rank, thread)
+# pair that fits in the node, for both backends, with and without SIMD. With
+# the full rectangle the three things separate by themselves:
 #
-#   - a rank fissi, leggendo lungo i thread, cambiano solo i thread;
-#   - a thread fissi, leggendo lungo i rank, cambia solo la divisione;
-#   - le anti-diagonali a prodotto costante sono le righe della 05, e adesso
-#     hanno intorno il contesto che mancava.
+#   - at fixed ranks, reading along the threads, only the threads change;
+#   - at fixed threads, reading along the ranks, only the division changes;
+#   - the anti-diagonals at constant product are the rows of phase 05, and now
+#     they have around them the context that was missing.
 #
-# La previsione, dal codice: sulla pipeline i thread rendono poco comunque,
-# perche' ogni livello e' una barriera (vedi PIPELINE, batch e barriere), e
-# quindi la colonna a molti thread dovrebbe essere piatta e migliorare con
-# batch grandi -- che e' quello che misura la 13. Su Schur invece i thread
-# rendono finche' l'asse non e' diviso.
+# The prediction, from the code: on the pipeline the threads pay off little
+# anyway, because every level is a barrier (see PIPELINE, batch and barriers),
+# and therefore the many-thread column should be flat and improve with large
+# batches -- which is what phase 13 measures. On Schur instead the threads pay
+# off as long as the axis is not divided.
 #
 #   qsub scripts/study/12_matrix_hybrid.sh
 
@@ -43,9 +43,9 @@ STUDY_CHAIN_MAX="$MATRIX_CHAIN_MAX"
 study_begin 12_matrix_hybrid
 study_machine
 
-# La taglia principale, dove si prova il rettangolo con e senza SIMD.
+# The main size, where the rectangle is tried with and without SIMD.
 FULL_GRID="${FULL_GRID:-224}"
-# Le altre, dove si prova solo con SIMD acceso.
+# The others, where it is tried only with SIMD on.
 PLAIN_GRIDS="${PLAIN_GRIDS:-128}"
 
 CASE_OMP=1
@@ -56,16 +56,16 @@ CASE_TIMEOUT="${CASE_TIMEOUT:-1200}"
 emit_rectangle()
 {
     local grid="$1" simd="$2" steps="$3" backend r t shape coppia
-    # La lista si legge tutta prima: dentro il ciclo c'e' study_case, che
-    # lancia il solver, e un programma che legge stdin si mangerebbe le
-    # coppie che restano.
+    # The list is read entirely first: inside the loop there is study_case,
+    # which launches the solver, and a program that reads stdin would eat the
+    # pairs that remain.
     local coppie=()
     mapfile -t coppie < <(matrix_pairs)
 
     for backend in $MATRIX_BACKENDS; do
-        # L'angolo del rettangolo: un rank, un thread, e prima ancora il
-        # binario in cui MPI e OpenMP non sono nemmeno compilati. Tutte le
-        # coppie qui sotto si leggono rispetto a questi due.
+        # The corner of the rectangle: one rank, one thread, and even before
+        # that the binary in which MPI and OpenMP are not even compiled. All
+        # the pairs below are read with respect to these two.
         study_baseline label="$backend s$simd" \
             backend="$backend" simd="$simd" grid="$grid" steps="$steps"
 
@@ -99,8 +99,8 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo "=== the rectangle: ms/step, rows are ranks, columns are threads ==="
     awk -F, -v phase=12_matrix_hybrid -v tlist="$MATRIX_THREADS" '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
-    # I riferimenti hanno un rank e un thread: senza questo finirebbero
-    # nella cella R=1 T=1 del rettangolo, dove sta un caso vero.
+    # The references have one rank and one thread: without this they would end
+    # up in the cell R=1 T=1 of the rectangle, where a real case sits.
     $2 ~ / (seriale|T\(1\))$/ { next }
     {
         k = $3 "," $5 "," $10

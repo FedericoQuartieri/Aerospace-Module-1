@@ -8,30 +8,30 @@
 #include <stdlib.h>
 
 /*
- * Lo scratch del complemento di Schur.
+ * The scratch of the Schur complement.
  *
- * Prima stava sullo stack di solver_solve, che percio' doveva conoscere sia
- * momentum_scratch_slice sia SchurPlan: due dettagli di questo backend in un
- * file condiviso.  Ora ci arriva attraverso SolverMemState.backend, e
- * solver.c non sa piu' che esistano.
+ * Before, it lived on the stack of solver_solve, which therefore had to know
+ * both momentum_scratch_slice and SchurPlan: two details of this backend in a
+ * shared file. Now it reaches it through SolverMemState.backend, and solver.c
+ * no longer knows they exist.
  */
 
 void backend_init(const Decomp *d, SolverMemState *solver_mem_state) {
     SchurBackend *backend = xmalloc(sizeof(SchurBackend));
 
     /*
-     * I solutori scalari usano una linea di griglia; i kernel SIMD tengono
-     * piu' linee indipendenti interlacciate negli stessi buffer.  Una copia
-     * per thread, una dietro l'altra: i kernel si prendono la propria con
-     * momentum_scratch_slice, che e' la stessa formula usata qui.
+     * The scalar solvers use one grid line; the SIMD kernels keep several
+     * independent lines interleaved in the same buffers. One copy per thread,
+     * one behind the other: the kernels take their own with
+     * momentum_scratch_slice, which is the same formula used here.
      */
     backend->scratch_size =
         momentum_scratch_slice(d) * (size_t)workers_available();
     backend->rhs = xmalloc(backend->scratch_size * sizeof(Real));
     backend->tmp = xmalloc(backend->scratch_size * sizeof(Real));
 
-    /* Le tre matrici della pressione non dipendono dal passo temporale: si
-     * preparano adesso, una volta per tutte. */
+    /* The three pressure matrices do not depend on the time step: they are
+     * prepared now, once and for all. */
     pressure_plans_init(d, backend->pressure_plan);
 
     solver_mem_state->backend = backend;

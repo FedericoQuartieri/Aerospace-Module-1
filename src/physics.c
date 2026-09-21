@@ -18,35 +18,41 @@ static Real spacing_from_component(int component) {
     }
 }
 
-// calcola beta in base alla permeaabilità k, secondo la formula beta = 1 + (DT * NU) / (2 * k)
+// computes beta from the permeability k, according to the formula beta = 1 +
+// (DT * NU) / (2 * k)
 Real beta_from_k(Real k) {
     return 1.0 + (DT * NU) / (2.0 * k);
 }
 
-// calcola gamma in base alla permeaabilità k, secondo la formula gamma = (DT * NU) / (2 * beta)
+// computes gamma from the permeability k, according to the formula gamma = (DT
+// * NU) / (2 * beta)
 Real gamma_from_k(Real k) {
     Real beta = beta_from_k(k);
     return (DT * NU) / (2.0 * beta);
 }
 
-//ritorna il tempo fisico corrispondente al passo temporale t_step, secondo la formula t = t_step * DT
+// returns the physical time corresponding to the time step t_step, according
+// to the formula t = t_step * DT
 Real time_physical_coord(Real t_step) {
     return t_step * (Real)DT;
 }
 
-//ritorna la coordinata fisica centrata di un punto con indice index e componente component, secondo la formula x = index * spacing
+// returns the centred physical coordinate of a point with index index and
+// component component, according to the formula x = index * spacing
 Real centered_physical_coord(int index, int component) {
     return (Real)index * spacing_from_component(component);
 }
 
-//ritorna la coordinata fisica sfalsata di 0.5 di un punto con indice index e componente component, secondo la formula x = (index + 0.5) * spacing
+// returns the physical coordinate, staggered by 0.5, of a point with index
+// index and component component, according to the formula x = (index + 0.5) *
+// spacing
 Real staggered_physical_coord(int index, int component) {
     return ((Real)index + 0.5) * spacing_from_component(component);
 }
 
-//se il passo temporale è 0, ritorna il valore della funzione di velocità al tempo t,
-// altrimenti ritorna la differenza tra il valore della funzione di velocità
-// al tempo t e il valore della funzione di velocità al tempo t - DT
+// if the time step is 0, returns the value of the velocity function at time t,
+// otherwise returns the difference between the value of the velocity function
+// at time t and its value at time t - DT
 static inline Real boundary_increment(VectorFunction bc_velocity,
                                       Real x, Real y, Real z,
                                       Real t, int t_step, int component) {
@@ -58,15 +64,13 @@ static inline Real boundary_increment(VectorFunction bc_velocity,
 }
 
 /*
- * Restituisce l'incremento al bordo u(t_step) - u(t_step - 1).
- * Su una faccia inferiore, la componente normale viene ricostruita dal
- * vincolo di divergenza nulla; le componenti tangenziali vengono campionate
- * direttamente. Sui bordi inferiori e negli angoli ha la precedenza il
- * valore sfalsato prescritto.
+ * Returns the boundary increment u(t_step) - u(t_step - 1). On a lower face,
+ * the normal component is reconstructed from the zero-divergence constraint;
+ * the tangential components are sampled directly. On the lower edges and in
+ * the corners the prescribed staggered value takes precedence.
  *
- * i, j, k sono indici globali, quindi i test sulle facce sottostanti
- * selezionano il bordo fisico del dominio anziché il bordo di un blocco di
- * processo.
+ * i, j, k are global indices, so the tests on the faces below select the
+ * physical boundary of the domain rather than the boundary of a process block.
  */
 Real bc_left(VectorFunction bc_velocity,
              int i, int j, int k, int t_step, int component) {
@@ -78,15 +82,15 @@ Real bc_left(VectorFunction bc_velocity,
     Real vy = y + (Real)DY / 2.0;
     Real vz = z + (Real)DZ / 2.0;
 
-    //vale 0 se il punto è interno, 1 se è su una faccia, 
-    //2 se è su uno spigolo, 3 se è su un vertice
+    // is 0 if the point is interior, 1 if it is on a face, 2 if it is on an
+    // edge, 3 if it is on a vertex
     int lower_face_count = (i == 0) + (j == 0) + (k == 0);
 
     if ((unsigned int)component > 2U) {
         fprintf(stderr, "Invalid vector component: %d\n", component);
         exit(1);
     }
-    // 0 => non fa nulla
+    // 0 => does nothing
     if (lower_face_count == 0) {
         return 0.0;
     }
@@ -95,8 +99,9 @@ Real bc_left(VectorFunction bc_velocity,
     boundary_increment(bc_velocity, (px), (py), (pz), \
                        t, t_step, (comp))
 
-    // lower_face_count > 1 significa che il punto è su uno spigolo o un vertice, quindi
-    // si fa un incremento in base alla componente normale della velocità, che ha la precedenza sulle altre
+    // lower_face_count > 1 means the point is on an edge or a vertex, so an
+    // increment is made based on the normal component of the velocity, which
+    // takes precedence over the others
     if (lower_face_count > 1) {
         switch (component) {
             case 0:
@@ -234,7 +239,8 @@ Real bc_right(VectorFunction bc_velocity,
     return 0.0;
 }
 
-//ritorna la derivata seconda a 3 punti standard, secondo la formula (f(x - h) - 2 * f(x) + f(x + h)) / (h^2)
+// returns the standard 3-point second derivative, according to the formula
+// (f(x - h) - 2 * f(x) + f(x + h)) / (h^2)
 static inline Real interior_second_derivative(const Real *restrict field,
                                               size_t index,
                                               size_t stride,
@@ -244,7 +250,8 @@ static inline Real interior_second_derivative(const Real *restrict field,
             field[index + stride]) * inverse_spacing_square;
 }
 
-//ritorna la derivata seconda a 3 punti con condizione al contorno, secondo la formula (f(x - h) - 3 * f(x) + 2 * boundary_value) / (h^2)
+// returns the 3-point second derivative with boundary condition, according to
+// the formula (f(x - h) - 3 * f(x) + 2 * boundary_value) / (h^2)
 static inline Real upper_second_derivative(const Real *restrict field,
                                            size_t index,
                                            size_t stride,
@@ -256,10 +263,10 @@ static inline Real upper_second_derivative(const Real *restrict field,
 }
 
 /*
- * L'ultima riga di g, per conto suo perche' tre percorsi devono arrotondarla
- * allo stesso modo: g_value, il ciclo scalare di g_line e il suo blocco
- * vettoriale.  Spezzarla diversamente -- sommare prima lo stencil e aggiungere
- * la forzante dopo, per dire -- cambierebbe l'ultimo bit del risultato.
+ * The last line of g, on its own because three paths must round it in the same
+ * way: g_value, the scalar loop of g_line and its vector block. Splitting it
+ * differently -- adding the stencil first and the forcing afterwards, say --
+ * would change the last bit of the result.
  */
 static inline Real g_combine(Real forcing, Real gradient, Real drag,
                              Real laplacian_sum) {
@@ -269,11 +276,11 @@ static inline Real g_combine(Real forcing, Real gradient, Real drag,
 #if defined(USE_SIMD) && SIMD_AVAILABLE
 
 /*
- * Le due qui sopra, un vettore di celle x adiacenti alla volta.  Adiacenti
- * vuol dire contigue (stride[0] == 1), quindi i vicini lungo ogni asse sono
- * letture normali non allineate: niente gather, niente trasposizioni.  Le
- * operazioni sono nello stesso ordine delle versioni scalari, ed e' quello a
- * tenere i due percorsi uguali fino all'ultima cifra.
+ * The two above, one vector of adjacent x cells at a time. Adjacent means
+ * contiguous (stride[0] == 1), so the neighbours along each axis are ordinary
+ * unaligned loads: no gather, no transpositions. The operations are in the
+ * same order as the scalar versions, and that is what keeps the two paths
+ * equal down to the last digit.
  */
 static inline SimdReal interior_second_derivative_simd(
     const Real *restrict field,
@@ -299,10 +306,10 @@ static inline SimdReal g_combine_simd(SimdReal forcing, SimdReal gradient,
 #endif
 
 /*
- * Le coordinate della cella (i, j, k), con la mezza cella che g_value aggiunge
- * alla componente richiesta.  Sono scritte qui una volta sola perche' i tre
- * modi di arrivare alla forzante -- la linea, la singola cella e g_value --
- * devono valutarla nello stesso punto fino all'ultimo bit.
+ * The coordinates of cell (i, j, k), with the half cell that g_value adds to
+ * the requested component. They are written here just once because the three
+ * ways of reaching the forcing -- the line, the single cell and g_value --
+ * must evaluate it at the same point down to the last bit.
  */
 static void forcing_coords(const Decomp *d, int i, int j, int k,
                            int component, Real *x, Real *y, Real *z) {
@@ -327,7 +334,7 @@ void forcing_line_coords(const Decomp *d, int component, Real *restrict xs) {
     for (int i = 0; i < d->n[0]; i++) {
         Real x = (Real)decomp_global(d, i, 0) * (Real)DX;
 
-        /* La mezza cella che g_value aggiunge alla componente x. */
+        /* The half cell that g_value adds to the x component. */
         if (component == 0) {
             x += (Real)DX / 2.0;
         }
@@ -343,7 +350,7 @@ void forcing_fill_line(const Decomp *d, const Data *data,
     Real z = (Real)decomp_global(d, k, 2) * (Real)DZ;
     Real t = forcing_time_of(t_step);
 
-    /* Le stesse mezze celle di g_value, nello stesso ordine di operazioni. */
+    /* The same half cells as g_value, in the same order of operations. */
     if (component == 1) {
         y += (Real)DY / 2.0;
     } else if (component == 2) {
@@ -355,8 +362,8 @@ void forcing_fill_line(const Decomp *d, const Data *data,
         return;
     }
 
-    /* Nessuna versione a linea: si paga il prezzo di prima, una chiamata per
-     * cella, ma il ciclo interno del chiamante resta comunque pulito. */
+    /* No line version: one pays the price as before, one call per cell, but
+     * the caller's inner loop stays clean anyway. */
     for (int i = 0; i < n; i++) {
         out[i] = data->forcing_fn(xs[i], y, z, t, component);
     }
@@ -383,9 +390,10 @@ Real forcing_at_cell(const Decomp *d, const Data *data,
  * component.  Tangential upper faces use a Dirichlet ghost value.
  */
 /*
- * Il nucleo di g. `forzante_pronta' dice se usare il valore che arriva da
- * fuori -- chi percorre le linee lo ha gia' calcolato per tutta la linea --
- * oppure valutarlo qui, dove x, y e z sono gia' sfalsate per la componente.
+ * The core of g. `forzante_pronta' says whether to use the value that comes
+ * from outside -- whoever walks the lines has already computed it for the
+ * whole line -- or to evaluate it here, where x, y and z are already staggered
+ * for the component.
  */
 static Real g_core(const Decomp *d,
                    int i, int j, int k, int t_step, Real k_i,
@@ -400,21 +408,22 @@ static Real g_core(const Decomp *d,
      * The support of g and the ghost-value reconstruction below are properties
      * of the physical boundary, so both are decided on the global indices.
      */
-    //gi, gj, gk sono gli indici globali del punto (i, j, k)
+    // gi, gj, gk are the global indices of point (i, j, k)
     int gi = decomp_global(d, i, 0);
     int gj = decomp_global(d, j, 1);
     int gk = decomp_global(d, k, 2);
 
-    //la forzante arriva gia' valutata in (t_step - 1/2) DT; per la velocità
-    //serve invece t_step - 1
+    // the forcing arrives already evaluated at (t_step - 1/2) DT; for the
+    // velocity, instead, t_step - 1 is needed
     Real velocity_time = ((Real)t_step - 1.0) * (Real)DT;
     
-    //upper_x, upper_y, upper_z sono le coordinate fisiche del bordo superiore del dominio
+    // upper_x, upper_y, upper_z are the physical coordinates of the upper
+    // boundary of the domain
     Real upper_x = ((Real)d->n_global[0] - 0.5) * (Real)DX;
     Real upper_y = ((Real)d->n_global[1] - 0.5) * (Real)DY;
     Real upper_z = ((Real)d->n_global[2] - 0.5) * (Real)DZ;
 
-    //x, y, z sono le coordinate fisiche del punto (gi, gj, gk)
+    // x, y, z are the physical coordinates of point (gi, gj, gk)
     Real x = (Real)gi * (Real)DX;
     Real y = (Real)gj * (Real)DY;
     Real z = (Real)gk * (Real)DZ;
@@ -431,10 +440,9 @@ static Real g_core(const Decomp *d,
     switch (component) {
         case 0:
 
-        //se il punto è su una faccia inferiore o su una faccia superiore,
-        // ritorna 0 perché il valore della velocità lì è imposto dalle bc,
-        // quindi non c'è bisogno di calcolare g, la stessa cosa vale,
-        // per il case 1 e 2
+        // if the point is on a lower face or on an upper face, returns 0
+        // because the velocity value there is imposed by the bcs, so there is
+        // no need to compute g; the same holds for case 1 and 2
             if (gi < 1 || gi >= d->n_global[0] - 1 ||
                 gj < 1 || gj >= d->n_global[1] ||
                 gk < 1 || gk >= d->n_global[2]) {
@@ -573,17 +581,17 @@ Real g_value_here(const Decomp *d,
 }
 
 /*
- * g di tutta una linea lungo x.
+ * g of a whole line along x.
  *
- * Ogni test che g_value fa per cella qui si fa una volta per linea, perche' il
- * supporto di g e la scelta del nodo fantasma dipendono da j e k, che sulla
- * linea non cambiano.  Quello che sopravvive e' un'espressione dritta su celle
- * vicine in memoria, quindi il blocco vettoriale e' la stessa aritmetica del
- * ciclo scalare che lo segue, un vettore di celle alla volta.
+ * Every test that g_value does per cell is done here once per line, because
+ * the support of g and the choice of the ghost node depend on j and k, which
+ * do not change along the line. What survives is a straight expression on
+ * cells that are close in memory, so the vector block is the same arithmetic
+ * as the scalar loop that follows it, one vector of cells at a time.
  *
- * I pezzi che invece cambiano da cella a cella -- la forzante e i due estremi
- * della linea -- non sono riscritti: la forzante la fa lo scenario, gli
- * estremi tornano a g_value.
+ * The pieces that instead change from cell to cell -- the forcing and the two
+ * ends of the line -- are not rewritten: the forcing is done by the scenario,
+ * the ends go back to g_value.
  */
 void g_line(const Decomp *d, const Data *data,
             const SolverMemState *solver_mem_state,
@@ -600,7 +608,7 @@ void g_line(const Decomp *d, const Data *data,
     const Real *restrict velocity;
     size_t gradient_stride;
     Real gradient_inverse;
-    /* Sono proprieta' della linea, non della cella. */
+    /* They are properties of the line, not of the cell. */
     bool in_support;
     bool leans_on_ghost;
     int first;
@@ -649,8 +657,8 @@ void g_line(const Decomp *d, const Data *data,
             return;
     }
 
-    /* Fuori dal supporto in j o k la linea e' tutta zero, una cella come
-     * l'altra: e' quello che g_value risponde li'. */
+    /* Outside the support in j or k the line is all zero, one cell like any
+     * other: it is what g_value answers there. */
     if (!in_support) {
         for (n = 0; n < count; n++) {
             out[n] = 0.0;
@@ -658,15 +666,15 @@ void g_line(const Decomp *d, const Data *data,
         return;
     }
 
-    /* La forzante di tutta la linea prima di tutto: la ritrovano sia il ciclo
-     * vettoriale sia le celle che tornano a g_value. */
+    /* The forcing of the whole line first of all: both the vector loop and the
+     * cells that go back to g_value find it there. */
     forcing_fill_line(d, data, j, k, t_step, component, xs, out);
 
     /*
-     * Una linea che appoggia su un nodo fantasma legge il valore alla parete
-     * nell'ascissa della cella, quindi cambia da una cella all'altra e non
-     * resta niente da issare fuori.  Quelle linee sono due piani del blocco:
-     * tengono il percorso di prima, cella per cella.
+     * A line that rests on a ghost node reads the value at the wall at the
+     * abscissa of the cell, so it changes from one cell to the next and there
+     * is nothing left to hoist out. Those lines are two planes of the block:
+     * they keep the previous path, cell by cell.
      */
     if (leans_on_ghost) {
         for (n = 0; n < count; n++) {
@@ -677,11 +685,11 @@ void g_line(const Decomp *d, const Data *data,
     }
 
     /*
-     * Le celle scritte dal percorso veloce sono quelle di indice globale da 1
-     * a n_global[0] - 2.  Ne resta al piu' una per estremo: gi == 0, sempre
-     * fuori supporto, e gi == n_global[0] - 1, fuori supporto per la
-     * componente x e nodo fantasma per le altre due.  Tornano tutt'e due a
-     * g_value, cosi' quell'algebra resta scritta una volta sola.
+     * The cells written by the fast path are those with global index from 1 to
+     * n_global[0] - 2. At most one per end remains: gi == 0, always outside
+     * the support, and gi == n_global[0] - 1, outside the support for the x
+     * component and a ghost node for the other two. Both go back to g_value,
+     * so that algebra stays written just once.
      */
     first = 1 - d->start[0];
     fast_end = d->n_global[0] - 1 - d->start[0];
@@ -740,8 +748,8 @@ void g_line(const Decomp *d, const Data *data,
     }
 #endif
 
-    /* Le celle che i vettori non hanno coperto, e tutta la linea quando la
-     * build non ha SIMD: stessa espressione, una cella alla volta. */
+    /* The cells that the vectors did not cover, and the whole line when the
+     * build has no SIMD: same expression, one cell at a time. */
     for (; n < fast_end; n++) {
         size_t at = row + (size_t)n;
         Real pressure_gradient =

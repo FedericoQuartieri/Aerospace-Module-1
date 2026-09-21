@@ -5,27 +5,28 @@
 #PBS -l walltime=00:30:00
 #PBS -j oe
 #
-# Fase 15 -- la matrice risolve ancora il problema giusto?
+# Phase 15 -- does the matrix still solve the right problem?
 #
-# Le altre cinque fasi misurano tempi. Un tempo di una configurazione che da'
-# la risposta sbagliata non e' un tempo lento, e' un numero senza significato,
-# e la campagna ne produce migliaia senza guardare nemmeno una volta il
-# risultato. Questa fase guarda solo quello.
+# The other five phases measure times. A time of a configuration that gives the
+# wrong answer is not a slow time, it is a number without meaning, and the
+# campaign produces thousands of them without looking even once at the result.
+# This phase looks only at that.
 #
-# Ogni caso gira con BENCH_NORMS=1, che calcola le norme dell'errore contro la
-# soluzione esatta, e le mette nel CSV (colonne l2_ux e l2_p). La proprieta' da
-# verificare e' che siano LE STESSE per ogni configurazione: il risultato non
-# deve dipendere da quanti processi, quanti thread, quale backend, quale forma
-# della griglia, quale batch. E' la stessa proprieta' che check_pipeline.sh
-# verifica in piccolo, qui allargata a tutta la matrice.
+# Every case runs with BENCH_NORMS=1, which computes the error norms against
+# the exact solution, and puts them in the CSV (columns l2_ux and l2_p). The
+# property to verify is that they are THE SAME for every configuration: the
+# result must not depend on how many processes, how many threads, which
+# backend, which shape of the grid, which batch. It is the same property that
+# check_pipeline.sh verifies on a small scale, here widened to the whole
+# matrix.
 #
-# Griglia piccola apposta: la correttezza non ha bisogno della taglia, e a
-# 64^3 questi casi costano pochi secondi l'uno. La colonna che conta e' la
-# differenza fra le norme, non il loro valore.
+# Small grid on purpose: correctness does not need the size, and at 64^3 these
+# cases cost a few seconds each. The column that matters is the difference
+# between the norms, not their value.
 #
-# Un caso che qui esce diverso dagli altri invalida tutte le righe delle altre
-# fasi con la stessa configurazione, e va risolto prima di leggere qualunque
-# tempo.
+# A case that comes out different from the others here invalidates all the rows
+# of the other phases with the same configuration, and must be solved before
+# reading any time.
 #
 #   qsub scripts/study/15_matrix_check.sh
 
@@ -48,8 +49,8 @@ study_machine
 GRID="${CHECK_GRID:-64}"
 CHECK_RANKS="${CHECK_RANKS:-1 2 4 7 8 14 28}"
 CHECK_THREADS="${CHECK_THREADS:-1 2 7 8}"
-# auto e' il batch scelto all'avvio, quello che usano le altre fasi: deve
-# dare le stesse norme dei valori fissati a compilazione.
+# auto is the batch chosen at start-up, the one the other phases use: it must
+# give the same norms as the values fixed at compile time.
 CHECK_BATCHES="${CHECK_BATCHES:-1 7 64 1024 auto}"
 
 grid="$GRID $GRID $GRID"
@@ -57,16 +58,16 @@ steps="$(matrix_steps "$GRID")"
 
 CASE_MPI=1
 CASE_OMP=1
-# Una ripetizione basta: qui non si cronometra niente.
+# One repetition is enough: nothing is timed here.
 CASE_REPEATS=1
 CASE_NORMS=1
 CASE_TIMEOUT="${CASE_TIMEOUT:-600}"
 
-# Il riferimento vero di tutta la fase. Qui non serve solo a normalizzare i
-# tempi: e' la norma L2 contro cui tutte le righe seguenti devono combaciare.
-# Un binario senza MPI e senza OpenMP non puo' sbagliare per colpa di una
-# divisione o di un thread, quindi se una forma se ne discosta e' quella forma
-# ad avere torto, non il riferimento.
+# The true reference of the whole phase. Here it does not only serve to
+# normalise the times: it is the L2 norm against which all the following rows
+# must match. A binary without MPI and without OpenMP cannot go wrong because
+# of a division or a thread, so if a shape departs from it, it is that shape
+# that is wrong, not the reference.
 echo "=== the baselines: serial and single process ==="
 # Always present, even when MATRIX_BACKENDS/SIMD restrict the sweep.
 study_case label="reference serial" backend=schur simd=0 omp=0 mpi=0 \

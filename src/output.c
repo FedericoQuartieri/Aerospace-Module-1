@@ -14,23 +14,23 @@
 #define VTK_REAL_TYPE "Float64"
 #endif
 
-/* Un pezzo per processo; l'indice .pvti li elenca tutti. */
+/* One piece per process; the .pvti index lists them all. */
 #define PIECE_NAME "sol_%04d_p%03d.vti"
 
 /*
- * Quanti punti in piu' scrivere su ogni faccia superiore: uno dove c'e' un
- * vicino, nessuno dove finisce il dominio.
+ * How many more points to write on each upper face: one where there is a
+ * neighbour, none where the domain ends.
  *
- * Nei file ImageData di VTK l'extent conta i punti, e la cella fra due blocchi
- * sta fra l'ultimo punto dell'uno e il primo dell'altro: se i pezzi si toccano
- * senza sovrapporsi, quella fila di celle non appartiene a nessuno e ParaView
- * si rifiuta di rimontare il dominio.  I pezzi adiacenti devono percio'
- * condividere un punto.  Il valore da scrivere e' gia' in casa: e' quello che
- * il vicino ha mandato nell'anello di contorno.
+ * In VTK ImageData files the extent counts the points, and the cell between
+ * two blocks lies between the last point of one and the first of the other: if
+ * the pieces touch without overlapping, that row of cells belongs to nobody
+ * and ParaView refuses to reassemble the domain. Adjacent pieces must
+ * therefore share a point. The value to write is already at home: it is the
+ * one the neighbour sent in the boundary ring.
  *
- * Ogni ciclo che riversa un campo nel file va quindi da 0 a n + extra, e con
- * lui il conto dei byte dichiarato nell'intestazione: sbagliarne uno solo
- * produce un pezzo che ParaView non riesce a leggere.
+ * Every loop that dumps a field into the file therefore goes from 0 to n +
+ * extra, and so does the byte count declared in the header: getting even one
+ * of them wrong produces a piece that ParaView cannot read.
  */
 static void write_overlap(const Decomp *d, int extra[3]) {
     for (int c = 0; c < 3; c++) {
@@ -58,34 +58,36 @@ static void write_extents(FILE *fp, const Decomp *d) {
 }
 
 /*
- * Le componenti della velocita' vivono su griglia staggered (MAC): rispetto al
- * nodo (i, j, k) dove sta la pressione, v_x e' mezza cella avanti lungo X, v_y
- * lungo Y e v_z lungo Z -- e' quello che fa vectorField_fill chiamando
- * staggered_physical_coord sulla direzione della componente.
+ * The velocity components live on a staggered (MAC) grid: with respect to the
+ * node (i, j, k) where the pressure sits, v_x is half a cell ahead along X,
+ * v_y along Y and v_z along Z -- that is what vectorField_fill does by calling
+ * staggered_physical_coord on the direction of the component.
  *
- * Il formato ImageData pero' dichiara un solo Origin per tutti gli array di
- * punti, quindi scrivere le tre componenti grezze dello stesso indice come un
- * vettore mette insieme tre valori presi in tre posti diversi: il modulo che ne
- * esce non e' il modulo di nessuna velocita' reale, e sbaglia di O(h) anche
- * quando il campo e' esatto.  Prima di scrivere si riportano quindi tutte e tre
- * sul nodo centrato, lo stesso dove sta gia' la pressione.
+ * The ImageData format, however, declares a single Origin for all the point
+ * arrays, so writing the three raw components of the same index as a vector
+ * puts together three values taken in three different places: the magnitude
+ * that comes out is not the magnitude of any real velocity, and it is wrong by
+ * O(h) even when the field is exact. Before writing, all three are therefore
+ * brought to the cell-centred node, the same one where the pressure already
+ * sits.
  *
- *   nodo(i) = ( v[i-1] + v[i] ) / 2      v[i-1] sta in (i-0.5)h, v[i] in (i+0.5)h
+ *   node(i) = ( v[i-1] + v[i] ) / 2     v[i-1] at (i-0.5)h, v[i] at (i+0.5)h
  *
- * Sul muro inferiore del dominio il vicino in (-0.5)h non esiste: si estrapola
- * dai due nodi staggered piu' vicini, che resta del secondo ordine come la
- * media.
+ * On the lower wall of the domain the neighbour at (-0.5)h does not exist: one
+ * extrapolates from the two nearest staggered nodes, which stays second order
+ * like the average.
  *
- *   nodo(0) = 1.5 * v[0] - 0.5 * v[1]
+ *   node(0) = 1.5 * v[0] - 0.5 * v[1]
  *
- * Al confine fra due blocchi il vicino invece c'e', e sta nel ghost layer che
- * solver.c aggiorna subito prima di scrivere: li' si usa la media, cosi' il
- * campo scritto non ha cuciture e non dipende da come la griglia e' spartita.
+ * On the boundary between two blocks the neighbour does exist, and it sits in
+ * the ghost layer that solver.c refreshes right before writing: there the
+ * average is used, so the written field has no seams and does not depend on
+ * how the grid is divided.
  */
 enum node_rule {
-    NODE_AVERAGE,      /* il vicino indietro esiste: media dei due */
-    NODE_EXTRAPOLATE,  /* muro inferiore: estrapola dai due in avanti */
-    NODE_RAW           /* blocco spesso una cella: non c'e' altro da usare */
+    NODE_AVERAGE,      /* the backward neighbour exists: average of the two */
+    NODE_EXTRAPOLATE,  /* lower wall: extrapolates from the two ahead */
+    NODE_RAW           /* block one cell thick: there is nothing else to use */
 };
 
 static Real node_value(const Real *restrict component, size_t index,
@@ -102,13 +104,13 @@ static Real node_value(const Real *restrict component, size_t index,
     }
 }
 
-/* Quale regola vale per l'indice `i` lungo `axis`. */
+/* Which rule applies to index `i` along `axis`. */
 static enum node_rule rule_for(const Decomp *d, int axis, int i) {
     if (i > 0) {
         return NODE_AVERAGE;
     }
     if (!d->is_first[axis]) {
-        return NODE_AVERAGE;   /* i - 1 e' il ghost, riempito dall'halo */
+        return NODE_AVERAGE;   /* i - 1 is the ghost, filled by the halo */
     }
     return (d->n[axis] > 1) ? NODE_EXTRAPOLATE : NODE_RAW;
 }
@@ -215,8 +217,8 @@ void write_vti_ascii(const Decomp *d,
 #define CHUNK_SIZE 1024
 
 /*
- * Interleave three component arrays into the appended data block, riportando
- * ogni componente dal proprio punto staggered al nodo centrato.
+ * Interleave three component arrays into the appended data block, bringing
+ * each component from its own staggered point to the cell-centred node.
  */
 static void write_velocity_block(FILE *fp,
                                  const Decomp *d,
@@ -261,9 +263,9 @@ static void write_velocity_block(FILE *fp,
 }
 
 /*
- * La permeabilita' e' staggered come la velocita', ma resta grezza: e' una
- * proprieta' del materiale, spesso un indicatore netto di ostacolo, e mediarla
- * ne sfumerebbe il bordo.  Meglio mezza cella di scarto che un contorno finto.
+ * The permeability is staggered like the velocity, but it stays raw: it is a
+ * property of the material, often a sharp obstacle indicator, and averaging it
+ * would blur its edge. Better half a cell of offset than a fake contour.
  */
 static void write_vector_block(FILE *fp,
                                const Decomp *d,
@@ -374,15 +376,15 @@ void write_vti_binary(const Decomp *d,
 #undef CHUNK_SIZE
 
 /*
- * L'indice che tiene insieme i pezzi.
+ * The index that holds the pieces together.
  *
- * Nessuno raccoglie i dati: ogni processo scrive il proprio file, e il rank 0
- * scrive questo elenco di poche righe che dice a ParaView dove sta ciascun
- * pezzo. Aprendo il .pvti si vede il dominio intero.
+ * Nobody gathers the data: each process writes its own file, and rank 0 writes
+ * this list of a few lines that tells ParaView where each piece is. Opening
+ * the .pvti shows the whole domain.
  *
- * Le posizioni degli altri blocchi non se le fa dire da nessuno: conoscendo la
- * forma della griglia di processi, decomp_share ricalcola quali celle spettano
- * a ciascuno con la stessa regola con cui se le sono prese.
+ * Nobody has to tell it the positions of the other blocks: knowing the shape
+ * of the process grid, decomp_share recomputes which cells belong to each one
+ * with the same rule with which they took them.
  */
 static void write_pvti(const Decomp *d,
                        const char *output_directory,
@@ -423,7 +425,7 @@ static void write_pvti(const Decomp *d,
         for (int c = 0; c < 3; c++) {
             decomp_share(d->n_global[c], dims[c], coords[c],
                          &begin[c], &end[c]);
-            /* Come write_overlap, per un rank qualsiasi. */
+            /* Like write_overlap, for any rank. */
             if (coords[c] != dims[c] - 1) {
                 end[c]++;
             }
@@ -469,7 +471,9 @@ void write_to_file(const Decomp *d,
         data_name != NULL && data_name[0] != '\0'
             ? data_name
             : fallback_name;
-    /* Piu' corta dei buffer che la useranno, cosi' il nome del file ci sta. */
+    /*
+     * Shorter than the buffers that will use it, so that the file name fits.
+     */
     char output_directory[256];
     int written = snprintf(output_directory,
                                  sizeof(output_directory),

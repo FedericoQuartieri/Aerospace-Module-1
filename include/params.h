@@ -4,21 +4,21 @@
 #include "types.h"
 
 /*
- * I parametri della simulazione.
+ * The simulation parameters.
  *
- * Erano costanti di compilazione, e cambiare griglia o passo temporale voleva
- * dire ricompilare: e' quello che facevano gli script di convergenza e di
- * scaling, un binario per ogni caso. Ora stanno qui.
+ * They used to be compile-time constants, and changing the grid or the time
+ * step meant recompiling: that is what the convergence and scaling scripts
+ * did, one binary per case. Now they live here.
  *
- * `sim` nasce con i valori di default, che sono ancora quelli scelti a
- * compilazione (DEFAULT_WIDTH e compagni in solver.h): un programma che non
- * legge nessun file si comporta esattamente come prima.
+ * `sim` starts with the default values, which are still the ones chosen at
+ * compile time (DEFAULT_WIDTH and friends in solver.h): a program that reads
+ * no file behaves exactly as before.
  *
- * Si scrive una volta all'avvio e poi si legge soltanto. Va riempita prima di
- * decomp_init_*, che e' il primo a chiedere quanto e' grande la griglia.
+ * It is written once at start-up and only read afterwards. It must be filled
+ * in before decomp_init_*, which is the first to ask how large the grid is.
  *
- * I campi dopo la riga vuota sono ricavati dagli altri, non si leggono da
- * file: params_load li ricalcola dopo ogni lettura.
+ * The fields after the blank line are derived from the others and are not read
+ * from the file: params_load recomputes them after every read.
  */
 typedef struct SimParams {
     int width, height, depth;
@@ -28,8 +28,8 @@ typedef struct SimParams {
     Real nu;
     int wr_freq;
     /*
-     * Linee per batch della pipeline. 0, il default, le lascia scegliere
-     * all'avvio in base ai thread per processo; Schur ignora la chiave.
+     * Lines per pipeline batch. 0, the default, lets the pipeline choose at
+     * start-up based on the threads per process; Schur ignores the key.
      */
     int pipeline_batch_lines;
 
@@ -42,11 +42,10 @@ typedef struct SimParams {
 extern SimParams sim;
 
 /*
- * Legge un file di righe `chiave = valore`, una per riga; le righe vuote e
- * quelle che cominciano per '#' sono commenti. Le chiavi sono i nomi dei campi
- * qui sopra, esclusi i derivati. Una chiave sconosciuta o una riga
- * incomprensibile fermano il programma: un parametro scritto male e' un
- * risultato sbagliato, non un dettaglio.
+ * Reads a file of `key = value` lines, one per line; blank lines and those
+ * starting with '#' are comments. The keys are the names of the fields above,
+ * excluding the derived ones. An unknown key or an unintelligible line stops
+ * the program: a misspelt parameter is a wrong result, not a detail.
  */
 void params_load(const char *path);
 

@@ -66,21 +66,21 @@ static Real paper_forcing(Real x, Real y, Real z, Real t, int component)
 }
 
 /*
- * La stessa forzante di paper_forcing, ma per una linea intera lungo x.
+ * The same forcing as paper_forcing, but for a whole line along x.
  *
- * E' separabile: ogni termine e' un prodotto di un fattore in x, uno in (t+y)
- * e uno in z.  Lungo una linea y, z e t non cambiano, quindi tutto tranne il
- * fattore in x e' una costante da calcolare una volta.
+ * It is separable: each term is a product of a factor in x, one in (t+y) and
+ * one in z. Along a line y, z and t do not change, so everything except the
+ * factor in x is a constant to be computed once.
  *
- * Delle cinque chiamate trigonometriche per cella ne resta una, e le altre
- * quattro diventano quattro per linea.  Le espressioni sono associate come in
- * paper_forcing, non riordinate, e le ascisse sono quelle che il core ha gia'
- * calcolato: il risultato e' lo stesso bit per bit.
+ * Of the five trigonometric calls per cell one remains, and the other four
+ * become four per line. The expressions are associated as in paper_forcing,
+ * not reordered, and the abscissae are the ones the core has already computed:
+ * the result is the same bit for bit.
  *
- * Anche l'ultima chiamata si potrebbe togliere: le ascisse di una linea sono
- * le stesse per ogni linea, ogni componente e ogni passo, quindi una tabella
- * riempita all'avvio le servirebbe tutte.  Non e' fatto qui perche' andrebbe
- * costruita dove la griglia e' nota, non pigramente con i thread intorno.
+ * The last call could also be removed: the abscissae of a line are the same
+ * for every line, every component and every step, so a table filled at
+ * start-up would serve them all. It is not done here because it would have to
+ * be built where the grid is known, not lazily with the threads around.
  */
 static void paper_forcing_line(Real *restrict out, const Real *restrict xs,
                                int n, Real y, Real z, Real t, int component)
@@ -113,7 +113,7 @@ static void paper_forcing_line(Real *restrict out, const Real *restrict xs,
         return;
     }
 
-    /* Le componenti 1 e 2 condividono il fattore cos(x). */
+    /* Components 1 and 2 share the factor cos(x). */
     for (i = 0; i < n; i++) {
         out[i] = REAL_COS(xs[i]) * amplitude;
     }
@@ -159,9 +159,9 @@ static Real zero_pressure_fn(Real x, Real y, Real z, Real t)
 }
 
 /*
- * Caso manufatto con pressione nulla: isola l'avanzamento della velocita' dal
- * gradiente di pressione, ed e' per questo un buon confronto rapido fra Schur
- * e pipeline.
+ * Manufactured case with zero pressure: it isolates the advancement of the
+ * velocity from the pressure gradient, and that is why it is a good quick
+ * comparison between Schur and pipeline.
  */
 static Real zero_pressure_forcing(Real x, Real y, Real z, Real t,
                                   int component)
@@ -300,9 +300,9 @@ static const Data constant_forcing_data = {
 
 
 /*
- * Gli scenari che il solutore sa eseguire, cercati per nome.  Gli altri casi
- * (cavity, canale, sfera) vivono nei test, che costruiscono il proprio Data
- * direttamente e non passano da qui.
+ * The scenarios the solver knows how to run, looked up by name. The other
+ * cases (cavity, channel, sphere) live in the tests, which build their own
+ * Data directly and do not go through here.
  */
 static const Data *const data_table[] = {
     &paper_data,

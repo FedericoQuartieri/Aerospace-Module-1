@@ -5,31 +5,31 @@
 #PBS -l walltime=00:30:00
 #PBS -j oe
 #
-# Fase 13 -- il batch della pipeline, contro tutto il resto.
+# Phase 13 -- the pipeline batch, against everything else.
 #
-# PIPELINE_BATCH_LINES e' l'unica manopola del backend pipeline, e serve a due
-# cose che tirano in direzioni opposte:
+# PIPELINE_BATCH_LINES is the only knob of the pipeline backend, and it serves
+# two things that pull in opposite directions:
 #
-#   fra processi   batch piccoli riempiono la pipeline prima, quindi meno
-#                  tempo morto all'inizio, ma mandano piu' messaggi.
-#   fra thread     dentro un batch le linee sono indipendenti e i thread se le
-#                  spartiscono, una linea intera ciascuno. Fino a 46146d6 ogni
-#                  livello era una barriera e i batch piccoli lasciavano ai
-#                  thread quasi niente da fare fra due attese; ora la barriera
-#                  e' una per batch, e l'ottimo va ritrovato.
+#   among processes   small batches fill the pipeline sooner, so less dead time
+#                     at the start, but they send more messages.
+#   among threads     inside a batch the lines are independent and the threads
+#                     share them out, one whole line each. Up to 46146d6 every
+#                     level was a barrier and small batches left the threads
+#                     almost nothing to do between two waits; now the barrier
+#                     is one per batch, and the optimum must be found again.
 #
-# Su un asse che nessun processo divide la pipeline taglia il batch a uno per
-# worker, quindi con un processo solo il batch cambia poco piu' della memoria
-# di lavoro. Per sapere quale batch vogliono molti thread servono piazzamenti
-# con piu' processi e molti thread ciascuno: 14x4, 8x7, 4x14, 2x28.
+# On an axis that no process divides the pipeline cuts the batch to one per
+# worker, so with a single process the batch changes little more than the work
+# memory. To know which batch many threads want, placements are needed with
+# more processes and many threads each: 14x4, 8x7, 4x14, 2x28.
 #
-# Quindi il batch ottimo NON e' un numero, e' una funzione di quanti rank,
-# quanti thread e quanto e' grande il blocco locale. Questa fase la campiona:
-# undici batch per dieci piazzamenti per due taglie. Il riepilogo in fondo
-# confronta il migliore con quello della regola usata all'avvio.
+# So the optimal batch is NOT a number, it is a function of how many ranks, how
+# many threads and how large the local block is. This phase samples it: eleven
+# batches for ten placements for two sizes. The summary at the bottom compares
+# the best with the one given by the rule used at start-up.
 #
-# Le righe schur sono il riferimento: allo stesso piazzamento, quanto fa
-# l'altro backend, che di manopole non ne ha.
+# The schur rows are the reference: at the same placement, what the other
+# backend does, which has no knobs.
 #
 #   qsub scripts/study/13_matrix_batch.sh
 #   BATCHES="64 1024" qsub scripts/study/13_matrix_batch.sh
@@ -49,11 +49,11 @@ study_begin 13_matrix_batch
 study_machine
 
 GRIDS="${GRIDS:-128 224}"
-# 8192 oltre il tetto della regola (4096): senza, un minimo sul bordo non
-# dice se il tetto costa qualcosa.
+# 8192 beyond the ceiling of the rule (4096): without it, a minimum on the edge
+# does not say whether the ceiling costs anything.
 BATCHES="${BATCHES:-8 16 32 64 128 256 512 1024 2048 4096 8192}"
-# rank x thread: le colonne del rettangolo della 12 che contano qui. Il primo
-# numero sono i rank, il secondo i thread.
+# rank x thread: the columns of the rectangle of phase 12 that matter here. The
+# first number is the ranks, the second the threads.
 PLACEMENTS="${PLACEMENTS:-1x1 1x14 1x56 8x1 56x1 14x4 28x2 8x7 4x14 2x28}"
 
 CASE_BACKEND=pipeline
@@ -67,10 +67,10 @@ for n in $GRIDS; do
     grid="$n $n $n"
 
     for simd in $MATRIX_SIMD; do
-        # I riferimenti della taglia. Il batch entra anche qui: nella
-        # pipeline decide la memoria di scratch e il modo di percorrerla,
-        # quindi un seriale per batch non e' un doppione. Lo schur ne ha uno
-        # solo, il batch non lo guarda nemmeno.
+        # The references of the size. The batch enters here too: in the
+        # pipeline it decides the scratch memory and the way of walking it, so
+        # one serial per batch is not a duplicate. Schur has only one, it does
+        # not even look at the batch.
         for b in $BATCHES; do
             study_baseline label="pipeline ${n}^3 s$simd b=$b" \
                 backend=pipeline batch="$b" simd="$simd" \
@@ -96,7 +96,7 @@ for n in $GRIDS; do
                     grid="$grid" steps="$steps"
             done
 
-            # Il riferimento senza manopole, allo stesso piazzamento.
+            # The reference without knobs, at the same placement.
             study_case label="schur ${n}^3 s$simd $place" \
                 backend=schur simd="$simd" ranks="$r" threads="$t" \
                 shape="$shape" grid="$grid" steps="$steps" \
@@ -110,8 +110,9 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo
     echo "=== the best batch, per placement ==="
     awk -F, -v phase=13_matrix_batch '
-    # La stessa regola di batch_lines_for_threads in
-    # src/tridiag/pipeline/backend.c: se cambia la, va cambiata qui.
+    # The same rule as batch_lines_for_threads in
+    # src/tridiag/pipeline/backend.c: if it changes there, it must be changed
+    # here.
     function rule(t,    target, power) {
         target = 256 * (t > 0 ? t : 1)
         power = 1
@@ -120,7 +121,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
         return power < 4096 ? power : 4096
     }
     NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
-    # Come sopra: i riferimenti collidono col piazzamento 1x1.
+    # As above: the references collide with the 1x1 placement.
     $2 ~ / (seriale|T\(1\))$/ { next }
     {
         k = $10 "," $5 "," $8 "x" $9

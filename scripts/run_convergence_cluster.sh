@@ -5,39 +5,41 @@
 #PBS -l walltime=04:00:00
 #PBS -j oe
 #
-# Lo studio di convergenza alla griglia che serve davvero: 256^3.
+# The grid convergence study that really matters: 256^3.
 #
 #   qsub scripts/run_convergence_cluster.sh
 #
-# E' un involucro attorno a scripts/run_convergence.sh, che fa gia' tutto il
-# lavoro: raffinamento spaziale a dt fisso, raffinamento temporale a griglia
-# fissa, e il calcolo degli ordini osservati.
+# It is a wrapper around scripts/run_convergence.sh, which already does all the
+# work: spatial refinement at fixed dt, temporal refinement at fixed grid, and
+# the computation of the observed orders.
 #
 # ----------------------------------------------------------------------------
-# Perche' sulla coda `cpu' e non su `scalability'
+# Why on the `cpu' queue and not on `scalability'
 # ----------------------------------------------------------------------------
 #
-# Perche' questo studio misura ERRORI, non tempi. Un nodo condiviso coi job di
-# altri utenti rallenta la corsa ma non sposta di una cifra le norme L2, quindi
-# l'esclusivita' del nodo -- che su `scalability' costa il vincolo di mezz'ora
-# -- qui non serve a niente. Su `cpu' ci sono 48 ore di walltime, e servono:
-# lo studio temporale a 256^3 somma 300 passi temporali.
+# Because this study measures ERRORS, not times. A node shared with the jobs of
+# other users slows the run down but does not move the L2 norms by a single
+# digit, so the exclusivity of the node -- which on `scalability' costs the
+# half-hour limit -- is of no use here. On `cpu' there are 48 hours of
+# walltime, and they are needed: the temporal study at 256^3 adds up 300 time
+# steps.
 #
-# Il rovescio della medaglia e' il tetto di 28 CPU per job su quella coda, cioe'
-# 14 core fisici. Bastano: 14 core su 256^3 tengono il passo sotto il secondo.
+# The flip side is the ceiling of 28 CPUs per job on that queue, that is 14
+# physical cores. They are enough: 14 cores on 256^3 keep the step under a
+# second.
 #
 # ----------------------------------------------------------------------------
-# Perche' EXTRA_CFLAGS
+# Why EXTRA_CFLAGS
 # ----------------------------------------------------------------------------
 #
-# run_convergence.sh compila senza SIMD e senza thread, il che va benissimo per
-# le griglie piccole in locale. A 256^3 per 160 passi non finirebbe dentro
-# nessun walltime ragionevole, quindi qui gli si passano i flag dalla variabile
-# d'ambiente che accetta apposta.
+# run_convergence.sh compiles without SIMD and without threads, which is
+# perfectly fine for the small grids locally. At 256^3 for 160 steps it would
+# not finish within any reasonable walltime, so here the flags are passed
+# through the environment variable that it accepts for this purpose.
 #
-# I thread non cambiano il risultato: le linee sono indipendenti e ogni somma
-# resta nell'ordine che aveva, quindi le norme sono identiche a quelle di un
-# thread solo. Verificato a 32/64/128 in locale prima di scrivere questo.
+# The threads do not change the result: the lines are independent and every sum
+# stays in the order it had, so the norms are identical to those of a single
+# thread. Verified at 32/64/128 locally before writing this.
 
 set -euo pipefail
 
@@ -52,8 +54,8 @@ exec > >(tee "$log") 2>&1
 echo "=== machine ==="
 printf 'cpus granted:  %s\n' "$(grep Cpus_allowed_list /proc/self/status | cut -f2)"
 
-# Un thread per core FISICO concesso: l'SMT su questo carico non aggiunge
-# unita' aritmetiche e in locale e' risultato controproducente.
+# One thread per PHYSICAL core granted: SMT does not add arithmetic units on
+# this load and locally it proved counterproductive.
 allowed_cpus="$(grep -c ^processor /proc/cpuinfo)"
 granted="$(grep Cpus_allowed_list /proc/self/status | cut -f2 |
            awk -F, '{n=0; for(i=1;i<=NF;i++){split($i,r,"-");

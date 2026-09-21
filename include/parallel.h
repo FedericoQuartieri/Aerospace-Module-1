@@ -5,135 +5,139 @@
 #include "types.h"
 
 /*
- * Strato che isola MPI dal resto del programma.
+ * Layer that isolates MPI from the rest of the program.
  *
- * Il solutore non include mai <mpi.h>: chiama queste funzioni e basta. Così
- * tutto il codice parallelo sta in un file solo, e chi legge sa dove
- * guardare. In cambio la versione seriale continua a compilare e a girare
- * come prima, e resta il riferimento con cui confrontare i risultati
- * paralleli.
+ * The solver never includes <mpi.h>: it just calls these functions. This way
+ * all the parallel code lives in a single file, and whoever reads knows where
+ * to look. In return the serial version keeps compiling and running as before,
+ * and remains the reference against which to compare the parallel results.
  *
- * Senza -DUSE_MPI le funzioni qui sotto sono stub che descrivono un processo
- * solo, quindi il programma seriale non paga niente. Con MPI attivo, invece,
- * par_topology_init e decomp_init_mpi dividono davvero la griglia in blocchi:
- * il resto del solutore vede soltanto il proprio Decomp locale.
+ * Without -DUSE_MPI the functions below are stubs that describe a single
+ * process, so the serial program pays nothing. With MPI enabled, on the other
+ * hand, par_topology_init and decomp_init_mpi really divide the grid into
+ * blocks: the rest of the solver sees only its own local Decomp.
  */
 
-/* Avvia e chiude MPI. argc e argv possono essere NULL. */
+/* Starts and shuts down MPI. argc and argv may be NULL. */
 void par_init(int *argc, char ***argv);
 void par_finalize(void);
 
-/* Ferma tutti i processi con lo stesso codice d'errore. */
+/* Stops all processes with the same error code. */
 void par_abort(int code);
 
-/* Numero di questo processo, da 0 a par_size() - 1. */
+/* Number of this process, from 0 to par_size() - 1. */
 int par_rank(void);
 
-/* Quanti processi sono in esecuzione. */
+/* How many processes are running. */
 int par_size(void);
 
-/* Valore restituito quando da quella parte non c'è nessun vicino. */
+/* Value returned when there is no neighbour on that side. */
 #define PAR_NO_NEIGHBOR (-1)
 
 /*
- * Dispone i processi su una griglia 3D, che è il modo in cui verrà divisa la
- * griglia di calcolo. Mettendo 0 in procs[c] si lascia scegliere a MPI quanti
- * processi mettere lungo quella direzione: procs = {1, 1, 0} dà quindi le
- * fette lungo Z.
+ * Arranges the processes on a 3D grid, which is how the computational grid
+ * will be divided. Putting 0 in procs[c] lets MPI choose how many processes to
+ * place along that direction: procs = {1, 1, 0} therefore gives slabs along Z.
  *
- * Va chiamata dopo par_init e prima di decomp_init_mpi.
+ * It must be called after par_init and before decomp_init_mpi.
  */
 void par_topology_init(const int procs[3]);
 
-/* Quanti processi ci sono lungo ciascuna direzione. */
+/* How many processes there are along each direction. */
 void par_dims(int dims[3]);
 
-/* Dove sto io dentro quella griglia di processi. */
+/* Where I am inside that process grid. */
 void par_coords(int coords[3]);
 
 /*
- * Dove sta il processo `rank`. Serve a chi deve ragionare sui blocchi degli
- * altri senza chiederglielo: sapendo le coordinate, decomp_share dice da sola
- * quali celle possiede.
+ * Where process `rank` is. Needed by whoever has to reason about the blocks of
+ * the others without asking them: knowing the coordinates, decomp_share can
+ * tell on its own which cells it owns.
  */
 void par_coords_of(int rank, int coords[3]);
 
 /*
- * Rank del vicino lungo la direzione `axis` (0 = X, 1 = Y, 2 = Z), con
- * step -1 verso il basso e +1 verso l'alto. Restituisce PAR_NO_NEIGHBOR se
- * da quella parte c'è la parete del dominio.
+ * Rank of the neighbour along direction `axis` (0 = X, 1 = Y, 2 = Z), with
+ * step -1 towards the bottom and +1 towards the top. Returns PAR_NO_NEIGHBOR
+ * if on that side there is the wall of the domain.
  */
 int par_neighbor(int axis, int step);
 
-/* Somma e massimo di un intero su tutti i processi, restituiti a tutti. */
+/* Sum and maximum of an integer over all processes, returned to everyone. */
 long long par_sum_long(long long value);
 long long par_max_long(long long value);
 
-/* Rank che possiede il massimo valore; in caso di pari sceglie il più basso. */
+/* Rank that owns the maximum value; in case of a tie it chooses the lowest. */
 int par_rank_of_max_long(long long value);
 
 /*
- * Nanosecondi passati finora dentro le chiamate MPI.
+ * Nanoseconds spent so far inside MPI calls.
  *
- * Serve a rispondere alla domanda che conta quando si misura uno scaling:
- * quanto del tempo se ne va a comunicare invece che a calcolare. Conta solo
- * il tempo dentro MPI, non quello per preparare i pacchetti.
+ * It answers the question that matters when measuring scaling: how much of the
+ * time goes into communicating instead of computing. It counts only the time
+ * inside MPI, not the time to prepare the packets.
  */
 unsigned long long par_comm_nanoseconds(void);
 
-/* Somma e massimo su tutti i processi, restituiti a tutti. */
+/* Sum and maximum over all processes, returned to everyone. */
 Real par_sum_real(Real value);
 Real par_max_real(Real value);
 
 /*
- * Manda `count` numeri al vicino in direzione `step` lungo `axis` e ne riceve
- * altrettanti dal vicino dalla parte opposta. Dove il vicino non c'è non
- * succede niente e `recv` resta com'era.
+ * Sends `count` numbers to the neighbour in direction `step` along `axis` and
+ * receives as many from the neighbour on the opposite side. Where the
+ * neighbour does not exist nothing happens and `recv` stays as it was.
  *
- * Usa MPI_Sendrecv: due processi affacciati si scambiano dati nello stesso
- * istante, e con Send e Recv separate si bloccherebbero a vicenda appena i
- * messaggi superano la soglia oltre la quale MPI smette di bufferizzarli.
+ * It uses MPI_Sendrecv: two processes facing each other exchange data at the
+ * same instant, and with separate Send and Recv they would block each other as
+ * soon as the messages exceed the threshold beyond which MPI stops buffering
+ * them.
  */
 void par_shift_real(int axis, int step,
                     const Real *send, Real *recv, int count);
 
 /*
- * Send e receive separate verso il vicino in direzione `step` lungo `axis`.
+ * Separate send and receive towards the neighbour in direction `step` along
+ * `axis`.
  *
- * par_shift_real non basta a tutti: uno scambio simmetrico presuppone che i
- * due processi affacciati abbiano entrambi qualcosa da dirsi nello stesso
- * istante.  In una catena non e' cosi': il pipelined Thomas riceve dal
- * vicino di sotto, lavora, e solo dopo manda a quello di sopra.  Le due meta'
- * vanno separate perche' in mezzo c'e' il calcolo, ed e' proprio quello che
- * tiene occupati gli altri processi mentre aspettano.
+ * par_shift_real is not enough for everyone: a symmetric exchange assumes that
+ * the two processes facing each other both have something to tell each other
+ * at the same instant. In a chain this is not so: the pipelined Thomas
+ * receives from the neighbour below, works, and only afterwards sends to the
+ * one above. The two halves must be separated because there is computation in
+ * between, and that is exactly what keeps the other processes busy while they
+ * wait.
  *
- * `tag` distingue i messaggi che viaggiano insieme sulla stessa coppia di
- * vicini: nella pipeline sono l'asse, la componente e il verso della passata.
- * Dove il vicino non c'e' non succede niente, e `recv` resta com'era.
+ * `tag` distinguishes the messages travelling together on the same pair of
+ * neighbours: in the pipeline they are the axis, the component and the
+ * direction of the sweep. Where the neighbour does not exist nothing happens,
+ * and `recv` stays as it was.
  *
- * Sono bloccanti di proposito: e' l'attesa a scandire la pipeline.
+ * They are blocking on purpose: it is the wait that sets the rhythm of the
+ * pipeline.
  */
 void par_send_real(int axis, int step, const Real *send, int count, int tag);
 void par_recv_real(int axis, int step, Real *recv, int count, int tag);
 
 /*
- * Raccoglie `count` numeri da ognuno dei processi allineati lungo `axis` e
- * consegna a tutti il vettore completo, ordinato per posizione lungo l'asse.
- * `recv` deve avere spazio per count * (processi lungo axis) numeri.
+ * Gathers `count` numbers from each of the processes aligned along `axis` and
+ * hands everyone the complete vector, ordered by position along the axis.
+ * `recv` must have room for count * (processes along axis) numbers.
  */
 void par_line_allgather(int axis, const Real *send, int count, Real *recv);
 
 /*
- * Riempie le celle di contorno di un campo con i valori dei vicini.
+ * Fills the boundary cells of a field with the values of the neighbours.
  *
- * Ogni processo tiene un anello di celle in più tutt'intorno al proprio
- * blocco. Non gli appartengono: sono la copia dell'ultima fila di celle del
- * vicino, e servono perché i conti che guardano una cella più in là possano
- * essere fatti anche sul bordo del blocco, senza chiedere niente a nessuno.
+ * Each process keeps an extra ring of cells all around its own block. They do
+ * not belong to it: they are a copy of the last row of cells of the neighbour,
+ * and they are needed so that the computations that look one cell further can
+ * also be done on the edge of the block, without asking anyone for anything.
  *
- * Va richiamata ogni volta che il campo cambia e sta per essere riletto.
- * Dove il vicino non c'è, l'anello resta com'era: lì c'è la parete del
- * dominio, e le condizioni al contorno la trattano già per conto loro.
+ * It must be called again every time the field changes and is about to be read
+ * again. Where the neighbour does not exist the ring stays as it was: there is
+ * the wall of the domain there, and the boundary conditions already deal with
+ * it themselves.
  */
 void par_exchange_halo(const Decomp *d, Real *field);
 

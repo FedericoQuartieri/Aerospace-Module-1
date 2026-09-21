@@ -192,8 +192,8 @@ void update_zeta_simd(const Decomp *d,
     SimdReal negative_inverse_square =
         simd_set1((Real)-DY_INVERSE_SQUARE);
 
-    /* I piani k sono indipendenti; gli scratch no, quindi ogni thread prende
-     * la propria fetta di quelli che solver_solve ha allocato in fila. */
+    /* The planes k are independent; the scratches are not, so every thread
+     * takes its own slice of those that solver_solve allocated in a row. */
     const size_t slice = momentum_scratch_slice(d);
     const int slots = workers_slots(true, d->n[2]);
 

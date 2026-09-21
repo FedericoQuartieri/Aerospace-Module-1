@@ -22,18 +22,18 @@ void vectorField_alloc(const Decomp *d, VectorField *vf) {
  * at the *global* position of each cell.  Only the loop bounds and the memory
  * offset use local indices.
  *
- * Il riempimento e' spartito fra i thread, ed e' il caso piu' facile che
- * esista: ogni cella calcola il proprio valore dalle sole coordinate e lo
- * scrive in un indice suo. Nessuna dipendenza fra iterazioni, nessuna somma da
- * riordinare, quindi il risultato resta identico bit per bit a quello di un
- * thread solo -- la stessa proprieta' che vale per i sistemi tridiagonali, e
- * qui per un motivo ancora piu' semplice.
+ * The filling is shared out among the threads, and it is the easiest case
+ * there is: each cell computes its own value from the coordinates alone and
+ * writes it at an index of its own. No dependence between iterations, no sum
+ * to reorder, so the result stays identical bit for bit to that of a single
+ * thread -- the same property that holds for the tridiagonal systems, and here
+ * for an even simpler reason.
  *
- * Non spartirlo costava caro. Quando la permeabilita' dipende dal tempo questo
- * ciclo gira a ogni passo su tutta la griglia, e restava l'unico pezzo seriale
- * mentre tutto il resto era gia' threadato: su 256^3 erano il 25% del passo a
- * un thread e il 63% a cinquantasei, cioe' un tetto di Amdahl attorno a 4x
- * qualunque cosa facessero gli altri stadi.
+ * Not sharing it out was expensive. When the permeability depends on time this
+ * loop runs at every step over the whole grid, and it remained the only serial
+ * piece while everything else was already threaded: on 256^3 it was 25% of the
+ * step with one thread and 63% with fifty-six, that is an Amdahl ceiling
+ * around 4x whatever the other stages did.
  */
 void vectorField_fill(const Decomp *restrict d,
                       VectorField *restrict vf,
@@ -47,8 +47,8 @@ void vectorField_fill(const Decomp *restrict d,
     const int nj = d->n[1];
     const int ni = d->n[0];
 
-    /* gk sta dentro il ciclo su j e non fra i due: collapse vuole due cicli
-     * perfettamente annidati, e ricalcolarlo per riga non costa niente. */
+    /* gk sits inside the loop over j and not between the two: collapse wants
+     * two perfectly nested loops, and recomputing it per row costs nothing. */
     WORKERS_PARALLEL_FOR_2(workers_many())
     for (int k = 0; k < nk; k++) {
         for (int j = 0; j < nj; j++) {
@@ -88,7 +88,7 @@ void scalarField_fill(const Decomp *restrict d,
     const int nj = d->n[1];
     const int ni = d->n[0];
 
-    /* Stessa forma e stesse ragioni di vectorField_fill. */
+    /* Same shape and same reasons as vectorField_fill. */
     WORKERS_PARALLEL_FOR_2(workers_many())
     for (int k = 0; k < nk; k++) {
         for (int j = 0; j < nj; j++) {

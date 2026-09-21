@@ -7,9 +7,9 @@
 #include "workers.h"
 
 /*
- * Il preprocessing dei tre assi (Lecture 5, p. 32, punto 1): nessuna delle tre
- * matrici dipende dal passo temporale, quindi si prepara una volta all'avvio e
- * durante la simulazione resta da scrivere solo il termine noto.
+ * The preprocessing of the three axes (Lecture 5, p. 32, point 1): none of the
+ * three matrices depends on the time step, so it is prepared once at start-up
+ * and during the simulation only the right-hand side remains to be written.
  */
 void pressure_plans_init(const Decomp *d, SchurPlan plan[3]) {
     for (int axis = 0; axis < 3; axis++) {
@@ -34,20 +34,20 @@ void pressure_plans_free(SchurPlan plan[3]) {
 }
 
 /*
- * Un passo della cascata della pressione (Lecture 5, p. 7):
+ * One step of the pressure cascade (Lecture 5, p. 7):
  *
- *   (I - d_xx) psi = -div(u)/dt,  poi  (I - d_yy) phi = psi,
- *                                 poi  (I - d_zz) fi  = phi
+ *   (I - d_xx) psi = -div(u)/dt,  then  (I - d_yy) phi = psi,
+ *                                 then  (I - d_zz) fi  = phi
  *
- * I tre passi hanno la stessa matrice: cambiano solo l'asse, il campo da cui
- * si legge e quello in cui si scrive. Questa funzione ne fa uno, e la si
- * chiama tre volte. La matrice sta gia' in `plan`, qui si scrive il termine
- * noto e si raccoglie la risposta.
+ * The three steps have the same matrix: only the axis, the field it reads from
+ * and the one it writes to change. This function does one, and it is called
+ * three times. The matrix is already in `plan`, here the right-hand side is
+ * written and the answer is collected.
  */
 /*
- * Il contesto di una linea di pressione. Stessa ragione della gemella in
- * momentum.c: il corpo e' percorso da due strutture di cicli diverse, e
- * ripeterlo in due punti sarebbe il modo piu' facile per farle divergere.
+ * The context of a pressure line. Same reason as its twin in momentum.c: the
+ * body is walked by two different loop structures, and repeating it in two
+ * places would be the easiest way to make them diverge.
  */
 typedef struct {
     const Decomp *d;
@@ -60,7 +60,10 @@ typedef struct {
     size_t step;
 } PressureLines;
 
-/* Raccoglie il termine noto di UNA linea, dal campo alla forma di lavoro. */
+/*
+ * Collects the right-hand side of ONE line, from the field to the working
+ * form.
+ */
 static void pressure_gather_line(const PressureLines *pl, int b, int a,
                                  Real *restrict known) {
     const Real *restrict source = pl->source;
@@ -79,7 +82,7 @@ static void pressure_gather_line(const PressureLines *pl, int b, int a,
     }
 }
 
-/* Riporta la soluzione di UNA linea nel campo di arrivo. */
+/* Writes the solution of ONE line back into the arrival field. */
 static void pressure_scatter_line(const PressureLines *pl, int b, int a,
                                   const Real *restrict answer) {
     Real *restrict target = pl->target;
@@ -112,8 +115,8 @@ static void pressure_direction(const Decomp *restrict d,
     const int planes = d->n[outer];
     const size_t line_room = (size_t)lines * (size_t)length;
 
-    /* Stessa spartizione della quantita' di moto: un piano per thread finche'
-     * l'asse e' tutto qui, le linee del piano quando invece si comunica. */
+    /* Same distribution as momentum: one plane per thread as long as the axis
+     * is all here, the lines of the plane when there is communication. */
     const bool whole_axis = (d->n[axis] == d->n_global[axis]);
     const WorkersLineSchedule schedule =
         workers_line_schedule(whole_axis, planes);
@@ -134,8 +137,8 @@ static void pressure_direction(const Decomp *restrict d,
     Real *pool = xmalloc((size_t)slots * 2 * line_room * sizeof(Real));
 
     if (split_lines) {
-        /* Un team solo per l'intera direzione invece di due per piano: la
-         * stessa correzione di momentum.c, per la stessa ragione misurata. */
+        /* A single team for the whole direction instead of two per plane: the
+         * same fix as momentum.c, for the same measured reason. */
         Real *restrict known = pool;
         Real *restrict answer = pool + line_room;
 
@@ -150,7 +153,7 @@ static void pressure_direction(const Decomp *restrict d,
                 WORKERS_MASTER
                 schur_plan_solve(plan, lines, known, answer);
 
-                /* WORKERS_MASTER non ha barriera propria. */
+                /* WORKERS_MASTER has no barrier of its own. */
                 WORKERS_BARRIER
 
                 WORKERS_FOR
@@ -192,7 +195,7 @@ void pressure_step(const Decomp *decomp,
     Real *buffer = pressure_buffer->v;
     Real *star = solver_mem_state->pressure_star.v;
 
-    /* I due campi si scambiano il ruolo a ogni passo, cosi' ne bastano due. */
+    /* The two fields swap roles at every step, so two are enough. */
     uint64_t start_ns = time_ns();
     compute_div(decomp, buffer, &solver_mem_state->u);
     pressure_direction(decomp, &plan[0], buffer, star);   /* psi */

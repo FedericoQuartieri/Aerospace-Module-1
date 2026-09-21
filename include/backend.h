@@ -6,64 +6,64 @@
 #include "types.h"
 
 /*
- * Quello che il solutore chiede al backend tridiagonale, e nient'altro.
+ * What the solver asks of the tridiagonal backend, and nothing else.
  *
- * Sotto questa linea ci sono due implementazioni, scelte a compilazione con
- * TRIDIAG=schur|pipeline, e ognuna e' padrona del proprio ciclo, del proprio
- * scratch e del proprio ordine delle componenti.  Sopra, solver.c non sa
- * quale delle due ha davanti.
+ * Below this line there are two implementations, chosen at compile time with
+ * TRIDIAG=schur|pipeline, and each is master of its own loop, its own scratch
+ * and its own order of the components. Above, solver.c does not know which of
+ * the two it has in front of it.
  *
- * La giuntura sta qui e non piu' in basso -- non su "risolvi questo blocco di
- * linee" -- per una ragione precisa.  Una firma del tipo
+ * The seam is here and not lower down -- not at "solve this block of lines" --
+ * for a precise reason. A signature of the kind
  *
  *     solve(axis, lines, n_local, a, b, c, f, x)
  *
- * non impone soltanto *cosa* calcolare: impone anche dove metterlo, quante
- * linee alla volta guardarlo, e quando aver finito.  Sono le tre cose che il
- * Thomas pipelined fa diversamente:
+ * does not only impose *what* to compute: it also imposes where to put it, how
+ * many lines at a time to look at it, and when to have finished. Those are the
+ * three things that the pipelined Thomas does differently:
  *
- *   - non materializza mai le quattro diagonali, le consuma sul posto;
- *   - vuole tutte le linee dell'asse insieme, non un piano alla volta, o la
- *     pipeline e' tutta riempimento e svuotamento;
- *   - tiene le tre componenti in volo (avanti x,y,z poi indietro z,y,x) per
- *     non svuotarsi fra la passata avanti e quella indietro.
+ *   - it never materialises the four diagonals, it consumes them on the spot;
+ *   - it wants all the lines of the axis together, not one plane at a time, or
+ *     the pipeline is all filling and draining;
+ *   - it keeps the three components in flight (forward x,y,z then backward
+ *     z,y,x) so as not to drain between the forward and the backward sweep.
  *
- * Alzando la giuntura al passo direzionale, quelle tre scelte restano dentro
- * il backend, che e' il solo posto dove hanno senso.  Cio' che i due
- * condividono e' la fisica di un punto, e sta in momentum_row.h.
+ * By raising the seam to the directional step, those three choices stay inside
+ * the backend, which is the only place where they make sense. What the two
+ * share is the physics of a point, and it lives in momentum_row.h.
  */
 
 /*
- * Lo scratch del backend: chi ne ha bisogno se lo alloca qui e se lo tiene in
- * SolverMemState.backend, che per il codice condiviso e' un puntatore opaco.
+ * The backend scratch: whoever needs it allocates it here and keeps it in
+ * SolverMemState.backend, which for the shared code is an opaque pointer.
  *
- * Il complemento di Schur ci mette i buffer dei kernel SIMD e le tre matrici
- * della pressione gia' fattorizzate; il pipelined Thomas ci mette i suoi
- * c' e d'.  Nessuno dei due tipi arriva a solver.c, che prima invece doveva
- * conoscere SchurPlan per poterlo dichiarare sullo stack.
+ * The Schur complement puts the SIMD kernel buffers and the three
+ * already-factorised pressure matrices in it; the pipelined Thomas puts its c'
+ * and d' in it. Neither type reaches solver.c, which before instead had to
+ * know SchurPlan in order to declare it on the stack.
  */
 void backend_init(const Decomp *d, SolverMemState *solver_mem_state);
 void backend_free(SolverMemState *solver_mem_state);
 
-/* Nome del backend compilato, per le statistiche e per i test. */
+/* Name of the compiled backend, for the statistics and for the tests. */
 const char *backend_name(void);
 /*
- * Linee per batch scelte da backend_init, uguali su tutti i processi. La
- * pipeline le usa; Schur risponde 0, perche' il parametro non lo riguarda.
+ * Lines per batch chosen by backend_init, the same on all processes. The
+ * pipeline uses them; Schur answers 0, because the parameter does not concern
+ * it.
  */
 int backend_batch_lines(void);
 
 /*
- * I tre sistemi della quantita' di moto di un passo temporale, tutti e tre
- * gli assi e tutte e tre le componenti.
+ * The three momentum systems of a time step, all three axes and all three
+ * components.
  */
 void momentum_step(const Decomp *d, SolverMemState *solver_mem_state,
                    Data *data, int t_step, SolverStats *solver_stats);
 
 /*
- * La cascata di pressione di un passo temporale, piu' l'aggiornamento.
- * `pressure_buffer` e' spazio di lavoro grande come un campo scalare, che il
- * chiamante possiede.
+ * The pressure cascade of a time step, plus the update. `pressure_buffer` is
+ * work space as large as a scalar field, which the caller owns.
  */
 void pressure_step(const Decomp *d, SolverMemState *solver_mem_state,
                    ScalarField *pressure_buffer, SolverStats *solver_stats);

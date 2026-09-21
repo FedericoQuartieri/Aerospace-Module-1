@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
 #
-# Misura di quanto il calcolo parallelo conviene.
+# Measurement of how much parallel computing pays off.
 #
-# Due studi, che rispondono a due domande diverse:
+# Two studies, which answer two different questions:
 #
-#   strong  a parita' di problema, quanto si accorcia il tempo aggiungendo
-#           processi? Ogni processo riceve una fetta piu' piccola.
+#   strong  at equal problem, how much does the time shorten by adding
+#           processes? Each process receives a smaller slice.
 #
-#   weak    a parita' di lavoro per processo, il tempo resta lo stesso mentre
-#           il problema cresce? Per un codice a stencil come questo e' la
-#           misura piu' onesta: il limite vero e' la banda di memoria, e lo
-#           strong scaling la satura in fretta su una macchina sola.
+#   weak    at equal work per process, does the time stay the same while the
+#           problem grows? For a stencil code like this it is the most honest
+#           measurement: the real limit is the memory bandwidth, and strong
+#           scaling saturates it quickly on a single machine.
 #
-#   hybrid  a parita' di core occupati, conviene di piu' spenderli in processi
-#           o in thread? La domanda non e' oziosa: i processi dividono il
-#           dominio, e appena una direzione e' divisa i kernel SIMD spariscono
-#           e il complemento di Schur passa da una risoluzione locale a tre.
-#           I thread dividono le linee, che sono indipendenti comunque, quindi
-#           non pagano ne' l'una ne' l'altra cosa.
+#   hybrid  at equal occupied cores, is it better to spend them on processes
+#           or on threads? The question is not idle: the processes divide the
+#           domain, and as soon as a direction is divided the SIMD kernels
+#           disappear and the Schur complement goes from one local solve to
+#           three. The threads divide the lines, which are independent anyway,
+#           so they pay neither the one nor the other.
 #
-# Ogni riga contiene il numero di processi, la forma della griglia di
-# processi, la griglia globale, il tempo per passo e la quota passata dentro
-# MPI. I risultati finiscono in build/scaling/results.csv.
+# Every row contains the number of processes, the shape of the process grid,
+# the global grid, the time per step and the share spent inside MPI. The
+# results end up in build/scaling/results.csv.
 
 set -euo pipefail
 
@@ -31,21 +31,21 @@ results="$build_dir/results${RESULTS_SUFFIX:-}.csv"
 executable="$build_dir/paper_man"
 build_log="$build_dir/build.log"
 steps="${STEPS:-20}"
-# Su un portatile il rumore di fondo e' molto: ogni caso si ripete e si tiene
-# il tempo migliore, che e' quello meno contaminato da altre attivita'.
+# On a laptop the background noise is high: every case is repeated and the best
+# time is kept, which is the one least contaminated by other activities.
 repeats="${REPEATS:-3}"
-# SIMD=0 disattiva i kernel vettorizzati: serve a confrontare alla pari, dato
-# che quelli valgono solo sulle direzioni non divise.
+# SIMD=0 disables the vectorised kernels: it serves to compare on equal terms,
+# since those apply only on the directions that are not divided.
 simd="${SIMD:-1}"
-# Quale backend ricuce le linee divise fra i processi: schur o pipeline.
-# Il solutore non e' piu' il glob piatto src/*.c -- il backend sta in
-# src/tridiag/$(TRIDIAG)/ -- e i flag li conosce solo il Makefile, quindi si
-# compila attraverso di lui, come fa scripts/study/lib.sh.
+# Which backend stitches the lines divided among the processes: schur or
+# pipeline. The solver is no longer the flat glob src/*.c -- the backend lives
+# in src/tridiag/$(TRIDIAG)/ -- and the flags are known only to the Makefile,
+# so one compiles through it, as scripts/study/lib.sh does.
 #
 #   TRIDIAG=pipeline RESULTS_SUFFIX=_pipeline ./scripts/run_scaling.sh
 tridiag="${TRIDIAG:-schur}"
 
-# processi : forma della griglia di processi : griglia globale
+# processes : shape of the process grid : global grid
 strong_configs=(
     "1 : 1 1 1 : 128 128 128"
     "2 : 1 1 2 : 128 128 128"
@@ -53,7 +53,7 @@ strong_configs=(
     "8 : 2 2 2 : 128 128 128"
 )
 
-# 64^3 celle per processo in tutti i casi
+# 64^3 cells per process in all the cases
 weak_configs=(
     "1 : 1 1 1 : 64 64 64"
     "2 : 1 1 2 : 64 64 128"
@@ -61,9 +61,9 @@ weak_configs=(
     "8 : 2 2 2 : 128 128 128"
 )
 
-# Stessa griglia e stesso numero di core, spartiti diversamente fra processi e
-# thread. Le righe con un processo solo tengono ogni direzione intera: la SIMD
-# resta viva e Schur non ha interfacce da ricucire.
+# Same grid and same number of cores, shared out differently between processes
+# and threads. The rows with a single process keep every direction whole: SIMD
+# stays alive and Schur has no interfaces to stitch.
 hybrid_configs=(
     "1 x 1 : 1 1 1 : 128 128 128"
     "1 x 2 : 1 1 1 : 128 128 128"
@@ -93,9 +93,9 @@ run_case()
     printf 'Running %-6s procs=%-2s threads=%-2s shape=%sx%sx%s grid=%sx%sx%s\n' \
         "$study" "$procs" "$threads" "$px" "$py" "$pz" "$nx" "$ny" "$nz"
 
-    # Il ramo a thread si compila solo quando serve: la build OpenMP costa un
-    # punto percentuale anche a un thread solo, e le due misure vanno tenute
-    # separate.
+    # The threaded branch is compiled only when needed: the OpenMP build costs
+    # one percentage point even with a single thread, and the two measurements
+    # must be kept separate.
     local omp=0
     [[ "$threads" -gt 1 ]] && omp=1
 
@@ -111,10 +111,10 @@ run_case()
     fi
     mv "$root/build/tests/paper_man" "$executable"
 
-    # --bind-to none e' obbligatorio, non un dettaglio: per default mpirun
-    # inchioda ogni processo a un core solo, e i thread di quel processo se lo
-    # spartiscono invece di prendersene uno a testa.  Senza questa opzione la
-    # colonna dei thread misura zero guadagno e la misura non dice niente.
+    # --bind-to none is mandatory, not a detail: by default mpirun pins every
+    # process to a single core, and the threads of that process share it out
+    # instead of taking one each.  Without this option the threads column
+    # measures zero gain and the measurement says nothing.
     local best_wall="" best_mpi="" output wall mpi
     for ((run = 0; run < repeats; run++)); do
         output="$(OMP_NUM_THREADS="$threads" \
@@ -145,8 +145,8 @@ for study in strong weak; do
     done
 done
 
-# Lo studio ibrido si salta con HYBRID=0: senza OpenMP nel compilatore le sue
-# righe non si possono compilare.
+# The hybrid study is skipped with HYBRID=0: without OpenMP in the compiler its
+# rows cannot be compiled.
 if [[ "${HYBRID:-1}" != "0" ]]; then
     for config in "${hybrid_configs[@]}"; do
         IFS=':' read -r spec shape grid <<< "$config"
@@ -158,9 +158,9 @@ fi
 
 printf '\nResults in %s\n\n' "$results"
 
-# Nello strong scaling il tempo dovrebbe dimezzarsi raddoppiando i processi,
-# quindi l efficienza e (t1/tP)/P. Nel weak il lavoro per processo non cambia,
-# quindi il tempo dovrebbe restare costante e l efficienza e t1/tP.
+# In strong scaling the time should halve when the processes double, so the
+# efficiency is (t1/tP)/P. In weak scaling the work per process does not
+# change, so the time should stay constant and the efficiency is t1/tP.
 awk -F, '
 NR == 1 { next }
 {

@@ -17,9 +17,9 @@ void print_stats(const Decomp *d,
                  const SolverStats *solver_stats,
                  size_t sample_count) {
     /*
-     * Il tempo che conta e' il piu' lento fra i processi: e' quello che
-     * l'utente aspetta. Le riduzioni vanno fatte da tutti, quindi prima del
-     * filtro sul rank, altrimenti gli altri resterebbero in attesa.
+     * The time that matters is that of the slowest process: it is what the
+     * user waits for. The reductions must be done by everyone, hence before
+     * the filter on the rank, otherwise the others would be left waiting.
      */
     const long long local_solve_steps =
         (long long)solver_stats->solve_steps;
@@ -51,10 +51,11 @@ void print_stats(const Decomp *d,
     long long porosity_fill_ns =
         par_max_long((long long)solver_stats->porosity_fill);
     /*
-     * Il termine noto del passo eta. Sta DENTRO eta_sys, non accanto: non va
-     * sommato agli stadi, o il passo risulterebbe piu' lungo di quello che e'.
-     * Si legge per differenza -- eta meno questo e' il solutore -- ed e' la
-     * differenza a dire se conviene lavorare sul termine noto o sul sistema.
+     * The right-hand side of the eta step. It lives INSIDE eta_sys, not beside
+     * it: it must not be added to the stages, or the step would come out
+     * longer than it is. It is read by difference -- eta minus this is the
+     * solver -- and it is the difference that says whether it is worth working
+     * on the right-hand side or on the system.
      */
     long long g_term_ns =
         par_max_long((long long)solver_stats->momentum_source);
@@ -102,9 +103,9 @@ void print_stats(const Decomp *d,
     double percentage_factor =
         solve_steps_ns > 0.0 ? 100.0 / solve_steps_ns : 0.0;
     /*
-     * Il totale del rank piu' lento meno la sua somma di stadi. Gli stadi
-     * qui sotto sono invece massimi presi separatamente: ottimi per trovare
-     * un collo di bottiglia, non per essere sommati fra loro.
+     * The total of the slowest rank minus its sum of stages. The stages below
+     * are instead maxima taken separately: excellent for finding a bottleneck,
+     * not for being added together.
      */
     double unaccounted_avg_ms =
         unaccounted_ns * ns_to_ms / (double)sample_count;
@@ -121,8 +122,8 @@ void print_stats(const Decomp *d,
     printf("Processes: %d\n", par_size());
     printf("Process grid: %d x %d x %d\n", dims[0], dims[1], dims[2]);
     printf("Critical rank: %d\n", slowest_rank);
-    /* Ranghi e thread insieme: una misura senza entrambi i numeri non si sa
-     * confrontare con nessun'altra. */
+    /* Ranks and threads together: a measurement without both numbers cannot be
+     * compared with any other. */
     printf("Threads per process: %d\n", workers_available());
     printf("Tridiagonal backend: %s\n", backend_name());
     if (backend_batch_lines() > 0) {
@@ -133,9 +134,10 @@ void print_stats(const Decomp *d,
     printf("Solver time stats (max per rank, average per time step):\n");
     printf("  eta system:  %.3f ms (%5.1f%%)\n", eta_avg_ms,
            (double)eta_ns * percentage_factor);
-    /* Le due parti di eta: il termine noto e cio' che resta, cioe' il
-     * solutore. Rientrate di due spazi perche' non sono stadi a se': sommarle
-     * agli altri stadi conterebbe il passo eta due volte. */
+    /* The two parts of eta: the right-hand side and what remains, that is the
+     * solver. Indented by two spaces because they are not stages in
+     * themselves: adding them to the other stages would count the eta step
+     * twice. */
     printf("    g term:    %.3f ms (%5.1f%%)\n",
            (double)g_term_ns * ns_to_ms / (double)sample_count,
            (double)g_term_ns * percentage_factor);
@@ -158,16 +160,16 @@ void print_stats(const Decomp *d,
            (double)porosity_fill_ns * percentage_factor);
     printf("  write file:  %.3f ms\n", wr_output_avg_ms);
     /*
-     * Quanto del passo non e' attribuito a nessuno stadio.
+     * How much of the step is not attributed to any stage.
      *
-     * E' una riga di controllo, non una misura: finche' non e' vicina a zero,
-     * qualunque conclusione su quale stadio sia lento riguarda solo la parte
-     * cronometrata. Il riempimento della permeabilita' e' rimasto fuori dai
-     * conti per tutto il tempo, e da solo valeva fino a due terzi del passo.
+     * It is a check line, not a measurement: until it is close to zero, any
+     * conclusion about which stage is slow concerns only the timed part. The
+     * filling of the permeability stayed out of the accounts all along, and by
+     * itself it was worth up to two thirds of the step.
      */
     printf("  unaccounted: %.3f ms (%5.1f%%)\n",
            unaccounted_avg_ms, unaccounted_ns * percentage_factor);
-    /* Righe pensate per essere lette anche da uno script. */
+    /* Lines meant to be read by a script as well. */
     printf("  wall per step: %.3f ms\n",
            (double)slowest_ns * ns_to_ms / (double)sample_count);
     printf("  mpi per step:  %.3f ms (%5.1f%%)\n",

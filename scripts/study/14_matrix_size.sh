@@ -5,29 +5,30 @@
 #PBS -l walltime=00:30:00
 #PBS -j oe
 #
-# Fase 14 -- la taglia del problema: scaling forte, debole, e il muro.
+# Phase 14 -- the problem size: strong scaling, weak scaling, and the wall.
 #
-# Tre domande che vogliono le stesse misure e che quindi conviene fare insieme.
+# Three questions that want the same measurements and so it is convenient to do
+# them together.
 #
-#   forte    a problema fisso, quanto si accorcia il tempo aggiungendo unita'.
-#            E' la domanda che fanno tutti e la meno onesta su uno stencil:
-#            il blocco locale si rimpicciolisce finche' entra in cache e lo
-#            speedup diventa superlineare per un motivo che non e' il
-#            parallelismo.
+#   strong    at fixed problem, how much the time shortens by adding units.
+#             It is the question everybody asks and the least honest on a
+#             stencil: the local block shrinks until it fits in the cache and
+#             the speedup becomes superlinear for a reason that is not
+#             parallelism.
 #
-#   debole   a lavoro per unita' fisso, il tempo resta costante mentre il
-#            problema cresce. Su un codice limitato dalla banda e' la misura
-#            che dice davvero se il parallelismo funziona.
+#   weak      at fixed work per unit, the time stays constant while the
+#             problem grows. On a bandwidth-limited code it is the measurement
+#             that really says whether the parallelism works.
 #
-#   il muro  il costo per cella in funzione della taglia, a parallelismo fisso.
-#            Cresce quando il blocco locale esce dalla cache, e il punto in cui
-#            cresce e' una proprieta' della macchina, non del codice: saperlo
-#            e' quello che permette di leggere le altre due.
+#   the wall  the cost per cell as a function of the size, at fixed
+#             parallelism. It grows when the local block leaves the cache, and
+#             the point where it grows is a property of the machine, not of
+#             the code: knowing it is what allows reading the other two.
 #
-# La memoria di picco viaggia nel CSV (colonna rss_mb), e per la pipeline non
-# e' un dettaglio: tiene c' e d' di tutto il blocco locale per tre componenti,
-# quindi paga in memoria quello che Schur paga in aritmetica. Questa fase e'
-# l'unico posto dove quel prezzo si vede su un asse.
+# The peak memory travels in the CSV (column rss_mb), and for the pipeline it
+# is not a detail: it keeps c' and d' of the whole local block for three
+# components, so it pays in memory what Schur pays in arithmetic. This phase is
+# the only place where that price is seen along an axis.
 #
 #   qsub scripts/study/14_matrix_size.sh
 
@@ -46,13 +47,13 @@ study_begin 14_matrix_size
 study_machine
 
 SIZES="${SIZES:-32 48 64 96 128 160 192 224 256}"
-# I piazzamenti su cui si percorre la scala delle taglie: seriale, tutta la
-# macchina a thread, tutta la macchina a rank, e il misto.
+# The placements over which the ladder of sizes is walked: serial, the whole
+# machine with threads, the whole machine with ranks, and the mixed one.
 SIZE_PLACEMENTS="${SIZE_PLACEMENTS:-1x1 1x56 56x1 8x7}"
-# Scaling forte: la taglia resta, le unita' crescono.
+# Strong scaling: the size stays, the units grow.
 STRONG_GRID="${STRONG_GRID:-224}"
 STRONG_RANKS="${STRONG_RANKS:-1 2 4 7 8 14 28 56}"
-# Scaling debole: celle per rank costanti. Ogni voce e' "rank : griglia".
+# Weak scaling: constant cells per rank. Every entry is "rank : grid".
 WEAK_CONFIGS="${WEAK_CONFIGS:-1:64 64 64|2:128 64 64|4:128 128 64|8:128 128 128|28:224 224 128|56:224 224 224}"
 
 CASE_OMP=1
@@ -60,10 +61,10 @@ CASE_MPI=1
 CASE_REPEATS="${REPEATS:-2}"
 CASE_TIMEOUT="${CASE_TIMEOUT:-1500}"
 
-# I riferimenti di tutta la fase, una volta per (backend, simd, taglia) e non
-# per piazzamento: il piazzamento a un processo e un thread non esiste.
-# Coprono anche lo scaling forte (STRONG_GRID sta in SIZES) e la base dello
-# scaling debole, che parte da un rank.
+# The references of the whole phase, once per (backend, simd, size) and not per
+# placement: the placement at one process and one thread does not exist. They
+# also cover strong scaling (STRONG_GRID is in SIZES) and the base of weak
+# scaling, which starts from one rank.
 echo "=== the baselines: serial and single process, for every size ==="
 for backend in $MATRIX_BACKENDS; do
     for simd in $MATRIX_SIMD; do
@@ -106,8 +107,8 @@ for backend in $MATRIX_BACKENDS; do
         shape="$(study_auto_shape "$n")"
         [[ -n "$shape" ]] || continue
         matrix_shape_fits "$shape" "$grid" || continue
-        # Due modi di spendere le stesse unita': tutti rank, oppure un rank
-        # con altrettanti thread. La differenza e' il costo di dividere.
+        # Two ways of spending the same units: all ranks, or one rank with as
+        # many threads. The difference is the cost of dividing.
         study_case label="$backend forte R=$n T=1" backend="$backend" \
             ranks="$n" threads=1 shape="$shape" simd=1 \
             grid="$grid" steps="$steps"
@@ -144,7 +145,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     echo "=== cost per cell (1e-8 s) and peak memory, by size ==="
     awk -F, -v phase=14_matrix_size '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" || $2 !~ / N=/ { next }
-    # Le etichette dei riferimenti contengono anche loro " N=".
+    # The reference labels also contain " N=".
     $2 ~ / (seriale|T\(1\))$/ { next }
     {
         k = $3 "," $5 "," $8 "x" $9

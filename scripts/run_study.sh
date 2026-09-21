@@ -50,15 +50,14 @@ phases_dir="$root/scripts/study"
 action="${1:-help}"
 shift || true
 
-# Le sei fasi riempiono la matrice invece di rispondere a una domanda per
-# volta: durano giorni e si ri-sottomettono da sole. Vedi
-# scripts/study/matrix.sh. Lo studio mirato a dieci fasi che le precedeva e'
-# stato tolto -- resta nella storia di git -- perche' quello che misurava lo
-# misurano queste, per intero.
+# The six phases fill the matrix instead of answering one question at a time:
+# they last days and resubmit themselves. See scripts/study/matrix.sh. The
+# ten-phase targeted study that preceded them has been removed -- it remains in
+# the git history -- because what it measured is measured by these, in full.
 all_phases=(10_matrix_threads 11_matrix_mpi 12_matrix_hybrid \
             13_matrix_batch 14_matrix_size 15_matrix_check)
 
-# Un prefisso numerico basta a scegliere una fase: `05' vale `05_hybrid'.
+# A numeric prefix is enough to choose a phase: `05' stands for `05_hybrid'.
 resolve_phases()
 {
     local wanted=("$@") phase name found
@@ -99,18 +98,18 @@ submit)
     command -v qsub > /dev/null || { echo "no qsub here: use 'local'" >&2; exit 1; }
     mapfile -t phases < <(resolve_phases "$@")
 
-    # -V passa tutto l'ambiente al job. PBS ha anche -v con una lista di
-    # coppie, ma non sopravvive ai valori con spazi, e GRIDS="128 256" ne ha.
-    # Cosi' basta esportare prima:  GRIDS=128 ./scripts/run_study.sh submit
-    # Su questo sito il file .o<jobid> di PBS non arriva ne' nella directory di
-    # sottomissione ne' nella home. Dirgli dove metterlo e' l'unico modo di
-    # vedere un job che muore PRIMA di aprire il proprio log -- che e'
-    # esattamente quando serve vederlo.
+    # -V passes the whole environment to the job. PBS also has -v with a list
+    # of pairs, but it does not survive values with spaces, and GRIDS="128 256"
+    # has one. So it is enough to export beforehand:  GRIDS=128
+    # ./scripts/run_study.sh submit On this site the PBS .o<jobid> file arrives
+    # neither in the submission directory nor in the home. Telling it where to
+    # put it is the only way of seeing a job that dies BEFORE opening its own
+    # log -- which is exactly when one needs to see it.
     mkdir -p "$study_base/pbs"
     qsub_opts=(-V -o "$study_base/pbs/")
     [[ -n "${WALLTIME:-}" ]] && qsub_opts+=(-l "walltime=$WALLTIME")
-    # Tutta la catena su un nodo. lib.sh ripete il vincolo a ogni
-    # ri-sottomissione: qui vale solo per il primo job.
+    # The whole chain on one node. lib.sh repeats the constraint at every
+    # resubmission: here it holds only for the first job.
     if [[ -n "${STUDY_HOST:-}" ]]; then
         qsub_opts+=(-l "select=1:ncpus=${STUDY_NCPUS:-112}:host=$STUDY_HOST")
     fi
@@ -118,9 +117,10 @@ submit)
     rejected=0
     for phase in "${phases[@]}"; do
         script="$phases_dir/$phase.sh"
-        # Un rifiuto di PBS riguarda una fase sola -- di solito una risorsa
-        # che quella coda non concede -- e non e' un motivo per non sottomettere
-        # le altre. Prima si fermava qui, e sembrava che fosse fallito tutto.
+        # A PBS refusal concerns a single phase -- usually a resource that that
+        # queue does not grant -- and it is not a reason not to submit the
+        # others. Before, it stopped here, and it looked as if everything had
+        # failed.
         if ! id="$(qsub "${qsub_opts[@]}" "$script" 2>&1)"; then
             printf '  %-18s REJECTED: %s\n' "$phase" "$(head -1 <<< "$id")"
             rejected=$(( rejected + 1 ))
@@ -172,21 +172,21 @@ merge)
             printf '%s\n' "$intestazione" > "$out"
             header=1
         fi
-        # Le colonne aggiunte nel tempo -- g_ms, poi node -- stanno tutte subito
-        # prima di stato e nota. Una riga di un formato piu' vecchio le ha in
-        # meno, e si allinea inserendole vuote li': i grafici leggono per nome,
-        # e una riga corta gli sposterebbe ogni campo.
+        # The columns added over time -- g_ms, then node -- all sit right
+        # before status and note. A row of an older format has them missing,
+        # and it is aligned by inserting them empty there: the plots read by
+        # name, and a short row would shift every field for them.
         #
-        # E un caso ritentato con RETRY_FAILED=1 lascia due righe, quella
-        # fallita e quella nuova: vale l'ultima, al posto della prima. Le
-        # colonne 1-13 (phase..steps) bastano a riconoscere un caso: verificato
-        # sui dry run di tutte e sei le fasi.
+        # And a case retried with RETRY_FAILED=1 leaves two rows, the failed
+        # one and the new one: the last counts, in place of the first. Columns
+        # 1-13 (phase..steps) are enough to recognise a case: verified on the
+        # dry runs of all six phases.
         awk -F, -v OFS=, -v larga="$colonne" '
         NR == 1 { next }
         {
             if (NF < larga) {
-                # campi e non n: n conta i casi della deduplica qui sotto,
-                # e riusarlo stampava righe vuote e ne perdeva una.
+                # campi and not n: n counts the cases of the deduplication
+                # below, and reusing it printed empty lines and lost one.
                 campi = NF; stato = $(campi - 1); nota = $campi
                 $larga = nota
                 $(larga - 1) = stato
@@ -210,10 +210,9 @@ merge)
     ;;
 
 probe)
-    # Cosa concede davvero ogni coda, misurato invece che dedotto: si
-    # sottomettono job minuscoli e si guarda quale viene accettato. Quelli che
-    # passano vengono cancellati subito -- non devono girare, solo essere
-    # accettati.
+    # What each queue really grants, measured instead of deduced: tiny jobs are
+    # submitted and one looks at which is accepted. Those that pass are
+    # cancelled immediately -- they must not run, only be accepted.
     command -v qsub > /dev/null || { echo "no qsub here" >&2; exit 1; }
     for queue in ${QUEUES:-scalability cpu}; do
         echo "queue $queue"
@@ -250,9 +249,8 @@ probe)
     ;;
 
 status)
-    # La larghezza buona e' quella di lib.sh: un CSV cominciato prima che g_ms
-    # esistesse ha anche l'intestazione vecchia, quindi confrontarlo con se
-    # stesso non direbbe niente.
+    # The good width is that of lib.sh: a CSV started before g_ms existed also
+    # has the old header, so comparing it with itself would say nothing.
     attesa=$(sed -n "s/^STUDY_HEADER='//p" "$root/scripts/study/lib.sh" \
         | head -1 | awk -F, '{print NF}')
     printf '  %-18s %8s %8s %8s   %s\n' phase cases ok failed updated
@@ -262,14 +260,13 @@ status)
             printf '  %-18s %8s\n' "$phase" "-"
             continue
         fi
-        # Lo stato e' sempre il penultimo campo e la nota l'ultimo, in questo
-        # formato come in quello prima di g_ms: le note hanno le virgole
-        # gia' sostituite, quindi contare da destra regge anche su un file
-        # che mescola le due larghezze. Un indice scritto a mano no: era $32,
-        # g_ms l'ha spostato a $33, e per una notte lo studio ha dichiarato
-        # fallito tutto quanto.
-        # Ogni caso conta con la sua ultima riga: uno ritentato con
-        # RETRY_FAILED=1 ne ha due, e quella fallita non conta piu'.
+        # The status is always the second-to-last field and the note the last,
+        # in this format as in the one before g_ms: the notes already have the
+        # commas replaced, so counting from the right holds even on a file that
+        # mixes the two widths. An index written by hand does not: it was $32,
+        # g_ms moved it to $33, and for one night the study declared everything
+        # failed. Every case counts with its last row: one retried with
+        # RETRY_FAILED=1 has two, and the failed one no longer counts.
         read -r total ok bad vecchie < <(awk -F, -v larga="$attesa" '
             NR == 1 { next }
             {

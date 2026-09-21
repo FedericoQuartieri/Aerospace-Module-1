@@ -66,9 +66,9 @@ int main(void)
     Decomp padded;
 
     /*
-     * Questo controllo confronta due disposizioni in memoria dentro un solo
-     * processo: con piu' processi non avrebbe senso, e la griglia 1x1x1 che
-     * chiede non sarebbe nemmeno costruibile.
+     * This check compares two memory layouts inside a single process: with
+     * several processes it would make no sense, and the 1x1x1 grid it asks for
+     * could not even be built.
      */
     if (par_size() > 1) {
         if (par_rank() == 0) {

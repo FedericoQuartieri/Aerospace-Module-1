@@ -39,9 +39,9 @@ int main(int argc, char **argv) {
     }
 
     /*
-     * La configurazione va letta prima di decomp_init_mpi, che e' il primo a
-     * chiedere quanto e' grande la griglia.  La leggono tutti i processi: e' un
-     * file di poche righe, e cosi' nessuno deve spedire i parametri agli altri.
+     * The configuration must be read before decomp_init_mpi, which is the
+     * first to ask how large the grid is. Every process reads it: it is a file
+     * of a few lines, so nobody has to send the parameters to the others.
      */
     if (config_path != NULL) {
         params_load(config_path);
@@ -52,7 +52,7 @@ int main(int argc, char **argv) {
     SolverStats solver_stats = {0};
     Decomp decomp;
 
-    /* Tutti zero: la forma della griglia di processi la sceglie MPI. */
+    /* All zeros: MPI chooses the shape of the process grid. */
     const int process_grid[3] = {0, 0, 0};
     par_topology_init(process_grid);
     decomp_init_mpi(&decomp);

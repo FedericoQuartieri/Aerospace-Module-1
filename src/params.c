@@ -6,16 +6,16 @@
 #include <string.h>
 
 /*
- * Le stesse formule di prima, quando erano macro: la spaziatura da lunghezza e
- * numero di punti, gli inversi presi una volta per non dividere nei cicli, e il
- * passo temporale da durata e numero di passi.
+ * The same formulas as before, when they were macros: the spacing from length
+ * and number of points, the inverses taken once to avoid dividing in the
+ * loops, and the time step from duration and number of steps.
  */
 #define SPACING(length, points) ((2 * (length)) / (Real)(2 * (points) - 1))
 
 /*
- * I default valgono per un programma che non legge nessun file, quindi devono
- * comprendere anche i derivati: qui sono espressioni costanti, le calcola il
- * compilatore.
+ * The defaults hold for a program that reads no file, so they must include the
+ * derived values too: here they are constant expressions, computed by the
+ * compiler.
  */
 SimParams sim = {
     .width = DEFAULT_WIDTH,
@@ -45,7 +45,9 @@ SimParams sim = {
     .dt = (Real)DEFAULT_T / (Real)DEFAULT_STEPS,
 };
 
-/* Dove mettere il valore di ogni chiave, e se e' un intero o un reale. */
+/*
+ * Where to put the value of each key, and whether it is an integer or a real.
+ */
 static const struct {
     const char *name;
     int is_integer;
@@ -80,7 +82,10 @@ static void params_derive(void) {
     sim.dt = (Real)sim.t_end / (Real)sim.steps;
 }
 
-/* Un valore fuori dai valori ammessi si vede subito, non dieci passi dopo. */
+/*
+ * A value outside the allowed values shows up immediately, not ten steps
+ * later.
+ */
 static void params_check(const char *path) {
     if (sim.width < 2 || sim.height < 2 || sim.depth < 2) {
         fprintf(stderr, "%s: the grid needs at least 2 points per direction\n",
@@ -121,7 +126,7 @@ void params_load(const char *path) {
 
         number++;
 
-        /* Riga vuota o commento. */
+        /* Blank line or comment. */
         char first = 0;
         if (sscanf(line, " %c", &first) != 1 || first == '#') {
             continue;

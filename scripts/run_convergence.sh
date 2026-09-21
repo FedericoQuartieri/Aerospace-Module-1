@@ -8,18 +8,19 @@ raw_file="$build_dir/.raw.csv"
 results_file="$build_dir/results.csv"
 executable="$build_dir/paper_man"
 build_log="$build_dir/build.log"
-# Il solutore non e' piu' il glob piatto src/*.c: il backend tridiagonale sta
-# in src/tridiag/$(TRIDIAG)/ e i flag li conosce solo il Makefile. Da qui si
-# passano soltanto le sue variabili, come fa scripts/study/lib.sh.
+# The solver is no longer the flat glob src/*.c: the tridiagonal backend lives
+# in src/tridiag/$(TRIDIAG)/ and the flags are known only to the Makefile. From
+# here only its variables are passed, as scripts/study/lib.sh does.
 #
-# TRIDIAG, SIMD e OMP arrivano dall'ambiente con i default del Makefile.
-# Servono sul cluster, dove senza SIMD e senza thread la griglia 256^3 dello
-# studio temporale non finirebbe dentro nessun walltime ragionevole:
+# TRIDIAG, SIMD and OMP come from the environment with the defaults of the
+# Makefile. They are needed on the cluster, where without SIMD and without
+# threads the 256^3 grid of the temporal study would not finish within any
+# reasonable walltime:
 #
 #   SIMD=1 OMP=1 ./scripts/run_convergence.sh
 #   TRIDIAG=pipeline ./scripts/run_convergence.sh
 #
-# EXTRA_CFLAGS e EXTRA_CPPFLAGS passano al Makefile come sono.
+# EXTRA_CFLAGS and EXTRA_CPPFLAGS are passed to the Makefile as they are.
 tridiag="${TRIDIAG:-schur}"
 simd="${SIMD:-0}"
 omp="${OMP:-0}"
@@ -63,8 +64,8 @@ run_case()
     printf 'Running %-8s N=%-3s DT=%-8s STEPS=%-3s\n' \
         "$study" "$grid" "$dt" "$steps"
 
-    # La griglia e' una costante di compilazione: i test non leggono nessun
-    # file di configurazione.
+    # The grid is a compile-time constant: the tests read no configuration
+    # file.
     if ! make -s -B --no-print-directory -C "$root" \
             TRIDIAG="$tridiag" SIMD="$simd" OMP="$omp" MPI=0 \
             EXTRA_CFLAGS="$extra_cflags" \

@@ -113,8 +113,8 @@ int main(int argc, char **argv)
     Decomp decomp;
     const int write_enabled = 0;
 
-    /* Tutti zero: la forma della griglia di processi la sceglie MPI.
-       Tre numeri sulla riga di comando la impongono. */
+    /* All zeros: MPI chooses the shape of the process grid. Three numbers on
+       the command line impose it. */
     int process_grid[3] = {0, 0, 0};
     if (argc == 4) {
         for (int c = 0; c < 3; c++) {

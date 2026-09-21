@@ -5,53 +5,55 @@
 #PBS -l walltime=00:30:00
 #PBS -j oe
 #
-# Fase 11 -- un thread per rank, e OGNI forma della griglia di processi.
+# Phase 11 -- one thread per rank, and EVERY shape of the process grid.
 #
-# La 03 misura i rank crescenti con una forma sola per numero, scelta a mano;
-# la 04 confronta qualche forma. Questa le prende tutte: per ogni numero di
-# rank, tutte le terne (px, py, pz) con prodotto quel numero. Sono 80 forme in
-# tutto fra 1 e 56 rank.
+# Phase 03 measures increasing ranks with a single shape per number, chosen by
+# hand; phase 04 compares a few shapes. This one takes them all: for each
+# number of ranks, all the triples (px, py, pz) whose product is that number.
+# There are 80 shapes in all between 1 and 56 ranks.
 #
-# Le permutazioni non sono doppioni, ed e' il punto della fase. I tre assi non
-# sono intercambiabili:
+# The permutations are not duplicates, and that is the point of the phase. The
+# three axes are not interchangeable:
 #
-#   x  e' la direzione contigua in memoria. Schur, quando la divide, perde i
-#      kernel a linea intera lungo le altre due? no: perde quelli lungo x, che
-#      non ha, e paga tre risoluzioni locali invece di una. La pipeline ci
-#      mette le linee NON adiacenti, quindi lungo x non vettorizza mai.
-#   y, z  sono le direzioni dove i kernel vettoriali lavorano, e dividerle
-#      significa perderli -- per Schur. Per la pipeline no: il suo kernel
-#      lavora attraverso le linee e sopravvive alla divisione.
+#   x  is the direction contiguous in memory. Schur, when it divides it, loses
+#      the whole-line kernels along the other two? no: it loses those along x,
+#      which it does not have, and pays three local solves instead of one. The
+#      pipeline puts the NON-adjacent lines there, so along x it never
+#      vectorises.
+#   y, z  are the directions where the vector kernels work, and dividing them
+#      means losing them -- for Schur. Not for the pipeline: its kernel
+#      works across the lines and survives the division.
 #
-# Quindi la stessa quantita' di processi, disposta in modo diverso, dovrebbe
-# dare tempi diversi, e diversi in modo OPPOSTO per i due backend. Se non
-# succede, l'effetto e' sotto al rumore della banda di memoria e va detto.
+# So the same number of processes, arranged differently, should give different
+# times, and different in the OPPOSITE way for the two backends. If it does not
+# happen, the effect is below the noise of the memory bandwidth and this must
+# be said.
 #
 # ----------------------------------------------------------------------------
-# Perche' la griglia cubica da sola non basta
+# Why the cubic grid alone is not enough
 # ----------------------------------------------------------------------------
 #
-# Su una griglia globale cubica, la forma (1, 1, 56) non da' soltanto "z
-# diviso": da' anche un blocco locale di 224 x 224 x 4, cioe' una lamina. Il
-# tempo che ne esce mescola due cose -- quale asse e' tagliato e che forma ha
-# preso il blocco -- e dal numero non si possono separare.
+# On a cubic global grid, the shape (1, 1, 56) does not give just "z divided":
+# it also gives a local block of 224 x 224 x 4, that is a slab. The time that
+# comes out mixes two things -- which axis is cut and what shape the block has
+# taken -- and from the number they cannot be separated.
 #
-# Per questo la fase misura la stessa domanda in tre modi, e sono tre blocchi
-# diversi qui sotto:
+# For this reason the phase measures the same question in three ways, and they
+# are three different blocks below:
 #
-#   1. griglia globale cubica    com'e' in produzione. E' il caso reale, e i
-#                                due effetti restano insieme.
-#   2. blocco locale cubico      la griglia globale segue la forma: con B = 96
-#                                e forma (p, q, r) il globale e' 96p x 96q x
-#                                96r. Ogni forma ha allora lo STESSO blocco
-#                                locale e lo STESSO lavoro per processo, e
-#                                l'unica cosa che cambia e' quale asse porta i
-#                                tagli. E' qui che l'effetto dell'asse si legge
-#                                da solo.
-#   3. forma del blocco          forma dei processi fissa, griglia globale
-#                                stirata: stesso numero di celle per processo,
-#                                blocco locale lungo o piatto. E' l'altra meta'
-#                                di cio' che il caso 1 teneva insieme.
+#   1. cubic global grid      as in production. It is the real case, and the
+#                             two effects stay together.
+#   2. cubic local block      the global grid follows the shape: with B = 96
+#                             and shape (p, q, r) the global one is 96p x 96q x
+#                             96r. Every shape then has the SAME local block
+#                             and the SAME work per process, and the only thing
+#                             that changes is which axis carries the cuts. It
+#                             is here that the effect of the axis can be read
+#                             on its own.
+#   3. shape of the block     fixed process shape, stretched global grid: same
+#                             number of cells per process, long or flat local
+#                             block. It is the other half of what case 1 kept
+#                             together.
 #
 #   qsub scripts/study/11_matrix_mpi.sh
 #   RANKS="8 56" qsub scripts/study/11_matrix_mpi.sh
@@ -70,22 +72,23 @@ STUDY_CHAIN_MAX="$MATRIX_CHAIN_MAX"
 study_begin 11_matrix_mpi
 study_machine
 
-# La taglia dove si prova tutto, forme per entrambi i SIMD.
+# The size where everything is tried, shapes for both SIMD settings.
 FULL_GRID="${FULL_GRID:-224}"
-# Le taglie dove si provano tutte le forme ma solo con SIMD acceso: servono a
-# vedere se la classifica delle forme dipende dalla taglia.
+# The sizes where all the shapes are tried but only with SIMD on: they serve to
+# see whether the ranking of the shapes depends on the size.
 PLAIN_GRIDS="${PLAIN_GRIDS:-128}"
 RANKS="${RANKS:-$MATRIX_RANKS}"
-# Blocco 2: il lato del blocco locale, che resta lo stesso per ogni forma.
+# Block 2: the side of the local block, which stays the same for every shape.
 BLOCK="${BLOCK:-96}"
-# Blocco 3: blocchi locali di uguale volume e forma diversa, a forma dei
-# processi fissa. 2 097 152 celle per processo in tutte le righe.
+# Block 3: local blocks of equal volume and different shape, at fixed process
+# shape. 2 097 152 cells per process in all the rows.
 ASPETTI="${ASPETTI:-128 128 128|256 128 64|64 128 256|512 64 64|64 512 64|64 64 512}"
 ASPETTO_RANKS="${ASPETTO_RANKS:-8}"
 
 CASE_THREADS=1
-# Senza OpenMP: qui i thread non c'entrano, e la build a thread costa circa
-# l'1% anche a un thread solo. Le righe ponte in fondo ricuciono con la 12.
+# Without OpenMP: here the threads do not matter, and the threaded build costs
+# about 1% even with a single thread. The bridge rows at the bottom stitch it
+# back to phase 12.
 CASE_OMP=0
 CASE_MPI=1
 CASE_REPEATS="${REPEATS:-2}"
@@ -94,8 +97,9 @@ CASE_TIMEOUT="${CASE_TIMEOUT:-900}"
 emit_shapes()
 {
     local n="$1" grid="$2" simd="$3" steps="$4" backend shape
-    # Tutte le forme prima del ciclo: study_case lancia il solver, che legge
-    # stdin e lascerebbe il ciclo senza la lista dopo il primo caso.
+    # All the shapes before the loop: study_case launches the solver, which
+    # reads stdin and would leave the loop without the list after the first
+    # case.
     local forme=()
     mapfile -t forme < <(matrix_shapes "$n")
 
@@ -137,21 +141,21 @@ for m in $PLAIN_GRIDS; do
     echo
 done
 
-# --------------------------------------------------------------- blocco 2
+# ---------------------------------------------------------------- block 2
 #
-# Il globale segue la forma, quindi ogni riga ha lo stesso blocco locale e lo
-# stesso lavoro per processo. Se l'asse tagliato non contasse, queste righe
-# darebbero tutte lo stesso tempo: e' un confronto a lavoro costante, non a
-# problema costante, ed e' l'unico modo di leggere l'asse da solo.
+# The global grid follows the shape, so every row has the same local block and
+# the same work per process. If the axis that is cut did not matter, these rows
+# would all give the same time: it is a comparison at constant work, not at
+# constant problem, and it is the only way to read the axis on its own.
 
 echo "=== local block ${BLOCK}^3 fixed: only the split axis changes ==="
 steps="$(matrix_steps "$BLOCK")"
-# Qui il riferimento giusto e' il BLOCCO LOCALE, non la griglia globale.
-# Queste righe tengono costante il lavoro per processo, quindi la domanda e'
-# "quanto costa a un processo il suo blocco, rispetto a farlo da solo": il
-# denominatore e' un seriale su ${BLOCK}^3.  Un seriale sul globale -- che
-# arriva a 96x96x5376 -- risponderebbe a una domanda che nessuno pone, e
-# costerebbe 6-8 GB e minuti a caso.
+# Here the right reference is the LOCAL BLOCK, not the global grid. These rows
+# keep the work per process constant, so the question is "how much does a
+# process pay for its block, compared with doing it alone": the denominator is
+# a serial run on ${BLOCK}^3.  A serial run on the global grid -- which reaches
+# 96x96x5376 -- would answer a question nobody asks, and would cost 6-8 GB and
+# minutes at random.
 for backend in $MATRIX_BACKENDS; do
     study_baseline label="cubo $backend blocco ${BLOCK}^3" \
         backend="$backend" simd=1 grid="$BLOCK $BLOCK $BLOCK" \
@@ -173,12 +177,12 @@ for backend in $MATRIX_BACKENDS; do
 done
 echo
 
-# --------------------------------------------------------------- blocco 3
+# ---------------------------------------------------------------- block 3
 #
-# L'altra meta': forma dei processi fissa, blocco locale di uguale volume e
-# proporzioni diverse. Qui l'asse tagliato non cambia mai, cambia solo se il
-# blocco e' un cubo, una barra o una lamina -- e su uno stencil quella forma
-# decide quante linee di cache si riusano.
+# The other half: fixed process shape, local block of equal volume and
+# different proportions. Here the axis that is cut never changes, only whether
+# the block is a cube, a bar or a slab changes -- and on a stencil that shape
+# decides how many cache lines are reused.
 
 echo "=== same volume per process, local block of a different shape ==="
 IFS='|' read -r -a aspetti <<< "$ASPETTI"
@@ -190,8 +194,8 @@ for n in $ASPETTO_RANKS; do
         read -r bx by bz <<< "$entry"
         for backend in $MATRIX_BACKENDS; do
             for simd in $MATRIX_SIMD; do
-                # Stesso ragionamento del blocco 2: il denominatore e' quella
-                # stessa forma di blocco fatta da un processo solo.
+                # Same reasoning as block 2: the denominator is that same block
+                # shape done by a single process.
                 study_baseline label="aspetto $backend ${bx}x${by}x${bz} s$simd" \
                     backend="$backend" simd="$simd" \
                     grid="$bx $by $bz" steps="$(matrix_steps "$bx")" \
@@ -207,7 +211,8 @@ for n in $ASPETTO_RANKS; do
 done
 echo
 
-# Righe ponte verso la 12: stessa cosa, build con OpenMP e un thread solo.
+# Bridge rows to phase 12: the same thing, build with OpenMP and a single
+# thread.
 echo "=== bridge rows: OpenMP build on one thread ==="
 for backend in $MATRIX_BACKENDS; do
     for n in 1 8 56; do
@@ -226,8 +231,9 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     awk -F, -v phase=11_matrix_mpi '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" { next }
     $2 ~ /ponte|^cubo |^aspetto / { next }
-    # I riferimenti non sono forme: escluderli o comparirebbero come la
-    # "forma migliore" di ogni riga, essendo a un processo solo.
+    # The references are not shapes: they must be excluded, or they would
+    # appear as the best shape of every row, since they run on a single
+    # process.
     $2 ~ / (seriale|T\(1\))$/ { next }
     {
         k = $3 "," $5 "," $10 "," $8
@@ -263,7 +269,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
     awk -F, -v phase=11_matrix_mpi '
     NR == 1 || $1 != phase || $(NF - 1) != "ok" || $2 !~ /^cubo / { next }
     {
-        # Taglio puro: tutti i processi su un asse solo.
+        # Pure cut: all the processes on a single axis.
         asse = ""
         if ($15 == 1 && $16 == 1) asse = "x"
         else if ($14 == 1 && $16 == 1) asse = "y"

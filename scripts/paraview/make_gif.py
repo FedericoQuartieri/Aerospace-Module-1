@@ -1,8 +1,8 @@
-# Rende una serie di .pvti in una GIF.
+# Renders a series of .pvti files into a GIF.
 #
-#   pvpython scripts/paraview/make_gif.py <cartella> <uscita.gif> [campo] [slice|volume]
+#   pvpython scripts/paraview/make_gif.py <folder> <output.gif> [field] [slice|volume]
 #
-# esempio:
+# example:
 #   pvpython scripts/paraview/make_gif.py data/output/moving_sphere \
 #            data/results/moving_sphere.gif velocity slice
 from paraview.simple import *
@@ -25,7 +25,7 @@ times = reader.TimestepValues
 view = CreateRenderView()
 view.UseColorPaletteForBackground = 0
 view.Background = [1.0, 1.0, 1.0]
-view.OrientationAxesVisibility = 0      # via la terna XYZ in basso a sinistra
+view.OrientationAxesVisibility = 0      # hide the XYZ triad, bottom left
 view.CameraParallelProjection = 1
 
 if mode == "slice":
@@ -37,27 +37,27 @@ if mode == "slice":
 else:
     src = reader
 
-# La finestra prende le proporzioni dei dati, altrimenti un dominio cubico
-# viene tagliato sopra e sotto e un canale lascia margini vuoti ai lati.
+# The window takes the proportions of the data, otherwise a cubic domain is cut
+# off above and below and a channel leaves empty margins at the sides.
 bb = reader.GetDataInformation().GetBounds()
 span_x, span_y = bb[1]-bb[0], bb[3]-bb[2]
 aspect = (span_x / span_y) if span_y > 0 else 1.0
 h = 780
-view.ViewSize = [int(h * aspect) + 300, h]     # +300 per la barra dei colori
+view.ViewSize = [int(h * aspect) + 300, h]     # +300 for the colour bar
 
 disp = Show(src, view)
 disp.SetRepresentationType('Surface')
 ColorBy(disp, ('POINTS', field, 'Magnitude') if field == 'velocity'
               else ('POINTS', field))
-HideInteractiveWidgets(proxy=src)          # via il cerchio/piano interattivo
+HideInteractiveWidgets(proxy=src)          # remove the interactive circle/plane
 
-# la scala di colori si tara sull'ultimo istante: il primo puo' essere nullo
+# the colour scale is calibrated on the last instant: the first may be null
 view.ViewTime = times[-1]
 Render()
 
-# Intervallo dei colori calcolato esplicitamente sull'ultimo istante.
-# Le RescaleTransferFunctionToDataRange davano un intervallo degenere
-# (0 .. 1e-38) sui campi che partono nulli, saturando tutto.
+# Colour range computed explicitly on the last instant. The
+# RescaleTransferFunctionToDataRange calls gave a degenerate range (0 .. 1e-38)
+# on the fields that start null, saturating everything.
 src.UpdatePipeline(times[-1])
 info = src.GetPointDataInformation().GetArray(field)
 lo, hi = info.GetComponentRange(-1 if info.GetNumberOfComponents() > 1 else 0)

@@ -11,8 +11,8 @@
 #include "utils.h"
 
 /*
- * Valori di partenza.  Restano scegliibili a compilazione, e ora sono i default
- * di `sim`, che un file di configurazione puo' sovrascrivere all'avvio:
+ * Starting values. They remain selectable at compile time, and now they are
+ * the defaults of `sim`, which a configuration file can override at start-up:
  *
  *   cc ... -DDEFAULT_WIDTH=32 -DDEFAULT_T=1.0 -DDEFAULT_STEPS=100
  *   ./solver config.txt
@@ -60,11 +60,11 @@
 #endif
 
 /*
- * I nomi con cui il solutore legge i parametri.  Erano costanti di
- * compilazione, ora sono i campi di `sim`: i punti d'uso non cambiano, il
- * valore arriva da params.h.  Le spaziature e i loro inversi sono campi e non
- * espressioni, cosi' la divisione resta fatta una volta all'avvio e non dentro
- * i cicli.
+ * The names with which the solver reads the parameters. They used to be
+ * compile-time constants, now they are the fields of `sim`: the points of use
+ * do not change, the value comes from params.h. The spacings and their
+ * inverses are fields and not expressions, so the division is done once at
+ * start-up and not inside the loops.
  */
 #define WIDTH  (sim.width)
 #define HEIGHT (sim.height)
@@ -102,20 +102,20 @@ typedef struct SolverMemState {
     ScalarField pressure;
     ScalarField pressure_star;
     /*
-     * Lo scratch del backend tridiagonale, opaco per tutto il resto.
+     * The scratch of the tridiagonal backend, opaque to everything else.
      *
-     * I due backend hanno bisogno di cose diverse e incompatibili -- Schur dei
-     * buffer SIMD e delle tre matrici della pressione gia' fattorizzate, il
-     * pipelined Thomas dei suoi c' e d' su tutto il blocco -- e nessuno dei due
-     * tipi deve arrivare fin qui.  Lo alloca backend_init, lo libera
-     * backend_free, e in mezzo lo tocca solo chi sa cos'e'.
+     * The two backends need different and incompatible things -- Schur the
+     * SIMD buffers and the three already-factorised pressure matrices, the
+     * pipelined Thomas its c' and d' over the whole block -- and neither type
+     * must get all the way here. backend_init allocates it, backend_free frees
+     * it, and in between only whoever knows what it is touches it.
      */
     void *backend;
 } SolverMemState;
 
 extern const Data paper_data;
 
-/* Cerca uno scenario per nome; NULL se non esiste. */
+/* Looks up a scenario by name; NULL if it does not exist. */
 const Data *data_by_name(const char *name);
 void data_print_names(FILE *stream);
 
